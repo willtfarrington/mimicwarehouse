@@ -1,0 +1,16 @@
+# =============================================================================
+# Source data (PhysioNet / MIMIC-IV) — NEVER commit
+# =============================================================================
+# Everything under "source material/" is presumed to be restricted-access
+# health data distributed under the PhysioNet Credentialed Health Data License
+# 1.5.0, which forbids redistribution, and is in any case far too large for git
+# (~98 GB decompressed as of Aug 2026). Only markdown documentation is tracked
+# from that directory; see "source material/README.md" for what lives there
+# locally and how to obtain it.
+#
+# Currently present locally (all excluded by the rule below):
+#   source material/mimic-iv-3.1/
+#   source material/mimic-iv-ed-2.2/
+#   source material/mimic-iv-note-deidentified-free-text-clinical-notes-2.2/
+source material/*
+!source material/*.md
