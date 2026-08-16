@@ -1,0 +1,49 @@
+# Line endings: normalise to LF in the repo so recorded hashes of YAML/SQL/text
+# artifacts do not depend on Windows checkout settings (see GOVERNANCE.md).
+* text=auto eol=lf
+
+# Text we care about explicitly
+*.md   text eol=lf
+*.py   text eol=lf
+*.sql  text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.txt  text eol=lf
+*.cff  text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.svg  text eol=lf
+
+# Windows-native scripts keep CRLF
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Data-shaped and binary files: never normalise, never diff (they should not be
+# committed at all outside synthetic fixtures — .gitignore + mwh guard enforce that)
+*.csv     binary
+*.csv.gz  binary
+*.parquet binary
+*.duckdb  binary
+*.wal     binary
+*.feather binary
+*.arrow   binary
+*.pkl     binary
+*.joblib  binary
+*.skops   binary
+*.pt      binary
+*.safetensors binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.pdf     binary
+*.zip     binary
+*.gz      binary
+*.woff    binary
+*.woff2   binary
+*.ttf     binary

@@ -65,9 +65,20 @@ Access is gated. As of the current PhysioNet policy, each dataset requires:
 Once approved, download from each project page above (the pages offer a
 `wget` command and a zip download). PhysioNet ships the tables as gzipped CSV
 (`*.csv.gz`); the local copies here have been **decompressed in place to plain
-`*.csv`**, so loaders in this repo should expect uncompressed CSV. Each dataset
-ships a `SHA256SUMS.txt` — verify your download against it *before*
-decompressing.
+`*.csv`**, so loaders in this repo should expect uncompressed CSV (the loader
+also accepts `*.csv.gz`). Each dataset ships a `SHA256SUMS.txt` — verify your
+download against it *before* decompressing.
+
+> **Provenance note (2026-08-16).** `SHA256SUMS.txt` lists only the `.csv.gz`
+> archives, and the archives were deleted after decompression, so the plain CSVs
+> here **cannot be re-verified against PhysioNet's checksums**. The warehouse
+> therefore treats a locally computed manifest — SHA-256, byte size and row count
+> of every plain CSV, reconciled against the row counts published in mimic-code's
+> `validate.sql` — as the raw snapshot id (roadmap EP-10; decision D-26 in
+> `../mimicwarehouse/DECISIONS.md`). Re-downloading the `.csv.gz` archives to
+> restore checksum-verifiable raw is an optional extension item. The CSVs stay
+> untouched (D-30); everything derived from them lives outside this repository
+> in `C:\mimicdata` (`MWH_DATA_ROOT`) — see `../mimicwarehouse/GOVERNANCE.md`.
 
 The official schema documentation lives at <https://mimic.mit.edu/docs/iv/>.
 

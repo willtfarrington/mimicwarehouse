@@ -14,3 +14,79 @@
 #   source material/mimic-iv-note-deidentified-free-text-clinical-notes-2.2/
 source material/*
 !source material/*.md
+
+# =============================================================================
+# Derived data, ledgers, models — NEVER commit (live in MWH_DATA_ROOT, default
+# C:\mimicdata, but guard the repo tree too). Synthetic test fixtures are the
+# only data-shaped files allowed, and only under mimicwarehouse/tests/fixtures/.
+# =============================================================================
+*.csv
+*.csv.gz
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.wal
+*.jsonl
+*.feather
+*.arrow
+*.pkl
+*.joblib
+*.skops
+*.pt
+*.safetensors
+data/
+lake/
+warehouse/
+runs/
+models/
+notes/
+studies/
+exports/
+mimicdata/
+!mimicwarehouse/tests/fixtures/**
+!mimicwarehouse/tests/fixtures/**/*.csv
+!mimicwarehouse/tests/fixtures/**/*.parquet
+
+# =============================================================================
+# Python / uv / tooling
+# =============================================================================
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.coverage
+htmlcov/
+build/
+dist/
+uv-cache/
+.uv/
+__marimo__/
+.ipynb_checkpoints/
+*.ipynb
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
+*.log
+tmp/
+.tmp/
+
+# =============================================================================
+# Claude Code: the repo-shared .claude/settings.json IS tracked (deny rules,
+# GOVERNANCE §4); personal overrides are not.
+# =============================================================================
+.claude/settings.local.json
+
+# =============================================================================
+# Editors / OS
+# =============================================================================
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
