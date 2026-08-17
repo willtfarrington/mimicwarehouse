@@ -2,10 +2,18 @@
 
 Commands live in their own modules and are attached here with **one** ``app.command()`` /
 ``app.add_typer()`` line each, so later briefs extend without restructuring:
-``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3) · ``guard`` (EP-4) ·
-``verify`` (EP-6) · ``build`` (EP-19) · ``demo`` (EP-22) · ``sql`` (EP-30) · ``runs``
-(EP-35) · ``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) · ``disclose``
-(EP-43/133) · ``init`` (EP-158).
+``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3,
+:mod:`mimicwarehouse.config`) · ``guard`` (EP-4) · ``verify`` (EP-6) · ``build`` (EP-19) ·
+``demo`` (EP-22) · ``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup``
+(EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
+
+Settings (EP-3): the callback loads :class:`mimicwarehouse.config.Settings` once per
+invocation — ``--data-root`` > ``MWH_*`` env > ``.env`` > ``mwh.toml`` > defaults — installs
+the override process-wide (:func:`mimicwarehouse.config.configure`, so ``get_settings()``
+agrees with ``ctx.obj``) and hands the instance to the command as ``CliState.settings``.
+Every command gets **validated** settings (an unsafe data root exits 2 before the command
+runs) except the diagnostic commands in :data:`DIAGNOSTIC_COMMANDS`, which receive the
+unchecked instance so they can *report* the problem.
 
 Import-time budget: ``mwh --help`` must stay under ~0.5 s, so this module never imports
 duckdb / pandas / polars / pyarrow — commands import what they need inside their bodies.
@@ -13,19 +21,20 @@ duckdb / pandas / polars / pyarrow — commands import what they need inside the
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
-from mimicwarehouse import __version__
+from mimicwarehouse import __version__, config
+from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.doctor import doctor_command
 
-#: Until EP-3's ``Settings`` lands, the data root is ``--data-root`` > ``MWH_DATA_ROOT`` > this.
-DEFAULT_DATA_ROOT = Path(r"C:\mimicdata")
+#: Commands that must run even when the data root is unsafe (they report it, exit codes tell).
+DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset({"doctor", "paths"})
 
 console = Console()
 
@@ -43,15 +52,12 @@ app = typer.Typer(
 class CliState:
     """Per-invocation state handed to commands through ``ctx.obj``."""
 
-    data_root: Path
+    settings: Settings
+    data_root_override: Path | None = None
 
-
-def resolve_data_root(override: Path | None = None) -> Path:
-    """``--data-root`` for one invocation, else ``MWH_DATA_ROOT``, else the default root."""
-    if override is not None:
-        return Path(override)
-    env = os.environ.get("MWH_DATA_ROOT", "").strip()
-    return Path(env) if env else DEFAULT_DATA_ROOT
+    @property
+    def data_root(self) -> Path:
+        return self.settings.data_root
 
 
 def _version_callback(value: bool) -> None:
@@ -76,16 +82,28 @@ def main(
         Path | None,
         typer.Option(
             "--data-root",
-            help="Data root for this invocation (overrides MWH_DATA_ROOT; default C:\\mimicdata).",
+            help="Data root for this invocation (overrides MWH_DATA_ROOT / .env / mwh.toml; "
+            "default C:\\mimicdata).",
             show_default=False,
         ),
     ] = None,
 ) -> None:
-    ctx.obj = CliState(data_root=resolve_data_root(data_root))
+    overrides = {"data_root": data_root} if data_root is not None else {}
+    config.configure(**overrides)
+    checked = ctx.invoked_subcommand not in DIAGNOSTIC_COMMANDS
+    try:
+        settings = (
+            config.get_settings() if checked else config.load_settings(checked=False, **overrides)
+        )
+    except (config.ConfigError, config.ValidationError) as exc:
+        console.print(f"[bold red]mwh:[/] {escape(str(exc))}", highlight=False)
+        raise typer.Exit(code=2) from None
+    ctx.obj = CliState(settings=settings, data_root_override=data_root)
 
 
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
 app.command("doctor")(doctor_command)
+app.command("paths")(paths_command)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -4,6 +4,10 @@ Every subprocess-backed probe (uv, git, nvidia-smi, PowerShell/BitLocker) and th
 registry read are mocked, so this module passes on any host and never shells out; the
 ``mocked_probes`` fixture makes an unmocked ``subprocess.run`` an immediate failure.
 Only synthetic values appear here — no data, no identifiers.
+
+EP-3 upgraded the doctor (settings-driven, 13 checks, ``data_root`` *fails* on an unsafe
+location, ``powercfg`` / ``Get-MpPreference`` probes) and replaced ``resolve_data_root`` with
+``mimicwarehouse.config.Settings``; the assertions below were updated accordingly.
 """
 
 from __future__ import annotations
@@ -13,14 +17,15 @@ import shutil
 import subprocess
 import sys
 from collections import namedtuple
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 import mimicwarehouse
-from mimicwarehouse import doctor
-from mimicwarehouse.cli import DEFAULT_DATA_ROOT, app, resolve_data_root
+from mimicwarehouse import config, doctor
+from mimicwarehouse.cli import app
 
 pytestmark = pytest.mark.ep_2
 
@@ -28,6 +33,9 @@ runner = CliRunner()
 
 DiskUsage = namedtuple("DiskUsage", "total used free")
 FAKE_GPU_LINE = "Synthetic GPU 0, 8192 MiB, 999.99"
+FIXED_NTFS = config.DriveInfo(
+    letter="C", drive_type="DRIVE_FIXED", label="Windows", filesystem="NTFS"
+)
 
 
 def _fake_disk_usage(free_gb: float, total_gb: float = 950.0):
@@ -47,10 +55,14 @@ def _fake_run_factory(*, missing: frozenset[str] = frozenset(), bitlocker: str =
         if tool in missing:
             raise FileNotFoundError(argv[0])
         assert kwargs.get("timeout") == doctor.SUBPROCESS_TIMEOUT_S, "probes need a 10 s timeout"
+        if tool == "powershell" and "Get-MpPreference" in argv[-1]:  # EP-3 defender probe
+            tool = "get-mppreference"
         out = {
             "uv": "uv 0.0.0-test\n",
             "nvidia-smi": FAKE_GPU_LINE + "\n",
             "powershell": bitlocker + "\n",
+            "get-mppreference": "N/A: Must be an administrator to view exclusions\n",
+            "powercfg": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)\n",
             "git": "true\n",
         }
         assert tool in out, f"unexpected subprocess in doctor tests: {argv!r}"
@@ -60,19 +72,31 @@ def _fake_run_factory(*, missing: frozenset[str] = frozenset(), bitlocker: str =
 
 
 @pytest.fixture
-def mocked_probes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+def mocked_probes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Path]:
     """Healthy host: every probe mocked, data root = a writable tmp dir on the repo drive."""
     monkeypatch.setattr(doctor, "IS_WINDOWS", True)
     monkeypatch.setattr(doctor.subprocess, "run", _fake_run_factory())
-    monkeypatch.setattr(doctor.shutil, "disk_usage", _fake_disk_usage(500.0))
+    monkeypatch.setattr(config.shutil, "disk_usage", _fake_disk_usage(500.0))
     monkeypatch.setattr(doctor, "_longpaths_registry", lambda: 1)
+    monkeypatch.setattr(doctor, "_power_overlay_registry", lambda: None)
     # keep the drive comparison meaningful on any host: the fake root lives on "C:"
     monkeypatch.setattr(doctor, "_drive_of", lambda p: "C:")
     monkeypatch.setattr(doctor, "_mount_of", lambda p: str(p))
+    # EP-3: location-safety probes mocked to a healthy fixed NTFS volume; settings files are
+    # looked up in an empty temp workspace; MWH_* overrides cleared
+    monkeypatch.setattr(config, "drive_info", lambda p: FIXED_NTFS)
+    monkeypatch.setattr(config, "logical_drives", lambda: ["C"])
+    monkeypatch.setattr(config, "volume_of", lambda p: "VOL")
+    monkeypatch.setattr(config, "onedrive_roots", lambda: [])
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setattr(config, "workspace_root", lambda: workspace)
     monkeypatch.delenv("MWH_DATA_ROOT", raising=False)
+    config.configure()
     data_root = tmp_path / "mimicdata"
     data_root.mkdir()
-    return data_root
+    yield data_root
+    config.configure()
 
 
 def _doctor_json(args: list[str]) -> tuple[int, dict]:
@@ -117,12 +141,17 @@ def test_cli_import_does_not_pull_heavy_libraries() -> None:
     assert proc.stdout.strip() == "[]", proc.stdout
 
 
-def test_resolve_data_root_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.delenv("MWH_DATA_ROOT", raising=False)
-    assert resolve_data_root() == DEFAULT_DATA_ROOT
+def test_data_root_flag_beats_env_beats_default(
+    mocked_probes: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """EP-2's `resolve_data_root` became `config.Settings` in EP-3; the precedence survives."""
+    assert config.load_settings().data_root == config.DEFAULT_DATA_ROOT
     monkeypatch.setenv("MWH_DATA_ROOT", str(tmp_path / "env"))
-    assert resolve_data_root() == tmp_path / "env"
-    assert resolve_data_root(tmp_path / "flag") == tmp_path / "flag"
+    assert config.load_settings().data_root == tmp_path / "env"
+    assert config.load_settings(data_root=tmp_path / "flag").data_root == tmp_path / "flag"
+    _code, report = _doctor_json(["--data-root", str(tmp_path / "flag"), "doctor", "--json"])
+    root = next(c for c in report["checks"] if c["id"] == "data_root")
+    assert root["value"]["path"] == str(tmp_path / "flag")
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +166,17 @@ def test_doctor_json_shape(mocked_probes: Path) -> None:
     assert isinstance(report["ok"], bool) and report["ok"] is True
     ids = [c["id"] for c in report["checks"]]
     assert ids == list(doctor.CHECK_IDS)
-    assert len(ids) == 8
+    assert len(ids) == 13  # EP-2's 8 + settings · temp_dir · cloud_mounts · defender · power_scheme
+    assert {
+        "python",
+        "uv",
+        "duckdb",
+        "disk_free",
+        "data_root",
+        "bitlocker",
+        "gpu",
+        "longpaths",
+    } <= set(ids)
     for check in report["checks"]:
         assert set(check) == {"id", "status", "detail", "value"}
         assert check["status"] in {"pass", "warn", "fail", "info"}
@@ -176,7 +215,7 @@ def test_doctor_report_never_dumps_environment(
 def test_disk_free_50gb_fails_and_exit_code_1(
     mocked_probes: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(doctor.shutil, "disk_usage", _fake_disk_usage(50.0))
+    monkeypatch.setattr(config.shutil, "disk_usage", _fake_disk_usage(50.0))
     code, report = _doctor_json(["--data-root", str(mocked_probes), "doctor", "--json"])
     assert code == 1
     assert report["ok"] is False
@@ -186,11 +225,11 @@ def test_disk_free_50gb_fails_and_exit_code_1(
 
 
 def test_disk_free_thresholds(mocked_probes: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(doctor.shutil, "disk_usage", _fake_disk_usage(120.0))
+    monkeypatch.setattr(config.shutil, "disk_usage", _fake_disk_usage(120.0))
     assert doctor.check_disk_free(mocked_probes, mocked_probes).status == "warn"
-    monkeypatch.setattr(doctor.shutil, "disk_usage", _fake_disk_usage(99.9))
+    monkeypatch.setattr(config.shutil, "disk_usage", _fake_disk_usage(99.9))
     assert doctor.check_disk_free(mocked_probes, mocked_probes).status == "fail"
-    monkeypatch.setattr(doctor.shutil, "disk_usage", _fake_disk_usage(150.0))
+    monkeypatch.setattr(config.shutil, "disk_usage", _fake_disk_usage(150.0))
     assert doctor.check_disk_free(mocked_probes, mocked_probes).status == "pass"
 
 
@@ -262,18 +301,23 @@ def test_bitlocker_probe_via_powershell_stdout(
     assert doctor.check_bitlocker(["C:"]).status == "warn"
 
 
-def test_data_root_missing_and_non_c_drive_warn(
+def test_data_root_missing_warns_and_forbidden_drive_fails(
     mocked_probes: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     missing = doctor.check_data_root(tmp_path / "does-not-exist")
     assert missing.status == "warn" and "mwh paths --create" in missing.detail
 
-    # crafted violation from the brief: `mwh --data-root G:\probe doctor` → warn (non-C: drive)
+    # crafted violation from the EP-2 brief: `mwh --data-root G:\probe doctor` — EP-2 warned
+    # (non-C: drive); EP-3 refuses via the D-29 location check → fail, exit 1
     monkeypatch.setattr(doctor, "_drive_of", lambda p: "G:")
-    _code, report = _doctor_json(["--data-root", r"G:\probe", "doctor", "--json"])
+    monkeypatch.setattr(
+        config, "drive_info", lambda p: config.DriveInfo("G", "DRIVE_FIXED", "", "NTFS")
+    )
+    code, report = _doctor_json(["--data-root", r"G:\probe", "doctor", "--json"])
     root = next(c for c in report["checks"] if c["id"] == "data_root")
-    assert root["status"] == "warn"
-    assert "not C:" in root["detail"]
+    assert code == 1 and report["ok"] is False
+    assert root["status"] == "fail"
+    assert "D-29" in root["detail"] and "forbidden" in root["detail"]
     assert root["value"]["drive"] == "G:"
 
 
@@ -308,5 +352,6 @@ def test_check_result_roundtrips_to_json() -> None:
 
 
 def test_disk_usage_is_called_through_shutil(mocked_probes: Path) -> None:
-    """Sanity: the mocked disk probe is what run_checks consults (guards the monkeypatch seam)."""
-    assert shutil.disk_usage is doctor.shutil.disk_usage
+    """Sanity: the mocked disk probe is what run_checks consults (guards the monkeypatch seam;
+    since EP-3 the doctor asks `config.check_free_space`, which calls `shutil.disk_usage`)."""
+    assert shutil.disk_usage is config.shutil.disk_usage

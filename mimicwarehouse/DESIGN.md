@@ -75,6 +75,38 @@ notes lake + FTS + embeddings 5–15 GB (P10 only) · models ≤ 10 GB · build 
 60–100 GB · uv cache + venv ~15 GB · OS hiberfil/pagefile 25–40 GB. Rule: **never below
 100 GB free**; `mwh doctor` and `mwh build` refuse to start under that.
 
+> **Note (2026-08-17, EP-3).** The data-root tree is fixed by `Settings.layout`
+> (`config.py`; 15 keys, created idempotently by `mwh paths --create`, which also writes a
+> `README.txt` warning never to sync the folder). Owners of each directory in brackets:
+>
+> ```
+> C:\mimicdata\                          MWH_DATA_ROOT (D-29; local fixed NTFS/ReFS only)
+> ├── README.txt                         "managed by mimicwarehouse; never sync"
+> ├── lake\                              lake            Parquet layers (§5)
+> │   ├── core\                          lake_core       typed snapshot of raw (EP-17/18)
+> │   ├── derived\                       lake_derived    concepts, phenotypes, spine (EP-37+/50)
+> │   ├── marts\                         lake_marts      cohorts, features, latency marts (EP-47/55)
+> │   └── manifests\                     lake_manifests  <build_id>.jsonl → snapshot ids (EP-19)
+> ├── warehouse\                         warehouse       {demo,dev,full}.duckdb catalogs (EP-21) — catalog_path(tier)
+> ├── runs\                              runs            ledger.jsonl · audit.jsonl · benchmarks.jsonl · <run_id>\ (EP-30/35)
+> │   └── jobs\                          runs_jobs       background ⏱ job logs + progress files (EP-19+)
+> ├── models\                            models          model registry artefacts (P7)
+> ├── notes\                             notes           segregated notes lake + notes.duckdb (EP-148, owner-only)
+> ├── ext\                               ext             external sources <source>\source.yaml (§19)
+> │   └── demo\                          ext_demo        MIMIC-IV Demo 2.2 + ED Demo (EP-22)
+> ├── studies\                           studies         study workspaces <study_id>\ (§3 marts)
+> └── tmp\                               tmp             scratch
+>     └── duckdb\                        tmp_duckdb      DuckDB temp_directory (§6; MWH_DUCKDB_TEMP_DIR overrides, same volume)
+> ```
+>
+> `Settings` refuses a data root that is not on a local `DRIVE_FIXED` NTFS/ReFS volume, whose
+> volume label matches a sync client (Google Drive, OneDrive, Dropbox, Box, Cryptomator,
+> iCloud), that lies under `%OneDrive%`, or whose drive letter is in `forbidden_drives`
+> (default G:, D:); the temp dir must share the data-root volume; `mwh paths --create` and
+> (from EP-19) `mwh build` additionally require `min_free_gb` (100) free. On this machine
+> the probes see C: = fixed NTFS "Windows", D: = remote cryptoFs "Google Cryptomator",
+> G: = fixed FAT32 "Google Drive" — the last two are refused by label, filesystem and letter.
+
 ## 4. Tiers & sampler spec (D-18, D-27)
 
 | Tier | What | Where | Used for |
@@ -283,6 +315,31 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > `run_checks(data_root)`, `doctor_report()` → the JSON object EP-35 embeds in run
 > manifests, and the `mwh doctor [--json]` command. Later command modules follow the same
 > pattern (`paths` → `config.py` EP-3, `guard.py` EP-4, `verify.py` EP-6).
+
+> **Note (2026-08-17, EP-3).** **`config.py`** landed: `Settings(BaseSettings)` with
+> `MWH_` env · `.env` · `mwh.toml [settings]` · defaults (init kwargs first; `extra="forbid"`;
+> `env_ignore_empty`; both files and any relative path are anchored at the **workspace root**
+> `mimicwarehouse/`, resolved from the package location, so `uv run --project mimicwarehouse mwh …`
+> from the repo root reads the same files) — `layout` (15 keys, §3), `catalog_path(tier)`,
+> `duckdb_settings("build"|"app")` (string values for `duckdb.connect(config=…)`;
+> `preserve_insertion_order=false` only in `build`), `source_of(field)` / `sources()`
+> provenance, `get_settings()` (cached; `configure(**overrides)` installs the CLI
+> `--data-root`; `get_settings.cache_clear()` in tests), `load_settings(checked=False)` for
+> diagnostics. The D-29 refusals run as an `after` model validator
+> (`UnsafeLocationError`, a `RuntimeError` so pydantic propagates it unwrapped) and are
+> callable alone: `drive_info` (ctypes `GetDriveTypeW`/`GetVolumeInformationW`, thread error
+> mode set so an empty card reader never prompts), `location_problem`, `check_local_fixed`,
+> `check_same_volume`, `check_free_space` / `require_free_space` (`DiskGuardError`). **CLI
+> contract:** the `mwh` callback loads settings once per invocation; every command receives
+> *validated* settings (unsafe root → message + exit 2 before the command runs) except the
+> diagnostic commands `doctor` and `paths`, which get the unchecked instance and *report*
+> (`data_root` / `temp_dir` **fail**; `paths` prints the table and exits 2). `paths --create`
+> re-runs the validators + the free-space guard before creating anything. `doctor.py` now has
+> 13 checks (`settings`, `temp_dir`, `cloud_mounts`, `defender`, `power_scheme` added) and
+> takes a `Settings`; `run_checks(settings)` is what EP-35 embeds. `mwh --help` import cost:
+> 0.25 s of module imports (config = 0.12 s, half of it pydantic-settings → asyncio),
+> 0.45 s wall direct / 0.52 s via `uv run` — still inside the ~0.5 s budget; the doctor's
+> `defender` and `bitlocker` PowerShell probes cost ~2 s each at run time.
 
 ## 16. App structure (D-21)
 

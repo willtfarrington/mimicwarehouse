@@ -2,10 +2,12 @@
 
 The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
 package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-17 (EP-1, EP-2) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
-`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — and the
-**`mwh` CLI** (`cli.py`) with its first command, `mwh doctor` (`doctor.py`); no data code
-yet — that arrives with the roadmap briefs from `roadmap/EP-3-config-data-root.md` on.
+files. As of 2026-08-17 (EP-1 … EP-3) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
+`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — the
+**`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`) and `mwh paths`, and the
+**settings + data-root module** (`config.py`: `Settings`, the 15-directory layout, the D-29
+location refusals, the free-space guard); no data code yet — that arrives with the roadmap
+briefs from `roadmap/EP-4-guard-precommit.md` on.
 
 | Doc | What |
 |---|---|
@@ -47,28 +49,42 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (EP-2: `mwh --version`, `mwh doctor`; the rest lands with EP-3 …)
+## Quick start (EP-2/EP-3: `mwh --version`, `mwh doctor`, `mwh paths`; the rest lands with EP-4 …)
 
 ```powershell
 # from the repository root, after "Install" above
 cd mimicwarehouse
 uv sync --group dev                 # CPython 3.13 managed by uv; system Python untouched
 uv run --group dev mwh --version    # mwh 0.1.0
-uv run --group dev mwh doctor       # python · uv · duckdb · disk_free · data_root · bitlocker · gpu · longpaths
-uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[8], ok}
-uv run --group dev mwh --data-root D:\somewhere doctor    # one-off override of MWH_DATA_ROOT
-copy .env.example .env              # (EP-3) MWH_DATA_ROOT=C:\mimicdata etc.
-uv run mwh paths                    # (EP-3) shows the data-root layout it will create
+copy .env.example .env              # optional: every MWH_* key with its default, commented; .env is gitignored
+uv run --group dev mwh doctor       # 13 host checks (below); exit 0 unless one fails
+uv run --group dev mwh paths        # the 15-directory data-root layout: path · exists · MB used, + which source set data_root
+uv run --group dev mwh paths --create   # safety validators + free-space guard, then creates C:\mimicdata\… (idempotent)
+uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[13], ok}
+uv run --group dev mwh --data-root G:\mimicdata paths --create   # refused: exit 2, nothing created (D-29)
 uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog
 uv run --group ui mwh app           # (EP-57+) Streamlit "Lab" app on 127.0.0.1
 uv run mwh verify EP-<n>            # (EP-6+) acceptance tests for one brief
 ```
 
-`mwh doctor` exits 0 when no check **fails** (warn/info are allowed) and 1 otherwise;
-`disk_free` fails below 100 GB free (DESIGN §3), `bitlocker` fails when protection is off
-(GOVERNANCE §2), `duckdb` fails on a pin mismatch, `python` fails outside the uv-managed
-3.13 `.venv`. `data_root` only *warns* until EP-3 (missing, or not on C:). The doctor
-never opens a data file; the `--json` object is what EP-35 embeds in run manifests.
+**Settings** (`mimicwarehouse.config.Settings`, pydantic-settings): `mwh --data-root` >
+`MWH_*` environment > `mimicwarehouse/.env` > `mimicwarehouse/mwh.toml` `[settings]` > defaults
+(`data_root=C:\mimicdata`, `default_tier=dev`, DuckDB `36GB`/`12GB` memory · 12 threads ·
+temp `<data_root>\tmp\duckdb` · `150GB` max temp, `min_free_gb=100`, `k_suppression=11`,
+`allow_remote=false`, `forbidden_drives=["G","D"]`, `dev_buckets=[0..4]`). Unknown keys are
+rejected; relative paths are anchored at this folder. Every command refuses to run when the
+data root is not a local fixed NTFS/ReFS volume (sync-client label, FAT32/cryptoFs, OneDrive,
+G:/D:); `doctor` and `paths` run anyway and *report* it.
+
+`mwh doctor` exits 0 when no check **fails** (warn/info are allowed) and 1 otherwise:
+`python` · `uv` · `duckdb` (pin) · `settings` (sources in use, `.env`/`mwh.toml`/`source_root`
+present yes/no, `allow_remote`) · `disk_free` (fail < 100 GB, DESIGN §3) · `data_root`
+(**fails** on an unsafe location, warns when missing → `mwh paths --create`) · `temp_dir`
+(same volume as the data root) · `cloud_mounts` (letters + labels of synced/virtual volumes;
+warns if the repo is on one) · `defender` (exclusion for the data root; info when not
+elevated, D-38) · `bitlocker` (fails when off, GOVERNANCE §2) · `power_scheme` (info) ·
+`gpu` (info) · `longpaths`. The doctor never opens a data file; the `--json` object is what
+EP-35 embeds in run manifests.
 
 ## Tiers (see DESIGN §4)
 
@@ -82,6 +98,7 @@ benchmark ledger and verified by the next brief.
 ```
 mimicwarehouse/
 ├── pyproject.toml            uv project; groups core/dev/ui/gpu/gpl/text
+├── .env.example              every MWH_* setting with its default (copy to .env; .env is gitignored)
 ├── src/mimicwarehouse/       package (see DESIGN §15 for the module → EP map)
 ├── app/                      Streamlit multipage app
 ├── notebooks/                marimo scratch notebooks (zero-output .py)
@@ -91,4 +108,6 @@ mimicwarehouse/
 ```
 
 Data never lives here: raw CSVs stay in `../source material/` (gitignored), everything
-derived in `C:\mimicdata` (`MWH_DATA_ROOT`).
+derived in `C:\mimicdata` (`MWH_DATA_ROOT`; the 15-directory tree — `lake/{core,derived,
+marts,manifests}`, `warehouse`, `runs/jobs`, `models`, `notes`, `ext/demo`, `studies`,
+`tmp/duckdb` — is drawn in DESIGN §3 and created by `mwh paths --create`).

@@ -172,4 +172,5 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | Rust hot-path extension (PyO3/maturin) if a profiled bottleneck appears | only with a measured bottleneck DuckDB/Polars cannot solve | MSVC build tools; test matrix | v2 RS-1 |
 | Python 3.14 upgrade (once spaCy ships cp314 wheels and dowhy lifts its cap) | annual toolchain review | re-verify wheels | v2 PY-1 |
 | Split into a uv workspace (core package + app package, separate lockfiles) — parked by EP-1 (2026-08-17) | the `ui` conflict set grows beyond `gpu`/`text`, or a page test needs `ui` and `gpu` together | `requires-python` is intersected across members; two lockfiles to keep in step; `mwh` entry point moves | v2 PY-2 |
+| keyring-backed secret storage for `MWH_*` tokens (pydantic-settings secrets dir / Windows Credential Manager) — parked by EP-3 (2026-08-17) | the first remote credential enters the project (none in v1; `MWH_ALLOW_REMOTE=false`) | Windows Credential Manager quirks under uv-managed Python; `.env` stays gitignored meanwhile | v2 CFG-1 |
 | Multi-user / role model (beyond owner + agent) | if collaborators join | DUA is per-person; access control | v2 GOV-2 |

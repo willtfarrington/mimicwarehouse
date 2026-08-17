@@ -104,4 +104,60 @@ is only tested for existence, never listed. Commands run in `mimicwarehouse/`.
 
 - keyring-backed secret storage for `MWH_*` tokens — trigger: the first remote credential enters
   the project (none in v1; `MWH_ALLOW_REMOTE=false`); hazard: Windows Credential Manager quirks
-  under uv-managed Python.
+  under uv-managed Python. *(Mirrored into `final-roadmap.md` § Cross-cutting as v2 CFG-1.)*
+
+> **Completion note (2026-08-17).** Delivered `src/mimicwarehouse/config.py` (`Settings` with
+> `MWH_` env · `.env` · `mwh.toml [settings]` · defaults, init kwargs first, `extra="forbid"`;
+> `layout` (15 keys) · `catalog_path` · `duckdb_settings("build"|"app")` · `source_of`/`sources()`
+> provenance · `get_settings()` cached + `configure()` + `load_settings(checked=False)`; safety
+> validators `drive_info` (ctypes) · `location_problem` · `check_local_fixed` · `check_same_volume`
+> · `check_free_space`/`require_free_space`, run as an `after` model validator and callable alone;
+> `mwh paths [--create] [--json]`; `.env.example`), the `cli.py` settings wiring (callback loads
+> settings once, installs `--data-root` process-wide, hands validated settings to every command and
+> the unchecked instance only to `doctor`/`paths`; unsafe root → exit 2 before any other command
+> runs), the doctor upgrades (`run_checks(settings)`; 13 checks — `settings`, `temp_dir`,
+> `cloud_mounts`, `defender`, `power_scheme` added; `data_root` **fails** on an unsafe location;
+> `disk_free` uses `min_free_gb`) and `tests/ep/test_ep03.py` (32 tests; every Win32 probe and
+> subprocess mocked; nothing under `C:\mimicdata`, G: or D: is touched). `tests/ep/test_ep02.py`
+> was adjusted for the EP-3 contract (13 ids, G: crafted case now `fail`/exit 1, `resolve_data_root`
+> → `config.load_settings`, `powercfg`/`Get-MpPreference` in the fake runner). `uv run poe check`
+> (ruff + pyright + 69 tests) green; `poe test -m ep_3` 32 passed; `-m ep_2` 27 passed.
+>
+> **On this machine.** `uv run --group dev mwh paths` (before) → 15 rows, all `exists=no`,
+> `data_root C:\mimicdata (from default)`, free space `C:\ 415.3 / 951.5 GB (guard >= 100 GB: ok)`.
+> `mwh paths --create` → **created 16 new path(s)** (the 15 directories + `README.txt`, exit 0);
+> second run → `created: []`, tree and mtimes unchanged; `Test-Path C:\mimicdata\tmp\duckdb` →
+> True. Layout now: `C:\mimicdata\{lake, lake\core, lake\derived, lake\marts, lake\manifests,
+> warehouse, runs, runs\jobs, models, notes, ext, ext\demo, studies, tmp, tmp\duckdb}` — all
+> `exists=yes`, 0.0 MB used. Refusals: `mwh --data-root G:\mimicdata paths --create` → exit 2,
+> "volume G:\ is labelled 'Google Drive' — a sync client / virtual drive — … (D-29, GOVERNANCE §2)",
+> "nothing was created", `Test-Path G:\mimicdata` → False; `--data-root D:\mimicdata` → exit 2
+> ("labelled 'Google Cryptomator'"). Volume probes: C: fixed NTFS "Windows" · D: remote cryptoFs ·
+> G: fixed FAT32 (each of D:/G: also refused by filesystem/type and by letter). `mwh doctor` → exit
+> 0, **8 pass · 0 warn · 0 fail · 5 info**: python · uv (0.12.5) · duckdb (1.5.5) · disk_free (C:
+> 415.2 / 951.5 GB) · data_root (`C:\mimicdata` exists, writable, fixed NTFS) · temp_dir · bitlocker
+> (C: on) · longpaths pass; settings info ("sources: defaults only · .env absent · mwh.toml absent ·
+> source_root present · tier=dev · k=11 · allow_remote=false"), cloud_mounts info ("D: Google
+> Cryptomator (cryptoFs, remote) · G: Google Drive (FAT32, fixed) …; repository on C: (fixed)"),
+> defender info (not elevated — `Get-MpPreference` prints "N/A: Must be an administrator to view
+> exclusions"; the owner ran `Add-MpPreference -ExclusionPath 'C:\mimicdata'` at the EP-0
+> follow-up — **unchanged since EP-0, so no D-38 addendum**), power_scheme info ("Balanced · AC
+> power mode: Best performance"), gpu info. `git check-ignore mimicwarehouse/.env` → ignored
+> (`.gitignore:74`); `.env.example` not ignored. `mwh --help`: 0.25 s of imports (config 0.12 s,
+> half of it pydantic-settings → asyncio), 0.45 s wall direct / 0.52 s via `uv run` (EP-2:
+> 0.29 / 0.34) — inside the ~0.5 s budget, recorded in DESIGN §15.
+>
+> **Judgment calls.** (1) `.env` / `mwh.toml` and relative paths are anchored at the workspace
+> root resolved from the package location, not the shell CWD, so `uv run --project mimicwarehouse`
+> from the repo root reads the same files (the brief's "CWD of every mwh command" holds and is now
+> robust). (2) `env_ignore_empty=True` so `MWH_DUCKDB_TEMP_DIR=` means default rather than
+> `Path("")`. (3) `UnsafeLocationError`/`DiskGuardError` subclass `RuntimeError` (not
+> `ValueError`) so pydantic propagates them unwrapped from `Settings(...)`; an unchecked
+> construction path (`safety_checks_disabled()` ContextVar) exists **only** for `doctor`/`paths`.
+> (4) `box` in the label regex is word-bounded. (5) `duckdb_settings` returns strings (ready for
+> `duckdb.connect(config=…)`); `preserve_insertion_order=false` only in the `build` profile.
+> (6) `≥` replaced by `>=` in CLI output after `mwh paths` crashed on a cp1252 console (the
+> table glyphs already fell back to ASCII). (7) `mwh paths` without `--create` still prints the
+> table for an unsafe root (diagnosis) but exits 2. Docs: DESIGN §3 tree + §15 note, DECISIONS
+> D-29 addendum, README quick start, `.env.example`; parked keyring item mirrored to
+> `final-roadmap.md`. `mwh verify EP-3` waits for EP-6.

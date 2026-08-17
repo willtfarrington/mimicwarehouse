@@ -143,6 +143,21 @@ dev.** *Alternatives:* ≤ 2 s always; whatever DuckDB gives.
 on); derived data in a short data root outside the repo (`C:\mimicdata`, `MWH_DATA_ROOT`);
 nothing on G:/D:. *Alternatives:* inside repo `data/`; inside `source material/`.
 
+> **Addendum (2026-08-17, EP-3).** Enforced in code (`mimicwarehouse.config`): a data root
+> is **refused** (`UnsafeLocationError`, exit 2, nothing created) when its volume is not
+> `DRIVE_FIXED`, its filesystem is not NTFS/ReFS, its volume label matches
+> `google drive|onedrive|dropbox|\bbox\b|cryptomator|icloud`, the path lies under
+> `%OneDrive%`/`%OneDriveConsumer%`/`%OneDriveCommercial%`, or its drive letter is in
+> `forbidden_drives` (default `["G","D"]`, configurable via `MWH_FORBIDDEN_DRIVES`); the
+> DuckDB temp dir must share the data-root volume. The same test is warn-only for the
+> repository tree (`mwh doctor` `cloud_mounts`). Every `mwh` command receives validated
+> settings; only `doctor` and `paths` run against an unsafe root, to report it. Verified on
+> this machine: D: (remote, cryptoFs, "Google Cryptomator") and G: (fixed, FAT32, "Google
+> Drive") are each refused on three independent criteria; `Test-Path G:\mimicdata` stays
+> false. Judgment calls: `box` is word-bounded (Toolbox ≠ Box); relative paths in `.env` /
+> `mwh.toml` are anchored at the workspace root rather than the shell CWD; an empty
+> `MWH_*` value means "default"; keyring/secrets storage parked (final-roadmap CFG-1).
+
 **D-30 Keep plain CSVs untouched** (~180 GB total footprint). *Alternatives:* re-gzip;
 delete after verified Parquet.
 
