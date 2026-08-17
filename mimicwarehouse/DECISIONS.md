@@ -198,6 +198,17 @@ reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 > patterns without a leading `//` are project-relative. `C:\mimicdata` is covered by the
 > explicit `//C:/mimicdata/**` rules; `source material/` by path rules. No rule loosened.
 
+> **Addendum (2026-08-17, EP-0 follow-up).** Owner answers, same day: (1) **Defender
+> exclusion done** — owner created `C:\mimicdata` (empty; EP-3 lays out the tree) and ran
+> `Add-MpPreference -ExclusionPath 'C:\mimicdata'` in an elevated PowerShell (not readable
+> non-elevated; taken on the owner's word). (2) **Power mode switched** to Best performance —
+> re-probe: `ActiveOverlayAcPowerScheme = ded574b5-45a0-4f42-8737-46345c09c238` (scheme
+> stays Balanced `381b4222…`; the Win11 overlay is what matters). (3) **claude.ai training
+> toggle confirmed off** (GOVERNANCE §4 item 6). (4) **GOVERNANCE §1 filled**: CITI
+> 2024-01-29 · MIMIC-IV 3.1 DUA 2026-08-15 · MIMIC-IV-ED 2.2 DUA 2024-02-02 · MIMIC-IV-Note 2.2
+> DUA 2024-02-02 · CITI renewal due 2027-01-29. All D-38 items are now done; EP-3 re-checks
+> `LongPathsEnabled`, BitLocker and free disk in `mwh doctor`.
+
 **D-39 Enforcement of the Claude data policy = `CLAUDE.md` + safe-query wrapper +
 repo-shared `.claude/settings.json` deny rules** (reading `source material/**` except
 `*.md`, `C:\mimicdata\**`, `*.csv/*.parquet/*.duckdb`, the `duckdb` executable). A

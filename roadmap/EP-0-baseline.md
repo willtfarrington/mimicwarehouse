@@ -132,3 +132,10 @@ here is git + PowerShell, and no data file is opened. Git root = repository root
 > **Open for the owner** (does not block EP-1): set power mode to Best performance when plugged
 > in; run the elevated Defender exclusion; dictate the GOVERNANCE §1 dates and confirm the claude.ai
 > training toggle is off — a follow-up `docs(governance): fill §1 dates (EP-0)` commit records them.
+>
+> **Follow-up (2026-08-17, same session).** Owner answered all four: Defender exclusion **done**
+> (owner created `C:\mimicdata` and ran the elevated `Add-MpPreference`); power mode **switched**
+> to Best performance (re-probed overlay `ded574b5…`); claude.ai training toggle **off**;
+> GOVERNANCE §1 filled (CITI 2024-01-29; MIMIC-IV 3.1 DUA 2026-08-15; ED 2.2 DUA 2024-02-02;
+> Note 2.2 DUA 2024-02-02; CITI renewal 2027-01-29). D-38 status table is therefore all done;
+> second D-38 addendum records it. Nothing open for EP-1.

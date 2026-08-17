@@ -27,9 +27,9 @@ Agreement per dataset, granted to the owner personally. In brief, the owner agre
 - keep human-subjects/HIPAA training current (CITI "Data or Specimens Only Research");
 - release code arising from publications back to the community.
 
-Owner-maintained record (fill in / keep current): CITI completion date: _____ ·
-MIMIC-IV DUA accepted: _____ · MIMIC-IV-ED DUA accepted: _____ · MIMIC-IV-Note DUA
-accepted: _____ · credential renewal due: _____.
+Owner-maintained record (fill in / keep current): CITI completion date: 2024-01-29 ·
+MIMIC-IV DUA accepted: 2026-08-15 (v3.1) · MIMIC-IV-ED DUA accepted: 2024-02-02 (v2.2) · MIMIC-IV-Note DUA
+accepted: 2024-02-02 (v2.2) · credential renewal due: 2027-01-29 (CITI).
 
 ## 2. Where data may live (D-29, D-30)
 
