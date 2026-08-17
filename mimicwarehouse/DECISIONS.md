@@ -179,6 +179,25 @@ EP) with additions (Tier, Core/Stretch, ⏱, Parked). Design docs `DESIGN.md`,
 Defender real-time exclusion for `C:\mimicdata` only, `LongPathsEnabled` (registry +
 reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 
+> **Addendum (2026-08-17, EP-0).** Non-elevated status probes run from the EP-0 session
+> (repo root `C:\Users\willi\Documents\DATA\mimicwarehouse`, on C:):
+>
+> | Item | Probe | Status 2026-08-17 |
+> |---|---|---|
+> | `LongPathsEnabled` | `HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` | **1 (done)** |
+> | BitLocker on C: | `System.Volume.BitLockerProtection` via Shell COM | **1 (on)** — matches owner check of 2026-08-16 |
+> | Power plan / mode | `powercfg /getactivescheme`; registry `ActiveOverlayAcPowerScheme` | **Balanced** (scheme `381b4222…`, overlay `00000000…` = default) → **not yet** "Best performance"; owner: Settings › System › Power & battery › Power mode › *Best performance* (plugged in), or elevated `powercfg /overlaysetactive ded574b5-45a0-4f42-8737-46345c09c238` |
+> | Cloud / virtual mounts | `Win32_LogicalDisk` | C: = Windows NTFS fixed (951 GB, 416 GB free); D: = Cryptomator vault (`cryptoFs`, network); G: = Google Drive (FAT32 virtual). Repo is on C:. `C:\mimicdata` does not exist yet (EP-3) |
+> | Defender exclusion `C:\mimicdata` | `Get-MpPreference` → "Must be an administrator to view exclusions" | **unknown / pending owner** — owner runs elevated `Add-MpPreference -ExclusionPath 'C:\mimicdata'` (before or at EP-3) |
+> | GOVERNANCE §1 dates (CITI, 3 DUAs, renewal) + claude.ai training toggle | owner-only | **pending owner input** — blanks left untouched; fill at EP-0 follow-up or EP-3/EP-7 |
+> | `core.longpaths` (git, repo-local) | `git config --get core.longpaths` | set to `true` by EP-0 |
+>
+> Also recorded by EP-0: the `.claude/settings.json` deny rules refused a synthetic
+> `probe.csv` placed **inside the repo** via Read, Bash `cat` and PowerShell `Get-Content`,
+> but the same probe under `%TEMP%` (session scratchpad) was readable — `Read(**/*.csv)`
+> patterns without a leading `//` are project-relative. `C:\mimicdata` is covered by the
+> explicit `//C:/mimicdata/**` rules; `source material/` by path rules. No rule loosened.
+
 **D-39 Enforcement of the Claude data policy = `CLAUDE.md` + safe-query wrapper +
 repo-shared `.claude/settings.json` deny rules** (reading `source material/**` except
 `*.md`, `C:\mimicdata\**`, `*.csv/*.parquet/*.duckdb`, the `duckdb` executable). A

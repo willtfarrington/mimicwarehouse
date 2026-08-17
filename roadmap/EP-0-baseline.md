@@ -84,3 +84,51 @@ here is git + PowerShell, and no data file is opened. Git root = repository root
 - Completion note appended to this brief with the D-38 status table (LongPathsEnabled, BitLocker,
   power scheme, cloud mounts, Defender exclusion done/not-yet, GOVERNANCE §1 filled yes/partial)
   and the matching addendum present under D-38 in `DECISIONS.md`.
+
+> **Completion note (2026-08-17).** Executed by one Claude session, git + PowerShell only; no data
+> file opened. The planning docs had already been committed by the owner as `cd67743` (the
+> "dirty tree" in Context was gone), so item 4's baseline commit is that hash plus this brief's
+> hygiene commit (two-hash ☑ box in `README.md`).
+>
+> **Item 1 — exclusion audit.** `git ls-files "source material"` → exactly `source material/README.md`;
+> `git ls-files -o --exclude-standard "source material"` → nothing. `git check-ignore -v` probes:
+> `source material/mimic-iv-3.1/hosp/patients.csv` → `.gitignore:15 source material/*`;
+> `mimicwarehouse/foo.parquet` → `*.parquet`; `mimicwarehouse/warehouse/dev.duckdb` → `warehouse/`;
+> `mimicwarehouse/runs/audit.jsonl` → `runs/`; `.claude/settings.local.json` → exact rule;
+> `mimicwarehouse/.env` → `.env`; not ignored: `mimicwarehouse/tests/fixtures/hosp/patients.csv`
+> (negation `!mimicwarehouse/tests/fixtures/**/*.csv`), `mimicwarehouse/.env.example` (`!.env.example`),
+> `.claude/settings.json`, `mimicwarehouse/.streamlit/config.toml`. All as stated. Additive fix:
+> `*.duckdb.new` and `*.duckdb.tmp` added to `.gitignore` (and marked `binary` in `.gitattributes`);
+> `mimicwarehouse/x.duckdb.new` / `.tmp` now ignored anywhere, not only under `warehouse/`.
+> `.claude/settings.json` parses (`ConvertFrom-Json`, 67 deny rules). Deny-rule smoke test with a
+> synthetic two-line `probe.csv`: (a) in the session scratchpad under `%TEMP%` the Read tool
+> **returned the file** — `Read(**/*.csv)` without a leading `//` is project-relative and does not
+> reach paths outside the repo; (b) the same probe placed at `mimicwarehouse/probe.csv` (gitignored)
+> was **refused** by Read ("directory that is denied by your permission settings"), by Bash `cat`
+> and by PowerShell `Get-Content`. Probe deleted. Recorded in `roadmap/README.md` Risks §8 and the
+> D-38 addendum; no rule loosened, no settings change (deny rules already carry explicit
+> `//C:/mimicdata/**` and `source material/…` paths, which is where the real data lives).
+>
+> **Item 2 — git options.** `core.longpaths` was unset → set to `true` (repo-local).
+> `git add --renormalize .` produced no changes: `git ls-files --eol | Select-String 'i/crlf'` was
+> already empty (all tracked files stored LF).
+>
+> **Item 3 — D-38 owner tuning status** (non-elevated probes; same table as the D-38 addendum):
+>
+> | Check | Result 2026-08-17 | Status |
+> |---|---|---|
+> | `LongPathsEnabled` | 1 | done |
+> | BitLocker C: (`System.Volume.BitLockerProtection`) | 1 | on |
+> | Power scheme / Win11 power mode | Balanced `381b4222…`; AC overlay `00000000…` (default, **not** Best performance) | **owner to-do** |
+> | Cloud / virtual mounts | D: Cryptomator (`cryptoFs`), G: Google Drive (FAT32); repo on C: (NTFS, 416 GB free); `C:\mimicdata` absent (EP-3) | ok |
+> | Defender exclusion `C:\mimicdata` | not readable without elevation | **ask owner** (`Add-MpPreference -ExclusionPath 'C:\mimicdata'`, elevated) |
+> | GOVERNANCE §1 dates + claude.ai training toggle | not yet dictated in this session | **partial — pending owner**; §1 blanks untouched |
+>
+> **Item 4/5.** Commits: `cd67743` (owner, planning baseline) + this hygiene commit
+> (`.gitignore`/`.gitattributes` additions, README status line, D-38 addendum, Risks §8 note, this
+> note), then `docs(roadmap): record EP-0 commit hash`. Root README gained the single status line
+> "Baseline committed (EP-0, 2026-08-17); toolchain arrives with EP-1."
+>
+> **Open for the owner** (does not block EP-1): set power mode to Best performance when plugged
+> in; run the elevated Defender exclusion; dictate the GOVERNANCE §1 dates and confirm the claude.ai
+> training toggle is off — a follow-up `docs(governance): fill §1 dates (EP-0)` commit records them.

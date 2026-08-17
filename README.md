@@ -15,6 +15,8 @@ completion bar, and everything named-but-not-built is parked in the extension ro
 The data is **not** in this repository and never will be (PhysioNet credentialed
 license; ~98 GB). See `source material/README.md`.
 
+Baseline committed (EP-0, 2026-08-17); toolchain arrives with EP-1.
+
 - **Code:** [mimicwarehouse/README.md](mimicwarehouse/README.md) — the Python (uv)
   workspace; planned quick start `uv sync --group dev && uv run mwh doctor`.
 - **Start here (design):** [mimicwarehouse/DESIGN.md](mimicwarehouse/DESIGN.md) —

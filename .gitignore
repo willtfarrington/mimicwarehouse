@@ -25,6 +25,8 @@ source material/*
 *.parquet
 *.duckdb
 *.duckdb.wal
+*.duckdb.new
+*.duckdb.tmp
 *.wal
 *.jsonl
 *.feather

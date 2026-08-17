@@ -29,6 +29,8 @@
 *.csv.gz  binary
 *.parquet binary
 *.duckdb  binary
+*.duckdb.new binary
+*.duckdb.tmp binary
 *.wal     binary
 *.feather binary
 *.arrow   binary
