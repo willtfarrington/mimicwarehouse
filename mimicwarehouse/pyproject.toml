@@ -106,4 +106,5 @@ test = "pytest"
 lint = "ruff check ."
 fmt = "ruff format ."
 typecheck = "pyright"
+guard = "mwh guard --staged"   # EP-4: what the pre-commit hook runs
 check = ["lint", "typecheck", "test"]

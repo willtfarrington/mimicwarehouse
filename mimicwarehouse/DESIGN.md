@@ -341,6 +341,31 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > 0.45 s wall direct / 0.52 s via `uv run` — still inside the ~0.5 s budget; the doctor's
 > `defender` and `bitlocker` PowerShell probes cost ~2 s each at run time.
 
+> **Note (2026-08-17, EP-4).** **`guard.py`** landed as the pre-commit data-leak guard
+> (GOVERNANCE §3): pure rule helpers + `Violation(rule, path, line, detail)`; `scan(paths,
+> repo_root)` (working tree, directories walked), `scan_staged(repo_root)` (paths from
+> `git diff --cached --name-only --diff-filter=ACMR -z`) and `scan_tracked(repo_root, rev=None)`
+> (`git ls-files` / `git ls-tree -r rev` — the per-commit primitive for the EP-163 sweep). The
+> staged/tracked scans read **blobs from the index** (`git cat-file --batch-check` for sizes, one
+> `--batch` for the content the rules need), so an unstaged edit can never hide a staged
+> violation and the hook judges exactly what `git commit` records. Rules as in the EP-4 brief with
+> four small deltas: G1 also lists `.duckdb.tmp` (the EP-21 swap suffix, already gitignored);
+> G3 refuses any path with a `__marimo__` segment (not only under `notebooks/`); G4 reports at
+> most 25 lines per file plus one "… and N more" row (a real CSV would otherwise flood the
+> table); files under `source material/` are refused by name (G2) and **never opened**. G4 detail
+> masks the token (`1*******`), names the band, and never quotes the line. `selfcheck(repo_root)`
+> re-runs the EP-0 `git check-ignore` probe strings, asserts `git check-attr binary` = `set` for
+> `x.csv x.parquet x.duckdb`, and checks that `.pre-commit-config.yaml` carries `mwh-guard` and
+> that the hook is installed (warn-level). CLI: `mwh guard [PATHS…] [--staged] [--all-tracked]
+> [--selfcheck] [--json]`, one mode per call, exit 0 / 1 / 2; `guard` joined
+> `DIAGNOSTIC_COMMANDS` because it never touches the data root and a mis-set `MWH_DATA_ROOT`
+> must not block commits. `.pre-commit-config.yaml` (repo root): `repo: local`/`language: system`
+> `mwh-guard` (`always_run`, `pass_filenames: false`) → `ruff-check` → `ruff-format --check` →
+> `pre-commit/pre-commit-hooks` **v6.0.0** (`check-added-large-files --maxkb=20000`,
+> merge-conflict, yaml, toml, json, end-of-file-fixer, trailing-whitespace
+> `--markdown-linebreak-ext=md`, detect-private-key). Import cost of `guard.py` is stdlib +
+> typer; rich is imported inside the command.
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,

@@ -3,9 +3,10 @@
 Commands live in their own modules and are attached here with **one** ``app.command()`` /
 ``app.add_typer()`` line each, so later briefs extend without restructuring:
 ``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3,
-:mod:`mimicwarehouse.config`) · ``guard`` (EP-4) · ``verify`` (EP-6) · ``build`` (EP-19) ·
-``demo`` (EP-22) · ``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup``
-(EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
+:mod:`mimicwarehouse.config`) · ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``verify``
+(EP-6) · ``build`` (EP-19) · ``demo`` (EP-22) · ``sql`` (EP-30) · ``runs`` (EP-35) ·
+``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) ·
+``init`` (EP-158).
 
 Settings (EP-3): the callback loads :class:`mimicwarehouse.config.Settings` once per
 invocation — ``--data-root`` > ``MWH_*`` env > ``.env`` > ``mwh.toml`` > defaults — installs
@@ -32,9 +33,12 @@ from rich.markup import escape
 from mimicwarehouse import __version__, config
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.doctor import doctor_command
+from mimicwarehouse.guard import guard_command
 
-#: Commands that must run even when the data root is unsafe (they report it, exit codes tell).
-DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset({"doctor", "paths"})
+#: Commands that must run even when the data root is unsafe: ``doctor`` / ``paths`` report it
+#: (exit codes tell); ``guard`` never touches the data root and, as the pre-commit hook, must
+#: not be blocked by a mis-set ``MWH_DATA_ROOT`` (EP-4).
+DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset({"doctor", "paths", "guard"})
 
 console = Console()
 
@@ -103,6 +107,7 @@ def main(
 
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
 app.command("doctor")(doctor_command)
+app.command("guard")(guard_command)
 app.command("paths")(paths_command)
 
 

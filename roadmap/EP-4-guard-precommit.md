@@ -91,3 +91,42 @@ transcript, so tokens are masked. pre-commit is already in the `dev` group (EP-1
 
 - gitleaks-style secret scanning in the hook — trigger: the first token or credential enters the
   project (`.env` + keyring default); hazard: false positives on hashes.
+
+> **Completion note (2026-08-17).** Delivered `src/mimicwarehouse/guard.py` (rules G1-G5 as
+> specified; `Violation(rule, path, line, detail)`; `scan(paths, repo_root)` for working-tree
+> files/directories, `scan_staged(repo_root)` from `git diff --cached --name-only --diff-filter=ACMR
+> -z`, plus `scan_tracked(repo_root, rev=None)` = `git ls-files` / `git ls-tree -r <rev>` as the
+> per-commit primitive for EP-163; `selfcheck(repo_root)`; `guard_command`), wired as
+> `mwh guard [PATHS…] [--staged] [--all-tracked] [--selfcheck] [--json]` (one mode per call; exit
+> 0 clean / 1 refused / 2 usage; `guard` added to `cli.DIAGNOSTIC_COMMANDS` so a mis-set
+> `MWH_DATA_ROOT` can never block a commit), `.pre-commit-config.yaml` at the repo root exactly in
+> the order above (`pre-commit/pre-commit-hooks` pinned `v6.0.0`, the newest tag; `trailing-whitespace`
+> carries `--markdown-linebreak-ext=md`), `poe guard`, README "Contributing", DESIGN §15 note,
+> `tests/ep/test_ep04.py` (44 tests). Design deltas, all recorded in DESIGN §15: the staged /
+> tracked scans read **blobs from the index** (`git cat-file --batch-check` + one `--batch`), so
+> the hook judges what `git commit` records and an unstaged edit cannot mask a staged violation
+> (tested); G1 also lists `.duckdb.tmp` (EP-0's swap suffix); G3 matches a `__marimo__` segment
+> anywhere; G4 reports ≤ 25 rows per file + one "… and N more" row; anything under
+> `source material/` is refused by name and never opened (tested with a poisoned `Entry.content`).
+>
+> **Verification.** Throw-away repo: `probe.csv` + a `.md` with a runtime-built band id →
+> `git add -A` → `mwh guard --staged` exit 1 listing **G4** (`1*******`, no id anywhere in the
+> output) and **G1**; after `git rm --cached` both → exit 0. Real repo: `mwh guard --all-tracked`
+> → clean (190 files); `mwh guard --selfcheck` → 14 probes ok + `pre-commit-config` ok +
+> `hook-installed` ok (warn-level); `pre-commit install` → `.git/hooks/pre-commit`;
+> `pre-commit run --all-files` → all 11 hooks passed, no fixer touched a tracked file; a deliberate
+> `git add -f probe.csv` + `git commit` was **refused by the hook** (`mwh guard` G1, ruff and the
+> hygiene hooks green, HEAD unchanged), then `git reset -- probe.csv` and the file deleted.
+> `uv run poe test -m ep_4` → 44 passed; `uv run poe check` → ruff + pyright (0 errors) + 113 tests
+> green. `mwh --help` wall 0.43 s (`guard.py` import ≈ 3 ms). No file written by this brief contains
+> a plain band literal — the last EP-4 test runs the guard over the brief's own files (it caught the
+> `mask()` docstring example `1…8` on the first run; rewritten without a literal).
+>
+> **Gotchas for later briefs.** (1) pre-commit stashes *unstaged* tracked edits before running
+> hooks: a first refusal attempt with `cli.py`'s guard line still unstaged failed with "No such
+> command 'guard'" (exit 2 — still refused, but for the wrong reason); stage the code first when
+> proving hook behaviour. (2) `git diff --cached` works before the first commit (empty tree). (3)
+> `git cat-file --batch -z` (NUL-delimited input) needs git ≥ 2.40; the machine has 2.55.
+> (4) `.gitignore` already blocks `*.csv`, `*.ipynb`, `__marimo__/`; the guard is the second layer
+> that also catches `git add -f`, band ids inside allowed text files, and oversize blobs.
+> `mwh verify EP-4` runs once EP-6 lands.

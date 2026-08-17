@@ -1,0 +1,42 @@
+# pre-commit hooks for mimicwarehouse (EP-4; GOVERNANCE §3).
+#
+# Install once per clone (uses the workspace venv's CPython 3.13; nothing touches C:\Python314):
+#     cd mimicwarehouse && uv run --group dev pre-commit install
+# Run on demand:
+#     uv run --group dev pre-commit run --all-files
+#
+# No `default_language_version`: pre-commit builds hook environments with the interpreter it
+# runs under (the venv's 3.13). The three local hooks shell out through `uv run` so they use
+# the workspace's pinned tools; `mwh guard --staged` reads the index (what would be committed).
+repos:
+  - repo: local
+    hooks:
+      - id: mwh-guard
+        name: mwh guard (data-shaped files, source material, notebook outputs, real-id bands, oversize)
+        entry: uv run --project mimicwarehouse --group dev mwh guard --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project mimicwarehouse --group dev ruff check --force-exclude
+        language: system
+        types_or: [python]
+      - id: ruff-format
+        name: ruff format --check
+        entry: uv run --project mimicwarehouse --group dev ruff format --check --force-exclude
+        language: system
+        types_or: [python]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=20000]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: detect-private-key

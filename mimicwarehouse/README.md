@@ -2,12 +2,13 @@
 
 The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
 package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-17 (EP-1 … EP-3) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
+files. As of 2026-08-17 (EP-1 … EP-4) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
 `.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — the
-**`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`) and `mwh paths`, and the
+**`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`), `mwh paths` and `mwh guard`
+(`guard.py`, the pre-commit data-leak guard — see "Contributing" below), and the
 **settings + data-root module** (`config.py`: `Settings`, the 15-directory layout, the D-29
 location refusals, the free-space guard); no data code yet — that arrives with the roadmap
-briefs from `roadmap/EP-4-guard-precommit.md` on.
+briefs from `roadmap/EP-8-mimic-code-vendoring.md` on.
 
 | Doc | What |
 |---|---|
@@ -49,7 +50,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (EP-2/EP-3: `mwh --version`, `mwh doctor`, `mwh paths`; the rest lands with EP-4 …)
+## Quick start (EP-2 … EP-4: `mwh --version`, `mwh doctor`, `mwh paths`, `mwh guard`; the rest lands with EP-6 …)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -62,6 +63,9 @@ uv run --group dev mwh paths        # the 15-directory data-root layout: path ·
 uv run --group dev mwh paths --create   # safety validators + free-space guard, then creates C:\mimicdata\… (idempotent)
 uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[13], ok}
 uv run --group dev mwh --data-root G:\mimicdata paths --create   # refused: exit 2, nothing created (D-29)
+uv run --group dev mwh guard        # = --staged: what `git commit` would record, read from the index; exit 0 clean / 1 refused / 2 usage
+uv run --group dev mwh guard --all-tracked   # every tracked path (also `mwh guard <paths…>` for working-tree files/dirs, `--json`)
+uv run --group dev mwh guard --selfcheck     # EP-0 .gitignore/.gitattributes probes + hook wiring
 uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog
 uv run --group ui mwh app           # (EP-57+) Streamlit "Lab" app on 127.0.0.1
 uv run mwh verify EP-<n>            # (EP-6+) acceptance tests for one brief
@@ -85,6 +89,38 @@ warns if the repo is on one) · `defender` (exclusion for the data root; info wh
 elevated, D-38) · `bitlocker` (fails when off, GOVERNANCE §2) · `power_scheme` (info) ·
 `gpu` (info) · `longpaths`. The doctor never opens a data file; the `--json` object is what
 EP-35 embeds in run manifests.
+
+## Contributing (EP-4: pre-commit + `mwh guard`)
+
+Install the hooks once per clone (they run under the workspace venv; `C:\Python314` is never
+touched) and let them refuse what must never reach git (GOVERNANCE §3):
+
+```powershell
+cd mimicwarehouse
+uv run --group dev pre-commit install          # writes .git/hooks/pre-commit
+uv run --group dev pre-commit run --all-files  # on demand; also runs ruff check/format --check
+uv run --group dev poe guard                   # = mwh guard --staged, without pre-commit
+```
+
+Hook order (`.pre-commit-config.yaml` at the repo root, `repo: local` + `pre-commit-hooks`
+v6.0.0): `mwh-guard` → `ruff-check` → `ruff-format` → `check-added-large-files` (20 000 KB) →
+`check-merge-conflict` → `check-yaml` → `check-toml` → `check-json` → `end-of-file-fixer` →
+`trailing-whitespace` → `detect-private-key`. `mwh guard` reads the **index** (what would be
+committed), so an unstaged edit cannot hide a staged violation, and it never quotes file
+content: an id token appears only masked (`1*******`). It refuses, per rule id:
+
+| Rule | Refuses |
+|---|---|
+| **G1** data-shaped extension | `.csv .csv.gz .parquet .duckdb .duckdb.wal .duckdb.new .duckdb.tmp .wal .jsonl .feather .arrow .pkl .joblib .skops .pt .safetensors .npy .npz .h5` anywhere — except under `mimicwarehouse/tests/fixtures/`, where only `.csv .csv.gz .parquet .jsonl .json .yaml` pass (synthetic, ids ≥ 90 000 000) |
+| **G2** source material | anything under `source material/` other than `*.md` (refused by name; the guard never opens files there) |
+| **G3** notebook outputs | `.ipynb` with a non-empty `outputs` or non-null `execution_count` (or invalid JSON); anything under a `__marimo__/` directory |
+| **G4** real-id band | in text files (`.py .md .yaml .yml .json .toml .sql .txt .csv .jsonl .html .svg .cff .ps1 .ini .cfg` and extensionless; UTF-8, no NUL) an isolated 8-digit token in the `subject_id` (1xxxxxxx), `hadm_id` (2xxxxxxx) or `stay_id` (3xxxxxxx) band — including compact `YYYYMMDD` dates (write `2026-08-17`); hex hashes, longer digit runs, decimals and `10_000_000`-style constants never match. A line carrying the pragma **`mwh-guard: allow`** is exempt (documented examples only) |
+| **G5** oversize | any blob > 20 000 KiB (fixtures included) |
+
+Fixture ids are ≥ 90 000 000 (D-27), so synthetic rows never trip G4. To document a band
+boundary in prose, use spaces or underscores (`10 000 000`, `10_000_000`) rather than a plain
+8-digit literal. If a real row-level file is ever committed: stop, do not push, follow
+GOVERNANCE §3/§13.
 
 ## Tiers (see DESIGN §4)
 
