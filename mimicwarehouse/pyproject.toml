@@ -99,7 +99,7 @@ typeCheckingMode = "basic"
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 
 [tool.poe.tasks]
 test = "pytest"
@@ -107,4 +107,5 @@ lint = "ruff check ."
 fmt = "ruff format ."
 typecheck = "pyright"
 guard = "mwh guard --staged"   # EP-4: what the pre-commit hook runs
+roadmap-check = "python scripts/roadmap_check.py"   # EP-6: = mwh verify --roadmap [--strict] [--json]
 check = ["lint", "typecheck", "test"]

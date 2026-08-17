@@ -366,6 +366,30 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > `--markdown-linebreak-ext=md`, detect-private-key). Import cost of `guard.py` is stdlib +
 > typer; rich is imported inside the command.
 
+> **Note (2026-08-17, EP-6).** **`verify.py`** landed with the two roadmap-driven services
+> DESIGN §15 promised. `verify(ep, pytest_args)` resolves `EP-6` / `ep6` / `6`, finds
+> `../roadmap/EP-<n>-*.md`, and runs `[sys.executable, -m pytest -m ep_<n> -p no:cacheprovider
+> …]` in a **fresh interpreter** with cwd = the workspace root (spawn-safe on Windows); it
+> returns pytest's exit code, except that a docs-only brief (header Tier `n/a`, no
+> `tests/ep/test_ep<NN>.py`) prints "docs-only brief — nothing to run" and returns 0, a code
+> brief without a test module returns 2, and pytest's 5 (nothing collected) becomes 2 with a
+> marker hint. `roadmap_check(roadmap_dir, repo_root, strict)` parses the master tables
+> (`Row`: number, title, link, size, depends, core, ☐/☑ + hashes, enclosing `## Phase …`
+> heading → `charter`/`full`) and every brief (`Brief`: H1, `**Size:** … · **Blocks:** …`
+> header, `> **Charter.**` paragraph → named re-plan EP) into a `Report` of `Finding(level,
+> check, ep, message)` grouped by **parity** / **header** / **hashes** / **charters**; git is
+> touched only through `_run_git` (`cat-file -e <hash>^{commit}`, `log -1 --format=%s`), which
+> tests replace. Deltas from the brief: ☑ cells may carry one **or more** hashes (EP-0 has
+> three); a charter that names an existing EP whose title is not a re-plan is a *warning*;
+> the JSON report also embeds every row (+ brief tier / charter EP) so the re-plan EPs can
+> reconcile without re-parsing. CLI: `mwh verify EP-n [-- <pytest args>]` (extra args reach
+> pytest untouched — `--tier` arrives with EP-12), `mwh verify --list`, `mwh verify --roadmap
+> [--strict] [--json]`; `verify` joined `DIAGNOSTIC_COMMANDS` (it never touches the data root,
+> and a mis-set `MWH_DATA_ROOT` must not hide a roadmap check). `scripts/roadmap_check.py`
+> (poe `roadmap-check`) is a thin wrapper over `roadmap_check_main`. Console output is passed
+> through `_console_safe` (glyphs the active code page cannot encode become `?` — ⏱ in
+> titles, ☑ in messages — instead of crashing rich on cp1252). Import cost: stdlib + typer.
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,

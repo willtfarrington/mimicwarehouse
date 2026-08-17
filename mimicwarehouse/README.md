@@ -53,7 +53,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (EP-2 … EP-4: `mwh --version`, `mwh doctor`, `mwh paths`, `mwh guard`; the rest lands with EP-6 …)
+## Quick start (EP-2 … EP-6: `mwh --version`, `mwh doctor`, `mwh paths`, `mwh guard`, `mwh verify`; the rest lands with EP-19 …)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -71,7 +71,10 @@ uv run --group dev mwh guard --all-tracked   # every tracked path (also `mwh gua
 uv run --group dev mwh guard --selfcheck     # EP-0 .gitignore/.gitattributes probes + hook wiring
 uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog
 uv run --group ui mwh app           # (EP-57+) Streamlit "Lab" app on 127.0.0.1
-uv run mwh verify EP-<n>            # (EP-6+) acceptance tests for one brief
+uv run --group dev mwh verify EP-<n>         # one brief's acceptance tests (marker ep_<n>) in a fresh interpreter; `-- <pytest args>` pass through
+uv run --group dev mwh verify --list         # EP · title · tier · test module present
+uv run --group dev mwh verify --roadmap      # roadmap/README.md vs briefs: parity · header · hashes · charters (--strict, --json)
+uv run poe roadmap-check                     # = mwh verify --roadmap (scripts/roadmap_check.py); what the re-plan EPs run
 ```
 
 **Settings** (`mimicwarehouse.config.Settings`, pydantic-settings): `mwh --data-root` >
