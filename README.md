@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="mimicwarehouse/docs/brand/banner-dark.svg">
+  <img alt="mimicwarehouse — a local MIMIC-IV data lab — DuckDB · Polars · Streamlit" src="mimicwarehouse/docs/brand/banner-light.svg" width="100%">
+</picture>
+
 # mimicwarehouse
 local emr data warehouse v1.0.0 - mimic-iv
 

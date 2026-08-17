@@ -2,13 +2,16 @@
 
 The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
 package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-17 (EP-1 … EP-4) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
+files. As of 2026-08-17 (EP-1 … EP-5) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
 `.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — the
 **`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`), `mwh paths` and `mwh guard`
-(`guard.py`, the pre-commit data-leak guard — see "Contributing" below), and the
+(`guard.py`, the pre-commit data-leak guard — see "Contributing" below), the
 **settings + data-root module** (`config.py`: `Settings`, the 15-directory layout, the D-29
-location refusals, the free-space guard); no data code yet — that arrives with the roadmap
-briefs from `roadmap/EP-8-mimic-code-vendoring.md` on.
+location refusals, the free-space guard), and the **visual identity** (`theme.py`, EP-5:
+`Palette` light/dark, Altair `mwh_light`/`mwh_dark` themes, Streamlit theme →
+`.streamlit/config.toml`, wordmark + banner SVGs → [docs/brand/](docs/brand/README.md)); no
+data code yet — that arrives with the roadmap briefs from
+`roadmap/EP-8-mimic-code-vendoring.md` on.
 
 | Doc | What |
 |---|---|
@@ -139,7 +142,7 @@ mimicwarehouse/
 ├── app/                      Streamlit multipage app
 ├── notebooks/                marimo scratch notebooks (zero-output .py)
 ├── tests/                    pytest; tests/ep/test_epNN.py; tests/fixtures/ (synthetic only)
-├── docs/                     resources/, analyses/, site/
+├── docs/                     brand/ (EP-5), resources/, analyses/, site/
 ├── DESIGN.md · GOVERNANCE.md · DECISIONS.md · DATA-DICTIONARY.md (generated)
 ```
 

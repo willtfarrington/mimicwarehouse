@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240" width="1200" height="240" role="img" aria-labelledby="t d">
+  <title id="t">mimicwarehouse — a local MIMIC-IV data lab — DuckDB · Polars · Streamlit</title>
+  <desc id="d">Banner (dark): the mimicwarehouse wordmark and tagline.</desc>
+  <rect x="0.5" y="0.5" width="1199" height="239" rx="16" fill="#0F1419" stroke="#2A323B"/>
+  <g class="glyph">
+    <rect class="layer layer-raw" x="72" y="150.4" width="88" height="22" rx="3.7" fill="#1F6F8B"/>
+    <rect class="layer layer-lake" x="85.2" y="115.2" width="61.6" height="22" rx="3.7" fill="#E07A5F"/>
+    <rect class="layer layer-marts" x="98.4" y="80" width="35.2" height="22" rx="3.7" fill="#9AA4AE"/>
+  </g>
+  <text x="196" y="118" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif" font-size="60" font-weight="600" letter-spacing="-1" fill="#E6EDF3">mimicwarehouse</text>
+  <text x="199" y="164" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif" font-size="22" fill="#9AA4AE">a local MIMIC-IV data lab — DuckDB · Polars · Streamlit</text>
+  <rect x="199" y="184" width="88" height="4" rx="2" fill="#1F6F8B"/>
+  <rect x="295" y="184" width="44" height="4" rx="2" fill="#E07A5F"/>
+  <rect x="347" y="184" width="22" height="4" rx="2" fill="#9AA4AE"/>
+</svg>

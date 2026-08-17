@@ -80,3 +80,43 @@ raster assets, no embedded or web fonts, no external requests. Commands run in `
 
 - Raster logo set (PNG/ICO favicon, social-preview image) and a self-hosted brand font — trigger:
   the docs site (EP-160) or a public release asset needs them; hazard: binary assets in git.
+
+> **Completion note (2026-08-17).** Delivered as briefed; `uv run poe check` green (ruff, pyright
+> basic, 147 tests of which 34 are `ep_5`), `python -m mimicwarehouse.theme --write` idempotent
+> (second run: "0 file(s) written; 5 unchanged", `git status` clean), `mwh guard` clean on every
+> new file.
+> - `src/mimicwarehouse/theme.py`: frozen `Palette` (`mode` + the 11 tokens + `categorical` /
+>   `sequential` / `diverging`; validated in `__post_init__`), `LIGHT` / `DARK` / `PALETTES` /
+>   `palette(mode)`, brief defaults kept unchanged; `contrast_ratio` (+ `relative_luminance`):
+>   text/background 16.6 · 15.7, muted/background 5.5 · 7.3, muted/surface 5.1 · 6.5 (light · dark).
+>   `altair_theme(mode)` returns the Altair *ThemeConfig* shape `{"config": <Vega-Lite config>}`
+>   (background, system font stack, axis/legend/title/header colours, `range.category` =
+>   Okabe-Ito, `range.heatmap`/`ordinal`/`ramp` = viridis, `range.diverging` = blueorange,
+>   `view.stroke` transparent, mark defaults in `primary`); `register_altair()` uses the Altair
+>   6.2.2 `alt.theme.register(name, enable=False)` decorator (idempotent, returns
+>   `("mwh_light", "mwh_dark")`); `enable_altair(mode)`; `streamlit_theme(mode)`
+>   (`font = "sans serif"` — Streamlit accepts only generic families); `streamlit_config_toml`,
+>   `wordmark_svg` / `banner_svg`, `render_assets` / `check_assets` / `write_assets`, and a
+>   `__main__` with `--write` **and** `--check` (exit 1 on drift; EP-6's `mwh verify EP-5` can
+>   call `theme.check_assets()` directly). altair is imported lazily inside the two functions
+>   that need it (import budget); no plotly/streamlit anywhere.
+> - Generated, tracked: `.streamlit/config.toml` (396 B), `docs/brand/wordmark-{light,dark}.svg`
+>   (~0.8 KB, 320 × 56, transparent) and `banner-{light,dark}.svg` (~1.4 KB, 1200 × 240, palette
+>   background + `grid` hairline). Glyph = three stacked bars raw (widest, `primary`) → lake
+>   (`accent`) → marts (`muted`), rendered from `_glyph()`; the same glyph at two scales.
+>   Rendered in headless Edge (scratchpad only, no PNG committed) — both banners and wordmarks
+>   display correctly on their backgrounds.
+> - Root `README.md`: `<picture>` block with the dark `srcset` above the title; nothing else
+>   changed. `docs/brand/README.md`: palette table, categorical order, contrast, rules, enabling.
+>   Workspace `README.md` gained one sentence + the `docs/brand/` layout line.
+> - Tests (`tests/ep/test_ep05.py`, 34): contrast ≥ 4.5 for text/muted × background/surface in
+>   both modes; categorical = Okabe-Ito order, valid hex, pairwise distinct, ≠ either background;
+>   `register_altair()` + `enable_altair()` put the palette into a synthetic `mark_bar()` spec's
+>   `config` (dark too; the previously active theme is restored); `.streamlit/config.toml`
+>   parsed with `tomllib` equals `streamlit_theme("light")` and the rendered TOML; SVG drift vs
+>   fresh render (byte-equal), XML parse, ≤ 8 KB, no `href="http` / `@import` / `url(` /
+>   `<script` / `<image` / `<foreignObject`, LF only; `write_assets` idempotence + `--check`
+>   exit codes in `tmp_path`; brand README lists every palette hex; root README banner block;
+>   no ui imports at module level (AST).
+> - Parked item mirrored into `final-roadmap.md` (Cross-cutting, `v2 BRAND-1`).
+> - Nothing was full-tier; no data touched.

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 56" width="320" height="56" role="img" aria-labelledby="t d">
+  <title id="t">mimicwarehouse</title>
+  <desc id="d">Wordmark (light): three stacked bars for raw, lake and marts, then the word mimicwarehouse.</desc>
+  <g class="glyph">
+    <rect class="layer layer-raw" x="4" y="40" width="40" height="10" rx="1.7" fill="#1F6F8B"/>
+    <rect class="layer layer-lake" x="10" y="24" width="28" height="10" rx="1.7" fill="#E07A5F"/>
+    <rect class="layer layer-marts" x="16" y="8" width="16" height="10" rx="1.7" fill="#5F6B76"/>
+  </g>
+  <text x="58" y="38" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif" font-size="27" font-weight="600" letter-spacing="-0.4" fill="#1B1F23">mimicwarehouse</text>
+</svg>
