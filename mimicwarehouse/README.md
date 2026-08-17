@@ -2,9 +2,10 @@
 
 The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
 package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-17 (EP-1) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
-`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — and no data
-code yet; that arrives with the roadmap briefs from `roadmap/EP-2-mwh-cli-doctor.md` on.
+files. As of 2026-08-17 (EP-1, EP-2) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
+`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — and the
+**`mwh` CLI** (`cli.py`) with its first command, `mwh doctor` (`doctor.py`); no data code
+yet — that arrives with the roadmap briefs from `roadmap/EP-3-config-data-root.md` on.
 
 | Doc | What |
 |---|---|
@@ -46,19 +47,28 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Planned quick start (after EP-2 … EP-3 land)
+## Quick start (EP-2: `mwh --version`, `mwh doctor`; the rest lands with EP-3 …)
 
 ```powershell
 # from the repository root, after "Install" above
 cd mimicwarehouse
 uv sync --group dev                 # CPython 3.13 managed by uv; system Python untouched
-uv run mwh doctor                   # python/uv/disk/data root/BitLocker/GPU/DuckDB checks
-copy .env.example .env              # MWH_DATA_ROOT=C:\mimicdata etc.
-uv run mwh paths                    # shows the data-root layout it will create
+uv run --group dev mwh --version    # mwh 0.1.0
+uv run --group dev mwh doctor       # python · uv · duckdb · disk_free · data_root · bitlocker · gpu · longpaths
+uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[8], ok}
+uv run --group dev mwh --data-root D:\somewhere doctor    # one-off override of MWH_DATA_ROOT
+copy .env.example .env              # (EP-3) MWH_DATA_ROOT=C:\mimicdata etc.
+uv run mwh paths                    # (EP-3) shows the data-root layout it will create
 uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog
 uv run --group ui mwh app           # (EP-57+) Streamlit "Lab" app on 127.0.0.1
 uv run mwh verify EP-<n>            # (EP-6+) acceptance tests for one brief
 ```
+
+`mwh doctor` exits 0 when no check **fails** (warn/info are allowed) and 1 otherwise;
+`disk_free` fails below 100 GB free (DESIGN §3), `bitlocker` fails when protection is off
+(GOVERNANCE §2), `duckdb` fails on a pin mismatch, `python` fails outside the uv-managed
+3.13 `.venv`. `data_root` only *warns* until EP-3 (missing, or not on C:). The doctor
+never opens a data file; the `--json` object is what EP-35 embeds in run manifests.
 
 ## Tiers (see DESIGN §4)
 

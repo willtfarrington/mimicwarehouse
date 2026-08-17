@@ -78,3 +78,26 @@ Shell COM property `System.Volume.BitLockerProtection` does not; `C:\mimicdata` 
   `mwh verify EP-2` (available from EP-6) green when EP-6 runs it.
 - Completion note records the doctor summary on this machine (statuses only, no paths beyond the
   data root).
+
+> **Completion note (2026-08-17).** Delivered `src/mimicwarehouse/cli.py` (typer + rich; eager
+> `--version`, global `--data-root` → `CliState` on `ctx.obj`; one `app.command()` line per command
+> module; no duckdb/pandas/polars at import — `mwh --help` measured 0.29 s direct, 0.34 s via
+> `uv run`), `src/mimicwarehouse/doctor.py` (`CheckResult`, eight checks behind mockable probe
+> helpers with 10 s timeouts, `run_checks`, `doctor_report`, `mwh doctor [--json]`, exit 1 only on
+> a `fail`) and `tests/ep/test_ep02.py` (27 tests, every probe mocked, unmocked `subprocess.run`
+> is a test failure). `uv run poe check` (ruff + pyright + 37 tests) green.
+> Doctor summary on this machine, `uv run --group dev mwh doctor` → exit 0, **7 pass · 0 warn ·
+> 0 fail · 1 info**: python pass (CPython 3.13.15 in .venv) · uv pass (0.12.5) · duckdb pass
+> (1.5.5 == pin) · disk_free pass (C: 415 / 951 GB free) · data_root pass (`C:\mimicdata` exists,
+> writable — the owner created it at the EP-0 follow-up, so the "warn until EP-3" case did not
+> arise) · bitlocker pass (C: on) · gpu info (RTX PRO 2000 Blackwell, 8 GB, driver 595.71) ·
+> longpaths pass (registry 1, `core.longpaths=true`). `mwh doctor --json | ConvertFrom-Json`
+> parses (8 checks, `ok=True`). Crafted violation `mwh --data-root G:\probe doctor` → `data_root`
+> **warn** ("on G:, not C: … EP-3 refuses; missing"), `bitlocker` warn for G: (Shell COM returns
+> nothing for the Google Drive virtual volume → "unknown — run manage-bde"), exit 0 (warns never
+> fail; EP-3 turns the non-C: case into a refusal). Judgment calls: disk sizes use GiB (`2**30`)
+> labelled "GB" to match the DESIGN §2 / EP-0 numbers; `data_root` writability is probed with a
+> throw-away `NamedTemporaryFile` inside the root (nothing is read); the BitLocker probe uses
+> Windows PowerShell (`powershell`, always present) rather than `pwsh`; `mwh verify EP-2` waits
+> for EP-6. Docs: README quick start now real for EP-2 commands; DESIGN §15 dated note adds
+> `doctor.py`. Nothing parked.

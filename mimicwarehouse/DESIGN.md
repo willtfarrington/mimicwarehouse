@@ -274,6 +274,16 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── DESIGN.md · GOVERNANCE.md · DECISIONS.md · DATA-DICTIONARY.md (generated, EP-29)
 ```
 
+> **Note (2026-08-17, EP-2).** `cli.py` landed as the typer + rich entry point (`app`,
+> shared `console`, eager `--version`, global `--data-root` → `CliState` on `ctx.obj`;
+> commands attach with one `app.command()` / `app.add_typer()` line each; no duckdb /
+> pandas / polars at import time — `mwh --help` ≈ 0.3 s). Its first helper module is
+> **`doctor.py`** (helper of `cli.py`, EP-2): `CheckResult`, eight pure checks (`python`,
+> `uv`, `duckdb`, `disk_free`, `data_root`, `bitlocker`, `gpu`, `longpaths`),
+> `run_checks(data_root)`, `doctor_report()` → the JSON object EP-35 embeds in run
+> manifests, and the `mwh doctor [--json]` command. Later command modules follow the same
+> pattern (`paths` → `config.py` EP-3, `guard.py` EP-4, `verify.py` EP-6).
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,
