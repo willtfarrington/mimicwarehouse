@@ -41,7 +41,7 @@ Data root: `MWH_DATA_ROOT` (default `C:\mimicdata`) — outside the repository, 
 | # | Brief | Size | Depends on | Core | Done |
 |---|-------|------|-----------|------|------|
 | EP-0 | [Baseline & hygiene](EP-0-baseline.md) | S | — | core | ☑ `cd67743` + `707e9b4` + `795a044` |
-| EP-1 | [Toolchain bootstrap (uv + CPython 3.13 + pyproject)](EP-1-toolchain-bootstrap.md) | M | EP-0 | core | ☐ |
+| EP-1 | [Toolchain bootstrap (uv + CPython 3.13 + pyproject)](EP-1-toolchain-bootstrap.md) | M | EP-0 | core | ☑ `c232142` |
 | EP-2 | [`mwh` CLI skeleton + `mwh doctor`](EP-2-mwh-cli-doctor.md) | S | EP-1 | core | ☐ |
 | EP-3 | [Config & data root + safety checks](EP-3-config-data-root.md) | M | EP-2 | core | ☐ |
 | EP-4 | [Governance enforcement: pre-commit + `mwh guard`](EP-4-guard-precommit.md) | S | EP-2 | core | ☐ |
