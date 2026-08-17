@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mimicwarehouse"
+version = "0.1.0"
+description = "Local MIMIC-IV data lab: DuckDB + Parquet warehouse, Python backend, Streamlit Lab app"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13,<3.14"
+authors = [{ name = "W. Taylor Farrington" }]
+# Core set (D-13/D-15/D-17). Permissive licenses only (GOVERNANCE §10, D-34).
+# duckdb is pinned exactly: one DuckDB version across every process (DESIGN §6);
+# tests/ep/test_ep01.py asserts the installed version equals this pin.
+dependencies = [
+  "duckdb==1.5.5",
+  "polars",
+  "pyarrow",
+  "pandas>=3",
+  "numpy",
+  "scipy",
+  "statsmodels",
+  "lifelines",
+  "scikit-learn",
+  "pydantic>=2",
+  "pydantic-settings",
+  "typer",
+  "rich",
+  "pyyaml",
+  "jinja2",
+  "altair>=5.5",
+]
+
+[project.scripts]
+# cli.py lands in EP-2; until then `uv run mwh` fails with ImportError (expected).
+mwh = "mimicwarehouse.cli:app"
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-xdist",
+  "hypothesis",
+  "ruff",
+  "pyright",
+  "poethepoet",
+  "pre-commit",
+]
+# Streamlit pins pyarrow<25 → `ui` is isolated from the heavy groups (roadmap Risk 3, D-21).
+ui = [
+  "streamlit==1.61.*",
+  "vegafusion",
+  "vl-convert-python",
+  "plotly",
+]
+# Filled by later briefs; kept empty here on purpose:
+gpu = []   # EP-121: torch (cu130 index, D-16), xgboost
+gpl = []   # EP-93:  scikit-survival (GPL-3, D-34) — only ever through this group
+text = []  # EP-148/150/151: medspaCy, sentence-transformers
+
+[tool.uv]
+package = true
+python-preference = "only-managed"
+default-groups = ["dev"]
+# `ui` isolated from `gpu`/`text`; `dev` stays co-installable with `ui` so page tests can
+# run `--group dev --group ui`.
+conflicts = [
+  [{ group = "ui" }, { group = "gpu" }],
+  [{ group = "ui" }, { group = "text" }],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+# EP-121 uncomments this so torch resolves from the cu130 index on Windows (D-16):
+# [tool.uv.sources]
+# torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mimicwarehouse"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+xfail_strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+include = ["src", "tests"]
+
+[tool.poe.tasks]
+test = "pytest"
+lint = "ruff check ."
+fmt = "ruff format ."
+typecheck = "pyright"
+check = ["lint", "typecheck", "test"]

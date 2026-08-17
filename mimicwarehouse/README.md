@@ -2,8 +2,9 @@
 
 The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
 package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-16 it contains **only design documents**; code arrives with the
-roadmap briefs, starting at `roadmap/EP-1-toolchain-bootstrap.md`.
+files. As of 2026-08-17 (EP-1) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
+`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — and no data
+code yet; that arrives with the roadmap briefs from `roadmap/EP-2-mwh-cli-doctor.md` on.
 
 | Doc | What |
 |---|---|
@@ -14,10 +15,41 @@ roadmap briefs, starting at `roadmap/EP-1-toolchain-bootstrap.md`.
 | `docs/resources/` | curated inventories from P1 (repos, vocabularies, reading list, datasets) |
 | `docs/analyses/` | capstone case studies (from EP-32), hupsim style: "what it deliberately does not claim" + Reproduction blocks |
 
-## Planned quick start (after EP-1 … EP-3 land)
+## Install (EP-1)
+
+Native Windows, PowerShell 7, **uv-managed CPython 3.13** in one `.venv`; the system
+Python (`C:\Python314`) is never touched (`python-preference = "only-managed"`, D-15).
+uv, its cache (`uv cache dir`) and `.venv` all live on C: — never on a synced drive.
 
 ```powershell
-# from the repository root, once uv is installed (EP-1 documents the install)
+# 1. uv (user scope, no admin) — one-time; then reopen the shell
+winget install --id astral-sh.uv -e
+#    fallback: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv --version                              # EP-1 recorded 0.12.5
+
+# 2. managed interpreter (the workspace pins 3.13 in .python-version)
+uv python install 3.13
+
+# 3. the workspace
+cd mimicwarehouse
+uv sync --group dev                       # core + dev tools; builds .venv from uv.lock
+uv run poe test                           # pytest (all briefs)  · uv run poe test -m ep_1 (one brief)
+uv run poe check                          # ruff check + pyright + pytest
+uv sync --group ui                        # adds Streamlit & co (isolated from gpu/text; see below)
+```
+
+Dependency groups (`[dependency-groups]`): `dev` (default; pytest, hypothesis, ruff, pyright,
+poethepoet, pre-commit) · `ui` (Streamlit 1.61, VegaFusion, vl-convert, Plotly — Streamlit
+pins `pyarrow<25`, so `[tool.uv] conflicts` keeps `ui` apart from `gpu` and `text`) ·
+`gpu` (EP-121) · `gpl` (EP-93; GPL-3 tools only here, D-34) · `text` (EP-148+). Commands in
+briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test`, `lint`,
+`fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
+`tier(...)` marker (selection from EP-12).
+
+## Planned quick start (after EP-2 … EP-3 land)
+
+```powershell
+# from the repository root, after "Install" above
 cd mimicwarehouse
 uv sync --group dev                 # CPython 3.13 managed by uv; system Python untouched
 uv run mwh doctor                   # python/uv/disk/data root/BitLocker/GPU/DuckDB checks

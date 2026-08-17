@@ -171,4 +171,5 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | GitHub Actions CI on the demo tier / synthetic fixtures | after v1.0.0 goes public | demo download in CI; runtime | v2 CI-1 |
 | Rust hot-path extension (PyO3/maturin) if a profiled bottleneck appears | only with a measured bottleneck DuckDB/Polars cannot solve | MSVC build tools; test matrix | v2 RS-1 |
 | Python 3.14 upgrade (once spaCy ships cp314 wheels and dowhy lifts its cap) | annual toolchain review | re-verify wheels | v2 PY-1 |
+| Split into a uv workspace (core package + app package, separate lockfiles) — parked by EP-1 (2026-08-17) | the `ui` conflict set grows beyond `gpu`/`text`, or a page test needs `ui` and `gpu` together | `requires-python` is intersected across members; two lockfiles to keep in step; `mwh` entry point moves | v2 PY-2 |
 | Multi-user / role model (beyond owner + agent) | if collaborators join | DUA is per-person; access control | v2 GOV-2 |

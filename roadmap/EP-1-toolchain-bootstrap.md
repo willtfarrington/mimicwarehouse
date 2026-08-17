@@ -106,3 +106,66 @@ brief; CLAUDE.md §6). Commands run in `mimicwarehouse/` unless stated.
 
 - Split into a uv workspace (core package + app package, separate lockfiles) — trigger: the `ui`
   conflict set grows beyond `gpu`/`text`, or a page test needs `ui` and `gpu` together.
+  *(mirrored into `final-roadmap.md` § Cross-cutting on 2026-08-17)*
+
+> **Completion note (2026-08-17).** Executed in one session on the fixture tier. uv 0.12.5
+> installed via `winget install --id astral-sh.uv -e` (user scope; the only system change);
+> `uv python install 3.13` → CPython 3.13.15; `uv python pin 3.13` in `mimicwarehouse/`.
+> `uv cache dir` = `%LOCALAPPDATA%\uv\cache` (C:); managed interpreters under
+> `%APPDATA%\uv\python` (C:); `.venv` in the workspace. Nothing was installed into
+> `C:\Python314` (its `pip list` shows only pre-existing owner packages).
+>
+> **Versions** (`uv tree --depth 1`, lock of 2026-08-17; 100 packages resolved):
+>
+> | Tool / package | Version | | Package | Version |
+> |---|---|---|---|---|
+> | uv | 0.12.5 | | scipy | 1.18.0 |
+> | CPython (managed) | 3.13.15 | | statsmodels | 0.14.6 |
+> | duckdb (**exact pin**) | 1.5.5 | | lifelines | 0.30.0 |
+> | polars | 1.43.2 | | scikit-learn | 1.9.0 |
+> | pyarrow (core **and** ui) | 24.0.0 | | altair | 6.2.2 |
+> | pandas | 3.0.5 | | streamlit (`ui`) | 1.61.1 |
+> | numpy | 2.5.2 | | vegafusion / vl-convert-python / plotly (`ui`) | 2.0.3 / 1.9.0.post1 / 6.9.0 |
+> | pytest / pytest-xdist / hypothesis | 9.1.1 / 3.8.0 / 6.165.10 | | pydantic / pydantic-settings | 2.13.4 / 2.15.0 |
+> | ruff / pyright | 0.16.3 / 1.1.411 | | typer / rich / pyyaml / jinja2 | 0.27.1 / 15.0.0 / 6.0.3 / 3.1.6 |
+> | poethepoet / pre-commit | 0.48.0 / 4.6.2 | | | |
+>
+> **pyarrow.** Streamlit 1.61.1 requires `pyarrow<25,>=7.0`; pyarrow **25.0.1** is on PyPI,
+> yet both the core and the `ui` resolver forks landed on **24.0.0** — uv prefers one shared
+> version across forks when one exists, so `uv run --group dev python -c "import pyarrow…"`
+> and the `ui` variant print the same 24.0.0 (the "may equal the ui one" case in the brief).
+> The `[tool.uv] conflicts` entries were accepted by uv 0.12.5 on the still-empty `gpu`/`text`
+> groups and appear in `uv.lock` (`[[conflicts]]`), so nothing is left commented for EP-7.
+>
+> **Wheel-availability check — one deviation.** `uv sync --group dev --no-build
+> --no-install-project` exits 2 on exactly one package: **`autograd-gamma==0.5.0`** (a
+> lifelines transitive; pure Python, no wheel ever published on PyPI; builds in < 1 s with
+> no compiler). uv's `--no-build` refuses sdist-only distributions even when a built wheel
+> is cached, so the check as literally written cannot pass while lifelines is in core.
+> Both checks pass with that single package excluded:
+> `uv sync --group dev --no-build --no-install-project --no-install-package autograd-gamma`
+> and the `--group ui` twin both exit 0 (every other third-party dependency — 98 of them —
+> installs from a cp313 / win_amd64 or pure-Python wheel). The check is made durable in
+> `tests/ep/test_ep01.py::test_uv_lock_every_package_has_a_wheel_for_this_interpreter`,
+> which reads `uv.lock` and asserts every package (allow-list: `autograd-gamma`) ships a
+> wheel whose tags intersect `packaging.tags.sys_tags()` of the venv interpreter. Recorded
+> for EP-7 (re-plan P0): decide whether to keep the allow-list, or vendor/replace the dep.
+>
+> **Smoke test.** `uv run poe test -m ep_1` → 10 passed in ≈ 1.7 s warm (≈ 6 s on the very
+> first run while `.pyc` files compile). Traps checked and *not* biting on this lock: the
+> pandas-3 default `str` dtype and `datetime64[us]` survive DuckDB → Polars → pandas
+> (`.pl()` → `.to_pandas()`) intact; `statsmodels.formula.api.ols("y ~ C(g) + x")` accepts a
+> `str`-dtype `g` (patsy 1.0.2); lifelines KM, sklearn logistic regression and Altair 6
+> `to_dict()` all fine. `uv run poe lint`, `uv run poe typecheck` (pyright's Node runtime
+> downloaded to the user cache on first run) and `uv run poe check` are green.
+> `uv run mwh` fails with `ModuleNotFoundError: mimicwarehouse.cli` — expected until EP-2.
+>
+> **Docs.** `mimicwarehouse/README.md` § Install; `DESIGN.md` dated notes under §2 (uv /
+> Python / stack versions) and §6 (DuckDB pin); `.gitignore` already covered `.venv/`,
+> `.pytest_cache/`, `.ruff_cache/`, `.hypothesis/` — verified, not edited. Roadmap README
+> Risk 3 gets a dated note. Free disk on C: after sync: ≈ 415 GB.
+>
+> **Deferred / handed on.** `mwh verify EP-1` → EP-6; tier-marker selection → EP-12;
+> `.pre-commit-config.yaml` → EP-4 (pre-commit 4.6.2 is installed). No `.env.example`
+> (EP-3). `uv python update-shell` (adds `~/.local/bin` to PATH) was **not** run — everything
+> goes through `uv run`, so no further PATH change was needed.

@@ -38,6 +38,19 @@ to leave this machine. All of these are catalogued in
 | Encryption | BitLocker on C: | required by the DUA; recorded by `mwh doctor` |
 | Cloud | GoogleDriveFS (G:), Cryptomator (D:) mounted | nothing warehouse-related may live on G:/D: (file locks, sync = redistribution) |
 
+> **Note (2026-08-17, EP-1).** Toolchain installed: **uv 0.12.5** (winget, user scope;
+> `%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`; cache `%LOCALAPPDATA%\uv\cache`; managed
+> interpreters under `%APPDATA%\uv\python` — all on C:) and **uv-managed CPython 3.13.15**
+> (`mimicwarehouse/.python-version` = `3.13`; `.venv` in the workspace). System CPython
+> 3.14.7 untouched. Resolved core stack: pandas 3.0.5 · numpy 2.5.2 · scipy 1.18.0 ·
+> polars 1.43.2 · pyarrow 24.0.0 · statsmodels 0.14.6 · lifelines 0.30.0 ·
+> scikit-learn 1.9.0 · altair 6.2.2 · pydantic 2.13.4; `ui`: Streamlit 1.61.1
+> (`pyarrow<25,>=7.0`). pyarrow 25.0.1 exists on PyPI, but uv unified both resolver
+> forks on 24.0.0 (one version satisfies core and `ui`), so a single venv serves both
+> today; the `[tool.uv] conflicts` fork machinery is in place for when they diverge. Only
+> sdist-only package in the lock: `autograd-gamma 0.5.0` (pure Python, lifelines
+> transitive) — see the EP-1 completion note.
+
 ## 3. Layers & disk budget
 
 ```
@@ -114,6 +127,12 @@ DuckDB allows one read-write process **or** many read-only processes per file. T
 notebooks and analyses open `access_mode='READ_ONLY'`. Anything that must be written while
 readers are open (audit, run ledger, benchmark ledger) goes to **append-only JSONL** under
 `C:\mimicdata\runs\` and is exposed through `runs.duckdb` views rebuilt on demand (§11).
+
+> **Note (2026-08-17, EP-1).** DuckDB is pinned to **`duckdb==1.5.5`** in
+> `pyproject.toml` (exact pin; `tests/ep/test_ep01.py` asserts the installed version equals
+> the pin, so bumping it is a deliberate one-line change + re-lock + version note here). No
+> DuckDB CLI is installed or permitted (GOVERNANCE §4); the Python client is the only
+> engine, so the "one version across every process" rule has a single moving part.
 
 ## 7. Schema, keys, time semantics, unit of analysis
 
