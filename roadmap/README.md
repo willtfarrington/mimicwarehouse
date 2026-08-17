@@ -46,7 +46,7 @@ Data root: `MWH_DATA_ROOT` (default `C:\mimicdata`) — outside the repository, 
 | EP-3 | [Config & data root + safety checks](EP-3-config-data-root.md) | M | EP-2 | core | ☑ `e10416b` |
 | EP-4 | [Governance enforcement: pre-commit + `mwh guard`](EP-4-guard-precommit.md) | S | EP-2 | core | ☑ `5d47ab4` |
 | EP-5 | [Visual identity](EP-5-visual-identity.md) | S | EP-1 | core | ☑ `e2a664a` |
-| EP-6 | [`mwh verify EP-n` + roadmap_check.py](EP-6-verify-roadmap-check.md) | S | EP-2 | core | ☐ |
+| EP-6 | [`mwh verify EP-n` + roadmap_check.py](EP-6-verify-roadmap-check.md) | S | EP-2 | core | ☑ `0d1807d` |
 | EP-7 | [Re-plan P0](EP-7-replan-p0.md) | S | EP-0, EP-1, EP-2, EP-3, EP-4, EP-5, EP-6 | core | ☐ |
 
 Ordering rationale: EP-0 first so every later commit is guarded by `.gitignore`/`.gitattributes`/the guard hook before any data code exists; EP-1 (toolchain) before EP-2..EP-6 which all need `uv run`; EP-5 (identity) sits early so every later screenshot is consistent (D-11).
