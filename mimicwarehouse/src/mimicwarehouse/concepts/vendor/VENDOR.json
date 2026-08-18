@@ -1,0 +1,954 @@
+{
+  "upstream_url": "https://github.com/MIT-LCP/mimic-code",
+  "upstream_commit": "8bcbd190ca75670cd5281f9ead3611ae1cefb73e",
+  "commit_date": "2026-08-10T21:47:50-04:00",
+  "vendored_on": "2026-08-17",
+  "vendored_by": "mimicwarehouse.concepts.vendoring (EP-8)",
+  "mimic_iv_version_targeted": "3.1",
+  "mimic_iv_version_source": "mimic-iv/buildmimic/postgres/validate.sql header (no mimic-iv/CHANGELOG upstream at this commit)",
+  "mimic_iv_ed_version_targeted": "2.2",
+  "duckdb_version_upstream_readme": "1.4.x LTS (currently 1.4.5)",
+  "duckdb_version_pinned_here": "1.5.5",
+  "tree": "mimic-code",
+  "line_endings": "LF (sha256_lf = sha256 of the LF-normalised bytes)",
+  "guard_pragma": "-- mwh-guard: allow (row count, not an id)",
+  "redaction_marker": "<mwh: id redacted>",
+  "file_count": 144,
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256_lf": "fa5b4187cc5da20dc4f27d76d59c8507d1389a76559b5f56ab48a222d1eb3bb5",
+      "bytes": 1100
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/create.sql",
+      "sha256_lf": "b00184900be5d0ba5c497e1c3a1a6bbf40caf2058acdfe746dac2daad6539838",
+      "bytes": 3415
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/index.sql",
+      "sha256_lf": "381f1d652bb4ac2897bb074cbcb9d88b23ae20ae9ac7fd0388054bd99b827cb4",
+      "bytes": 1241
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/load.sql",
+      "sha256_lf": "435e7fc53a82fd6f1d2c8f2258e5e8e54a0bcf537d12c89429560e97af001433",
+      "bytes": 3074
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/validate.sql",
+      "sha256_lf": "acdfb01d0d377514355c113d97e6dd3a390b38002fd98f723b81fd6c63096a75",
+      "bytes": 1361
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/create.sql",
+      "sha256_lf": "ce7fdf4639b2ca647c1ad0241870adc41079906357b99f98a6415a66f19f1b22",
+      "bytes": 1508
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/load.sql",
+      "sha256_lf": "e21b7d031c72b2941850f0fc31bfcc5a35e507cd9a506c22a23daa288b211ea7",
+      "bytes": 752
+    },
+    {
+      "path": "mimic-iv/buildmimic/duckdb/build_mimic.sh",
+      "sha256_lf": "ff4136414b2da21144ead376685f1a8d63ca29aff45e74ff79fc3f30f06df75d",
+      "bytes": 7272
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/constraint.sql",
+      "sha256_lf": "bec89f0c7ebfc02106fb0009309626b9d2386b866acd2ff8278f5c55fb3dc1a0",
+      "bytes": 17914
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/create.sql",
+      "sha256_lf": "62d3d53259acd90f88e3d1160527faa2741c7652d86214938676d1334346c931",
+      "bytes": 12820
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/index.sql",
+      "sha256_lf": "b77dcf933504e8bc1f42924a14182a60fcf315891da6688f299655d07e609f80",
+      "bytes": 5238
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/load.sql",
+      "sha256_lf": "954138dc8a93e2618b122a77285deca6dfeebde5e9d4fc6f084f418794dcda64",
+      "bytes": 3099
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/validate.sql",
+      "sha256_lf": "e90508817c12829b01d7d8cf558e9ab42ada131115ef396525d6af421f52be0c",
+      "bytes": 5176
+    },
+    {
+      "path": "mimic-iv/concepts/comorbidity/charlson.sql",
+      "sha256_lf": "1a6d13edbef12fad4deec3748d5ac903357233fdcf2ca4bd183db257ca915fb2",
+      "bytes": 13725
+    },
+    {
+      "path": "mimic-iv/concepts/demographics/age.sql",
+      "sha256_lf": "b91101e98437f96ffdf7b9136a4506ab6a790b1f63572ffcd14c31a28ee273d6",
+      "bytes": 1527
+    },
+    {
+      "path": "mimic-iv/concepts/demographics/icustay_detail.sql",
+      "sha256_lf": "35103cee621ed025d266e6c4c59916515ad2ecf59e6b1f1962bff5821e463cd8",
+      "bytes": 1676
+    },
+    {
+      "path": "mimic-iv/concepts/demographics/icustay_hourly.sql",
+      "sha256_lf": "6e20f8fba635f25708b29b48f926c4bd68da691bfae66a04fba394593c8c1f28",
+      "bytes": 1499
+    },
+    {
+      "path": "mimic-iv/concepts/demographics/icustay_times.sql",
+      "sha256_lf": "a26457b40e30eb4d6dbd98809ab0a39044d014806554c3f2c065262d6cb14bcc",
+      "bytes": 680
+    },
+    {
+      "path": "mimic-iv/concepts/demographics/weight_durations.sql",
+      "sha256_lf": "82e23dd4ac6d0dc316438d08ee3f5edab2c4ca0f6535c23b3ab40eb7cafcd795",
+      "bytes": 3684
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_bg.sql",
+      "sha256_lf": "3c2ff855bc1fea224d78c50e5905f652e100d75857ef9cf909be8fc10e92a352",
+      "bytes": 1894
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_bg_art.sql",
+      "sha256_lf": "f3ef6de5f9b071736c19bc27eedeb2509173d9084019ced555ac8dc882683fac",
+      "bytes": 1903
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_gcs.sql",
+      "sha256_lf": "ebbabc9c407dcea8acc5363636ee6218723192aa6122e49e2e4d553ce958a4a5",
+      "bytes": 1856
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_height.sql",
+      "sha256_lf": "4ac0656fe4336995f39871093a445b2b46df86dda3d81ff791575bc4d3a98352",
+      "bytes": 634
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_lab.sql",
+      "sha256_lf": "bf7b2828579565b923b9c132a3e0c3ec66ee61abf69b0f1c27b034039e72a0cf",
+      "bytes": 7037
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_rrt.sql",
+      "sha256_lf": "24b7035b85822139f5b7ab952598ff2dcd35067040dd23c239e6db81ce43c859",
+      "bytes": 630
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_sofa.sql",
+      "sha256_lf": "e56ae4c67d7b19bf8d47f262011bcd888bdb04160b1e9ce744423243b867892e",
+      "bytes": 9433
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_urine_output.sql",
+      "sha256_lf": "2ddae1a9d4d0040bedbbb24b552576375f8aa4311e7c9b7ee2603227c5502f11",
+      "bytes": 552
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_vitalsign.sql",
+      "sha256_lf": "f85ecb807cbd23090b41f02af2253cf2e46ba8d50e8734fb2577be3a4b9af700",
+      "bytes": 1240
+    },
+    {
+      "path": "mimic-iv/concepts/firstday/first_day_weight.sql",
+      "sha256_lf": "be5dbedf07b372ebb5e57f9a8004beaa988ac347e73822b72aedba34af3b69a3",
+      "bytes": 858
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/bg.sql",
+      "sha256_lf": "90a7f58852b5af97cfce799e9e76a9754c765e2fb9593860ca6bf85b60a5cd55",
+      "bytes": 8367
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/blood_differential.sql",
+      "sha256_lf": "a93f21dfb29e00b1450fabff5572830a2a5930f1229dbe43f816dd1b8b8235f1",
+      "bytes": 6864
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/cardiac_marker.sql",
+      "sha256_lf": "a8e02e5df6089cb4c26cf7c5779a999cf20b5708071f5ae113b570b5f1ac7b36",
+      "bytes": 860
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/chemistry.sql",
+      "sha256_lf": "b674ae2e12fe859c44850a5e8268f3a18ccb934fb9f0ab47112af0c346364d70",
+      "bytes": 2969
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/coagulation.sql",
+      "sha256_lf": "d6f9ba24d8872e3eaed92707522dd2f24a51f879dd77feebe25ee9c6b08225dc",
+      "bytes": 1164
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/complete_blood_count.sql",
+      "sha256_lf": "8eb94ba8891e0effa66c7a62c76e648d9f42e8941f97f052c92a0823434bae92",
+      "bytes": 1409
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/creatinine_baseline.sql",
+      "sha256_lf": "3ca2e029f27025df7c96b5364e4bc7acf7165510340160f9f32406a3e838cdda",
+      "bytes": 1985
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/enzyme.sql",
+      "sha256_lf": "5c719b94ec9947366f4eb191687e12f2b80931764272c3c6988506ef716647cd",
+      "bytes": 1686
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/gcs.sql",
+      "sha256_lf": "77d14660a8322928069c049cd1aa28eb8f356b7751f73eba2625358266f3039e",
+      "bytes": 4606
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/height.sql",
+      "sha256_lf": "9b024d54f770b9a8e1f1ac0afe84fe5918295155eaa95872a849ef112c76d492",
+      "bytes": 1313
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/icp.sql",
+      "sha256_lf": "d7a6ad8f8c455f2f177c26749a0fbf80d000e652dfda276b9782fa7dcd99f62c",
+      "bytes": 645
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/inflammation.sql",
+      "sha256_lf": "88b7cc933d2832aed284a489ee67a3a156e67365c96e60706fb6eb6c537590c9",
+      "bytes": 519
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/oxygen_delivery.sql",
+      "sha256_lf": "b3c9df45c64ac7364e98c8eba0ebf233dc153ffecdc8ad23bb4b9cea53bd2752",
+      "bytes": 3977
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/rhythm.sql",
+      "sha256_lf": "97a4b14b1d493605f91ce7587e05fdf0990e1ba1cdfe5562d2e522996219517d",
+      "bytes": 973
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/urine_output.sql",
+      "sha256_lf": "51de17db6f24817d1c442654f01b2423e49001738682c0b9d2d6025a3407301a",
+      "bytes": 1168
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/urine_output_rate.sql",
+      "sha256_lf": "2a94ace1b31094d311b32ae3256eeba0ed6ff000fb57fe30b9917de89db5d7ff",
+      "bytes": 4600
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/ventilator_setting.sql",
+      "sha256_lf": "80ac2b4bde1d4e8324f1818bd36c453fe0b70b2e90e228762ecfe65fcc757708",
+      "bytes": 3192
+    },
+    {
+      "path": "mimic-iv/concepts/measurement/vitalsign.sql",
+      "sha256_lf": "9a618fb7f6bf74ed1571e08088b09d1f27a8ccf8b1054082a94270cde456ab0d",
+      "bytes": 3498
+    },
+    {
+      "path": "mimic-iv/concepts/medication/acei.sql",
+      "sha256_lf": "6a5ec32282f6e5207d33818b689fb1c52d41c075f36a0dbc6eeb135afb510110",
+      "bytes": 969
+    },
+    {
+      "path": "mimic-iv/concepts/medication/antibiotic.sql",
+      "sha256_lf": "300816a74a070b2dffe6c5aa982e8103c46080fa5ed98cf5fffd36a245b24be2",
+      "bytes": 10091
+    },
+    {
+      "path": "mimic-iv/concepts/medication/arb.sql",
+      "sha256_lf": "e24b91d1ecf8eaef598129b7e9cf14e21b2ff27491407c08fbb07efab9b35d97",
+      "bytes": 961
+    },
+    {
+      "path": "mimic-iv/concepts/medication/dobutamine.sql",
+      "sha256_lf": "7b74249ebca27705ed5e31de753189c60a27e002a50c29745ff0bffee6e27ad5",
+      "bytes": 369
+    },
+    {
+      "path": "mimic-iv/concepts/medication/dopamine.sql",
+      "sha256_lf": "4809121abcd1bd3d827a3025b7427f959dc99a53bbbee7dbe109c957145ff74d",
+      "bytes": 366
+    },
+    {
+      "path": "mimic-iv/concepts/medication/epinephrine.sql",
+      "sha256_lf": "97c1c3cf8c549fb7546c85c7a66902911cc217fd39fd29b3a15070e83d6a2e5a",
+      "bytes": 373
+    },
+    {
+      "path": "mimic-iv/concepts/medication/milrinone.sql",
+      "sha256_lf": "5ff338dcfd6d66733ae2a543bf6180a635518772bc9ea88591552df86a00794e",
+      "bytes": 349
+    },
+    {
+      "path": "mimic-iv/concepts/medication/neuroblock.sql",
+      "sha256_lf": "1e42f6d1f894f593eb315ab1f876ca4777892c65f89113a768c7e003db3ac19f",
+      "bytes": 434
+    },
+    {
+      "path": "mimic-iv/concepts/medication/norepinephrine.sql",
+      "sha256_lf": "4972b33d3dce3aa0f8626f790b19d4cff033436e0910845f795c7e2a55ec1d28",
+      "bytes": 728
+    },
+    {
+      "path": "mimic-iv/concepts/medication/norepinephrine_equivalent_dose.sql",
+      "sha256_lf": "b4c4840d06b079344194eb038bb295b009ddd2ad630b57c5a5dbbb03e7cef11c",
+      "bytes": 1458
+    },
+    {
+      "path": "mimic-iv/concepts/medication/nsaid.sql",
+      "sha256_lf": "5289cf2b0e5c6e1f05030c843560ad36c10c03303492d5cadf60acace92aeccc",
+      "bytes": 1529
+    },
+    {
+      "path": "mimic-iv/concepts/medication/phenylephrine.sql",
+      "sha256_lf": "173331e5ad8a011e4c9d24faae342ad3a1de5e645879210715885d099c6032a3",
+      "bytes": 470
+    },
+    {
+      "path": "mimic-iv/concepts/medication/vasoactive_agent.sql",
+      "sha256_lf": "7c8fd57ead83e4b8edf3867204b23fac3d06c141bc8ada8be8fa6513dab1b390",
+      "bytes": 4664
+    },
+    {
+      "path": "mimic-iv/concepts/medication/vasopressin.sql",
+      "sha256_lf": "13a5e11dd3a4275ffc64dc4f588c04773f6439889fabb2791a2f23edbed2e43b",
+      "bytes": 591
+    },
+    {
+      "path": "mimic-iv/concepts/organfailure/kdigo_creatinine.sql",
+      "sha256_lf": "a7daeaf1c58c6f3b6a3f6fb0e8b7623e1b922123451ee485cc93bb4beb8b30b4",
+      "bytes": 1865
+    },
+    {
+      "path": "mimic-iv/concepts/organfailure/kdigo_stages.sql",
+      "sha256_lf": "ecfa0c8c343d3d210a4bf1d59882d83472f4ad02001ae87a605a3695be262d55",
+      "bytes": 5363
+    },
+    {
+      "path": "mimic-iv/concepts/organfailure/kdigo_uo.sql",
+      "sha256_lf": "7b4e012a2dc3c1c50f080372edc003aec5f7d3388a3a4d788d4b3cd89c71d2d2",
+      "bytes": 3733
+    },
+    {
+      "path": "mimic-iv/concepts/organfailure/meld.sql",
+      "sha256_lf": "a7ce07eb899fcdcf5fc6e2f2200adcc0af320767acc404c7a13a6bf5de919679",
+      "bytes": 5449
+    },
+    {
+      "path": "mimic-iv/concepts/score/apsiii.sql",
+      "sha256_lf": "9692a6342940d7c2f885a67db72fc18ce38eab174c4e360a3fe82262d03085c0",
+      "bytes": 33214
+    },
+    {
+      "path": "mimic-iv/concepts/score/lods.sql",
+      "sha256_lf": "97d645d39862837b29872571121c3581107ff12cd1f0e6d6217548088e3f410d",
+      "bytes": 7568
+    },
+    {
+      "path": "mimic-iv/concepts/score/oasis.sql",
+      "sha256_lf": "7b5082e8e66df40a95590567ab4dad7ef28e44d4a0be7b921d02186c6616a19e",
+      "bytes": 11023
+    },
+    {
+      "path": "mimic-iv/concepts/score/sapsii.sql",
+      "sha256_lf": "a7f474712fd8e8e68b7293d1e70e7f42b19fe2712c9c8a8b14149a20a1f52df7",
+      "bytes": 17503
+    },
+    {
+      "path": "mimic-iv/concepts/score/sirs.sql",
+      "sha256_lf": "5f2ec6dab9e0bd26c8e5873e19442717616b1287eefc3de60b5fda0da557e9b8",
+      "bytes": 3392
+    },
+    {
+      "path": "mimic-iv/concepts/score/sofa.sql",
+      "sha256_lf": "a2dcdfa54c7d981c6846e9afdc8492656cfa8aa85137033becec8ac5dc8c1099",
+      "bytes": 12361
+    },
+    {
+      "path": "mimic-iv/concepts/sepsis/sepsis3.sql",
+      "sha256_lf": "1d06e0efed85220c8a9cfd27ee9ee50e4dfbbe7a4975a7d2f7af72a92766692a",
+      "bytes": 2824
+    },
+    {
+      "path": "mimic-iv/concepts/sepsis/suspicion_of_infection.sql",
+      "sha256_lf": "2347c2101df9cddbdb1a280bcb8a39f9186c95126e2cf00cbe3e94b7fa3efac8",
+      "bytes": 7200
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/code_status.sql",
+      "sha256_lf": "b8c92ff0d4c724ab2f5c069735aa5c0b5608842f1450da933190c5bc38ecca67",
+      "bytes": 2469
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/crrt.sql",
+      "sha256_lf": "6fffa92ab889ef5701d0bce0f246eef67e64adb2714cb95f2fd466183d6bd17a",
+      "bytes": 5762
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/invasive_line.sql",
+      "sha256_lf": "61c8d3a30219a7d5e3380b3375b0ae595d524b280f1a69f24dcdb3e5a1fe2f7c",
+      "bytes": 4544
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/rrt.sql",
+      "sha256_lf": "9b0b11a15f442b402701424a83229df0ee03a9225fc267d27faa4cc2d3089f8b",
+      "bytes": 13309
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/ventilation.sql",
+      "sha256_lf": "2ec5dee1e90c39f51f44c8e6f665679c22b97f5454195036e4e958a8c1583c24",
+      "bytes": 9377
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/comorbidity/charlson.sql",
+      "sha256_lf": "72e141d2e5504c06eaeaeedf3a6e5e63df80e1b17e1b41ab23a5a9b9c78fb029",
+      "bytes": 10722
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/demographics/age.sql",
+      "sha256_lf": "39666414728a21c9ed3efc4407ac2afe29b184847178895c55202ec9735baa27",
+      "bytes": 447
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/demographics/icustay_detail.sql",
+      "sha256_lf": "6788ef812fc049ed9d1144860604de8101f6ea400d1f0a5d0153eae90338dd9c",
+      "bytes": 1335
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/demographics/icustay_hourly.sql",
+      "sha256_lf": "81455a58f9a4b9abfee9bdeaa0b4bd5f8fbd9169e646027301d884ac29688df4",
+      "bytes": 760
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/demographics/icustay_times.sql",
+      "sha256_lf": "8d13e38fac6cd0b106e025b0bedadd1069b2c6728b4b919e4a2ae8a21e783451",
+      "bytes": 523
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/demographics/weight_durations.sql",
+      "sha256_lf": "b9c4cf351b3b8e7e671ffab70c3b163ffb6e23bee1ec45b252ac177c85812205",
+      "bytes": 2339
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/duckdb.sql",
+      "sha256_lf": "0b795a60d1f8f651629f70693a05d1a6c0d850e913f452184ed9e88754d6743a",
+      "bytes": 4647
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_bg.sql",
+      "sha256_lf": "08d751ae20a831a68168ebf86afd3d1fa0b67350f382a993b784ee24c0ada75c",
+      "bytes": 1854
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_bg_art.sql",
+      "sha256_lf": "f02c45c374a47a5517e53b9ad6f934f74de6ac1fe30769f4d7a565258265027f",
+      "bytes": 1889
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_gcs.sql",
+      "sha256_lf": "43810b889deeaa4104e7958bc2042bfe6a195954d2fdd889556b0c22d6e7ec07",
+      "bytes": 826
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_height.sql",
+      "sha256_lf": "7f6392ba9ed14bbf8e1ce080316c343e1001d4b9c326387dfd9ae668d3d7eb0f",
+      "bytes": 509
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_lab.sql",
+      "sha256_lf": "1166d567e3773389136bf95bb2951a6cdce8a65f69adc7260ae2b2d9098561d0",
+      "bytes": 6402
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_rrt.sql",
+      "sha256_lf": "acf320bba173d7670afa6d04abdae240a110a7dc422d38b458f3156c01b60750",
+      "bytes": 632
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_sofa.sql",
+      "sha256_lf": "81b5afffa2634d99000819cab717979b003e070d10b7d68ac3106d10fbc813fb",
+      "bytes": 6196
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_urine_output.sql",
+      "sha256_lf": "6d46386e04fa44683e76c15c5696198ddc64100e7103222eea99d69fdcee0f95",
+      "bytes": 483
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_vitalsign.sql",
+      "sha256_lf": "432b55a76286843cdcccc50efbf18e6af2f40bdc8ea49f293ec36f0f4b18f46e",
+      "bytes": 1175
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/firstday/first_day_weight.sql",
+      "sha256_lf": "08ce1798ca2d6ecf893fb7aa03716f4328bb6950cb60cfa35f1d431ef58ae193",
+      "bytes": 583
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/bg.sql",
+      "sha256_lf": "4b577c08f5c7d72d45da08a5ef16c7aa07fba4b13af5af14e665be6ae2511f52",
+      "bytes": 5322
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/blood_differential.sql",
+      "sha256_lf": "8ba701be5d2d751e8b911c11542a3042622eeeb94ad42d9dbb9c1b93c6789f2a",
+      "bytes": 4108
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/cardiac_marker.sql",
+      "sha256_lf": "a878d5200a403d20db8f0b6f5b3dea090dc43bd859034ba6d157dbf7e0da90ef",
+      "bytes": 628
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/chemistry.sql",
+      "sha256_lf": "b3702e5b85ec1116e0013e0ba646291ae7d9e5a95e94125ef407c80895d0a513",
+      "bytes": 1687
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/coagulation.sql",
+      "sha256_lf": "cfba9feeb2619e17dd73ddba46d584b34ed27ef6948e77be17ec11311dd57ee7",
+      "bytes": 848
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/complete_blood_count.sql",
+      "sha256_lf": "d5de5c0f8df5d58a726526811240bb13bf775f1319acf1da24df14368995001a",
+      "bytes": 1194
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/creatinine_baseline.sql",
+      "sha256_lf": "0a9b8e3d8c87429cc9a4239c02d51741ef8e1f1766e4fbc2b20cf7cc21fd6e4d",
+      "bytes": 1316
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/enzyme.sql",
+      "sha256_lf": "19372275662b2330963902cc19dd96b295d61d4db7145de52f7ee36ac9fdd927",
+      "bytes": 1271
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/gcs.sql",
+      "sha256_lf": "ebea0def4a33a76ce18ea172a2187e0f25a97dac47f65c744d0e8c8672e72c34",
+      "bytes": 2312
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/height.sql",
+      "sha256_lf": "dd1ac1b2a77b3946c1ce97f36fe282144b495a8a37c1433451531c3fe763678f",
+      "bytes": 1121
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/icp.sql",
+      "sha256_lf": "c81861c28adaf0533b55f207cfb363751116c6df7129e26004281c4e6e13a2ca",
+      "bytes": 517
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/inflammation.sql",
+      "sha256_lf": "25ac5ba3e158047a44d20b04a5d0b8b614583c67ff23c488e4c0bfc54a2c12ea",
+      "bytes": 477
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/oxygen_delivery.sql",
+      "sha256_lf": "1711e59b7feebfab31647667cf79c4383fafaee02eaa6153ad8578cd54068165",
+      "bytes": 2020
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/rhythm.sql",
+      "sha256_lf": "0ae68e3beeedb421096676d5d1a1cd4f21b0c1e6d96ef2558dfecb137347c6f3",
+      "bytes": 865
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/urine_output.sql",
+      "sha256_lf": "9b9c5fd0fa1ae9cf676868bd7f1c6b248c57613e9874dc38dc2951f7db94231a",
+      "bytes": 663
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/urine_output_rate.sql",
+      "sha256_lf": "70a70f6014ef701feed8e474ecae39e344511dcac621044daf3d8999febdb100",
+      "bytes": 3254
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/ventilator_setting.sql",
+      "sha256_lf": "9528bc6180a9ef2a559298eb3be7b1e485db874711eafa5f25380d484b2e51a7",
+      "bytes": 2361
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/measurement/vitalsign.sql",
+      "sha256_lf": "0d28672f3a1081cd81a5e7f1a7d0413fc8e4ecc8cac9146e93222789ef0d8900",
+      "bytes": 2125
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/acei.sql",
+      "sha256_lf": "332df4deccfb982a7e73d35ad3ed858ab4975a770b88980f8748616d65e11164",
+      "bytes": 1029
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/antibiotic.sql",
+      "sha256_lf": "1b2f97d6069ceb650690ce64b3e88371ac8274e296f8785f36f77d1faf084034",
+      "bytes": 9446
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/arb.sql",
+      "sha256_lf": "86839c0ec6e37e05954c2223ed02f57c714b76600d8b5dd19be1b2bbcf738d56",
+      "bytes": 1107
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/dobutamine.sql",
+      "sha256_lf": "f514b7e2ade37032e98c51ba82bf592244d1f1d5384b63b541d455f957b33df0",
+      "bytes": 314
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/dopamine.sql",
+      "sha256_lf": "75284fe0209c7a19b0c859d11d2658e56385430bad38c9aaa75174667ea861ec",
+      "bytes": 310
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/epinephrine.sql",
+      "sha256_lf": "b021cd639961440438faa0e0573363b35be10f3c2b9c8da041b79e1431d470a0",
+      "bytes": 316
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/milrinone.sql",
+      "sha256_lf": "6dd9724146fd53acd383d9c2810ccf488df11fef62b37c1b4b89250baddc3840",
+      "bytes": 312
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/neuroblock.sql",
+      "sha256_lf": "19a8236d158789b9660112161bbfc4e72688bfcf7867a29a6ab7ec813e67e319",
+      "bytes": 342
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/norepinephrine.sql",
+      "sha256_lf": "4085001f87dcdeeccde5877eb0dd3cc9718c7a8aab2bb57c2a6ab41c063ffabd",
+      "bytes": 463
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/norepinephrine_equivalent_dose.sql",
+      "sha256_lf": "c17bf81d2fae43e038eacf6aac439a7f79a2f5e95627b9ff0f74b03b74d856de",
+      "bytes": 668
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/nsaid.sql",
+      "sha256_lf": "53f882d04023836dc6b194470c2f5d59097ec18bd195ce9b6d784661ea65d2dc",
+      "bytes": 1591
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/phenylephrine.sql",
+      "sha256_lf": "595d8b41195dcd6f386912a8c42ebf96bcfeead68ecb0c228721b63e81ee1107",
+      "bytes": 385
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/vasoactive_agent.sql",
+      "sha256_lf": "597eda757be59d2779895be4e24c9c7906397a1e97380fd60a8ce360357480fb",
+      "bytes": 2897
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/medication/vasopressin.sql",
+      "sha256_lf": "d722d44250b3d094ab7add9059c8b004db76919d7d690735f20b3612c8787133",
+      "bytes": 374
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/organfailure/kdigo_creatinine.sql",
+      "sha256_lf": "fc97bc3e7a943fddc2a63b0fe28e444432a57a29ba392d5755198ea9b75056af",
+      "bytes": 1508
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/organfailure/kdigo_stages.sql",
+      "sha256_lf": "c441af84a6398b670f30ebbdea99f6b354e4b8c2996617a031b943f33918be44",
+      "bytes": 3403
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/organfailure/kdigo_uo.sql",
+      "sha256_lf": "e3dcc870ff9042f42035a9dd975b0c980eb8d9f65fbcc553f8d507c43591533c",
+      "bytes": 2886
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/organfailure/meld.sql",
+      "sha256_lf": "52897caf761adaf67206d3d9aa23b4698ec267d4f03248a8bba0fb7e23730e3e",
+      "bytes": 2280
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/apsiii.sql",
+      "sha256_lf": "b6a31eed363582f20580de13406494699a1b4c68edc1bc3e45c2f421037a17f8",
+      "bytes": 23686
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/lods.sql",
+      "sha256_lf": "98c3668cbbf8a3772f4ff5574b9c3c55496114557feabc6626e44813acdbd1b0",
+      "bytes": 5054
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/oasis.sql",
+      "sha256_lf": "67dd3c13b6c75ee3b3566bbf60fac30f89d332d5a10418d7d63b43421210a646",
+      "bytes": 8274
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/sapsii.sql",
+      "sha256_lf": "af07e7d0ea85d0b4e3ad4620e03ed15a90638d7d09f507f7d8c1d15954b5c9e9",
+      "bytes": 12877
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/sirs.sql",
+      "sha256_lf": "56254d4b480b4209b4caa60c1b5d174e081406ddbd2fc389a34ace694245632b",
+      "bytes": 1768
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/score/sofa.sql",
+      "sha256_lf": "35543af4d55720e15e9da6e410f33fb1208a10b9c11879fc7e2a18f1f38af6f5",
+      "bytes": 8185
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/sepsis/sepsis3.sql",
+      "sha256_lf": "3ba6b0f7008faab62fddb2f4b2a73b818330ed7afa268b4e6480ab03335882cd",
+      "bytes": 1681
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/sepsis/suspicion_of_infection.sql",
+      "sha256_lf": "4f0990791396624b4f6e70eaf1c59f1cf8ed194c3839cd3472c12d419cc97088",
+      "bytes": 4030
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/treatment/code_status.sql",
+      "sha256_lf": "1f01018aa2a7bec1f7e70cca79a046212d7bcd7cfc4ba2711fc46f75fe167ee7",
+      "bytes": 1773
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/treatment/crrt.sql",
+      "sha256_lf": "89554b57063e5b1c22faef6b00b5e8bce887aef3ad130ba740b898270e786a54",
+      "bytes": 3830
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/treatment/invasive_line.sql",
+      "sha256_lf": "00d323a4fe0e223b68e546546c1e6b63770036ec72c9e8031f659a4d90132c19",
+      "bytes": 2611
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/treatment/rrt.sql",
+      "sha256_lf": "976b9228053f689062897c72c496ad052a5fe5bd45d42dbf68faa1eddc60980e",
+      "bytes": 4265
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/treatment/ventilation.sql",
+      "sha256_lf": "2100128a7e2613102ba8ef6dc628c4f52669911550327f378fc33cb169de3a9d",
+      "bytes": 4350
+    }
+  ],
+  "local_edits": [
+    {
+      "path": "mimic-iv/buildmimic/postgres/validate.sql",
+      "kind": "guard_pragma",
+      "upstream_sha256_lf": "f1164e4d33914ac1c96cf1d9570f49fede98dcc35a8dab6545b21dee7c05e510",
+      "sha256_lf": "e90508817c12829b01d7d8cf558e9ab42ada131115ef396525d6af421f52be0c",
+      "lines": [
+        19,
+        22,
+        31
+      ],
+      "reason": "mwh guard G4 pragma appended to expected-row-count lines that look like real MIMIC ids (isolated 8-digit integers starting 1/2/3); content otherwise byte-identical to upstream (LF aside)"
+    },
+    {
+      "path": "mimic-iv/concepts/treatment/ventilation.sql",
+      "kind": "id_redaction",
+      "upstream_sha256_lf": "8d7ce56f2d71c8aab18625c7af03c7324cdabfd87c8a431077d755672909a2b2",
+      "sha256_lf": "2ec5dee1e90c39f51f44c8e6f665679c22b97f5454195036e4e958a8c1583c24",
+      "lines": [
+        20,
+        21
+      ],
+      "reason": "real-band id tokens in upstream debugging comments replaced in place by '<mwh: id redacted>' (GOVERNANCE \u00a73: no real MIMIC ids in git); line count and everything else byte-identical to upstream (LF aside)"
+    }
+  ],
+  "known_upstream_issues": [
+    "concepts_duckdb/ is auto-generated (sqlglot) from concepts/ and may lag it \u2014 upstream regeneration PR #2157 open as of 2026-08; EP-38 diffs the two trees before patching.",
+    "Open upstream concept-logic PRs (2026-08): SIRS wbc guard, lab valueuom handling, Charlson, APS-III \u2014 EP-38 ports what EP-37's count-pinning tests need.",
+    "mimic-iv/buildmimic/duckdb/README.md targets the DuckDB 1.4.x LTS line; this project pins duckdb==1.5.5 (pyproject) \u2014 DuckDB 1.5 compatibility fixes are EP-38's job.",
+    "No ED (mimic-iv-ed) or Note (mimic-iv-note) concepts exist upstream; ours are new work.",
+    "No mimic-iv/CHANGELOG file exists at the pinned commit \u2014 the MIMIC-IV version targeted is read from the header comment of mimic-iv/buildmimic/postgres/validate.sql.",
+    "mimic-iv-note/buildmimic/postgres/validate.sql carries no version header; the ED validate.sql states MIMIC-IV-ED v2.2."
+  ],
+  "excluded": [
+    {
+      "path": "mimic-iii/",
+      "kind": "tree",
+      "reason": "MIMIC-III \u2014 out of scope for this warehouse",
+      "url": "https://github.com/MIT-LCP/mimic-code/tree/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iii"
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-ed/buildmimic/postgres/README.md"
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/constraint.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-ed/buildmimic/postgres/constraint.sql"
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/load_7z.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-ed/buildmimic/postgres/load_7z.sql"
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/load_gz.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-ed/buildmimic/postgres/load_gz.sql"
+    },
+    {
+      "path": "mimic-iv-ed/buildmimic/postgres/validate_demo.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-ed/buildmimic/postgres/validate_demo.sql"
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-note/buildmimic/postgres/README.md"
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/load_7z.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-note/buildmimic/postgres/load_7z.sql"
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/load_gz.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-note/buildmimic/postgres/load_gz.sql"
+    },
+    {
+      "path": "mimic-iv-note/buildmimic/postgres/validate.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv-note/buildmimic/postgres/validate.sql"
+    },
+    {
+      "path": "mimic-iv/buildmimic/duckdb/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/duckdb/README.md"
+    },
+    {
+      "path": "mimic-iv/buildmimic/duckdb/docker/",
+      "kind": "tree",
+      "reason": "container build files \u2014 not needed",
+      "url": "https://github.com/MIT-LCP/mimic-code/tree/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/duckdb/docker"
+    },
+    {
+      "path": "mimic-iv/buildmimic/duckdb/filter_db.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/duckdb/filter_db.sql"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/README.md"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/build_mimic.sh",
+      "kind": "file",
+      "reason": "build helper for another engine \u2014 not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/build_mimic.sh"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/docker/",
+      "kind": "tree",
+      "reason": "container build files \u2014 not needed",
+      "url": "https://github.com/MIT-LCP/mimic-code/tree/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/docker"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/load_7z.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/load_7z.sql"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/load_gz.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/load_gz.sql"
+    },
+    {
+      "path": "mimic-iv/buildmimic/postgres/validate_demo.sql",
+      "kind": "file",
+      "reason": "not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/buildmimic/postgres/validate_demo.sql"
+    },
+    {
+      "path": "mimic-iv/concepts/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/README.md"
+    },
+    {
+      "path": "mimic-iv/concepts/concept_map/chartevents_to_loinc.csv",
+      "kind": "file",
+      "reason": "concept_map CSV \u2014 .gitignore and mwh guard G1 refuse *.csv outside tests/fixtures/; EP-138 fetches it into ext/ at this same sha",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/concept_map/chartevents_to_loinc.csv"
+    },
+    {
+      "path": "mimic-iv/concepts/concept_map/chartevents_to_omop.csv",
+      "kind": "file",
+      "reason": "concept_map CSV \u2014 .gitignore and mwh guard G1 refuse *.csv outside tests/fixtures/; EP-138 fetches it into ext/ at this same sha",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/concept_map/chartevents_to_omop.csv"
+    },
+    {
+      "path": "mimic-iv/concepts/concept_map/procedureevents_to_omop.csv",
+      "kind": "file",
+      "reason": "concept_map CSV \u2014 .gitignore and mwh guard G1 refuse *.csv outside tests/fixtures/; EP-138 fetches it into ext/ at this same sha",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/concept_map/procedureevents_to_omop.csv"
+    },
+    {
+      "path": "mimic-iv/concepts/concept_map/procedureevents_to_snomed.csv",
+      "kind": "file",
+      "reason": "concept_map CSV \u2014 .gitignore and mwh guard G1 refuse *.csv outside tests/fixtures/; EP-138 fetches it into ext/ at this same sha",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/concept_map/procedureevents_to_snomed.csv"
+    },
+    {
+      "path": "mimic-iv/concepts/copy_concepts_to_versioned_schema.sh",
+      "kind": "file",
+      "reason": "build helper for another engine \u2014 not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/copy_concepts_to_versioned_schema.sh"
+    },
+    {
+      "path": "mimic-iv/concepts/make_concepts.sh",
+      "kind": "file",
+      "reason": "build helper for another engine \u2014 not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/make_concepts.sh"
+    },
+    {
+      "path": "mimic-iv/concepts/validate_concepts.sh",
+      "kind": "file",
+      "reason": "build helper for another engine \u2014 not in the EP-8 allow-list",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts/validate_concepts.sh"
+    },
+    {
+      "path": "mimic-iv/concepts_duckdb/README.md",
+      "kind": "file",
+      "reason": "documentation / notebook \u2014 may contain demo ids; not needed by the code",
+      "url": "https://github.com/MIT-LCP/mimic-code/blob/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts_duckdb/README.md"
+    },
+    {
+      "path": "mimic-iv/concepts_postgres/",
+      "kind": "tree",
+      "reason": "Postgres transpilation of the concepts; concepts_duckdb/ is what EP-37 executes",
+      "url": "https://github.com/MIT-LCP/mimic-code/tree/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/concepts_postgres"
+    },
+    {
+      "path": "mimic-iv/notebooks/",
+      "kind": "tree",
+      "reason": "notebooks may contain demo ids / outputs (GOVERNANCE \u00a73, guard G3)",
+      "url": "https://github.com/MIT-LCP/mimic-code/tree/8bcbd190ca75670cd5281f9ead3611ae1cefb73e/mimic-iv/notebooks"
+    }
+  ]
+}

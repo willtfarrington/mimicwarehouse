@@ -108,4 +108,5 @@ fmt = "ruff format ."
 typecheck = "pyright"
 guard = "mwh guard --staged"   # EP-4: what the pre-commit hook runs
 roadmap-check = "python scripts/roadmap_check.py"   # EP-6: = mwh verify --roadmap [--strict] [--json]
+vendor-mimic-code = "python -m mimicwarehouse.concepts.vendoring"   # EP-8: --sha <sha> [--src %TEMP%\mimic-code] [--dry-run]; outside `check`
 check = ["lint", "typecheck", "test"]

@@ -114,4 +114,81 @@ DuckDB 1.4 LTS while we pin 1.5.x, and no ED or Note concepts exist upstream. No
 ## Parked → final-roadmap.md
 
 - Re-transpiling `concepts/` → DuckDB locally with upstream `mimic_utils` (sqlglot) instead of waiting for the
-  upstream regeneration bot; trigger: EP-38 finds `concepts_duckdb/` lagging a fix we need.
+  upstream regeneration bot; trigger: EP-38 finds `concepts_duckdb/` lagging a fix we need. *(Mirrored into
+  `final-roadmap.md` § 3 as v2 CONC-1 by this session.)*
+
+> **Completion note (2026-08-17).** Executed as one session (≈ 50 min against S ≈ 30 min; the
+> extra was the identifier finding under item 2), tier fixture, no MIMIC data touched, commands
+> run in `mimicwarehouse/`; `uv` was reached via `%LOCALAPPDATA%\Microsoft\WinGet\Links`.
+>
+> **Item 1 — pin.** `git clone --filter=blob:none … "$env:TEMP\mimic-code"` (877 files, ≈ 20 s, no
+> Malwarebytes interference; clone left in place for EP-9). Default branch `main`, HEAD on the day
+> = **`8bcbd190ca75670cd5281f9ead3611ae1cefb73e`** ("Docker mimic iv postgres (#1757)", committed 2026-08-10T21:47:50-04:00).
+> `mimic-iv/buildmimic/postgres/validate.sql` header: "known row counts of MIMIC-IV **v3.1**" →
+> pinned as is (no walk needed); ED `validate.sql` says v2.2; Note `validate.sql` has no version
+> header; there is **no `mimic-iv/CHANGELOG`** upstream (recorded in `VENDOR.json`
+> `mimic_iv_version_source` and `known_upstream_issues`). DuckDB README: "1.4.x LTS line
+> (currently 1.4.5)"; we pin 1.5.5.
+>
+> **Item 2 — `concepts/vendoring.py`.** Reads blobs from the clone's object store at the pinned sha
+> (`git ls-tree -r -z` + one `git cat-file --batch`), never the working tree (the clone is
+> `core.autocrlf=true`-checked-out; upstream stores LF, our `.gitattributes` checks out LF, so
+> `sha256_lf` = sha of the file on disk). Result: **144 files** — `LICENSE`; hosp/icu
+> `{create,load,constraint,index,validate}.sql`; `duckdb/build_mimic.sh` (the upstream DuckDB dir
+> now holds a bash driver + `filter_db.sql`, no Python loader — `build_mimic.sh` is the allow-listed
+> "build script"; `filter_db.sql` is listed under `excluded`); ED `{create,load,index,validate}.sql`
+> (all present); Note `{create,load}.sql`; 66 `concepts_duckdb/**/*.sql` (65 concepts + the
+> `duckdb.sql` driver); 65 `concepts/**/*.sql`. 30 `excluded` entries with upstream URLs (READMEs,
+> `concept_map/*.csv` ×4, BigQuery/Postgres build helpers, `load_gz/7z`, `validate_demo`, docker
+> trees, `concepts_postgres/`, `mimic-iii/`, `mimic-iv/notebooks/`). Refusals: suffix list
+> (`.csv`, `.csv.gz`, bare `.gz`, `.zip`, `.7z`, `.parquet`, `.ipynb`, images, …), NUL / non-UTF-8,
+> anything but `.sql`/`.sh`/`LICENSE`; after writing, `guard.scan()` over the tree must be empty.
+> Guard interplay as planned: `validate.sql` lines 19/22/31 (`pharmacy`, `prescriptions`,
+> `inputevents` — 8-digit counts starting 1/2) got ` -- mwh-guard: allow (row count, not an id)`
+> (`local_edits[kind=guard_pragma]`, upstream and vendored `sha256_lf` + line numbers recorded).
+> **Delta from the brief (governance):** the dry run also flagged
+> `mimic-iv/concepts/treatment/ventilation.sql` lines 20–21 — upstream *debugging comments* of the
+> form `-- stay_id = <8 digits> has …`, i.e. real-band identifiers, not row counts. The pragma
+> would have been a lie and would have committed real MIMIC ids (GOVERNANCE §3), so the script now
+> reserves the pragma for `validate.sql` files and **redacts in place** (`<mwh: id redacted>`, line
+> count preserved) in every other `.sql`, recording `local_edits[kind=id_redaction]`; a non-SQL
+> text file the guard would flag is an error (none). Console output of this session showed the
+> tokens only masked (`sed 's/[0-9]{8}/<8-digit>/'`). Not an incident (a published surrogate key
+> in an MIT-licensed public repo, never displayed here), but worth a line for EP-38: upstream
+> comments can carry ids — the guard + `redact_band_ids()` are the layer. Re-running at the same
+> sha is a no-op (`vendored_on` kept from the existing manifest; `git diff --stat` empty after
+> `poe vendor-mimic-code --sha 8bcbd19`). Pre-commit: `end-of-file-fixer` / `trailing-whitespace`
+> carry the vendor `exclude:` (upstream `load.sql` has trailing whitespace — proof the exclude is
+> needed); `pre-commit run --all-files` = 11 hooks Passed, vendor tree unmodified.
+>
+> **Item 3 — plumbing.** `concepts/__init__.py`: `vendor_info()`, `vendor_manifest()`,
+> `vendored_path()`, `vendor_root()`, `VendorInfo` (frozen pydantic) via `importlib.resources`.
+> `uv build --wheel`: 159 entries, **145 under `concepts/vendor/`** (LICENSE, VENDOR.json,
+> `build_mimic.sh`, 142 `.sql`) — hatchling needs no include rule (as amended). Acceptance
+> one-liner prints the sha. poe task `vendor-mimic-code` (outside `check`).
+>
+> **Item 4 — `NOTICE`** at the repo root (MIT-LCP copyright 2019, commit, vendored LICENSE pointer,
+> GOVERNANCE §10 rules, JAMIA 2018 citation doi:10.1093/jamia/ocx084). `docs/resources/repos.md`
+> does not exist → EP-13 picks the entry up.
+>
+> **Item 5 — tests.** `tests/ep/test_ep08.py`, 26 tests, marker `ep_8`, fixture tier, ≈ 2 s:
+> manifest shape + 40-hex sha; every listed file exists with matching LF sha and byte size and
+> nothing unlisted is on disk; allow-list landed / policy trees excluded; no `.csv`/`.gz`/`.ipynb`
+> under `vendor/` (this test is the bare-`.gz` rule); fixer-hook `exclude:` parsed from
+> `.pre-commit-config.yaml` (and the guard/large-files/private-key hooks *not* excluded);
+> `guard.scan()` and `mwh guard <vendor>` clean; `local_edits` are exactly the recorded pragmas
+> (strip → upstream sha; pragma only where `id_band_hits` fires) and redactions (marker only on the
+> listed lines, no band ids remain), and no other file carries either marker; `create.sql` has the
+> 22 hosp + 9 icu `CREATE TABLE`s (= 31); every `concepts_duckdb` file opens with the generator
+> banner (`duckdb.sql` with `-- dependencies`) and the BigQuery sources kept their headers (15 of
+> 65 have none upstream — recorded as a floor, byte-identity is the sha test's job);
+> `vendor_info()` in-process and in a fresh interpreter; `vendored_path` traversal refusals; poe
+> task + hatchling declared; the script's own refusals / CRLF / pragma / redaction / routing /
+> version parsers / missing-clone CLI on synthetic input (band tokens built at runtime, never
+> literal); re-vendor no-op against the clone (skips without it). Whole suite: **245 passed**;
+> `mwh verify EP-8` green; ruff / ruff format / pyright clean; `poe roadmap-check --strict` 0/0.
+> Cross-EP touch: `test_ep06::test_mwh_verify_usage_errors` pointed its "code brief without a test
+> module" probe at EP-9 (it named EP-8).
+>
+> **Item 6 — docs.** DESIGN §8 + §15 dated notes, D-19 addendum (sha, edits, redaction decision),
+> `NOTICE`, this note; Parked item mirrored to `final-roadmap.md` (v2 CONC-1).

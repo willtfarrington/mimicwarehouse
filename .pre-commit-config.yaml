@@ -36,7 +36,12 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-json
+      # EP-8: the vendored mimic-code tree must stay byte-identical to upstream (LF aside) so
+      # VENDOR.json sha256_lf stays valid — the two fixers skip it; mwh guard,
+      # check-added-large-files and detect-private-key still run over it.
       - id: end-of-file-fixer
+        exclude: ^mimicwarehouse/src/mimicwarehouse/concepts/vendor/
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+        exclude: ^mimicwarehouse/src/mimicwarehouse/concepts/vendor/
       - id: detect-private-key

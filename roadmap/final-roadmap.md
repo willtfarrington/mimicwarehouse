@@ -38,6 +38,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | Additional mimic-code-style phenotypes beyond T2DM / sepsis-3 / KDIGO (heart failure, COPD, CKD stages, delirium, ARDS, VAP) | portfolio breadth | dual ICD-9/10 sets; validation vs literature | v2 PHE-1… |
 | Phenotype validation study vs notes-derived labels | requires the notes track | note text never leaves the machine | v2 PHE-2 |
 | SNOMED/UMLS-based concept sets (via OMOP Athena) | owner obtains a UTS license | non-redistributable vocabularies | v2 PHE-3 |
+| Re-transpile mimic-code `concepts/` → DuckDB locally with upstream `mimic_utils` (sqlglot) instead of waiting for the upstream regeneration bot — parked by EP-8 (2026-08-17) | EP-38 finds `concepts_duckdb/` lagging a fix we need (upstream regeneration PR #2157 open at the pin) | sqlglot version drift vs upstream's; transpiled output must be diffed against the vendored tree and recorded as patches | v2 CONC-1 |
 
 ## 4–6 Cross-sectional EDA · Prevalence/incidence · Stratified/subgroup
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

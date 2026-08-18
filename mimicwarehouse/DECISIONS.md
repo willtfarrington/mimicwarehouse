@@ -130,6 +130,21 @@ full only; full runs batched per phase.
 fixes ported; re-derive only what is missing.** *Alternatives:* re-derive everything;
 adopt as-is untested.
 
+> **Addendum (2026-08-17, EP-8).** Pinned at **`8bcbd190ca75670cd5281f9ead3611ae1cefb73e`** (upstream `main`,
+> committed 2026-08-10; `validate.sql` targets MIMIC-IV **3.1**; ED `validate.sql` v2.2). Vendored
+> under `src/mimicwarehouse/concepts/vendor/mimic-code/` with `vendor/VENDOR.json` as the pin every
+> run manifest cites (GOVERNANCE §12); attribution in the repo-root `NOTICE` (GOVERNANCE §10).
+> 144 files (LICENSE, Postgres DDL/COPY/keys/indexes/row counts for hosp+icu, ED, Note; the DuckDB
+> build script; 66 `concepts_duckdb` + 65 `concepts` SQL). Recorded, not fixed: `concepts_duckdb/`
+> may lag `concepts/` (regeneration PR #2157), open concept-logic PRs (SIRS wbc, lab `valueuom`,
+> Charlson, APS-III), README targets DuckDB 1.4.x LTS vs our 1.5.5, no ED/Note concepts upstream.
+> Two documented local edits (`local_edits`): the row-count guard pragma in
+> `mimic-iv/buildmimic/postgres/validate.sql`, and — decided during EP-8 — **in-place redaction**
+> of two real-band `stay_id` values that upstream left in debugging comments of
+> `mimic-iv/concepts/treatment/ventilation.sql` (`<mwh: id redacted>`; GOVERNANCE §3 — the
+> "row count" pragma is never used to whitelist an identifier). Everything else is byte-identical
+> to upstream (LF aside) and re-vendoring is `poe vendor-mimic-code --sha <sha>`.
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.

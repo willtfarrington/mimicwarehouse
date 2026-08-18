@@ -1,0 +1,34 @@
+mimicwarehouse — third-party notices
+====================================
+
+This product includes software developed by the MIT Laboratory for Computational
+Physiology (MIT-LCP/mimic-code, MIT License, commit
+8bcbd190ca75670cd5281f9ead3611ae1cefb73e, 2026-08-10).
+
+    Copyright (c) 2019 MIT Laboratory for Computational Physiology
+    Released under the MIT License (full text: the vendored LICENSE file, see below).
+
+Upstream: https://github.com/MIT-LCP/mimic-code — vendored under
+mimicwarehouse/src/mimicwarehouse/concepts/vendor/mimic-code/ (upstream-relative paths, LF
+line endings; the full MIT license text is the vendored LICENSE file) with the pin, file
+hashes and the list of local edits recorded in
+mimicwarehouse/src/mimicwarehouse/concepts/vendor/VENDOR.json (EP-8, D-19).
+
+Rules (GOVERNANCE.md §10):
+- Vendored SQL keeps its upstream header comment; local changes are recorded in VENDOR.json
+  (`local_edits`) or, from EP-38 on, as upstream-relative patches beside the vendor tree —
+  never silent edits.
+- Re-vendoring is `uv run poe vendor-mimic-code --sha <sha>`; this NOTICE and the DECISIONS
+  D-19 addendum are updated with the new commit.
+
+Please cite mimic-code when publishing work that uses these concepts:
+
+    Johnson AEW, Stone DJ, Celi LA, Pollard TJ. The MIMIC Code Repository: enabling
+    reproducibility in critical care research. J Am Med Inform Assoc. 2018;25(1):32-39.
+    doi:10.1093/jamia/ocx084
+
+The MIMIC-IV data themselves are not part of this product; they are distributed by
+PhysioNet under the PhysioNet Credentialed Health Data License 1.5.0 and are never vendored,
+committed or redistributed (GOVERNANCE.md §1-3).
+
+Our own code is MIT-licensed (repository-root LICENSE, EP-163).

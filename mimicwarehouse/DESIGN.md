@@ -213,6 +213,30 @@ readers are open (audit, run ledger, benchmark ledger) goes to **append-only JSO
   → SQL; versioned like code sets; first three: T2DM, sepsis-3 (via concept), KDIGO AKI
   stage.
 
+> **Note (2026-08-17, EP-8).** mimic-code vendored at **`8bcbd190ca75670cd5281f9ead3611ae1cefb73e`** (upstream `main` of
+> 2026-08-10, "Docker mimic iv postgres (#1757)") on 2026-08-17 under
+> `src/mimicwarehouse/concepts/vendor/mimic-code/` — 144 files, upstream-relative paths, LF:
+> `LICENSE`; `mimic-iv/buildmimic/postgres/{create,load,constraint,index,validate}.sql`;
+> `mimic-iv/buildmimic/duckdb/build_mimic.sh` (EP-17 loader precedent: resumable progress table);
+> `mimic-iv-ed/buildmimic/postgres/{create,load,index,validate}.sql`;
+> `mimic-iv-note/buildmimic/postgres/{create,load}.sql`; `mimic-iv/concepts_duckdb/**/*.sql` (66,
+> incl. the `duckdb.sql` driver — what EP-37 executes); `mimic-iv/concepts/**/*.sql` (65 BigQuery
+> sources, reference for EP-38). The pin (`vendor/VENDOR.json`) records the sha, commit date,
+> `mimic_iv_version_targeted = 3.1` (from the `validate.sql` header — upstream has no
+> `mimic-iv/CHANGELOG`), ED v2.2, the DuckDB README's "1.4.x LTS (currently 1.4.5)" against our
+> 1.5.5 pin, per-file `sha256_lf`, `local_edits`, `known_upstream_issues` and `excluded` (READMEs,
+> notebooks, `concepts_postgres/`, `mimic-iii/`, `concept_map/*.csv` → EP-138, docker trees, with
+> upstream URLs). `poe vendor-mimic-code --sha <sha>` re-vendors (no-op at the same sha; EP-9
+> reuses the blobless clone left at `%TEMP%\mimic-code`). Two `local_edits`, both recorded with
+> upstream and vendored hashes and line numbers: `mimic-iv/buildmimic/postgres/validate.sql`
+> (kind `guard_pragma`: three expected-row-count lines carry ` -- mwh-guard: allow (row count,
+> not an id)`) and — a delta from the brief — `mimic-iv/concepts/treatment/ventilation.sql` (kind
+> `id_redaction`: two upstream *debugging comments* of the form `stay_id = <8 digits>` had their
+> real-band tokens replaced in place by `<mwh: id redacted>`, because they *are* identifiers and
+> GOVERNANCE §3 forbids committing them; the row-count pragma is reserved for `validate.sql`
+> files). No ED / Note concepts exist upstream. Attribution: repo-root `NOTICE` (+ the JAMIA 2018
+> citation); `docs/resources/repos.md` does not exist yet → EP-13 picks the entry up.
+
 ## 9. Cohort spec → SQL
 
 Pydantic model / YAML (EP-46): `grain`, `inclusion`, `exclusion`, `index_event`,
@@ -453,6 +477,31 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > green (Risk 14 resolved). Convention reminder for later doctor rows: probes go through `_run` /
 > `_powershell`, tests fake `subprocess.run` keyed on argv[0] / the script text (an unmocked
 > tool is a test failure), Windows-only checks return `info` elsewhere.
+
+> **Note (2026-08-17, EP-8).** `src/mimicwarehouse/concepts/` is now a package: `__init__.py`
+> exposes `vendor_info() -> VendorInfo` (pydantic, frozen: `sha`, `upstream_url`, `commit_date`,
+> `vendored_on`, `mimic_iv_version`, `file_count`, `local_edits`, `root`; `.tree`, `.short_sha`),
+> `vendor_manifest()` (parsed `VENDOR.json`, cached) and `vendored_path(rel)` (upstream-relative
+> posix path → absolute file; `ValueError` on absolute / `..` paths, `FileNotFoundError` when not
+> vendored) — all through `importlib.resources.files("mimicwarehouse.concepts") / "vendor"`, so an
+> installed wheel behaves like the checkout (verified: `uv build` wheel lists all 145 vendor
+> entries; hatchling ships them without an include rule and honours `.gitignore`).
+> `vendoring.py` (`python -m mimicwarehouse.concepts.vendoring --sha <sha> [--src] [--dest]
+> [--vendored-on] [--dry-run]`; poe `vendor-mimic-code`, outside `poe check`) reads blobs from the
+> clone's **git object store at the pinned sha** (`git ls-tree` + `git cat-file --batch`), never
+> the working tree, so `core.autocrlf` cannot leak in; the allow-list is `ALLOW_LIST`
+> (`AllowRule(path, why, tree, suffixes, required)`), refusals are `refusal_reason()` (suffix
+> list incl. bare `.gz`, NUL / non-UTF-8, only `.sql`/`.sh`/`LICENSE`), the two local-edit kinds
+> are `apply_guard_pragma()` (row-count files only) and `redact_band_ids()` (everything else;
+> both driven by `guard.id_band_hits`, so the guard's own regex decides), and after writing it
+> runs `guard.scan()` over the vendor tree and fails on any violation. Repo-root
+> `.pre-commit-config.yaml`: `end-of-file-fixer` and `trailing-whitespace` carry
+> `exclude: ^mimicwarehouse/src/mimicwarehouse/concepts/vendor/` (upstream SQL has trailing
+> whitespace; the fixers would otherwise rewrite it and break `sha256_lf`); `mwh guard`,
+> `check-added-large-files`, `detect-private-key` still cover the tree. Tests: `tests/ep/test_ep08.py`
+> (26, marker `ep_8`, fixture tier; the re-vendor no-op test skips without the clone).
+> `test_ep06::test_mwh_verify_usage_errors` now uses EP-9 as its "code brief without a test module".
+> EP-37 adds the concept runner and EP-38 `patches/` beside `vendor/`.
 
 ## 16. App structure (D-21)
 

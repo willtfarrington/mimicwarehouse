@@ -340,8 +340,9 @@ def test_mwh_verify_usage_errors(cli_env: None) -> None:
     assert runner.invoke(app, ["verify"]).exit_code == 2
     assert runner.invoke(app, ["verify", "EP-2", "--list"]).exit_code == 2
     assert runner.invoke(app, ["verify", "--list", "--roadmap"]).exit_code == 2
-    result = runner.invoke(app, ["verify", "EP-8"])  # code brief, no test module yet
-    assert result.exit_code == 2 and "test_ep08.py" in result.output
+    # a code brief with no test module yet (EP-8's landed with EP-8; EP-9 is next in line)
+    result = runner.invoke(app, ["verify", "EP-9"])
+    assert result.exit_code == 2 and "test_ep09.py" in result.output
 
 
 def test_mwh_verify_passes_extra_pytest_args_through(
