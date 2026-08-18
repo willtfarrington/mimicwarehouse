@@ -55,5 +55,6 @@ before the repo was made public (GOVERNANCE §3, D-41 addendum).
   three PhysioNet datasets, how to obtain them, expected local layout, handling
   obligations, citations.
 - **License:** code, docs and synthetic fixtures are MIT ([LICENSE](LICENSE)); third-party
-  notices (vendored MIT-LCP/mimic-code) in [NOTICE](NOTICE). The MIMIC-IV data are
-  PhysioNet-licensed and are not part of this repository.
+  notices (vendored MIT-LCP/mimic-code) in [NOTICE](NOTICE); citation metadata in
+  [CITATION.cff](CITATION.cff). The MIMIC-IV data are PhysioNet-licensed and are not part
+  of this repository.

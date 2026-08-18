@@ -1,0 +1,176 @@
+# Citation metadata for this repository (Citation File Format 1.2.0).
+# GitHub renders this as "Cite this repository". Version/date track the last public
+# status update; bump at v1.0.0 (EP-163). This cites the *software*; anyone using
+# the warehouse must also cite the MIMIC-IV datasets and PhysioNet — see
+# "source material/README.md" § Citations — and mimic-code (NOTICE).
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below, and cite the MIMIC-IV datasets and PhysioNet as listed in source material/README.md."
+type: software
+title: "mimicwarehouse: a local MIMIC-IV data lab (DuckDB + Parquet warehouse, Python backend, Streamlit Lab)"
+abstract: >-
+  A local, single-machine data lab over MIMIC-IV 3.1, MIMIC-IV-ED 2.2 and MIMIC-IV-Note 2.2:
+  a DuckDB + Parquet warehouse with a Python backend and a Streamlit "Lab" app for exploratory
+  analysis and protocol-frozen inquiry over retrospective EHR data, with end-to-end provenance
+  and small-cell disclosure discipline. Work in progress; the PhysioNet-licensed data are not
+  part of the repository.
+authors:
+  - family-names: Farrington
+    given-names: W. Taylor
+version: 0.1.0
+date-released: "2026-08-18"
+license: MIT
+repository-code: "https://github.com/willtfarrington/mimicwarehouse"
+url: "https://github.com/willtfarrington/mimicwarehouse"
+keywords:
+  - MIMIC-IV
+  - PhysioNet
+  - electronic health records
+  - DuckDB
+  - Parquet
+  - Polars
+  - Streamlit
+  - data warehouse
+  - clinical data science
+  - reproducible research
+references:
+  - type: data
+    title: "MIMIC-IV (version 3.1)"
+    authors:
+      - family-names: Johnson
+        given-names: Alistair
+      - family-names: Bulgarelli
+        given-names: Lucas
+      - family-names: Pollard
+        given-names: Tom
+      - family-names: Gow
+        given-names: Brian
+      - family-names: Moody
+        given-names: Benjamin
+      - family-names: Horng
+        given-names: Steven
+      - family-names: Celi
+        given-names: Leo Anthony
+      - family-names: Mark
+        given-names: Roger
+    year: 2024
+    publisher:
+      name: PhysioNet
+    doi: 10.13026/kpb9-mt58
+  - type: article
+    title: "MIMIC-IV, a freely accessible electronic health record dataset"
+    authors:
+      - family-names: Johnson
+        given-names: Alistair E. W.
+      - family-names: Bulgarelli
+        given-names: Lucas
+      - family-names: Shen
+        given-names: Lu
+      - family-names: Gayles
+        given-names: Alvin
+      - family-names: Shammout
+        given-names: Ayad
+      - family-names: Horng
+        given-names: Steven
+      - family-names: Pollard
+        given-names: Tom J.
+      - family-names: Hao
+        given-names: Sicheng
+      - family-names: Moody
+        given-names: Benjamin
+      - family-names: Gow
+        given-names: Brian
+      - family-names: Lehman
+        given-names: Li-wei H.
+      - family-names: Celi
+        given-names: Leo A.
+      - family-names: Mark
+        given-names: Roger G.
+    journal: "Scientific Data"
+    volume: 10
+    start: 1
+    year: 2023
+    doi: 10.1038/s41597-022-01899-x
+  - type: data
+    title: "MIMIC-IV-ED (version 2.2)"
+    authors:
+      - family-names: Johnson
+        given-names: Alistair
+      - family-names: Bulgarelli
+        given-names: Lucas
+      - family-names: Pollard
+        given-names: Tom
+      - family-names: Celi
+        given-names: Leo Anthony
+      - family-names: Mark
+        given-names: Roger
+      - family-names: Horng
+        given-names: Steven
+    year: 2023
+    publisher:
+      name: PhysioNet
+    doi: 10.13026/5ntk-km72
+  - type: data
+    title: "MIMIC-IV-Note: Deidentified free-text clinical notes (version 2.2)"
+    authors:
+      - family-names: Johnson
+        given-names: Alistair
+      - family-names: Pollard
+        given-names: Tom
+      - family-names: Horng
+        given-names: Steven
+      - family-names: Celi
+        given-names: Leo Anthony
+      - family-names: Mark
+        given-names: Roger
+    year: 2023
+    publisher:
+      name: PhysioNet
+    doi: 10.13026/1n74-ne17
+  - type: article
+    title: "The MIMIC Code Repository: enabling reproducibility in critical care research"
+    authors:
+      - family-names: Johnson
+        given-names: Alistair E. W.
+      - family-names: Stone
+        given-names: David J.
+      - family-names: Celi
+        given-names: Leo A.
+      - family-names: Pollard
+        given-names: Tom J.
+    journal: "Journal of the American Medical Informatics Association"
+    volume: 25
+    issue: 1
+    start: 32
+    end: 39
+    year: 2018
+    doi: 10.1093/jamia/ocx084
+  - type: article
+    title: "PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals"
+    authors:
+      - family-names: Goldberger
+        given-names: Ary L.
+      - family-names: Amaral
+        given-names: Luis A. N.
+      - family-names: Glass
+        given-names: Leon
+      - family-names: Hausdorff
+        given-names: Jeffrey M.
+      - family-names: Ivanov
+        given-names: Plamen Ch.
+      - family-names: Mark
+        given-names: Roger G.
+      - family-names: Mietus
+        given-names: Joseph E.
+      - family-names: Moody
+        given-names: George B.
+      - family-names: Peng
+        given-names: Chung-Kang
+      - family-names: Stanley
+        given-names: H. Eugene
+    journal: Circulation
+    volume: 101
+    issue: 23
+    start: e215
+    end: e220
+    year: 2000
+    doi: 10.1161/01.CIR.101.23.e215
