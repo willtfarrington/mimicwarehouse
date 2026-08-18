@@ -58,7 +58,7 @@ Standing decisions for phase P0: uv-managed CPython 3.13, one venv, groups core/
 | # | Brief | Size | Depends on | Core | Done |
 |---|-------|------|-----------|------|------|
 | EP-164 | [Toolchain remediation (P1)](EP-164-toolchain-remediation-p1.md) | S | EP-3 | core | ☑ `582bbd7` |
-| EP-8 | [mimic-code vendoring](EP-8-mimic-code-vendoring.md) | S | EP-1 | core | ☐ |
+| EP-8 | [mimic-code vendoring](EP-8-mimic-code-vendoring.md) | S | EP-1 | core | ☑ `2702df1` |
 | EP-9 | [Schema registry (YAML contract)](EP-9-schema-registry.md) | M | EP-8 | core | ☐ |
 | EP-10 | [Raw inventory manifest ⏱](EP-10-raw-inventory.md) | M | EP-3, EP-9 | core | ☐ |
 | EP-11 | [Synthetic fixture generator A (hosp)](EP-11-fixtures-hosp.md) | M | EP-9 | core | ☐ |
