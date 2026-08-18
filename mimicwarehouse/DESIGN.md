@@ -557,6 +557,55 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > EP-21/29 apply `comment`s, EP-22 uses `column_map("demo_2_2").check`, EP-28/44 test
 > `primary_key` / `uniqueness_hint` / `foreign_keys`, EP-35 cites `content_hash()`.
 
+> **Note (2026-08-17, EP-10).** **`inventory.py`** landed as the raw-provenance module (D-26)
+> and the `mwh inventory build | show | reconcile` sub-app (`inventory_app`, one
+> `app.add_typer` line; **not** diagnostic — `build` writes under the data root, so it receives
+> validated settings and runs `require_free_space(data_root, min_free_gb)` first). Per file:
+> `inventory_file(path, table, *, rel_path, rowcount, connection, gz_sha256, known_sha256) ->
+> FileRecord` (pydantic, frozen: `dataset, dataset_dir, module, schema_name, table, rel_path,
+> bytes, mtime, mtime_ns, sha256, header, header_matches_contract, missing_columns,
+> extra_columns, rows, rowcount_method ∈ {duckdb, duckdb_serial, skipped, failed},
+> rowcount_error, csv_parallel_fallback, seconds_hash, seconds_rows, physionet_gz_sha256,
+> recorded_at`; `header_status` = ok / order / mismatch) — streaming `hashlib.file_digest`,
+> header from the first line only (`csv.reader`, BOM/CRLF-tolerant), rows from an in-memory
+> DuckDB opened with `duckdb_settings("build")` and `SELECT count(*) FROM read_csv(?,
+> header=true, all_varchar=true, delim=',', quote='"', escape='"')`, retried with
+> `parallel=false` on any `duckdb.Error` (a second failure records `rows=None`, `failed`, the
+> error text, and the build continues with exit 1). Manifest store: `<data_root>/lake/manifests/
+> raw/<dataset-dir>.jsonl` (canonical JSON, one line per file, rewritten atomically after **every**
+> file, sorted by `rel_path`; the `raw/` level is created by the module, `mimic-iv-note-…` uses
+> PhysioNet's long directory name — `DATASET_DIRS` maps contract label → directory) and
+> `raw_snapshot.json` (`raw_snapshot_id` = sha256 of the JSON of the sorted `(rel_path, bytes,
+> sha256, rows)` tuples, `None` below 41 files; `files_expected/_done`, per-dataset totals,
+> `started/finished/last_file/errors/pid/options`, a `runs` history of the last 20 builds, and
+> `duckdb_version / python_version / git_sha / mimic_code_sha / contract_hash`). Public readers:
+> `load_raw_manifest() -> RawManifest(records, snapshot)`, `raw_snapshot_id()`,
+> `compute_snapshot_id(records)`. `build_inventory(...)` walks the contract's `csv_path`s under
+> `settings.source_root`, smallest file first, sequentially; `--resume` (default) skips a file
+> whose `(bytes, mtime_ns)` match its manifest line, and re-uses the hash when only the row
+> count is missing (a `--no-rowcount` pass followed by a full one hashes once); `--force`
+> recomputes; `--max-bytes`, `--dataset` (label or dir, repeatable), `--log <file>` (append-only,
+> ASCII, timestamped, one line per file with MB/s), `--quiet`. `SHA256SUMS.txt` is parsed per
+> dataset (`parse_sha256sums`, names + hashes only) into `physionet_gz_sha256` for the parked
+> `.csv.gz` re-verification. Reconciliation: `parse_validate_sql` (regex over `'tbl' … <int> AS
+> row_count`, case-insensitive, pragma-tolerant), `expected_counts(dataset)` (the vendored files
+> named by the contract's `expected_rows_source`; MIMIC-IV 3.1 → 28 tables, ED → 6, Note → none),
+> `reconcile(manifest) -> [ReconRow]` with `status ∈ {match, mismatch, no-expectation, pending}`
+> (`pending` = file not inventoried / rows not counted yet — a fourth state the brief's three did
+> not need to name); `mwh inventory reconcile` prints the table, writes
+> `docs/resources/raw-inventory.md` (`--no-docs` / `--docs-path`; every integer thousands-
+> separated, hook-clean bytes, no data) and exits 1 on any mismatch. `show [--timing] [--json]`
+> is the only window a Claude session has on the job (deny rules cover the log): table +
+> per-dataset totals + the `raw_snapshot.json` job lines. JSON outputs keep raw integers for
+> machine consumers; every human-readable line is ASCII with thousands separators. Import cost
+> ≈ 9 ms (pydantic model + csv/hashlib; duckdb / contract / vendor pin imported inside
+> functions); `mwh --help` 0.50–0.55 s here (noise-bound). Tests: `tests/ep/test_ep10.py` (28,
+> marker `ep_10`, fixture tier: 41 synthetic CSVs with contract headers under `tmp_path`,
+> ids ≥ 90 000 000 and a sentinel cell value that must never appear in any output).
+> `test_ep06::test_mwh_verify_usage_errors` now uses **EP-11** as its "code brief without a test
+> module". Downstream: EP-16 verifies the full-tier job through `show`, EP-17/18/19 cite
+> `raw_snapshot_id()` as the `source manifest id`, EP-20/28 call `expected_counts`.
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,

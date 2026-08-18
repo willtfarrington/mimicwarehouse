@@ -193,6 +193,19 @@ mimic-code `validate.sql`.** Plain CSVs cannot be checked against PhysioNet's
 `SHA256SUMS.txt` (covers `.csv.gz` only). *Alternatives:* re-download `.csv.gz` (parked);
 skip.
 
+> **Addendum (2026-08-17, EP-10).** Realised: `mimicwarehouse.inventory` + `mwh inventory build | show |
+> reconcile`; manifest store `C:\mimicdata\lake\manifests\raw\{mimic-iv-3.1, mimic-iv-ed-2.2,
+> mimic-iv-note-deidentified-free-text-clinical-notes-2.2}.jsonl` + `raw_snapshot.json`. First complete
+> raw snapshot, computed 2026-08-18T03:50:04Z over the 41 plain CSVs (104,641,868,093 bytes,
+> 902,815,672 rows): **`raw_snapshot_id = 8209301d8a06431081584e795684829b0bddeeedd49542ecf862cde712652d7a`**
+> = `sha256(json(sorted (rel_path, bytes, sha256, rows)))`, with DuckDB 1.5.5, mimic-code `8bcbd190`,
+> contract hash `e4cd5aa908d1…`. Reconciliation against the vendored `validate.sql` (MIMIC-IV **3.1**,
+> ED 2.2): 34 match, 0 mismatch, 7 without an upstream expectation (`provider`, `caregiver`,
+> `ingredientevents`, the four Note tables); every header equals the EP-9 contract. This id is the
+> `source manifest id` every lake manifest (EP-17+) cites; the committed, human-readable form is
+> `docs/resources/raw-inventory.md`. Each dataset's `SHA256SUMS.txt` archive hash is carried per file
+> for the parked `.csv.gz` re-verification (RAW-1).
+
 **D-27 Fixtures = synthetic mini-MIMIC generator (ids ≥ 90 000 000) committed +
 on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synthetic only.
 

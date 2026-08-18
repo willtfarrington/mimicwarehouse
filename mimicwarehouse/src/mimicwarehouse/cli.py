@@ -5,8 +5,9 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 ``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3,
 :mod:`mimicwarehouse.config`) · ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``verify``
 (EP-6, :mod:`mimicwarehouse.verify`) · ``schema`` (EP-9, :mod:`mimicwarehouse.schema.cli`) ·
-``build`` (EP-19) · ``demo`` (EP-22) · ``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) ·
-``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
+``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``build`` (EP-19) · ``demo`` (EP-22) ·
+``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) ·
+``disclose`` (EP-43/133) · ``init`` (EP-158).
 
 Settings (EP-3): the callback loads :class:`mimicwarehouse.config.Settings` once per
 invocation — ``--data-root`` > ``MWH_*`` env > ``.env`` > ``mwh.toml`` > defaults — installs
@@ -34,6 +35,7 @@ from mimicwarehouse import __version__, config
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.doctor import doctor_command
 from mimicwarehouse.guard import guard_command
+from mimicwarehouse.inventory import inventory_app
 from mimicwarehouse.schema.cli import schema_app
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 
@@ -113,6 +115,7 @@ def main(
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
 app.command("doctor")(doctor_command)
 app.command("guard")(guard_command)
+app.add_typer(inventory_app, name="inventory")
 app.command("paths")(paths_command)
 app.add_typer(schema_app, name="schema")
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)

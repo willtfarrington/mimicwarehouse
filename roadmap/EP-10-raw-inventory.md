@@ -127,3 +127,112 @@ is schema, not data). `mwh sql`/`safe_query` do not exist yet (EP-30); nothing h
   reconciliation status and `docs/resources/raw-inventory.md` are completed by **EP-16**.
 - Commit `feat(mimicwarehouse): raw inventory manifest + reconcile (EP-10)` (code, tests, DESIGN note; the docs
   table lands with EP-16), then `docs(roadmap): record EP-10 commit hash`.
+
+> **Completion note (2026-08-17).** Executed as one autonomous session (≈ 1 h against M ≈ 1 h), tiers
+> fixture (tests) + the bounded foreground pass + the full ⏱ background job — which **finished inside the
+> session** (see item 5), so everything the acceptance list hands to EP-16 is already recorded here and EP-16
+> only re-verifies. No row, value or identifier from the data entered this session: every command output was
+> hashes, byte counts, column-name status, row counts and job status (GOVERNANCE §4).
+>
+> **Items 1–4, 6 — as specified.** `src/mimicwarehouse/inventory.py` (module + `inventory_app`; attached with
+> one `app.add_typer` line in `cli.py`; **not** in `DIAGNOSTIC_COMMANDS` because `build` writes under the data
+> root), `tests/ep/test_ep10.py` (28 tests, marker `ep_10`, fixture tier: the contract's 41 CSVs synthesised
+> under `tmp_path` with contract headers, ids ≥ 90 000 000 and a sentinel cell value that must never surface;
+> quoted embedded newlines + CRLF; header missing/extra/order; `parse_validate_sql` on a snippet; snapshot id
+> deterministic + order-independent; `--resume` skips / `--force` recomputes; `show` / `reconcile` /
+> `build --log` outputs leak-free by assertion incl. the guard's own `id_band_hits`), DESIGN §15 note,
+> `docs/resources/raw-inventory.md` (complete — see item 5). `poe check` green (ruff, pyright, **319 tests**),
+> `uv run mwh verify EP-10` green. `mwh --help` +≈ 9 ms of imports (pydantic model + csv/hashlib; duckdb,
+> the contract and the vendor pin are imported inside functions), 0.50–0.55 s wall here (noise-bound).
+> `test_ep06::test_mwh_verify_usage_errors` now probes **EP-11** as its "code brief without a test module".
+>
+> **Item 5 — runs (all timings from the manifest lines / `raw_snapshot.json` as printed by `mwh inventory
+> show --timing`; the log itself is under the data root and was never read by the session):**
+> - **(a) Foreground pass** `uv run --group dev mwh inventory build --max-bytes 1000000000 --log
+>   C:\mimicdata\runs\jobs\ep10-raw-inventory.log`: **29 files** (not ~28 — the 1 GB cut leaves
+>   `datetimeevents` 1.09 GB to the background job), 3,974,150,546 bytes, started 2026-08-18T03:48:02Z,
+>   finished 03:48:06Z — **4.6 s** wall (hash 0.9–2.2 GB/s, DuckDB count at the same rate; the first
+>   `read_csv` paid ~0.4 s of connection warm-up), 0 errors, **29/29 `header ok = True`**.
+> - **(b) Full ⏱ background job** launched by the item-5 PowerShell recipe from the workspace dir:
+>   `Start-Process uv run --group dev mwh inventory build --resume --log C:\mimicdata\runs\jobs\ep10-raw-inventory.log`,
+>   **PID 31608** (uv.exe; the managed `python.exe` it spawned recorded `pid 6700` in `raw_snapshot.json`),
+>   **started 2026-08-18T03:48:36Z (23:48:36 EDT 2026-08-17)**, stdout/stderr redirected to
+>   `C:\mimicdata\runs\jobs\ep10-raw-inventory.out` / `.err`, log appended to the same
+>   `ep10-raw-inventory.log` as the foreground pass. It **finished at 03:50:04Z — 88 s wall** for the 12
+>   remaining files (100,667,717,547 bytes): `chartevents` 41,935,806,083 bytes hashed in 17.4 s (2,417 MB/s)
+>   and counted in 17.7 s; `labevents` 18.4 GB in 7.9 s + 7.4 s; `emar_detail` 8.7 GB in 3.7 s + 4.2 s;
+>   every large file at 2.0–2.4 GB/s for both passes. **0 errors, no `parallel=false` fallback needed
+>   anywhere, 41/41 `header ok = True`** (so no README-Risk finding, no column-name diff to record).
+>   Neither Malwarebytes nor Defender interfered (the process was never killed; Defender's real-time scan of
+>   `source material\` did not measurably throttle the read).
+> - **Totals:** 41 files, **104,641,868,093 bytes** (= 97.5 GiB, the README's "~98 GB"),
+>   **902,815,672 rows** (mimic-iv-3.1 886,043,036 · ed 7,887,229 · note 8,885,407); hash 45.0 s + rowcount
+>   47.3 s of engine time; ≈ 93 s of wall across the two passes — against the brief's 10–30 min estimate.
+> - **`raw_snapshot_id = 8209301d8a06431081584e795684829b0bddeeedd49542ecf862cde712652d7a`**
+>   (`sha256(json(sorted (rel_path, bytes, sha256, rows)))`), recorded with `duckdb 1.5.5`, `python 3.13.15`,
+>   `git_sha 5e27a154435e…` (HEAD at run time — the EP-9 tick), `mimic_code_sha 8bcbd190ca75…`,
+>   `contract_hash e4cd5aa908d1…`. This is the `source manifest id` EP-17/18/19 cite.
+> - **Reconciliation** (`mwh inventory reconcile`, exit 0): **34 match · 0 mismatch · 7 no-expectation ·
+>   0 pending** — every hosp/icu count equals the pinned `validate.sql` (which targets **3.1**, so the
+>   3.0-vs-3.1 orphan-subject deltas the brief warned about do not arise) and every ED count equals the ED
+>   `validate.sql`; the seven without an upstream expectation are `provider` 42,244, `caregiver` 17,984,
+>   `ingredientevents` 14,253,480, `discharge` 331,793, `radiology` 2,321,355, `discharge_detail` 186,138,
+>   `radiology_detail` 6,046,121. Every dataset's `SHA256SUMS.txt` was found and parsed, so all 41 lines carry
+>   a `physionet_gz_sha256` for the parked RAW-1 re-verification.
+>
+> **Deltas from the brief / owner review points** (each with the alternative and a recommendation, since the
+> owner reviews these cold):
+> 1. **The docs page is committed with this EP, not with EP-16.** The brief deferred
+>    `docs/resources/raw-inventory.md` to EP-16 only because the full job was expected to outlive the session;
+>    it finished 88 s after launch, `reconcile` exits 0 and `mwh guard` passes on the page, so the page in this
+>    commit is the complete one (41 files, hashes/counts/column status only — GOVERNANCE §3 needs no
+>    disclosure sidecar for a manifest). *Alternative:* leave it untracked and let EP-16 commit it after its own
+>    `show`; that costs nothing but a `git add` and buys an independent second look. *Recommendation:* keep;
+>    EP-16 re-runs `mwh inventory reconcile` (regenerates the page byte-for-byte except the `Generated`
+>    timestamp) and confirms `git diff` is timestamp-only.
+> 2. **A fourth reconcile status, `pending`.** The brief's set was `{match, mismatch, no-expectation}`; a
+>    partial manifest (the foreground pass, or a file whose rows were not counted) needs a state that is neither
+>    a match nor a mismatch, so `pending` exists and is counted separately in the table, the JSON summary and
+>    the docs page. *Alternative:* report those rows as `mismatch` (noisy: 12 false alarms after the
+>    foreground pass) or drop them from the table (hides incompleteness). *Recommendation:* keep.
+> 3. **`mwh inventory reconcile` exits 1 on any `mismatch`** (0 for pending/no-expectation) so EP-16 and later
+>    CI-like checks get a signal without parsing the table; `--json` and the docs page are written either
+>    way. *Alternative:* always exit 0 (one line in `reconcile_command`). *Recommendation:* keep — today it
+>    exits 0, and a future re-download that changes a count should be loud.
+> 4. **`--json` outputs keep raw integers** (`show --json`, `reconcile --json`, and the manifest JSONL /
+>    `raw_snapshot.json` under the data root) — machine consumers (EP-16/19) want ints, not `"17,847,567"`.
+>    Consequence: pasting such JSON into a tracked `.md`/`.py` would trip the guard's G4 rule (upstream counts
+>    like `pharmacy`, `prescriptions`, `inputevents` and several byte sizes are 8-digit tokens starting with
+>    1–3). Every *human-readable* surface (tables, log lines, the docs page) is thousands-separated and the
+>    tests assert G4-cleanliness on those. *Recommendation:* keep; sessions quote the docs page or the
+>    rendered tables, never `--json`, in committed text.
+> 5. **`raw_snapshot_id` after a `--no-rowcount` pass.** The brief defines the id as `None` until all 41 files
+>    are present; a `--no-rowcount` build that covers all 41 therefore *does* get an id, with `rows=null` in
+>    the canonical tuples — a different id from the counted manifest. The manifest lines, `show` and the docs
+>    page make the missing counts visible, and a following default `build` completes the rows **without
+>    re-hashing** (the hash is reused when `(bytes, mtime)` still match) and re-derives the id.
+>    *Alternative:* require `rows` for the id too (one condition in `compute_snapshot_id`), at the cost of a
+>    manifest that can never get an id if DuckDB cannot count one file. *Recommendation:* keep the brief's
+>    rule; `--no-rowcount` is an explicit operator choice and today's id was computed with all 41 counts.
+> 6. **The MIMIC-IV-Note manifest file carries PhysioNet's long directory name.** It is
+>    `mimic-iv-note-deidentified-free-text-clinical-notes-2.2.jsonl` (the brief's `<dataset-dir>`), while the
+>    contract label stays `mimic-iv-note-2.2`; `DATASET_DIRS` maps one to the other and `--dataset` accepts
+>    either. No action needed — just so the long file name is not a surprise in
+>    `C:\mimicdata\lake\manifests\raw\` (`mimic-iv-3.1.jsonl`, `mimic-iv-ed-2.2.jsonl`, `raw_snapshot.json`
+>    sit beside it).
+> 7. **A retry around the atomic manifest rewrite** (`_atomic_write_text`: up to 20 short retries on
+>    `PermissionError`) was added *after* the background job had started, because on Windows `os.replace`
+>    fails if `mwh inventory show` happens to hold the JSONL open for the microseconds it takes to read it.
+>    The job therefore ran on the pre-retry code — with no incident (its `show` reads were kept to two). Future
+>    runs carry the retry; the job is resumable in any case.
+> 8. **The wall-time estimate was very conservative:** ≈ 93 s in total against 10–30 min. Reads from
+>    `source material\` sustained 2.0–2.4 GB/s in both the `hashlib` pass and the DuckDB pass with Defender
+>    real-time on and Malwarebytes excluding the tree; the two-engine caveat in the amendment did not bite.
+>    Worth carrying into the EP-17/18 loader estimates (their bottleneck will be Parquet *writing* into the
+>    data root, not reading raw). Not a review point — an FYI.
+
+> **Verification recipe for EP-16** (no data root reads needed): `uv run mwh inventory show --timing` must
+> print `41/41 files in manifest (0 pending, 0 header mismatch)`, `job: … finished 2026-08-18T03:50:04+00:00`,
+> `errors 0` and `raw_snapshot_id 8209301d8a06…`; `uv run mwh inventory reconcile` must exit 0 with
+> `match=34, mismatch=0, no-expectation=7, pending=0` and rewrite `docs/resources/raw-inventory.md` with a
+> timestamp-only diff; `uv run mwh inventory build` must report `0 to process, 41 up to date`.
