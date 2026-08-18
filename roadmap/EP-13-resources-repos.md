@@ -2,6 +2,20 @@
 
 **Size:** M · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** — · **Blocks:** EP-16 (Re-plan P1)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) `mwh verify EP-13` (EP-6): because `tests/ep/test_ep13.py` *exists*, verify does not take the docs-only
+> shortcut — it runs `pytest -m ep_13`, and "nothing collected" (pytest 5) maps to exit 2, so the module must
+> carry `pytestmark = pytest.mark.ep_13` (EP-5 precedent: tier `n/a` with a test module). (2) **G4 hygiene for
+> a docs table:** the guard scans `.md`; write "Last activity" and "checked on" cells as hyphenated ISO dates
+> (compact `YYYYMMDD` is refused, no exemption) and never quote a bare 8-digit issue/PR number starting 1/2/3
+> (or use the `mwh-guard: allow` pragma on that line for a documented example). (3) Dependency-group facts
+> as shipped (D-15 addendum): `gpl` and `text` are opt-in groups, still empty; only `ui`↔`gpu` and
+> `ui`↔`text` are in `[tool.uv] conflicts` — a GPL tool is isolated *by being opt-in*, not by a conflict, and
+> a text-track dependency can never be co-installed with Streamlit; word the verdict/notes columns
+> accordingly. (4) `mimicwarehouse/docs/resources/` does not exist yet (only `docs/brand/`); whichever of
+> EP-10/13/14/15 runs first creates it and `README.md`. Command forms: `uv run mwh …` ≡ `uv run --group dev
+> mwh …`.
+
 ## Context
 
 **D-10** makes resource gathering explicit (owner template steps 2–3): before the staging phase we

@@ -2,6 +2,24 @@
 
 **Size:** M · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-11 (Synthetic fixture generator A (hosp)) · **Blocks:** EP-16 (Re-plan P1)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) **`MWH_TEST_TIER` collides with `Settings`** (EP-3): `MWH_` is the pydantic-settings env prefix and
+> `Settings` is `extra="forbid"` — a stray `MWH_TEST_TIER=` line in `mimicwarehouse/.env` would make every
+> `Settings()` construction raise (`test_ep03` proves it with `MWH_DATA_ROOTT`), and making it a real
+> setting would require a `.env.example` line (`test_ep03` asserts parity). Item 5 renames the fallback to
+> **`PYTEST_TIER`** (not `MWH_`-prefixed). (2) **Tier vocabulary:** `config.Tier` is
+> `fixture | demo | dev | full` and `Settings.default_tier` defaults to `"dev"`; the pytest ladder in item 5
+> is deliberately the three-step subset `fixture < dev < full` (`demo` is a data tier for EP-22, never a test
+> tier) and never reads `settings.default_tier` — say so in `tests/README.md`. (3) `pytester` ships with
+> pytest 9.1.1 but is off by default — item 5 adds `pytest_plugins = ["pytester"]` to `tests/conftest.py`
+> (the nested runs inherit `addopts = "-ra --strict-markers"`). (4) `test_ep01` asserts the marker
+> registration line still starts with `tier(name):` — keep that prefix when giving the marker semantics;
+> the "still green" claim reads **EP-0 … EP-11**, not EP-8 … EP-11. (5) `poe check` stays fixture-only
+> (`lint` + `typecheck` + `test`); `test-dev`/`test-full` are new tasks outside it. (6) Same pre-commit
+> byte-identity and G4-all-columns rules as EP-11's amendment (the icu CSVs and the extended
+> `manifest.json`); `mwh fixtures` diagnostic-command choice inherited from EP-11. Command forms: `uv run
+> mwh …` ≡ `uv run --group dev mwh …`.
+
 ## Context
 
 EP-11 delivered the deterministic hosp fixture (`mimicwarehouse.fixtures`: `FixtureSpec`, `FixturePlan` with
@@ -53,11 +71,15 @@ docs (mimic.mit.edu), never from `source material/`. The `dev`/`full` markers mu
    fixture catalog from the same CSVs.
 5. **pytest tier markers + conftest** (extend EP-1's `mimicwarehouse/tests/conftest.py`, which already registers
    `ep_0`…`ep_199` and a placeholder `tier(name)` under `--strict-markers`): give `tier(name)` its semantics
-   (`fixture` | `dev` | `full`; unmarked = `fixture`); option `--tier {fixture,dev,full}` (env `MWH_TEST_TIER`
-   fallback; default `fixture`) selecting the **maximum** tier to run (`--tier dev` runs fixture+dev; `--tier full`
-   runs all); `dev`/`full` tests are deselected below their tier and **skipped with a reason** when
+   (`fixture` | `dev` | `full`; unmarked = `fixture`; keep the registration text starting `tier(name):` —
+   `test_ep01` asserts it); option `--tier {fixture,dev,full}` (env **`PYTEST_TIER`** fallback — not
+   `MWH_TEST_TIER`, which would collide with `Settings`' `MWH_` prefix / `extra="forbid"`; amended EP-7; default
+   `fixture`; the ladder is a deliberate subset of `config.Tier` — `demo` is a data tier, not a test tier — and
+   never reads `settings.default_tier`) selecting the **maximum** tier to run (`--tier dev` runs fixture+dev;
+   `--tier full` runs all); `dev`/`full` tests are deselected below their tier and **skipped with a reason** when
    `get_settings().catalog_path(tier)` is absent; session fixtures `contract`, `fixture_root`, `fixture_catalog`
-   (from item 4), `tier`. poe tasks `test` (fixture, EP-1), `test-dev` (`pytest --tier dev`), `test-full`;
+   (from item 4), `tier`; `pytest_plugins = ["pytester"]` in `tests/conftest.py` for item 6 (amended EP-7). poe
+   tasks `test` (fixture, EP-1), `test-dev` (`pytest --tier dev`), `test-full` (`poe check` stays fixture-only);
    `mwh verify EP-n -- --tier dev` works through EP-6's pass-through unchanged. Document the vocabulary in
    `tests/README.md` (or extend the fixtures README) and add a dated note to `DESIGN.md` §20.
 6. **Tests** (`tests/ep/test_ep12.py`, `@pytest.mark.ep_12`): icu regeneration byte-identical vs `manifest.json`;
@@ -76,7 +98,8 @@ docs (mimic.mit.edu), never from `source material/`. The `dev`/`full` markers mu
 ## Verification / acceptance
 
 - `uv run poe test -m ep_12` and `uv run --group dev mwh verify EP-12` green on fixture; `uv run poe test` (all
-  markers) still green — EP-8..EP-11 tests unchanged.
+  markers) still green — EP-0 … EP-11 tests unchanged (incl. `test_ep01`'s marker-registration and
+  `test_ep03`'s `.env.example` parity assertions; amended EP-7).
 - `uv run poe test-dev` runs and reports the dev-tier tests as **skipped** (no `dev.duckdb` yet), not failed.
 - `uv run --group dev mwh fixtures build` twice ⇒ clean `git status`; 31 CSVs under `tests/fixtures/mimic-iv-3.1/`
   total ≤ 10 MB; pre-commit `mwh guard` passes.

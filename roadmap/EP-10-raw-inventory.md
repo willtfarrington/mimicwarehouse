@@ -2,6 +2,28 @@
 
 **Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-16) · **Core/Stretch:** core · **Depends on:** EP-3 (Config & data root + safety checks), EP-9 (Schema registry (YAML contract)) · **Blocks:** EP-16 (Re-plan P1)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) `require_free_space` / `check_free_space` are **module-level** functions of `mimicwarehouse.config`
+> (`require_free_space(path, min_gb) -> FreeSpace`, raising `DiskGuardError`), not members of
+> `get_settings()`; call `require_free_space(settings.data_root, settings.min_free_gb)`. (2) There is **no
+> `MWH_DATA_ROOT` in the environment** and no `.env`/`mwh.toml` in the workspace (only `.env.example`; and a
+> `.env` is read by pydantic-settings, never exported to the shell), so `"$env:MWH_DATA_ROOT\runs\jobs"`
+> would expand to `\runs\jobs` — the PowerShell recipe in item 5 now derives the job directory from
+> `mwh paths --json` (`.data_root`, or the `layout` row `runs_jobs`), and the `%MWH_DATA_ROOT%` paths in
+> items 2/verification are read as "under `settings.data_root`" (`C:\mimicdata` by default). (3)
+> `lake/manifests/raw/` is **not** a `Settings.layout` key (the 15 keys stop at `lake_manifests`) — the module
+> creates it itself (`mkdir(parents=True, exist_ok=True)`), likewise `mimicwarehouse/docs/resources/` if
+> EP-13/14/15 have not run yet. (4) Tier vocabulary: pytest tier *selection* arrives with EP-12, which runs
+> after this brief; here "dev" in the header means the bounded `--max-bytes` foreground pass, and the test
+> module is fixture-only (`tmp_path` CSVs) — no `tier("dev")` marker in `test_ep10.py`. (5) Endpoint
+> security (Risk 12, D-38, D-42): Defender still excludes only the data root, but **Malwarebytes** now
+> excludes both `C:\mimicdata` and `source material\`, and its Ransomware Protection judges processes by I/O
+> pattern — the full pass runs from the allow-listed managed `python.exe`/`.venv`, but the wall-time
+> estimate is unverified with two engines; if the background job vanishes, check Malwarebytes Quarantine /
+> `mbamservice.log` before Defender. (6) `mwh inventory` correctly receives *validated* settings (it writes
+> under the data root); `mwh doctor` at EP-7: 414.9 GB free. Command forms: `uv run mwh …` ≡ `uv run --group
+> dev mwh …`.
+
 ## Context
 
 The 41 raw CSVs under `source material/` (~98 GB; `chartevents.csv` alone 40 GB) were decompressed
@@ -10,7 +32,7 @@ archives) cannot verify them (README Risk 1). **D-26** therefore makes a locally
 SHA-256, byte size, header, row count per file, reconciled against the row counts in mimic-code's
 vendored `validate.sql` (EP-8) — the **raw snapshot id** that every lake manifest (EP-17+, DESIGN §5)
 cites as its `source manifest id`. EP-3 gives us `mimicwarehouse.config` (`get_settings()`: `source_root`, `layout["lake_manifests"]`,
-`layout["runs_jobs"]`, `duckdb_settings("build")`, `require_free_space()`); EP-9 gives the contract
+`layout["runs_jobs"]`, `duckdb_settings("build")`; module-level `require_free_space(path, min_gb)` — amended EP-7); EP-9 gives the contract
 (`load_contract()`, `Table.csv_path`, `read_csv_columns()`). Machine facts: single NVMe; Defender's
 real-time exclusion covers the data root, **not** `source material/`, so hashing runs at Defender speed;
 the `source material` path contains a space (always `pathlib`, never string-built shell commands);
@@ -32,8 +54,9 @@ is schema, not data). `mwh sql`/`safe_query` do not exist yet (EP-30); nothing h
    and record `csv_parallel_fallback=true`. Also parse each dataset's `SHA256SUMS.txt` (hashes + `.csv.gz` names)
    into `physionet_gz_sha256` per file for the parked `.csv.gz` re-verification (v2 RAW-1).
 2. **Manifest store + snapshot id**: one JSONL line per file at
-   `%MWH_DATA_ROOT%\lake\manifests\raw\<dataset-dir>.jsonl` (`mimic-iv-3.1`, `mimic-iv-ed-2.2`, `mimic-iv-note-…`)
-   and `%MWH_DATA_ROOT%\lake\manifests\raw\raw_snapshot.json` with `raw_snapshot_id = sha256` over the sorted
+   `<data_root>\lake\manifests\raw\<dataset-dir>.jsonl` (`mimic-iv-3.1`, `mimic-iv-ed-2.2`, `mimic-iv-note-…`;
+   `settings.layout["lake_manifests"] / "raw"` — the `raw\` level is not a layout key, the module creates it;
+   amended EP-7) and `<data_root>\lake\manifests\raw\raw_snapshot.json` with `raw_snapshot_id = sha256` over the sorted
    canonical `(rel_path, bytes, sha256, rows)` tuples, `files_expected=41`, `files_done`, `started/finished`,
    `duckdb_version`, `git_sha`, `mimic_code_sha` (EP-8 `vendor_info()`), per-dataset totals. `raw_snapshot_id` is
    `None` until all 41 files are present. Expose `load_raw_manifest()` and `raw_snapshot_id()` for the loader.
@@ -65,14 +88,18 @@ is schema, not data). `mwh sql`/`safe_query` do not exist yet (EP-30); nothing h
    names only (never rows), so D-18's background rule for long full jobs does not bite; (b) **full ⏱
    background job** for the rest:
    ```powershell
-   # from the workspace dir (cd mimicwarehouse); MWH_DATA_ROOT set in .env / env
-   $jobs = "$env:MWH_DATA_ROOT\runs\jobs"; New-Item -ItemType Directory -Force $jobs | Out-Null
+   # from the workspace dir (cd mimicwarehouse); the data root comes from settings, not from an env var
+   # (no MWH_DATA_ROOT is set on this machine; default C:\mimicdata) — amended EP-7
+   $paths = uv run --group dev mwh paths --json | ConvertFrom-Json
+   $jobs = ($paths.layout | Where-Object key -eq 'runs_jobs').path   # = <data_root>\runs\jobs (exists since EP-3)
    $mwhArgs = @('run','--group','dev','mwh','inventory','build','--resume','--log',"$jobs\ep10-raw-inventory.log")
    (Start-Process -FilePath uv -ArgumentList $mwhArgs -WorkingDirectory (Get-Location).Path -NoNewWindow -PassThru `
       -RedirectStandardOutput "$jobs\ep10-raw-inventory.out" -RedirectStandardError "$jobs\ep10-raw-inventory.err").Id
    ```
-   Expect 10–30 min (hash + parse of 98 GB, Defender-limited). Record the PID, start time and log path in the
-   completion note; **do not wait for it** — EP-16 verifies.
+   Expect 10–30 min (hash + parse of 98 GB; Defender scans `source material\` in real time, Malwarebytes
+   excludes it — the estimate is unverified with two engines; amended EP-7). Record the PID, start time and log
+   path in the completion note; **do not wait for it** — EP-16 verifies. If the process vanishes, check
+   Malwarebytes Quarantine / `mbamservice.log` first (Risk 12, D-42); the job is resumable.
 6. **Tests** (`tests/ep/test_ep10.py`, `@pytest.mark.ep_10`, fixture tier = synthetic CSVs written to `tmp_path`
    with contract headers and ids ≥ 90 000 000): sha256 equals `hashlib` over the bytes; row count correct with quoted
    embedded newlines and CRLF; header mismatch detected (extra/missing column names); `parse_validate_sql` on a
@@ -94,7 +121,8 @@ is schema, not data). `mwh sql`/`safe_query` do not exist yet (EP-30); nothing h
 - Foreground pass done: `uv run --group dev mwh inventory show` lists every file < 1 GB with `header ok = True`
   (any `False` is a finding: record the column-name diff in the completion note and in README Risks — it means the
   contract or the local files differ from the pinned DDL).
-- Full pass launched in the background; log at `%MWH_DATA_ROOT%\runs\jobs\ep10-raw-inventory.log`; PID and start
+- Full pass launched in the background; log at `<data_root>\runs\jobs\ep10-raw-inventory.log`
+  (`settings.layout["runs_jobs"]`; amended EP-7); PID and start
   time recorded in the `> **Completion note (date).**` block of this brief; timing, `raw_snapshot_id`,
   reconciliation status and `docs/resources/raw-inventory.md` are completed by **EP-16**.
 - Commit `feat(mimicwarehouse): raw inventory manifest + reconcile (EP-10)` (code, tests, DESIGN note; the docs

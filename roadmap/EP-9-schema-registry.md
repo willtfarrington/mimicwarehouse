@@ -2,6 +2,20 @@
 
 **Size:** M · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-8 (mimic-code vendoring) · **Blocks:** EP-10 (Raw inventory manifest ⏱), EP-11 (Synthetic fixture generator A (hosp)), EP-16 (Re-plan P1), EP-17 (Loader core A: typed CSV → Parquet)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) **CLI contract (EP-3):** every `mwh` command except `cli.DIAGNOSTIC_COMMANDS` (`doctor`, `paths`,
+> `guard`, `verify`) receives *validated* settings and exits 2 on an unsafe data root before the command
+> runs. `mwh schema …` never touches the data root, so item 6 now adds `"schema"` to `DIAGNOSTIC_COMMANDS`
+> (and to the planned-command roster in `cli.py`'s docstring) — a mis-set `MWH_DATA_ROOT` must not hide a
+> schema-drift check. (2) **Pre-commit (EP-4):** `check-yaml` and `check-json` now parse every staged
+> `.yaml`/`.json` — the contract files must be single-document, tag-free YAML; `end-of-file-fixer` /
+> `trailing-whitespace` will normalise them (fine — they are ours, not upstream). (3) The in-memory
+> DuckDB in test 6 is opened with `get_settings().duckdb_settings("app")` like EP-12 does (house rule,
+> DESIGN §6) — the DDL test needs no data root beyond the settings default. (4) The EP-8 clone under
+> `%TEMP%` that item 4 diffs is not on the Malwarebytes allow list (Risk 12) and `%TEMP%` may be cleaned
+> between sessions — re-clone at the pinned sha if it is gone. (5) EP-164 runs before EP-8; nothing here
+> depends on it. Command forms: `uv run mwh …` ≡ `uv run --group dev mwh …`.
+
 ## Context
 
 The loader (EP-17/18) must read 98 GB of CSV with **declared** types — sniffing 40 GB of `chartevents`
@@ -72,8 +86,11 @@ works from the vendored SQL and public documentation only (`source material/**` 
    spot checks (`patients` has exactly `subject_id, gender, anchor_age, anchor_year, anchor_year_group, dod`;
    `labevents.valuenum` is `DOUBLE`; `d_icd_diagnoses` PK = `(icd_code, icd_version)`); every subject-keyed table
    has `sort_keys[0] == "subject_id"`; every FK references an existing table/column; every column named in the
-   column map or `units.yaml` exists; all 41 `duckdb_ddl()` strings execute in an in-memory DuckDB; the drift check
-   passes against the vendored DDL. CLI: `mwh schema list | show <schema.table> | ddl <schema.table> | check`.
+   column map or `units.yaml` exists; all 41 `duckdb_ddl()` strings execute in an in-memory DuckDB opened with
+   `get_settings().duckdb_settings("app")` (amended EP-7); the drift check passes against the vendored DDL. CLI:
+   `mwh schema list | show <schema.table> | ddl <schema.table> | check` — attached in `cli.py` with one
+   `app.add_typer()` line and **added to `DIAGNOSTIC_COMMANDS`** (it never touches the data root; amended EP-7);
+   the contract YAML/JSON files pass the `check-yaml`/`check-json` pre-commit hooks (single-document, no tags).
    Dated note in `DESIGN.md` §7/§15 (`schema/` layout, `mwh schema` added).
 
 ## Out of scope

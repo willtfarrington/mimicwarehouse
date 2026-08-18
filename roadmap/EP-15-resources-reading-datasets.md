@@ -2,6 +2,17 @@
 
 **Size:** M · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** — · **Blocks:** EP-16 (Re-plan P1)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) The PMID rule is now exact: G4 refuses only *isolated 8-digit tokens starting 1, 2 or 3* (modern PMIDs
+> starting `3…` do trip it; 7-digit PMIDs and DOIs are safe because a token adjacent to `.`/`/` never matches)
+> — the advice "cite DOIs" stands, the test asserts the exact rule. (2) The caveats list in item 3(a) enumerates
+> **twelve** items, not eleven — the test wording is corrected to twelve and "Demo = v2.2 schema and no note
+> demo" is counted as one entry. (3) `mwh verify EP-15` runs `pytest -m ep_15` because the module exists
+> (EP-5 precedent) — `pytestmark` required. (4) The 38 category titles are pinned to the roadmap coverage
+> table *as it stands*; a re-plan that re-titles a category updates `reading.md` and the test in the same
+> commit (say so in `docs/resources/README.md`). (5) G4 hygiene: hyphenated ISO dates only. Command forms:
+> `uv run mwh …` ≡ `uv run --group dev mwh …`.
+
 ## Context
 
 The last of the three resource-gathering briefs (**D-10**): the papers/chapters each capability
@@ -11,7 +22,8 @@ brief must not rediscover (README Risk 9). Audience is both reading paths (**D-1
 managers and clinical-informatics readers. Docs-only (tier n/a); nothing is downloaded (EP-22 fetches
 the demo; eICU-CRD needs its own DUA and is parked as v2 EXT-1). Prefer free-to-read sources with a DOI
 or a stable URL; every link is fetched during the session. No data, no ids, no row-level examples; cite DOIs,
-never bare 8-digit PMIDs (the EP-4 guard's real-id-band rule would refuse the file).
+never bare 8-digit PMIDs (the EP-4 guard's G4 rule refuses any isolated 8-digit token starting 1, 2 or 3 —
+which modern `3…` PMIDs are; amended EP-7).
 
 ## In scope
 
@@ -54,8 +66,9 @@ never bare 8-digit PMIDs (the EP-4 guard's real-id-band rule would refuse the fi
 5. **Test** (`tests/ep/test_ep15.py`, `@pytest.mark.ep_15`): the three files exist; `reading.md` has 38 numbered
    category headings whose numbers/titles match the roadmap README coverage table (parse `roadmap/README.md`) and
    ≥ 60 entries with a DOI or `https://` link; `datasets.md` table has the nine columns and ≥ 10 rows with a
-   non-empty License and `yes`/`no` "May enter git?"; `methods-notes.md` mentions each of the eleven caveats above
-   (keyword check) and cites ≥ 5 distinct D-numbers; no file contains a token in the real id bands.
+   non-empty License and `yes`/`no` "May enter git?"; `methods-notes.md` mentions each of the twelve caveats above
+   (keyword check; "eleven" corrected at EP-7) and cites ≥ 5 distinct D-numbers; no file contains an isolated
+   8-digit token starting 1/2/3 (the exact G4 rule; amended EP-7).
 
 ## Out of scope
 

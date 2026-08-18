@@ -2,6 +2,21 @@
 
 **Size:** M · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** — · **Blocks:** EP-16 (Re-plan P1), EP-143 (Reference-table ingestion via wizard (ATC / Elixhauser / LOINC map))
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) **Landing path — one convention:** the Context said `<data_root>\ext\<source>\`, item 2 says
+> `<data_root>\ext\vocab\<source>\<version>\`; the brief now uses the **item-2 form** everywhere. Neither
+> level is a `Settings.layout` key (EP-3 ships `ext` and `ext_demo` only) — consumers build the path as
+> `settings.layout["ext"] / "vocab" / <source> / <version>` and create it themselves; do **not** add a layout
+> key here (that would change the 15-key contract `mwh paths` and `test_ep03` assert — a decision for the
+> brief that first writes there, EP-40/EP-143). `%MWH_DATA_ROOT%` in the text means "under
+> `settings.data_root`" (no env var is set on this machine; default `C:\mimicdata`). (2) The mechanical
+> backstop for "non-redistributable vocabularies never enter git" is `mwh guard` G1 (`.csv`/`.parquet`/… are
+> refused anywhere outside `mimicwarehouse/tests/fixtures/`) plus `.gitignore` — cite it. (3) `mwh verify
+> EP-14` runs `pytest -m ep_14` because the test module exists (EP-5 precedent) — `pytestmark` required.
+> (4) G4 hygiene: hyphenated ISO dates in the register (compact `YYYYMMDD` is refused). (5) The `source.yaml`
+> template lives in a fenced block inside `.md`, so `check-yaml` does not see it; a real `source.yaml` (EP-40+)
+> must be single-document, tag-free. Command forms: `uv run mwh …` ≡ `uv run --group dev mwh …`.
+
 ## Context
 
 Code sets (EP-40), phenotypes (EP-41/42), unit/itemid curation (EP-39), the reference-table ingestion
@@ -9,8 +24,8 @@ test of the Linkage Wizard (EP-143) and the optional text track (P10) all need e
 each with its own license and acquisition path. **D-35** fixes the order: free vocabularies first
 (ICD-9/10, LOINC, RxNorm, ATC, AHRQ CCSR/Elixhauser/Charlson, CMS GEMs); UMLS/SNOMED/OMOP Athena
 later and optional (the owner has no UTS account). GOVERNANCE §10 requires every vocabulary to be
-recorded in `docs/resources/vocabularies.md` and, once downloaded, in an `ext/<source>/source.yaml`
-(DESIGN §19: `%MWH_DATA_ROOT%\ext\<source>\`). MIMIC's own dimension tables (`d_icd_diagnoses`,
+recorded in `docs/resources/vocabularies.md` and, once downloaded, in an `ext/vocab/<source>/<version>/source.yaml`
+(DESIGN §19; `settings.layout["ext"] / "vocab" / …` — amended EP-7, one convention with item 2). MIMIC's own dimension tables (`d_icd_diagnoses`,
 `d_icd_procedures`, `d_labitems`, `d_items`, `d_hcpcs`) are the vocabulary of record for what is *in* the
 data; the 3.1 dims are under the credentialed license, while the ODbL Demo (EP-22) ships the same dims
 redistributably. Two MIMIC facts shape the register: the ICD-9 → ICD-10 switch (~2015) means every
@@ -38,7 +53,8 @@ Docs-only (tier n/a): research and write; download nothing (that is EP-40/EP-143
    (UMLS/NLM in the US; not redistributable; later; text track TXT-1), UMLS Metathesaurus (UTS license; later),
    MIMIC internal dictionaries (`d_items` MetaVision itemids, `d_labitems`, microbiology organism/antibiotic
    names, `omr.result_name` — PhysioNet credentialed license for 3.1; ODbL via the Demo).
-2. **`ext/vocab/` landing convention** — a section specifying `%MWH_DATA_ROOT%\ext\vocab\<source>\<version>\`
+2. **`ext/vocab/` landing convention** — a section specifying `<data_root>\ext\vocab\<source>\<version>\`
+   (built as `settings.layout["ext"] / "vocab" / …`; not a layout key — amended EP-7)
    with a `source.yaml` template: `name, version, release_date, url, license, license_url, registration_required,
    redistributable, obtained_on, obtained_by, files: [{name, sha256, bytes}], columns_of_interest, used_by_eps,
    notes`; rule that non-redistributable vocabularies never enter git (only their `source.yaml` hash record does),

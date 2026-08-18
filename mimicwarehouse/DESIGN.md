@@ -51,6 +51,21 @@ to leave this machine. All of these are catalogued in
 > sdist-only package in the lock: `autograd-gamma 0.5.0` (pure Python, lifelines
 > transitive) — see the EP-1 completion note.
 
+> **Note (2026-08-17, EP-7).** Two machine facts the table above did not carry. (1) **Endpoint
+> security is two real-time products**, Windows Defender *and* Malwarebytes 5.1 Premium (D-38
+> addenda, D-42, roadmap Risk 12): Malwarebytes' Ransomware Protection judges processes by I/O
+> pattern and quarantined the unsigned Git `bash.exe` during a burst file operation; the owner
+> allow-lists the toolchain (Git, uv, uv's CPython, the workspace `.venv`, pre-commit's hook
+> venvs) and both data locations in Malwarebytes and excludes `C:\mimicdata` in Defender, and keeps
+> both products on. Design consequences: every long writer (loader EP-17/18, fixture generators
+> EP-11/12, inventory EP-10) is resumable and logs progress; sessions write files through the
+> Write/Edit tools, not shell heredocs; the §21 bucket-count question ("Defender/NTFS overhead")
+> now reads "Defender + Malwarebytes/NTFS overhead"; `mwh doctor` gains an `antivirus` check at
+> EP-164 that names the products it can see (neither exclusion list is readable non-elevated).
+> (2) **Console code page**: the shells that run `mwh` may be cp1252 — CLI output must stay ASCII
+> or pass through `verify._console_safe` (roadmap Risk 13); JSON outputs are unaffected. Versions
+> re-verified at EP-7: unchanged from the EP-1 note; `mwh doctor` 8 pass · 5 info; 414.9 GB free.
+
 ## 3. Layers & disk budget
 
 ```
@@ -389,6 +404,24 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > (poe `roadmap-check`) is a thin wrapper over `roadmap_check_main`. Console output is passed
 > through `_console_safe` (glyphs the active code page cannot encode become `?` — ⏱ in
 > titles, ☑ in messages — instead of crashing rich on cp1252). Import cost: stdlib + typer.
+
+> **Note (2026-08-17, EP-7 — P0 re-plan; no code).** The P0 module map is now real:
+> `cli.py` (EP-2), `doctor.py` (EP-2/EP-3, 13 checks: `python uv duckdb settings disk_free
+> data_root temp_dir cloud_mounts defender bitlocker power_scheme gpu longpaths`), `config.py`
+> (EP-3), `guard.py` (EP-4), `theme.py` (EP-5), `verify.py` (EP-6) + `scripts/roadmap_check.py`;
+> `DIAGNOSTIC_COMMANDS = {doctor, paths, guard, verify}` receive unchecked settings, every other
+> command validated ones. Planned change recorded here for the P1 slot: **EP-164** adds
+> `doctor.check_antivirus` (14th check, after `defender`; `root/SecurityCenter2` products via the
+> same `_powershell` seam; warn when a non-Defender real-time product is present) — the JSON
+> shape EP-35 embeds is otherwise unchanged. Convention notes for P1+ authors, all as shipped:
+> tests are `tests/ep/test_ep<NN>.py` with the marker `ep_<n>` (zero-padded file, unpadded
+> marker; `ep_0`…`ep_199` registered in `conftest.py`); `tier(name)` is a placeholder marker
+> until EP-12; `mwh verify EP-n [-- <pytest args>]` runs the marker set in a fresh interpreter and
+> passes extra args through; `poe check` = `lint` + `typecheck` + `test`; `poe roadmap-check
+> [--strict] [--json]`; `Settings.layout[<key>]` (not `paths`) with the 15 keys of §3,
+> `Settings.catalog_path(tier)`, `Settings.duckdb_settings("build"|"app")`, `get_settings()` /
+> `configure()` / `load_settings(checked=False)`; the guard's `mwh-guard: allow` pragma for
+> documented id examples.
 
 ## 16. App structure (D-21)
 

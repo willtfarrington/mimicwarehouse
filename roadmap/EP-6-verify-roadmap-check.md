@@ -83,6 +83,7 @@ verify cleanly. Commands run in `mimicwarehouse/`; the roadmap lives at `../road
 
 - `roadmap_check --fix` (auto-insert ☑ hashes from `git log` messages) — trigger: after ≥ 3
   phases of hand-ticking prove tedious; hazard: rewriting the master table by script.
+  *(Mirrored into `final-roadmap.md` § Cross-cutting as v2 RM-1 by EP-7, 2026-08-17.)*
 
 > **Completion note (2026-08-17).** Delivered as briefed; `uv run poe check` green (ruff, pyright
 > basic, 194 tests of which 47 are `ep_6`); `uv run --group dev mwh verify EP-0` prints the docs-only

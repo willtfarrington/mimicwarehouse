@@ -2,6 +2,25 @@
 
 **Size:** M · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-9 (Schema registry (YAML contract)) · **Blocks:** EP-12 (Synthetic fixture generator B (icu) + pytest tier markers), EP-16 (Re-plan P1)
 
+> **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged.
+> (1) **Pre-commit vs byte-identity (EP-4):** the repo-root `.pre-commit-config.yaml` runs `end-of-file-fixer`
+> and `trailing-whitespace` on every staged file — a fixture CSV whose last byte is not `\n`, or a quoted value
+> with a trailing blank, would be rewritten *after* `manifest.json` was computed and the drift test would fail
+> at the next run. Item 4 now requires the writer to emit exactly what those hooks accept (final `\n`, no
+> trailing blanks — CSV quoting must not depend on them), and item 6 tests it (`pre-commit run --files
+> <fixture files>` is a no-op); `check-yaml`/`check-json` also parse `fixtures/vocab/*.yaml` and
+> `manifest.json`. (2) **G4 scans every column**, not only ids: `.csv` is a guard text extension, so any
+> isolated 8-digit value starting 1/2/3 anywhere (a `gsn`, `ndc`, `drg_code`, `orderid`, a compact date) trips
+> the rule — the generator keeps every non-id numeric field out of `10 000 000–39 999 999` or gives it 9+
+> digits / a prefix, and never writes compact `YYYYMMDD`. (3) `config.workspace_root()` resolves from the
+> package location only in the source checkout (falls back to CWD from a wheel install) — fine for `uv run`
+> here; say so in the CLI help. (4) **CLI contract (EP-3):** `mwh fixtures` is not a diagnostic command and
+> will receive *validated* settings although it never touches the data root — either add `"fixtures"` to
+> `cli.DIAGNOSTIC_COMMANDS` (recommended, like `schema` at EP-9) or accept the coupling; note the choice in
+> the completion note. (5) Endpoint security (Risk 12, D-42): 22 CSV writes from the allow-listed managed
+> `python.exe` are fine; if a run dies mid-write, check Malwarebytes Quarantine first. Command forms:
+> `uv run mwh …` ≡ `uv run --group dev mwh …`.
+
 ## Context
 
 Every later brief develops and tests on the `fixture` tier first (**D-18**): a committed synthetic
@@ -59,8 +78,11 @@ enough for the loader, concepts and phenotypes", not clinical fidelity.
 4. **Writer + CLI** (`src/mimicwarehouse/fixtures/write.py`; `mwh fixtures build [--out <dir>] [--seed N]
    [--subjects N]`, `--out` defaulting to the workspace `tests/fixtures/` resolved from the package location, not
    CWD): writes `tests/fixtures/mimic-iv-3.1/hosp/<table>.csv` mirroring the raw layout (so EP-17 can point
-   `--source tests/fixtures/mimic-iv-3.1` at it), header order = contract order, LF endings,
-   fixed float formatting, rows sorted by the contract `sort_keys`, timestamps `YYYY-MM-DD HH:MM:SS`; plus
+   `--source tests/fixtures/mimic-iv-3.1` at it), header order = contract order, LF endings, a final `\n` and
+   no trailing blanks on any line (so the `end-of-file-fixer` / `trailing-whitespace` hooks are no-ops —
+   amended EP-7), fixed float formatting, rows sorted by the contract `sort_keys`, timestamps
+   `YYYY-MM-DD HH:MM:SS` (never compact `YYYYMMDD` — G4), no non-id numeric field inside `10 000 000–39 999 999`
+   (G4 scans every CSV column — amended EP-7); plus
    `tests/fixtures/manifest.json` (per file: sha256, bytes, rows, seed, generator version) and
    `tests/fixtures/README.md` (synthetic, ids ≥ 90 000 000, regeneration command, MIT like the code). Budget:
    hosp ≤ 6 MB total (whole fixture ≤ 10 MB after EP-12); shrink `labs_per_admission` before shrinking subjects.
@@ -89,7 +111,9 @@ enough for the loader, concepts and phenotypes", not clinical fidelity.
 - `uv run --group dev mwh fixtures build` twice ⇒ `git status` clean after the second run (byte-identical); the
   22 CSVs + `manifest.json` + `README.md` exist under `mimicwarehouse/tests/fixtures/mimic-iv-3.1/hosp/` and total
   ≤ 6 MB.
-- Pre-commit (`mwh guard`) passes with the fixture files staged; the diff contains no number in the real id bands.
+- Pre-commit (`mwh guard`) passes with the fixture files staged; the diff contains no number in the real id bands;
+  `uv run --group dev pre-commit run --files mimicwarehouse/tests/fixtures/**` modifies nothing (the fixer hooks
+  are no-ops on the generated files — amended EP-7).
 - Commit `feat(mimicwarehouse): synthetic hosp fixture generator (EP-11)`, then `docs(roadmap): record EP-11 commit hash`.
 
 ## Parked → final-roadmap.md
