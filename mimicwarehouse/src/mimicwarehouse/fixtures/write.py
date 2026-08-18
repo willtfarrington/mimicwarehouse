@@ -1,12 +1,17 @@
-"""Fixture writer - CSVs mirroring the raw layout, ``manifest.json``, ``README.md`` (EP-11).
+"""Fixture writer - CSVs mirroring the raw layout, ``manifest.json``, ``README.md`` (EP-11, EP-12).
 
 Layout under ``<out>`` (default ``mimicwarehouse/tests/fixtures/``, resolved from the package
 location like :func:`mimicwarehouse.config.workspace_root`, so ``uv run mwh fixtures build``
 from anywhere writes into the checkout)::
 
-    <out>/mimic-iv-3.1/hosp/<table>.csv     the 22 hosp tables (EP-12 adds icu/)
+    <out>/mimic-iv-3.1/hosp/<table>.csv     the 22 hosp tables (EP-11)
+    <out>/mimic-iv-3.1/icu/<table>.csv      the 9 icu tables (EP-12)
     <out>/manifest.json                     per file: sha256, bytes, rows, seed, generator version
     <out>/README.md                         what this is, how to regenerate, license
+
+:func:`write_fixture` takes either one module's frames (``{table: frame}`` + ``module=``, the
+EP-11 form) or several modules at once (``{"hosp": {...}, "icu": {...}}``) and writes one
+manifest + README covering everything it wrote.
 
 Byte discipline (amended EP-7): header order = contract order; LF line endings; a final ``\\n``
 and no line - inside quoted multi-line values included - ending in a blank, so the repo's
@@ -23,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -32,7 +38,8 @@ from mimicwarehouse.guard import id_band_hits
 if TYPE_CHECKING:  # pragma: no cover
     import polars as pl
 
-    from mimicwarehouse.fixtures.spec import FixtureSpec
+    from mimicwarehouse.fixtures.spec import FixturePlan, FixtureSpec
+    from mimicwarehouse.schema.contract import Contract
 
 #: Bumped when the generator changes output for the same spec (recorded per file in the manifest).
 GENERATOR_VERSION = "0.1.0"
@@ -41,6 +48,9 @@ MANIFEST_NAME = "manifest.json"
 README_NAME = "README.md"
 DATASET_DIR = "mimic-iv-3.1"
 HOSP_DIR = "hosp"
+ICU_DIR = "icu"
+#: Module directory -> contract schema, in the order the README lists them.
+MODULE_SCHEMAS: dict[str, str] = {HOSP_DIR: "mimiciv_hosp", ICU_DIR: "mimiciv_icu"}
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 DATE_FORMAT = "%Y-%m-%d"
 #: The regeneration command recorded in README / manifest.
@@ -143,6 +153,7 @@ class FileEntry:
 def _manifest_payload(
     entries: list[FileEntry], spec: FixtureSpec, contract_hash: str
 ) -> dict[str, Any]:
+    modules = sorted({PurePosixPath(e.rel_path).parts[1] for e in entries})
     return {
         "generator": GENERATOR_NAME,
         "generator_version": GENERATOR_VERSION,
@@ -151,6 +162,7 @@ def _manifest_payload(
         "contract_hash": contract_hash,
         "regenerate": REGENERATE_COMMAND,
         "id_floor": spec.first_subject_id,
+        "modules": modules,
         "files": {e.rel_path: e.as_dict() for e in sorted(entries, key=lambda e: e.rel_path)},
         "total_bytes": sum(e.bytes for e in entries),
         "total_rows": sum(e.rows for e in entries),
@@ -167,7 +179,24 @@ def load_manifest(out_dir: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def render_readme(spec: FixtureSpec, tables: list[str]) -> bytes:
+def _tables_by_module(
+    tables: Sequence[str] | Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
+    """``["patients", ...]`` (hosp, the EP-11 form) or ``{"hosp": [...], "icu": [...]}``."""
+    if isinstance(tables, Mapping):
+        return {str(m): list(t) for m, t in tables.items()}
+    return {HOSP_DIR: list(tables)}
+
+
+def render_readme(spec: FixtureSpec, tables: Sequence[str] | Mapping[str, Sequence[str]]) -> bytes:
+    by_module = _tables_by_module(tables)
+    layout = [
+        f"{DATASET_DIR}/{module}/<table>.csv"
+        + " " * (max(0, 12 - len(module)))
+        + f"{len(names)} {MODULE_SCHEMAS.get(module, module)} tables, contract order"
+        for module, names in by_module.items()
+    ]
+    total = sum(len(n) for n in by_module.values())
     lines = [
         "# Synthetic fixture (mimicwarehouse `fixture` tier)",
         "",
@@ -176,14 +205,19 @@ def render_readme(spec: FixtureSpec, tables: list[str]) -> bytes:
         "MIMIC-IV row, no MIMIC-IV value and no identifier: every `subject_id` / `hadm_id` /",
         f"`stay_id` / row id is >= {spec.first_subject_id:_} (real MIMIC ids live in",
         "10 000 000-39 999 999, which the pre-commit guard `mwh guard` refuses; see GOVERNANCE.md",
-        "section 3, D-27).",
+        "section 3, D-27). Real `itemid`s / codes / drug names are dictionary values typed from",
+        "public documentation, not data.",
         "",
         "The layout mirrors the raw PhysioNet tree so the loader can point at it:",
         "",
         "```",
-        f"{DATASET_DIR}/{HOSP_DIR}/<table>.csv   {len(tables)} mimiciv_hosp tables, contract order",
+        *layout,
         f"{MANIFEST_NAME}                   per file: sha256, bytes, rows, seed, generator version",
         "```",
+        "",
+        f"{total} CSVs in total. `icustays` is derived from the same ICU segments as",
+        "`transfers`, so the two agree; every icu event lies inside its stay; every icu `itemid`",
+        "is in `d_items` with the `linksto` of its table.",
         "",
         "Regenerate (byte-identical for the same seed / spec / generator version):",
         "",
@@ -192,9 +226,11 @@ def render_readme(spec: FixtureSpec, tables: list[str]) -> bytes:
         f"# = mwh fixtures build --seed {spec.seed} --subjects {spec.n_subjects}",
         "```",
         "",
-        "`tests/ep/test_ep11.py` fails if the committed files drift from what the generator",
-        "produces (`manifest.json` sha256s), so change the generator and rebuild rather than",
-        "editing a CSV by hand.",
+        "`tests/ep/test_ep11.py` (hosp) and `tests/ep/test_ep12.py` (icu) fail if the committed",
+        "files drift from what the generator produces (`manifest.json` sha256s), so change the",
+        "generator and rebuild rather than editing a CSV by hand. Tests read the tree through",
+        "`mimicwarehouse.fixtures.catalog.build_fixture_catalog()` (in-memory DuckDB, contract",
+        "types) - the `fixture` pytest tier (see `tests/README.md`).",
         "",
         "License: MIT, like the code (the fixture is not derived from MIMIC-IV data; the",
         "vocabularies are public code lists typed from documentation).",
@@ -224,8 +260,18 @@ class WriteResult:
         return sum(e.rows for e in self.entries)
 
 
+FramesByModule = Mapping[str, Mapping[str, "pl.DataFrame"]]
+
+
+def _as_modules(frames: Mapping[str, Any], module: str) -> dict[str, dict[str, pl.DataFrame]]:
+    """Normalise the two accepted shapes to ``{module: {table: frame}}``."""
+    if frames and all(isinstance(v, Mapping) for v in frames.values()):
+        return {str(m): dict(tables) for m, tables in frames.items()}
+    return {module: dict(frames)}
+
+
 def write_fixture(
-    frames: dict[str, pl.DataFrame],
+    frames: Mapping[str, pl.DataFrame] | FramesByModule,
     out_dir: Path,
     *,
     spec: FixtureSpec,
@@ -235,21 +281,25 @@ def write_fixture(
 ) -> WriteResult:
     """Write ``frames`` as ``<out>/<dataset_dir>/<module>/<table>.csv`` + manifest + README.
 
-    Every CSV is rendered to bytes and checked (:func:`check_bytes`) before the first file is
-    written, so a violation leaves the directory untouched.
+    ``frames`` is either ``{table: frame}`` (written under ``module``) or
+    ``{module: {table: frame}}`` for several modules at once. Every CSV is rendered to bytes and
+    checked (:func:`check_bytes`) before the first file is written, so a violation leaves the
+    directory untouched.
     """
     out_dir = Path(out_dir)
-    rendered: list[tuple[str, PurePosixPath, bytes, int]] = []
+    by_module = _as_modules(frames, module)
+    rendered: list[tuple[str, str, PurePosixPath, bytes, int]] = []
     problems: list[str] = []
-    for name, frame in frames.items():
-        rel = rel_path(name, module, dataset_dir)
-        data = frame_to_csv_bytes(frame)
-        problems += check_bytes(data, name=str(rel))
-        rendered.append((name, rel, data, frame.height))
+    for mod, tables in by_module.items():
+        for name, frame in tables.items():
+            rel = rel_path(name, mod, dataset_dir)
+            data = frame_to_csv_bytes(frame)
+            problems += check_bytes(data, name=str(rel))
+            rendered.append((mod, name, rel, data, frame.height))
     if problems:
         raise WriteError("\n".join(problems))
     entries: list[FileEntry] = []
-    for _name, rel, data, rows in rendered:
+    for _mod, _name, rel, data, rows in rendered:
         path = out_dir / Path(*rel.parts)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
@@ -266,8 +316,26 @@ def write_fixture(
     manifest_path = out_dir / MANIFEST_NAME
     manifest_path.write_bytes(render_manifest(entries, spec, contract_hash))
     readme_path = out_dir / README_NAME
-    readme_path.write_bytes(render_readme(spec, [n for n, *_ in rendered]))
+    tables_by_module = {mod: [name for name in tables] for mod, tables in by_module.items()}
+    readme_path.write_bytes(render_readme(spec, tables_by_module))
     return WriteResult(out_dir, tuple(entries), manifest_path, readme_path)
+
+
+def build_frames(
+    spec: FixtureSpec | None = None, *, contract: Contract | None = None
+) -> tuple[FixturePlan, dict[str, dict[str, pl.DataFrame]]]:
+    """``(plan, {"hosp": frames, "icu": frames})`` for ``spec`` - the whole fixture in memory."""
+    from mimicwarehouse.fixtures.hosp import build_hosp_frames
+    from mimicwarehouse.fixtures.icu import build_icu_frames
+    from mimicwarehouse.fixtures.spec import FixtureSpec, build_plan
+    from mimicwarehouse.schema.contract import load_contract
+
+    spec = spec or FixtureSpec()
+    contract = contract or load_contract()
+    plan = build_plan(spec)
+    hosp = build_hosp_frames(plan, contract=contract)
+    icu = build_icu_frames(plan, contract=contract)
+    return plan, {HOSP_DIR: hosp, ICU_DIR: icu}
 
 
 def build_and_write(
@@ -276,18 +344,16 @@ def build_and_write(
     spec: FixtureSpec | None = None,
     check: bool = True,
 ) -> WriteResult:
-    """plan -> hosp frames -> (validate) -> write. What ``mwh fixtures build`` runs."""
+    """plan -> hosp + icu frames -> (validate) -> write. What ``mwh fixtures build`` runs."""
     from mimicwarehouse.fixtures.check import assert_valid
-    from mimicwarehouse.fixtures.hosp import build_hosp_frames
-    from mimicwarehouse.fixtures.spec import FixtureSpec, build_plan
+    from mimicwarehouse.fixtures.spec import FixtureSpec
     from mimicwarehouse.schema.contract import load_contract
 
     spec = spec or FixtureSpec()
     contract = load_contract()
-    plan = build_plan(spec)
-    frames = build_hosp_frames(plan, contract=contract)
+    plan, frames = build_frames(spec, contract=contract)
     if check:
-        assert_valid(frames, contract, plan)
+        assert_valid(frames[HOSP_DIR], contract, plan, icu=frames[ICU_DIR])
     return write_fixture(
         frames,
         out_dir if out_dir is not None else default_out_dir(),
@@ -302,14 +368,18 @@ __all__ = [
     "GENERATOR_NAME",
     "GENERATOR_VERSION",
     "HOSP_DIR",
+    "ICU_DIR",
     "MANIFEST_NAME",
+    "MODULE_SCHEMAS",
     "README_NAME",
     "REGENERATE_COMMAND",
     "TIMESTAMP_FORMAT",
     "FileEntry",
+    "FramesByModule",
     "WriteError",
     "WriteResult",
     "build_and_write",
+    "build_frames",
     "check_bytes",
     "default_out_dir",
     "frame_to_csv_bytes",

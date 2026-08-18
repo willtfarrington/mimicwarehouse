@@ -1,10 +1,12 @@
-"""Seed vocabularies for the synthetic fixture (EP-11).
+"""Seed vocabularies for the synthetic fixture (EP-11 hosp, EP-12 icu).
 
 Loads the hand-typed YAML under ``fixtures/vocab/`` (package data): ``d_labitems.yaml``,
-``icd.yaml``, ``d_hcpcs.yaml``, ``drugs.yaml``, ``categories.yaml``. Everything here is
-dictionary / category text typed from public documentation - never a patient row, never a
-value read from ``source material/`` (GOVERNANCE section 4). The generators in
-:mod:`mimicwarehouse.fixtures.hosp` only ever sample from these lists.
+``icd.yaml``, ``d_hcpcs.yaml``, ``drugs.yaml``, ``categories.yaml`` and, since EP-12,
+``d_items.yaml`` (the MetaVision items every icu event table points at, with the generator
+``role`` / sampling knobs per item). Everything here is dictionary / category text typed from
+public documentation - never a patient row, never a value read from ``source material/``
+(GOVERNANCE section 4). The generators in :mod:`mimicwarehouse.fixtures.hosp` and
+:mod:`mimicwarehouse.fixtures.icu` only ever sample from these lists.
 
 ``load_vocab()`` is cached; ``load_vocab_from(root)`` reads a directory of the same shape
 (tests point it at an edited copy).
@@ -27,6 +29,16 @@ VOCAB_FILES: tuple[str, ...] = (
     "d_hcpcs.yaml",
     "drugs.yaml",
     "categories.yaml",
+    "d_items.yaml",
+)
+#: The event tables a ``d_items.linksto`` may name (mimiciv_icu contract).
+ICU_LINKSTO: tuple[str, ...] = (
+    "chartevents",
+    "datetimeevents",
+    "inputevents",
+    "ingredientevents",
+    "outputevents",
+    "procedureevents",
 )
 
 
@@ -91,6 +103,43 @@ class Drug:
 
 
 @dataclass(frozen=True, slots=True)
+class IcuItem:
+    """One ``d_items`` row plus the knobs the icu generators use (EP-12).
+
+    The first eight fields are the contract columns; ``role`` names the generator that writes
+    the item; ``low`` / ``high`` / ``decimals`` bound numeric draws and fix the text form of
+    ``value``; ``text_values`` are ``(value, valuenum | None)`` pairs for text items; ``extra``
+    keeps the role-specific knobs (``drug``, ``fluid``, ``ingredient``, ``rateuom``,
+    ``rate_low`` / ``rate_high``, ``weight``).
+    """
+
+    itemid: int
+    label: str
+    abbreviation: str
+    linksto: str
+    category: str
+    unitname: str | None
+    param_type: str
+    lownormalvalue: float | None
+    highnormalvalue: float | None
+    role: str
+    low: float | None = None
+    high: float | None = None
+    decimals: int = 0
+    text_values: tuple[tuple[str, float | None], ...] = ()
+    extra: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @property
+    def is_numeric(self) -> bool:
+        return self.low is not None and self.high is not None
+
+    def format(self, v: float) -> tuple[str, float]:
+        """Numeric ``(value text, valuenum)`` at the item's decimals."""
+        text = f"{v:.{self.decimals}f}"
+        return text, float(text)
+
+
+@dataclass(frozen=True, slots=True)
 class Weighted:
     """A categorical list ``[(value | None, weight), ...]``."""
 
@@ -133,6 +182,8 @@ class Vocab:
     drugs: tuple[Drug, ...]
     drug_bases: tuple[dict[str, Any], ...]
     categories: dict[str, Any] = field(repr=False)
+    icu_items: tuple[IcuItem, ...] = ()
+    icu_lists: dict[str, Any] = field(default_factory=dict, repr=False)
 
     # -- convenience lookups ------------------------------------------------------------------
 
@@ -142,11 +193,35 @@ class Vocab:
                 return item
         raise KeyError(f"no lab item {itemid}")
 
+    def icu_item(self, itemid: int) -> IcuItem:
+        for item in self.icu_items:
+            if item.itemid == itemid:
+                return item
+        raise KeyError(f"no d_items entry {itemid}")
+
+    def icu_role(self, role: str) -> IcuItem:
+        """The single item with ``role`` (roles that several items share use :meth:`icu_roles`)."""
+        items = self.icu_roles(role)
+        if len(items) != 1:
+            raise KeyError(
+                f"expected exactly one d_items entry with role {role!r}, got {len(items)}"
+            )
+        return items[0]
+
+    def icu_roles(self, role: str) -> tuple[IcuItem, ...]:
+        return tuple(i for i in self.icu_items if i.role == role)
+
+    def icu_linksto(self, table: str) -> tuple[IcuItem, ...]:
+        return tuple(i for i in self.icu_items if i.linksto == table)
+
     def weighted(self, key: str) -> Weighted:
         return Weighted.parse(self.categories[key], where=f"categories.yaml: {key}")
 
     def nested_weighted(self, key: str, sub: str) -> Weighted:
         return Weighted.parse(self.categories[key][sub], where=f"categories.yaml: {key}.{sub}")
+
+    def icu_weighted(self, key: str) -> Weighted:
+        return Weighted.parse(self.icu_lists[key], where=f"d_items.yaml: {key}")
 
     def drugs_tagged(self, tag: str) -> tuple[Drug, ...]:
         return tuple(d for d in self.drugs if tag in d.tags)
@@ -274,6 +349,75 @@ def _drugs(doc: dict[str, Any]) -> tuple[Drug, ...]:
     return tuple(out)
 
 
+_ICU_ITEM_KEYS = frozenset(
+    {
+        "itemid",
+        "label",
+        "abbreviation",
+        "linksto",
+        "category",
+        "unitname",
+        "param_type",
+        "lownormalvalue",
+        "highnormalvalue",
+        "role",
+        "low",
+        "high",
+        "decimals",
+        "text_values",
+    }
+)
+
+
+def _optional_float(raw: Any) -> float | None:
+    return None if raw is None else float(raw)
+
+
+def _icu_items(doc: dict[str, Any]) -> tuple[IcuItem, ...]:
+    out: list[IcuItem] = []
+    for raw in doc.get("items") or ():
+        try:
+            if not isinstance(raw, dict):
+                raise TypeError("not a mapping")
+            linksto = str(raw["linksto"])
+            if linksto not in ICU_LINKSTO:
+                raise ValueError(f"linksto {linksto!r} is not an icu event table")
+            text_values = tuple(
+                (str(v), _optional_float(n)) for v, n in (raw.get("text_values") or ())
+            )
+            extra = {k: v for k, v in raw.items() if k not in _ICU_ITEM_KEYS}
+            out.append(
+                IcuItem(
+                    itemid=int(raw["itemid"]),
+                    label=str(raw["label"]),
+                    abbreviation=str(raw["abbreviation"]),
+                    linksto=linksto,
+                    category=str(raw["category"]),
+                    unitname=None if raw.get("unitname") is None else str(raw["unitname"]),
+                    param_type=str(raw["param_type"]),
+                    lownormalvalue=_optional_float(raw.get("lownormalvalue")),
+                    highnormalvalue=_optional_float(raw.get("highnormalvalue")),
+                    role=str(raw["role"]),
+                    low=_optional_float(raw.get("low")),
+                    high=_optional_float(raw.get("high")),
+                    decimals=int(raw.get("decimals") or 0),
+                    text_values=text_values,
+                    extra=extra,
+                )
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise VocabError(f"d_items.yaml: bad item {raw!r} ({exc})") from exc
+    if not out:
+        raise VocabError("d_items.yaml: no items")
+    ids = [i.itemid for i in out]
+    if len(set(ids)) != len(ids):
+        raise VocabError("d_items.yaml: duplicate itemid")
+    for i in out:
+        if i.is_numeric and i.low > i.high:  # type: ignore[operator]
+            raise VocabError(f"d_items.yaml: item {i.itemid} has low > high")
+    return tuple(out)
+
+
 def load_vocab_from(root: Path) -> Vocab:
     """Build a :class:`Vocab` from a directory shaped like ``fixtures/vocab/``."""
     root = Path(root)
@@ -283,6 +427,7 @@ def load_vocab_from(root: Path) -> Vocab:
     hcpcs_doc = docs["d_hcpcs.yaml"]
     drugs_doc = docs["drugs.yaml"]
     cats = docs["categories.yaml"]
+    items_doc = docs["d_items.yaml"]
 
     lab_items = _lab_items(labs)
     known = {i.itemid for i in lab_items}
@@ -347,6 +492,12 @@ def load_vocab_from(root: Path) -> Vocab:
     if missing:
         raise VocabError(f"categories.yaml: missing keys {missing}")
 
+    icu_items = _icu_items(items_doc)
+    icu_lists = {k: v for k, v in items_doc.items() if k not in ("items", "version_note")}
+    for key in ("aline_locations", "aline_location_category", "statusdescriptions"):
+        if key not in icu_lists:
+            raise VocabError(f"d_items.yaml: missing key {key!r}")
+
     return Vocab(
         version_notes={name: str(doc.get("version_note", "")) for name, doc in docs.items()},
         lab_items=lab_items,
@@ -358,6 +509,8 @@ def load_vocab_from(root: Path) -> Vocab:
         drugs=drugs,
         drug_bases=bases,
         categories=cats,
+        icu_items=icu_items,
+        icu_lists=icu_lists,
     )
 
 
@@ -368,10 +521,12 @@ def load_vocab() -> Vocab:
 
 
 __all__ = [
+    "ICU_LINKSTO",
     "VOCAB_FILES",
     "Drug",
     "Hcpcs",
     "IcdCode",
+    "IcuItem",
     "LabItem",
     "Vocab",
     "VocabError",

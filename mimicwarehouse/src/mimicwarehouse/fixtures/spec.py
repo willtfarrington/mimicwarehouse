@@ -110,6 +110,23 @@ class FixtureSpec(BaseModel):
         default=(math.log(3.5), 0.7), description="(mu, sigma) of ln(LOS in days)"
     )
     planted_per_trait: int = Field(default=6, ge=0, le=1000)
+    # icu knobs (EP-12): read only by mimicwarehouse.fixtures.icu, never by build_plan
+    n_caregivers: int = Field(
+        default=15, ge=1, le=9999, description="caregiver ids, consecutive from first_event_id"
+    )
+    vent_fraction: float = Field(
+        default=0.4,
+        ge=0.0,
+        le=1.0,
+        description="ICU stays with invasive ventilation (sepsis / in-ICU deaths are boosted)",
+    )
+    vasopressor_fraction: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        description="non-sepsis ICU stays with a vasopressor drip (planted sepsis stays "
+        "always get norepinephrine)",
+    )
 
     @model_validator(mode="after")
     def _check(self) -> FixtureSpec:

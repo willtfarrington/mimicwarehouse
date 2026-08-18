@@ -1,4 +1,4 @@
-"""``mwh fixtures`` - build the synthetic fixture tree (EP-11).
+"""``mwh fixtures`` - build the synthetic fixture tree (EP-11 hosp, EP-12 icu).
 
 Attached in :mod:`mimicwarehouse.cli` with one ``app.add_typer(fixtures_app, name="fixtures")``
 line and listed in ``DIAGNOSTIC_COMMANDS``: the generator never touches the data root (it reads
@@ -67,7 +67,7 @@ def build_command(
     ] = True,
     as_json: Annotated[bool, typer.Option("--json", help="Machine-readable summary.")] = False,
 ) -> None:
-    """Generate the 22 hosp CSVs + manifest.json + README.md (deterministic for a given seed)."""
+    """Generate the 22 hosp + 9 icu CSVs + manifest.json + README.md (deterministic per seed)."""
     from pydantic import ValidationError
 
     from mimicwarehouse.fixtures.check import FixtureError

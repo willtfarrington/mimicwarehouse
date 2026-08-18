@@ -102,7 +102,9 @@ venv = ".venv"
 include = ["src", "tests", "scripts"]
 
 [tool.poe.tasks]
-test = "pytest"
+test = "pytest"                       # fixture tier (default; unmarked tests + tier("fixture"))
+test-dev = "pytest --tier dev"        # EP-12: + tier("dev") tests (skipped while dev.duckdb is missing)
+test-full = "pytest --tier full"      # EP-12: + tier("full") tests (skipped while full.duckdb is missing)
 lint = "ruff check ."
 fmt = "ruff format ."
 typecheck = "pyright"

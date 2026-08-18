@@ -1,0 +1,78 @@
+# mimicwarehouse fixture seed - d_items + caregiver (EP-12).
+#
+# Hand-typed from public documentation (mimic.mit.edu d_items / chartevents / inputevents /
+# outputevents / procedureevents pages and the vendored mimic-code concepts) - never from
+# `source material/`. Real MetaVision itemids are used on purpose for everything a concept
+# (EP-37) or mart (EP-55) looks up by number: vitals, GCS, FiO2 / ventilator settings, weight
+# and height, vasoactives, fluids, propofol, insulin, urine, ventilation / line / dialysis
+# procedures. The `datetimeevents` and `ingredientevents` items - which no vendored concept
+# reads - carry deliberately fixture-only ids in the 240xxx band (above every real MetaVision
+# id, still > 220000 like the docs describe) so nobody mistakes them for a real dictionary row.
+# `label / abbreviation / linksto / category / unitname / param_type / low- / highnormalvalue`
+# are the d_items columns (approximate upstream text; a fixture, not a copy); `role` names the
+# generator that writes the item, `low` / `high` / `decimals` are the numeric sampling bounds
+# and text form of `value`, `text_values` are `[value, valuenum]` pairs for text items.
+# Non-ASCII units are written as YAML escapes ("\u00b0F") so this file stays ASCII.
+version_note: "MIMIC-IV 3.1 d_items subset (47 items) + icu free-text lists, typed 2026-08-18 (EP-12)."
+items:
+  # ---- chartevents: routine vital signs ----
+  - {itemid: 220045, label: "Heart Rate", abbreviation: "HR", linksto: chartevents, category: "Routine Vital Signs", unitname: "bpm", param_type: "Numeric", lownormalvalue: 60, highnormalvalue: 100, role: hr, low: 40, high: 150, decimals: 0}
+  - {itemid: 220179, label: "Non Invasive Blood Pressure systolic", abbreviation: "NBPs", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 90, highnormalvalue: 140, role: nbp_sys, low: 70, high: 200, decimals: 0}
+  - {itemid: 220180, label: "Non Invasive Blood Pressure diastolic", abbreviation: "NBPd", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 60, highnormalvalue: 90, role: nbp_dia, low: 35, high: 110, decimals: 0}
+  - {itemid: 220181, label: "Non Invasive Blood Pressure mean", abbreviation: "NBPm", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 65, highnormalvalue: 105, role: nbp_mean, low: 45, high: 140, decimals: 0}
+  - {itemid: 220050, label: "Arterial Blood Pressure systolic", abbreviation: "ABPs", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 90, highnormalvalue: 140, role: abp_sys, low: 70, high: 200, decimals: 0}
+  - {itemid: 220051, label: "Arterial Blood Pressure diastolic", abbreviation: "ABPd", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 60, highnormalvalue: 90, role: abp_dia, low: 35, high: 110, decimals: 0}
+  - {itemid: 220052, label: "Arterial Blood Pressure mean", abbreviation: "ABPm", linksto: chartevents, category: "Routine Vital Signs", unitname: "mmHg", param_type: "Numeric", lownormalvalue: 65, highnormalvalue: 105, role: abp_mean, low: 45, high: 140, decimals: 0}
+  - {itemid: 220210, label: "Respiratory Rate", abbreviation: "RR", linksto: chartevents, category: "Respiratory", unitname: "insp/min", param_type: "Numeric", lownormalvalue: 12, highnormalvalue: 20, role: rr, low: 8, high: 40, decimals: 0}
+  - {itemid: 220277, label: "O2 saturation pulseoxymetry", abbreviation: "SpO2", linksto: chartevents, category: "Respiratory", unitname: "%", param_type: "Numeric", lownormalvalue: 95, highnormalvalue: 100, role: spo2, low: 80, high: 100, decimals: 0}
+  - {itemid: 223761, label: "Temperature Fahrenheit", abbreviation: "Temperature F", linksto: chartevents, category: "Routine Vital Signs", unitname: "\u00b0F", param_type: "Numeric", lownormalvalue: 96.8, highnormalvalue: 99.5, role: temp_f, low: 95.0, high: 104.5, decimals: 1}
+  - {itemid: 223762, label: "Temperature Celsius", abbreviation: "Temperature C", linksto: chartevents, category: "Routine Vital Signs", unitname: "\u00b0C", param_type: "Numeric", lownormalvalue: 36.0, highnormalvalue: 37.5, role: temp_c, low: 35.0, high: 40.3, decimals: 1}
+  # ---- chartevents: neurological (GCS components; value = text, valuenum = the score) ----
+  - {itemid: 220739, label: "GCS - Eye Opening", abbreviation: "GCS - Eye Opening", linksto: chartevents, category: "Neurological", unitname: null, param_type: "Text", lownormalvalue: null, highnormalvalue: null, role: gcs_eye, text_values: [["4 Spontaneously", 4], ["3 To Speech", 3], ["2 To Pain", 2], ["1 None", 1]]}
+  - {itemid: 223900, label: "GCS - Verbal Response", abbreviation: "GCS - Verbal Response", linksto: chartevents, category: "Neurological", unitname: null, param_type: "Text", lownormalvalue: null, highnormalvalue: null, role: gcs_verbal, text_values: [["5 Oriented", 5], ["4 Confused", 4], ["3 Inappropriate Words", 3], ["2 Incomprehensible sounds", 2], ["1 No Response", 1], ["No Response-ETT", 0]]}
+  - {itemid: 223901, label: "GCS - Motor Response", abbreviation: "GCS - Motor Response", linksto: chartevents, category: "Neurological", unitname: null, param_type: "Text", lownormalvalue: null, highnormalvalue: null, role: gcs_motor, text_values: [["6 Obeys Commands", 6], ["5 Localizes Pain", 5], ["4 Flex-withdraws", 4], ["3 Abnormal Flexion", 3], ["2 Abnormal extension", 2], ["1 No response", 1]]}
+  # ---- chartevents: respiratory support (ventilator_setting / oxygen_delivery concepts) ----
+  - {itemid: 223835, label: "Inspired O2 Fraction", abbreviation: "FiO2", linksto: chartevents, category: "Respiratory", unitname: null, param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: fio2, low: 21, high: 100, decimals: 0}
+  - {itemid: 220339, label: "PEEP set", abbreviation: "PEEP set", linksto: chartevents, category: "Respiratory", unitname: "cmH2O", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: peep, low: 5, high: 16, decimals: 0}
+  - {itemid: 224684, label: "Tidal Volume (set)", abbreviation: "Tidal Volume (set)", linksto: chartevents, category: "Respiratory", unitname: "mL", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: tidal_volume, low: 350, high: 600, decimals: 0}
+  - {itemid: 223849, label: "Ventilator Mode", abbreviation: "Ventilator Mode", linksto: chartevents, category: "Respiratory", unitname: null, param_type: "Text", lownormalvalue: null, highnormalvalue: null, role: vent_mode, text_values: [["CMV/ASSIST/AutoFlow", null], ["PRVC/AC", null], ["CPAP/PSV", null], ["SIMV/PSV/AutoFlow", null], ["PSV/SBT", null]]}
+  - {itemid: 226732, label: "O2 Delivery Device(s)", abbreviation: "O2 Delivery Device(s)", linksto: chartevents, category: "Respiratory", unitname: null, param_type: "Text", lownormalvalue: null, highnormalvalue: null, role: o2_device, text_values: [["Endotracheal tube", null], ["Bipap mask ", null], ["High flow nasal cannula", null], ["Non-rebreather", null], ["Nasal cannula", null], ["None", null]]}
+  # ---- chartevents: general (weight / height / bedside glucose) ----
+  - {itemid: 226512, label: "Admission Weight (Kg)", abbreviation: "Admission Weight (Kg)", linksto: chartevents, category: "General", unitname: "kg", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: weight_admit, low: 45.0, high: 130.0, decimals: 1}
+  - {itemid: 224639, label: "Daily Weight", abbreviation: "Daily Weight", linksto: chartevents, category: "General", unitname: "kg", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: weight_daily, low: 45.0, high: 130.0, decimals: 1}
+  - {itemid: 226730, label: "Height (cm)", abbreviation: "Height (cm)", linksto: chartevents, category: "General", unitname: "cm", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: height, low: 150, high: 195, decimals: 0}
+  - {itemid: 225664, label: "Glucose finger stick (range 70-100)", abbreviation: "Glucose finger stick", linksto: chartevents, category: "Labs", unitname: "mg/dL", param_type: "Numeric", lownormalvalue: 70, highnormalvalue: 100, role: glucose, low: 60, high: 340, decimals: 0}
+  # ---- datetimeevents (fixture-only 2401xx ids; no concept reads them) ----
+  - {itemid: 240101, label: "Foley Insertion Date", abbreviation: "Foley Insertion Date", linksto: datetimeevents, category: "Access Lines - Invasive", unitname: null, param_type: "Date and time", lownormalvalue: null, highnormalvalue: null, role: dt_foley}
+  - {itemid: 240102, label: "Arterial Line Insertion Date", abbreviation: "Arterial Line Insertion Date", linksto: datetimeevents, category: "Access Lines - Invasive", unitname: null, param_type: "Date and time", lownormalvalue: null, highnormalvalue: null, role: dt_aline}
+  - {itemid: 240103, label: "Last Dialysis", abbreviation: "Last Dialysis", linksto: datetimeevents, category: "Dialysis", unitname: null, param_type: "Date and time", lownormalvalue: null, highnormalvalue: null, role: dt_dialysis}
+  # ---- inputevents: vasoactives (medication concepts) ----
+  - {itemid: 221906, label: "Norepinephrine", abbreviation: "Norepinephrine", linksto: inputevents, category: "Medications", unitname: "mg", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: vaso, drug: norepinephrine, rateuom: "mcg/kg/min", rate_low: 0.03, rate_high: 0.5, weight: 70}
+  - {itemid: 221289, label: "Epinephrine", abbreviation: "Epinephrine", linksto: inputevents, category: "Medications", unitname: "mg", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: vaso, drug: epinephrine, rateuom: "mcg/kg/min", rate_low: 0.02, rate_high: 0.3, weight: 5}
+  - {itemid: 221749, label: "Phenylephrine", abbreviation: "Phenylephrine", linksto: inputevents, category: "Medications", unitname: "mg", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: vaso, drug: phenylephrine, rateuom: "mcg/kg/min", rate_low: 0.3, rate_high: 3.0, weight: 15}
+  - {itemid: 222315, label: "Vasopressin", abbreviation: "Vasopressin", linksto: inputevents, category: "Medications", unitname: "units", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: vaso, drug: vasopressin, rateuom: "units/hour", rate_low: 1.2, rate_high: 2.4, weight: 5}
+  - {itemid: 221662, label: "Dopamine", abbreviation: "Dopamine", linksto: inputevents, category: "Medications", unitname: "mg", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: vaso, drug: dopamine, rateuom: "mcg/kg/min", rate_low: 2.0, rate_high: 15.0, weight: 5}
+  # ---- inputevents: fluids / drips ----
+  - {itemid: 225158, label: "NaCl 0.9%", abbreviation: "NaCl 0.9%", linksto: inputevents, category: "Fluids/Intake", unitname: "mL", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: fluid, fluid: nacl, weight: 5}
+  - {itemid: 220949, label: "Dextrose 5%", abbreviation: "D5W", linksto: inputevents, category: "Fluids/Intake", unitname: "mL", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: fluid, fluid: d5w, weight: 2}
+  - {itemid: 225828, label: "LR", abbreviation: "LR", linksto: inputevents, category: "Fluids/Intake", unitname: "mL", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: fluid, fluid: lr, weight: 3}
+  - {itemid: 222168, label: "Propofol", abbreviation: "Propofol", linksto: inputevents, category: "Medications", unitname: "mg", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: sedative, rateuom: "mcg/kg/min", rate_low: 10, rate_high: 50}
+  - {itemid: 223258, label: "Insulin - Regular", abbreviation: "Insulin - Regular", linksto: inputevents, category: "Medications", unitname: "units", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: insulin, rateuom: "units/hour", rate_low: 1.0, rate_high: 8.0}
+  # ---- ingredientevents (fixture-only 2402xx ids; mirror of the fluid orders) ----
+  - {itemid: 240201, label: "Water", abbreviation: "Water", linksto: ingredientevents, category: "Ingredients", unitname: "mL", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: ingredient, ingredient: water}
+  - {itemid: 240202, label: "Sodium", abbreviation: "Sodium", linksto: ingredientevents, category: "Ingredients", unitname: "mEq", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: ingredient, ingredient: sodium}
+  - {itemid: 240203, label: "Dextrose", abbreviation: "Dextrose", linksto: ingredientevents, category: "Ingredients", unitname: "grams", param_type: "Solution", lownormalvalue: null, highnormalvalue: null, role: ingredient, ingredient: dextrose}
+  # ---- outputevents: urine (urine_output concept) ----
+  - {itemid: 226559, label: "Foley", abbreviation: "Foley", linksto: outputevents, category: "Output", unitname: "mL", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: urine_foley}
+  - {itemid: 226560, label: "Void", abbreviation: "Void", linksto: outputevents, category: "Output", unitname: "mL", param_type: "Numeric", lownormalvalue: null, highnormalvalue: null, role: urine_void}
+  # ---- procedureevents: ventilation, lines, dialysis (ventilation / invasive_line / rrt concepts) ----
+  - {itemid: 225792, label: "Invasive Ventilation", abbreviation: "Invasive Ventilation", linksto: procedureevents, category: "Ventilation", unitname: "min", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_vent}
+  - {itemid: 225794, label: "Non-invasive Ventilation", abbreviation: "Non-invasive Ventilation", linksto: procedureevents, category: "Ventilation", unitname: "min", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_niv}
+  - {itemid: 225752, label: "Arterial Line", abbreviation: "Arterial Line", linksto: procedureevents, category: "Invasive Lines", unitname: "min", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_aline}
+  - {itemid: 225802, label: "Dialysis - CRRT", abbreviation: "Dialysis - CRRT", linksto: procedureevents, category: "Dialysis", unitname: "min", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_crrt}
+  - {itemid: 224385, label: "Intubation", abbreviation: "Intubation", linksto: procedureevents, category: "Intubation/Extubation", unitname: "None", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_intubation}
+  - {itemid: 227194, label: "Extubation", abbreviation: "Extubation", linksto: procedureevents, category: "Intubation/Extubation", unitname: "None", param_type: "Processes", lownormalvalue: null, highnormalvalue: null, role: proc_extubation}
+# Free-text vocabularies the icu generators sample from.
+aline_locations: [["Right Radial", 5], ["Left Radial", 5], ["Right Femoral", 2], ["Left Femoral", 1], ["Right Brachial", 1]]
+aline_location_category: "Invasive Arterial"
+statusdescriptions: [["FinishedRunning", 7], ["Stopped", 2], ["Paused", 1]]

@@ -1,0 +1,48 @@
+itemid,label,abbreviation,linksto,category,unitname,param_type,lownormalvalue,highnormalvalue
+220045,Heart Rate,HR,chartevents,Routine Vital Signs,bpm,Numeric,60,100
+220050,Arterial Blood Pressure systolic,ABPs,chartevents,Routine Vital Signs,mmHg,Numeric,90,140
+220051,Arterial Blood Pressure diastolic,ABPd,chartevents,Routine Vital Signs,mmHg,Numeric,60,90
+220052,Arterial Blood Pressure mean,ABPm,chartevents,Routine Vital Signs,mmHg,Numeric,65,105
+220179,Non Invasive Blood Pressure systolic,NBPs,chartevents,Routine Vital Signs,mmHg,Numeric,90,140
+220180,Non Invasive Blood Pressure diastolic,NBPd,chartevents,Routine Vital Signs,mmHg,Numeric,60,90
+220181,Non Invasive Blood Pressure mean,NBPm,chartevents,Routine Vital Signs,mmHg,Numeric,65,105
+220210,Respiratory Rate,RR,chartevents,Respiratory,insp/min,Numeric,12,20
+220277,O2 saturation pulseoxymetry,SpO2,chartevents,Respiratory,%,Numeric,95,100
+220339,PEEP set,PEEP set,chartevents,Respiratory,cmH2O,Numeric,,
+220739,GCS - Eye Opening,GCS - Eye Opening,chartevents,Neurological,,Text,,
+220949,Dextrose 5%,D5W,inputevents,Fluids/Intake,mL,Solution,,
+221289,Epinephrine,Epinephrine,inputevents,Medications,mg,Solution,,
+221662,Dopamine,Dopamine,inputevents,Medications,mg,Solution,,
+221749,Phenylephrine,Phenylephrine,inputevents,Medications,mg,Solution,,
+221906,Norepinephrine,Norepinephrine,inputevents,Medications,mg,Solution,,
+222168,Propofol,Propofol,inputevents,Medications,mg,Solution,,
+222315,Vasopressin,Vasopressin,inputevents,Medications,units,Solution,,
+223258,Insulin - Regular,Insulin - Regular,inputevents,Medications,units,Solution,,
+223761,Temperature Fahrenheit,Temperature F,chartevents,Routine Vital Signs,°F,Numeric,96.8,99.5
+223762,Temperature Celsius,Temperature C,chartevents,Routine Vital Signs,°C,Numeric,36,37.5
+223835,Inspired O2 Fraction,FiO2,chartevents,Respiratory,,Numeric,,
+223849,Ventilator Mode,Ventilator Mode,chartevents,Respiratory,,Text,,
+223900,GCS - Verbal Response,GCS - Verbal Response,chartevents,Neurological,,Text,,
+223901,GCS - Motor Response,GCS - Motor Response,chartevents,Neurological,,Text,,
+224385,Intubation,Intubation,procedureevents,Intubation/Extubation,None,Processes,,
+224639,Daily Weight,Daily Weight,chartevents,General,kg,Numeric,,
+224684,Tidal Volume (set),Tidal Volume (set),chartevents,Respiratory,mL,Numeric,,
+225158,NaCl 0.9%,NaCl 0.9%,inputevents,Fluids/Intake,mL,Solution,,
+225664,Glucose finger stick (range 70-100),Glucose finger stick,chartevents,Labs,mg/dL,Numeric,70,100
+225752,Arterial Line,Arterial Line,procedureevents,Invasive Lines,min,Processes,,
+225792,Invasive Ventilation,Invasive Ventilation,procedureevents,Ventilation,min,Processes,,
+225794,Non-invasive Ventilation,Non-invasive Ventilation,procedureevents,Ventilation,min,Processes,,
+225802,Dialysis - CRRT,Dialysis - CRRT,procedureevents,Dialysis,min,Processes,,
+225828,LR,LR,inputevents,Fluids/Intake,mL,Solution,,
+226512,Admission Weight (Kg),Admission Weight (Kg),chartevents,General,kg,Numeric,,
+226559,Foley,Foley,outputevents,Output,mL,Numeric,,
+226560,Void,Void,outputevents,Output,mL,Numeric,,
+226730,Height (cm),Height (cm),chartevents,General,cm,Numeric,,
+226732,O2 Delivery Device(s),O2 Delivery Device(s),chartevents,Respiratory,,Text,,
+227194,Extubation,Extubation,procedureevents,Intubation/Extubation,None,Processes,,
+240101,Foley Insertion Date,Foley Insertion Date,datetimeevents,Access Lines - Invasive,,Date and time,,
+240102,Arterial Line Insertion Date,Arterial Line Insertion Date,datetimeevents,Access Lines - Invasive,,Date and time,,
+240103,Last Dialysis,Last Dialysis,datetimeevents,Dialysis,,Date and time,,
+240201,Water,Water,ingredientevents,Ingredients,mL,Solution,,
+240202,Sodium,Sodium,ingredientevents,Ingredients,mEq,Solution,,
+240203,Dextrose,Dextrose,ingredientevents,Ingredients,grams,Solution,,

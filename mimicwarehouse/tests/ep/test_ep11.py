@@ -125,8 +125,19 @@ def regenerated(
     spec: FixtureSpec,
     contract: Contract,
 ) -> write_mod.WriteResult:
+    """The whole tree regenerated into tmp_path (hosp + icu since EP-12: manifest.json and
+    README.md cover both modules, so the byte comparison below needs the full build); the hosp
+    frames written are the module's ``frames``."""
     out = tmp_path_factory.mktemp("fixture-regen")
-    return write_fixture(frames, out, spec=spec, contract_hash=contract.content_hash())
+    result = write_mod.build_and_write(out, spec=spec)
+    again = write_fixture(
+        frames, out / "hosp-only", spec=spec, contract_hash=contract.content_hash()
+    )
+    hosp_entries = {e.rel_path: e.sha256 for e in again.entries}
+    assert {
+        e.rel_path: e.sha256 for e in result.entries if e.rel_path in hosp_entries
+    } == hosp_entries
+    return result
 
 
 @pytest.fixture(scope="module")
@@ -602,7 +613,8 @@ def test_fixture_drift(
     """Regeneration into tmp_path reproduces the committed files byte-for-byte."""
     fresh = {e.rel_path: e for e in regenerated.entries}
     hosp_keys = {k for k in manifest["files"] if k.startswith("mimic-iv-3.1/hosp/")}
-    assert set(fresh) == hosp_keys
+    assert {k for k in fresh if k.startswith("mimic-iv-3.1/hosp/")} == hosp_keys
+    assert set(fresh) == set(manifest["files"])  # EP-12: icu entries too
     for rel, entry in fresh.items():
         committed = FIXTURE_DIR / Path(rel)
         assert entry.sha256 == manifest["files"][rel]["sha256"], f"{rel}: manifest sha drift"
@@ -742,7 +754,8 @@ def test_mwh_fixtures_build_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         app, ["fixtures", "build", "--out", str(out), "--subjects", "15", "--seed", "7"]
     )
     assert result.exit_code == 0, result.output
-    assert "wrote 22 files" in result.output and "seed 7, 15 subjects" in result.output
+    # 22 hosp + 9 icu files since EP-12 (the hosp count is asserted on the directory below)
+    assert "wrote 31 files" in result.output and "seed 7, 15 subjects" in result.output
     assert (out / "manifest.json").is_file() and (out / "README.md").is_file()
     assert len(list((out / "mimic-iv-3.1" / "hosp").glob("*.csv"))) == 22
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
@@ -755,7 +768,8 @@ def test_mwh_fixtures_build_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     )
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["total_bytes"] > 0 and len(payload["files"]) == 22
+    assert payload["total_bytes"] > 0 and len(payload["files"]) == 31
+    assert sum(1 for f in payload["files"] if f["path"].startswith("mimic-iv-3.1/hosp/")) == 22
     after = {p.name: _sha256(p) for p in (out / "mimic-iv-3.1" / "hosp").glob("*.csv")}
     assert before == after
     assert not (out / "mimic-iv-3.1" / "hosp" / "chartevents.csv").exists()
