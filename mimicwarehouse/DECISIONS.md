@@ -144,6 +144,12 @@ adopt as-is untested.
 > `mimic-iv/concepts/treatment/ventilation.sql` (`<mwh: id redacted>`; GOVERNANCE §3 — the
 > "row count" pragma is never used to whitelist an identifier). Everything else is byte-identical
 > to upstream (LF aside) and re-vendoring is `poe vendor-mimic-code --sha <sha>`.
+> **Policy (owner-confirmed 2026-08-17, after review of the alternative "exclude the file"):**
+> the row-count pragma is only ever applied to `validate.sql` files; a real-band token anywhere
+> else in the vendored tree is redacted in place, never pragma'd — and a non-SQL file the guard
+> would flag is refused outright. The vendoring script enforces this (`local_edit_for()`), so a
+> future re-vendor that meets a new upstream debugging id handles it the same way and reports it
+> under `local_edits` rather than failing or needing a per-file exclusion.
 
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
