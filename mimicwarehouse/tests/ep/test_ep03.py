@@ -56,11 +56,15 @@ def _fake_run(argv, **kwargs):
     assert kwargs.get("timeout") == doctor.SUBPROCESS_TIMEOUT_S
     if tool == "powershell":
         script = argv[-1]
-        out = (
-            "N/A: Must be an administrator to view exclusions\n"
-            if "Get-MpPreference" in script
-            else "1\n"
-        )
+        if "Get-MpPreference" in script:
+            out = "N/A: Must be an administrator to view exclusions\n"
+        elif "SecurityCenter2" in script:  # EP-164 antivirus probe: Defender-only host
+            out = (
+                '{"displayName":"Windows Defender","productState":397568,'
+                '"pathToSignedProductExe":"windowsdefender://"}\n'
+            )
+        else:
+            out = "1\n"
     else:
         out = {
             "uv": "uv 0.0.0-test\n",

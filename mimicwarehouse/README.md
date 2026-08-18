@@ -61,10 +61,10 @@ cd mimicwarehouse
 uv sync --group dev                 # CPython 3.13 managed by uv; system Python untouched
 uv run --group dev mwh --version    # mwh 0.1.0
 copy .env.example .env              # optional: every MWH_* key with its default, commented; .env is gitignored
-uv run --group dev mwh doctor       # 13 host checks (below); exit 0 unless one fails
+uv run --group dev mwh doctor       # 14 host checks (below); exit 0 unless one fails
 uv run --group dev mwh paths        # the 15-directory data-root layout: path · exists · MB used, + which source set data_root
 uv run --group dev mwh paths --create   # safety validators + free-space guard, then creates C:\mimicdata\… (idempotent)
-uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[13], ok}
+uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[14], ok}
 uv run --group dev mwh --data-root G:\mimicdata paths --create   # refused: exit 2, nothing created (D-29)
 uv run --group dev mwh guard        # = --staged: what `git commit` would record, read from the index; exit 0 clean / 1 refused / 2 usage
 uv run --group dev mwh guard --all-tracked   # every tracked path (also `mwh guard <paths…>` for working-tree files/dirs, `--json`)
@@ -92,9 +92,12 @@ present yes/no, `allow_remote`) · `disk_free` (fail < 100 GB, DESIGN §3) · `d
 (**fails** on an unsafe location, warns when missing → `mwh paths --create`) · `temp_dir`
 (same volume as the data root) · `cloud_mounts` (letters + labels of synced/virtual volumes;
 warns if the repo is on one) · `defender` (exclusion for the data root; info when not
-elevated, D-38) · `bitlocker` (fails when off, GOVERNANCE §2) · `power_scheme` (info) ·
-`gpu` (info) · `longpaths`. The doctor never opens a data file; the `--json` object is what
-EP-35 embeds in run manifests.
+elevated, D-38) · `antivirus` (EP-164: every product Windows Security Center lists — names +
+real-time/up-to-date flags; **warns** when one besides Defender is present, because it keeps
+its own allow list — the seven D-38 paths — that the doctor cannot read; info when Defender is
+alone or the query fails) · `bitlocker` (fails when off, GOVERNANCE §2) · `power_scheme`
+(info) · `gpu` (info) · `longpaths`. The doctor never opens a data file; the `--json` object
+is what EP-35 embeds in run manifests.
 
 ## Contributing (EP-4: pre-commit + `mwh guard`)
 

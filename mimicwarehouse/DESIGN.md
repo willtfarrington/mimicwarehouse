@@ -423,6 +423,37 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > `configure()` / `load_settings(checked=False)`; the guard's `mwh-guard: allow` pragma for
 > documented id examples.
 
+> **Note (2026-08-17, EP-164 — P1 toolchain remediation).** `doctor.py` now has **14 checks**:
+> `check_antivirus()` sits after `defender` in `CHECK_IDS` / `run_checks` (D-38 addenda, D-42,
+> roadmap Risk 12). One non-elevated CIM query through the existing `_powershell` seam
+> (`Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object
+> displayName, productState, pathToSignedProductExe | ConvertTo-Json -Compress`, 10 s timeout,
+> ≈ 0.8 s on the owner's host), decoded by `_securitycenter_products()`: `productState`
+> `0xAABBCC` → `enabled` = bit `0x1000` (real-time), `up_to_date` = not bit `0x10`; `value` =
+> `{"products": [{name, state, enabled, up_to_date, exe}], "non_defender": [names],
+> "non_defender_realtime": [names]}` — product names, states and the product's own
+> `pathToSignedProductExe`, nothing else. **Status rule, as shipped:** `warn` when any product
+> other than Defender is *listed* (`_is_defender` = name contains "defender"), detail spelling out
+> the seven-path `D38_ALLOW_LIST` and that the product's exclusion list is unreadable
+> non-elevated; `info` when Defender is the only product, nothing is listed, the query fails
+> (reason in the detail: "SecurityCenter2 not available (…)", "returned no JSON", "lists no
+> antivirus product") or the host is not Windows; never `fail`. The brief's draft rule keyed the
+> warn on the WSC real-time bit; the first real run showed why presence is the right trigger: a
+> third-party product reports "real-time on" only when it is the *registered* Security Center
+> antivirus (which switches Defender off), and Malwarebytes Premium on this host is deliberately
+> not registered that way — it reports `0x060000` ("off") next to Defender's `0x061100` ("on")
+> while its own modules run (they quarantined `bash.exe` the day before). The bit is still
+> decoded and reported per product ("real-time off per Security Center", plus a one-clause
+> caveat in the warn detail). JSON shape of `mwh doctor --json` unchanged apart from the added
+> check object; summary/exit-code rules unchanged (warn never fails); `mwh doctor` on the owner's
+> host now ends **8 pass · 1 warn · 0 fail · 5 info**, exit 0. Elevated exclusion-list reading is
+> parked (`final-roadmap.md` DOC-1). Also under this brief (optional item 6, taken as EP-7
+> recommended): `tests/ep/test_ep06.py` relaxed its EP-0 hash pin from `== 3` to `>= 2` so the
+> pre-convention planning commit could leave the EP-0 ☑ cell → `poe roadmap-check --strict` is
+> green (Risk 14 resolved). Convention reminder for later doctor rows: probes go through `_run` /
+> `_powershell`, tests fake `subprocess.run` keyed on argv[0] / the script text (an unmocked
+> tool is a test failure), Windows-only checks return `info` elsewhere.
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,

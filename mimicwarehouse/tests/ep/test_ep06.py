@@ -387,7 +387,9 @@ def test_real_roadmap_row_and_brief_parsing() -> None:
     assert rows[6].title == "`mwh verify EP-n` + roadmap_check.py"
     assert rows[6].link == "EP-6-verify-roadmap-check.md"
     assert rows[6].depends == frozenset({2}) and rows[6].size == "S" and rows[6].core == "core"
-    assert rows[0].done and len(rows[0].hashes) == 3
+    # EP-164 item 6 relaxed this from == 3: the planning commit `cd67743` left the EP-0 cell
+    # (no `(EP-0)` in its subject → the one `--strict` warning) and is cited in prose instead
+    assert rows[0].done and len(rows[0].hashes) >= 2
     assert rows[7].depends == frozenset(range(0, 7))
     b = parse_brief(ROADMAP / "EP-7-replan-p0.md")
     assert b.depends == frozenset(range(0, 7)) and b.docs_only and not b.has_charter

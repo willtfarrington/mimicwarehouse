@@ -325,6 +325,15 @@ reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 > can see. Doctor summary at EP-7 (2026-08-17): exit 0, **8 pass · 0 warn · 0 fail · 5 info** —
 > identical statuses to the EP-3 run.
 
+> **Addendum (2026-08-17, EP-164).** Product presence is now checked (names and Security Center
+> states only, never either exclusion list) by `mwh doctor` `antivirus` from EP-164: on this host
+> it lists Malwarebytes (`productState 0x060000` — "real-time off" *per Security Center*, i.e. not
+> the registered WSC antivirus, so Defender stays active; its own modules run regardless, D-42) next
+> to Windows Defender (`0x061100`, on) and **warns**, naming the seven D-38 paths that must be
+> excluded in Malwarebytes too — the allow list itself stays on the owner's word (elevated
+> verification parked, `final-roadmap.md` DOC-1). Doctor summary at EP-164: exit 0, **8 pass ·
+> 1 warn · 0 fail · 5 info** (the one warn is this row, by design).
+
 **D-39 Enforcement of the Claude data policy = `CLAUDE.md` + safe-query wrapper +
 repo-shared `.claude/settings.json` deny rules** (reading `source material/**` except
 `*.md`, `C:\mimicdata\**`, `*.csv/*.parquet/*.duckdb`, the `duckdb` executable). A

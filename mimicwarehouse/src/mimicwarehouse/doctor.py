@@ -1,14 +1,18 @@
-"""``mwh doctor`` — host health checks (EP-2, upgraded EP-3; helper of :mod:`mimicwarehouse.cli`).
+"""``mwh doctor`` — host health checks (EP-2, upgraded EP-3 / EP-164; helper of
+:mod:`mimicwarehouse.cli`).
 
 Pure check functions returning :class:`CheckResult`, assembled by :func:`run_checks` and
 serialised by :func:`doctor_report` into the object EP-35 embeds in every run manifest
 (GOVERNANCE §2: BitLocker re-checked and recorded per run). Checks follow D-14/D-15/D-29/
-D-38 and DESIGN §2-3/§6: managed CPython 3.13 in the workspace ``.venv``, uv, the DuckDB pin,
-the settings sources in use, free disk on the data-root and repository drives (the ≥ 100 GB
-rule), the data root (**fails** on an unsafe location — synced/virtual/network volume,
-FAT32/cryptoFs, OneDrive, forbidden drive letter), the DuckDB temp dir (same volume),
-mounted cloud/virtual volumes (letters + labels only), the Defender exclusion, BitLocker,
-the power scheme, GPU/driver (informational until EP-121, D-16) and ``LongPathsEnabled``.
+D-38/D-42 and DESIGN §2-3/§6: managed CPython 3.13 in the workspace ``.venv``, uv, the DuckDB
+pin, the settings sources in use, free disk on the data-root and repository drives (the
+≥ 100 GB rule), the data root (**fails** on an unsafe location — synced/virtual/network
+volume, FAT32/cryptoFs, OneDrive, forbidden drive letter), the DuckDB temp dir (same volume),
+mounted cloud/virtual volumes (letters + labels only), the Defender exclusion, every
+real-time endpoint-security product Windows Security Center lists (names + states only;
+EP-164 — warns when one besides Defender is present, because it keeps its own allow list),
+BitLocker, the power scheme, GPU/driver (informational until EP-121, D-16) and
+``LongPathsEnabled``.
 
 Nothing here opens a data file. Every external probe (``uv``, ``git``, ``nvidia-smi``,
 ``powercfg``, PowerShell, the registry, Win32 volume APIs via :mod:`mimicwarehouse.config`)
@@ -57,6 +61,7 @@ CHECK_IDS: tuple[str, ...] = (
     "temp_dir",
     "cloud_mounts",
     "defender",
+    "antivirus",
     "bitlocker",
     "power_scheme",
     "gpu",
@@ -68,6 +73,31 @@ SUBPROCESS_TIMEOUT_S = 10
 GB = config.GB  # GiB — the unit Explorer / Win32_LogicalDisk report as "GB" (DESIGN §2-3)
 DISK_FAIL_GB = 100  # DESIGN §3: never below 100 GB free (Settings.min_free_gb overrides)
 DISK_WARN_MARGIN_GB = 50  # warn within this margin above the fail line
+
+#: The D-38 allow list (DECISIONS D-38 addenda, EP-7 table): what the owner excludes in *every*
+#: real-time product besides Defender's ``C:\mimicdata`` exclusion. Names only — the doctor
+#: reminds, it cannot read any product's exclusion list non-elevated.
+D38_ALLOW_LIST: tuple[str, ...] = (
+    r"C:\Program Files\Git",
+    r"%APPDATA%\uv\python",
+    r"the workspace .venv",
+    r"C:\mimicdata",
+    "source material\\",
+    r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*",
+    r"%USERPROFILE%\.cache\pre-commit",
+)
+
+#: ``root/SecurityCenter2`` query (non-elevated; Windows 7+). One JSON object for a single
+#: product, a JSON array for several, nothing when the namespace lists no product.
+SECURITYCENTER_SCRIPT = (
+    "Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct "
+    "-ErrorAction Stop | Select-Object displayName, productState, pathToSignedProductExe "
+    "| ConvertTo-Json -Compress"
+)
+#: ``productState`` bit field ``0xAABBCC``: ``BB`` real-time (``0x10`` on / ``0x00`` off),
+#: ``CC`` signatures (``0x00`` up to date / ``0x10`` out of date). ``AA`` = provider class.
+AV_REALTIME_BIT = 0x1000
+AV_OUTDATED_BIT = 0x10
 
 #: Meaning of ``System.Volume.BitLockerProtection`` (Shell COM; no elevation needed).
 BITLOCKER_STATES: dict[int, str] = {
@@ -192,6 +222,53 @@ def _defender_exclusions() -> list[str] | None:
     if not lines or any("must be an administrator" in line.lower() for line in lines):
         return None
     return lines
+
+
+def _securitycenter_products() -> list[dict[str, Any]]:
+    """The ``root/SecurityCenter2`` ``AntiVirusProduct`` rows (EP-164), decoded.
+
+    Each row: ``{"name", "state", "enabled", "up_to_date", "exe"}`` — ``state`` is the raw
+    ``productState`` as ``0xAABBCC``, ``enabled`` / ``up_to_date`` its decoded bits, ``exe``
+    the product's own ``pathToSignedProductExe`` (a program path or a URI, never data).
+    Empty list when the namespace lists nothing; :class:`ProbeError` when the query cannot
+    run, exits non-zero or prints something that is not the expected JSON.
+    """
+    proc = _powershell(SECURITYCENTER_SCRIPT)
+    text = proc.stdout.strip()
+    if proc.returncode != 0:
+        raise ProbeError(f"SecurityCenter2 not available (powershell exited {proc.returncode})")
+    if not text:
+        return []
+    try:
+        raw = json.loads(text)
+    except ValueError as exc:
+        raise ProbeError("SecurityCenter2 returned no JSON") from exc
+    rows = raw if isinstance(raw, list) else [raw]
+    if not all(isinstance(r, dict) for r in rows):
+        raise ProbeError("SecurityCenter2 returned an unexpected JSON shape")
+    products: list[dict[str, Any]] = []
+    for row in rows:
+        state = row.get("productState")
+        state_int = state if isinstance(state, int) else None
+        exe = row.get("pathToSignedProductExe")
+        products.append(
+            {
+                "name": str(row.get("displayName") or "unknown product"),
+                "state": f"0x{state_int:06x}" if state_int is not None else None,
+                "enabled": bool(state_int & AV_REALTIME_BIT) if state_int is not None else None,
+                "up_to_date": (
+                    not (state_int & AV_OUTDATED_BIT) if state_int is not None else None
+                ),
+                "exe": str(exe) if exe else None,
+            }
+        )
+    return products
+
+
+def _is_defender(name: str) -> bool:
+    """``Windows Defender`` / ``Microsoft Defender Antivirus`` — the product D-38's own
+    exclusion covers; every other real-time product keeps a separate allow list."""
+    return "defender" in name.lower()
 
 
 def _nvidia_smi() -> str:
@@ -523,6 +600,62 @@ def check_defender(data_root: Path) -> CheckResult:
     )
 
 
+def check_antivirus() -> CheckResult:
+    """Every endpoint-security product Windows Security Center lists (EP-164, D-38/D-42).
+
+    Names and decoded ``productState`` flags only, one non-elevated CIM query (~1 s).
+    **warn** when a product other than Defender is registered — it keeps its own allow list,
+    which the doctor cannot read, so the detail spells out the D-38 paths that must be
+    excluded there too. Presence is the trigger, not the WSC real-time bit: a third-party
+    product reports "on" only when it is *the* registered Security Center antivirus (which
+    turns Defender off), and Malwarebytes Premium deliberately does not register that way on
+    this host while its own protection modules run (they quarantined ``bash.exe``, D-42) — so
+    it shows ``0x060000`` = "real-time off" and would slip past a bit-only rule (recorded at
+    EP-164). **info** when Defender is the only product, nothing is listed, the query fails or
+    this is not Windows. Never **fail**: the check reports, the owner decides.
+    """
+    if not IS_WINDOWS:
+        return CheckResult("antivirus", "info", "not a Windows host — antivirus probe skipped")
+    value: dict[str, Any] = {"products": [], "non_defender": [], "non_defender_realtime": []}
+    try:
+        products = _securitycenter_products()
+    except ProbeError as exc:
+        return CheckResult("antivirus", "info", f"{exc}; product presence unknown (D-38)", value)
+    value["products"] = products
+    if not products:
+        return CheckResult(
+            "antivirus", "info", "SecurityCenter2 lists no antivirus product (D-38)", value
+        )
+
+    def describe(p: dict[str, Any]) -> str:
+        if p["enabled"] is None:
+            flags = "state unknown"
+        else:
+            flags = "real-time on" if p["enabled"] else "real-time off per Security Center"
+            if p["up_to_date"] is False:
+                flags += ", signatures out of date"
+        return f"{p['name']} ({flags})"
+
+    listing = " · ".join(describe(p) for p in products)
+    others = [p for p in products if not _is_defender(p["name"])]
+    value["non_defender"] = [p["name"] for p in others]
+    value["non_defender_realtime"] = [p["name"] for p in others if p["enabled"]]
+    if not others:
+        return CheckResult("antivirus", "info", f"{listing} — Defender is the only product", value)
+    names = ", ".join(value["non_defender"])
+    detail = (
+        f"{listing} — {names} keeps its own allow list: exclude the D-38 paths there too "
+        f"({'; '.join(D38_ALLOW_LIST)}); its exclusion list is not readable non-elevated, taken "
+        "on the owner's word (D-38, D-42)"
+    )
+    if any(p["enabled"] is False for p in others):
+        detail += (
+            " — a third-party product reports real-time on/off as its Security Center "
+            "registration, not whether its own modules run"
+        )
+    return CheckResult("antivirus", "warn", detail, value)
+
+
 def check_bitlocker(drives: Iterable[str]) -> CheckResult:
     """BitLocker protection on each drive (GOVERNANCE §2 requires it on C:)."""
     if not IS_WINDOWS:
@@ -640,6 +773,7 @@ def run_checks(settings: Settings) -> list[CheckResult]:
         lambda: check_temp_dir(settings),
         lambda: check_cloud_mounts(repo, settings.forbidden_drives),
         lambda: check_defender(data_root),
+        check_antivirus,
         lambda: check_bitlocker(drives),
         check_power_scheme,
         check_gpu,
@@ -699,7 +833,7 @@ def doctor_command(
     ] = False,
 ) -> None:
     """Host health: python · uv · duckdb · settings · disk_free · data_root · temp_dir ·
-    cloud_mounts · defender · bitlocker · power_scheme · gpu · longpaths."""
+    cloud_mounts · defender · antivirus · bitlocker · power_scheme · gpu · longpaths."""
     state: CliState = ctx.obj
     results = run_checks(state.settings)
     report = doctor_report(results)

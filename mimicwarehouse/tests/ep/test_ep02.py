@@ -7,7 +7,9 @@ Only synthetic values appear here — no data, no identifiers.
 
 EP-3 upgraded the doctor (settings-driven, 13 checks, ``data_root`` *fails* on an unsafe
 location, ``powercfg`` / ``Get-MpPreference`` probes) and replaced ``resolve_data_root`` with
-``mimicwarehouse.config.Settings``; the assertions below were updated accordingly.
+``mimicwarehouse.config.Settings``; EP-164 added the 14th check (``antivirus``,
+``root/SecurityCenter2`` via PowerShell — the fake runner answers it with a Defender-only
+host); the assertions below were updated accordingly.
 """
 
 from __future__ import annotations
@@ -33,6 +35,11 @@ runner = CliRunner()
 
 DiskUsage = namedtuple("DiskUsage", "total used free")
 FAKE_GPU_LINE = "Synthetic GPU 0, 8192 MiB, 999.99"
+# EP-164: what `root/SecurityCenter2` returns on a Defender-only host (state 0x061100 = on)
+DEFENDER_ONLY_JSON = (
+    '{"displayName":"Windows Defender","productState":397568,'
+    '"pathToSignedProductExe":"windowsdefender://"}'
+)
 FIXED_NTFS = config.DriveInfo(
     letter="C", drive_type="DRIVE_FIXED", label="Windows", filesystem="NTFS"
 )
@@ -57,11 +64,14 @@ def _fake_run_factory(*, missing: frozenset[str] = frozenset(), bitlocker: str =
         assert kwargs.get("timeout") == doctor.SUBPROCESS_TIMEOUT_S, "probes need a 10 s timeout"
         if tool == "powershell" and "Get-MpPreference" in argv[-1]:  # EP-3 defender probe
             tool = "get-mppreference"
+        elif tool == "powershell" and "SecurityCenter2" in argv[-1]:  # EP-164 antivirus probe
+            tool = "securitycenter2"
         out = {
             "uv": "uv 0.0.0-test\n",
             "nvidia-smi": FAKE_GPU_LINE + "\n",
             "powershell": bitlocker + "\n",
             "get-mppreference": "N/A: Must be an administrator to view exclusions\n",
+            "securitycenter2": DEFENDER_ONLY_JSON + "\n",
             "powercfg": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)\n",
             "git": "true\n",
         }
@@ -166,7 +176,9 @@ def test_doctor_json_shape(mocked_probes: Path) -> None:
     assert isinstance(report["ok"], bool) and report["ok"] is True
     ids = [c["id"] for c in report["checks"]]
     assert ids == list(doctor.CHECK_IDS)
-    assert len(ids) == 13  # EP-2's 8 + settings · temp_dir · cloud_mounts · defender · power_scheme
+    # EP-2's 8 + settings · temp_dir · cloud_mounts · defender · power_scheme (EP-3) + antivirus
+    # (EP-164)
+    assert len(ids) == 14
     assert {
         "python",
         "uv",
