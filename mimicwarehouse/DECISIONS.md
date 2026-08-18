@@ -523,3 +523,83 @@ exclusions are also a GOVERNANCE §2 disclosure control (a scanner that uploads 
 never have reason to look at MIMIC files). *Alternatives:* disable Ransomware Protection (rejected —
 owner keeps it on); uninstall Malwarebytes (rejected); code-sign the toolchain (not possible for
 uv-managed CPython / MSYS2 binaries).
+
+**D-43 Retrospective consolidation of P0 + P1a (2026-08-18) — owner decisions, to be
+distributed as addenda by EP-166.** After EP-12 the owner paused the roadmap for an adversarial
+retrospective review of EP-0 … EP-12 (ten lenses, one verifier per material finding, completeness
+critic; 81 agents; nothing implemented in the review; record = `roadmap/retro-2026-08-18-findings.md`,
+69 verified + 110 minor findings). Decisions taken in four question rounds, each with the recommended
+option first, all chosen as recommended unless noted; the implementing brief is in brackets:
+
+1. *Vehicle.* Six numbered retro briefs **EP-165 … EP-170** (S/M each; five in P1 after EP-12, one at
+   the head of P2) rather than a standalone document or a fold into EP-16; commit pairs as usual;
+   **owner amendment during the round:** implement in *subsequent* S/M sessions (owner usage limits),
+   the review session only records — briefs, ledger, this decision, memory. [all]
+2. *Session tooling.* `.claude/settings.json` gains `env: {PYTHONUTF8: "1"}`, ~25 literal deny rules
+   for the two-step leak paths (`python -c`, `uv run python`, `cp`/`Copy-Item`, `sh -c`, `.NET` file
+   APIs, absolute `Read(//C:/**/*.csv…)`), an allow list for read-only project commands, and deny rules
+   for connector send/write tools; the parked **PreToolUse command-string hook (GOV-1) is unparked**;
+   CLAUDE.md §3 absorbs D-42 + the uv-PATH / bare-python / console facts. [EP-165]
+3. *Connectors.* claude.ai MCP connectors and WebFetch/WebSearch are a second egress path: allowed
+   for public-reference lookups only (PubMed, bioRxiv, ICD-10 Codes, Context7, GitHub/DOI), never with
+   fixture rows, aggregates, ids, run records or note text; send/write tools denied; Google Drive stays
+   off (D-29). Recorded in GOVERNANCE §4. [EP-165]
+4. *Ask-before files.* GOVERNANCE.md (§2 two-product reality, §4 layers + connectors, data-root
+   relocation ⇒ deny rules), `.gitignore` (anchor the data-shaped directory patterns) may be edited by
+   the retro briefs; `.gitattributes` unchanged. [EP-165]
+5. *Owner actions.* Restart VS Code after the retro lands (the hosting process predates the uv install
+   → "uv not on PATH" is a stale-process artefact; the PATH prefix stays documented as the fallback);
+   add `%LOCALAPPDATA%\uv\cache` and the Claude scratchpad `%LOCALAPPDATA%\Temp\claude\` to the
+   Malwarebytes allow list (D-38: seven → nine paths). [D-38 addendum by EP-165/166]
+6. *Catalog swap protocol (Windows).* Rename-aside two-step (`<tier>.duckdb` → `.old`, `.new` →
+   `<tier>.duckdb`, remove `.old`), verified to succeed with READ_ONLY duckdb 1.5.5 readers open; readers
+   keep the old snapshot; `open_catalog` retries the sub-ms window; same for `runs.duckdb`; the app
+   caches results, not connections. Supersedes DESIGN §6's "atomically swaps". [EP-166 words, EP-21/30/35/57 code]
+7. *Lake roots.* `Settings.lake_root(tier)`: `lake/` for dev/full, `lake/demo`, `lake/fixture`
+   (+ `lake/rejects`), layout keys 15 → 18; fixture/demo builds hard-refuse the credentialed lake;
+   `catalog_path(tier)` stays `warehouse/<tier>.duckdb` for all four tiers so `mwh app/sql --tier
+   fixture` work. [EP-167]
+8. *Test tiers.* The collection hook only deselects above the max tier; readiness = requestable
+   fixtures (`raw_root`, `dev_catalog`, `full_catalog`, `dev_ready(step)`, `item_tier`) and a
+   `tier(name, needs=…)` kwarg; demo tests = orthogonal opt-in `@pytest.mark.demo` + `--with-demo`
+   (`PYTEST_DEMO`), never a ladder step. [EP-168]
+9. *Contract.* Sort-key tie-breaks adopted in one edit (`+itemid/+orderid/+emar_seq/+transfer_id/
+   +pharmacy_id/+poe_seq/+microevent_id`, ED/Note uniform); `microbiologyevents` stays `large`;
+   `Contract.structural_hash()` (load-relevant facts) is what the fixture manifest pins, the full
+   `content_hash()` stays informational/provenance; one CSV-dialect constant (`allow_quoted_nulls=true`,
+   no `timestampformat` — DuckDB ISO cast accepts fractional seconds); `upstream_type: TIMESTAMP(3)`
+   recorded on the nine columns. [EP-169]
+10. *Fixture.* Disjoint id floors (subject 90 000 000 / hadm 91 000 000 / stay 92 000 000 / event +
+    caregiver 93 000 000 +), one regeneration → `GENERATOR_VERSION 0.2.0`; manifest records
+    numpy/polars/python versions + `contract_schema_hash`; numpy/polars are **not** pinned; the
+    fixture-change protocol is written once (`tests/README.md`); a `COVERAGE.md` names the vendored
+    concepts that are empty/partial on the fixture. [EP-169, prose EP-166]
+11. *Snapshot ids.* Layer snapshot id = **logical** sha256 over sorted `(schema, table, path, rows,
+    schema_hash, source_sha256/raw_snapshot_id, sort_keys, writer_version)` (the EP-10 pattern); the
+    per-file Parquet sha256 is integrity-only; identifier glossary in DESIGN §11 (`raw_snapshot_id`,
+    `source_sha256`, `build_id`, layer `snapshot_id`, catalog `build_id`+`core_snapshot_id`, `run_id`,
+    `audit_id`, protocol hash); D-26's "this id is the source manifest id" is refined to "per-file
+    `source_sha256` **and** `raw_snapshot_id`". [EP-166 words, EP-17/19 code]
+12. *CLI.* Console = UTF-8 entry point (`console.run`) + one shared `mimicwarehouse/console.py`;
+    `--help` never validates the data root (pending-error `CliState`); `DIAGNOSTIC_COMMANDS` kept, lazy
+    validation decided at EP-16; unknown `MWH_*` environment variables **warn** (doctor row + one
+    stderr line), never refuse; the four "unknown keys are rejected" doc sentences corrected. [EP-167]
+13. *Docs.* The single living status surface is `mimicwarehouse/README.md § State of the workspace`
+    (refreshed by re-plan EPs; CLAUDE.md §1 and the root README point at it); DESIGN/DECISIONS notes
+    cite completion notes instead of restating; roadmap README gets a "Notation used in briefs" table
+    that overrides brief text; every deferred owner review point of EP-9 (resprate DOUBLE, two
+    nullability relaxations, 13 docs-sourced FKs), EP-10 (`pending`, `reconcile` exit 1, raw-int JSON,
+    early docs page, snapshot id with `rows=null`) and EP-164 (presence-based antivirus warn, item 6)
+    is **accepted as shipped**. [EP-166]
+14. *Pending briefs.* The ~30 P2/P3 mismatches are fixed by `> **Amended at EP-170 (date).**` blocks
+    after EP-16, not by each brief at pickup; `settings.dev_buckets` is the only bucket source (no
+    `DEV_BUCKETS` constant); `psutil` joins core at EP-19; EP-42's disclosure dependency is fixed by
+    wording, not by moving EP-43. [EP-170]
+
+*Why:* the owner wants the remaining ~150 briefs to build on a foundation whose environment realities,
+governance layers, status prose, test semantics and contract are settled once rather than re-discovered
+per session; every choice above took the reviewers' recommended option after independent verification.
+*Alternatives considered:* a standalone retro document (less traceable); implementing everything in the
+review session (rejected by the owner for usage-limit reasons); versioned catalogs + pointer files
+(more robust, more code — kept as the fallback if rename-aside misbehaves); a `fixture < demo < dev <
+full` ladder; pinning numpy/polars minors; refusing on unknown env vars.

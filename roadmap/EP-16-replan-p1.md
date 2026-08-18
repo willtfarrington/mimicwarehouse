@@ -2,6 +2,22 @@
 
 **Size:** S · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** EP-8 (mimic-code vendoring), EP-9 (Schema registry (YAML contract)), EP-10 (Raw inventory manifest ⏱), EP-11 (Synthetic fixture generator A (hosp)), EP-12 (Synthetic fixture generator B (icu) + pytest tier markers), EP-13 (Repos & awesome-lists inventory), EP-14 (Ontologies & vocabularies inventory), EP-15 (Reading list + companion datasets + methods notes) · **Blocks:** —
 
+> **Amended at the retro (2026-08-18).** Header facts unchanged (Depends still omits EP-164 and the
+> retro briefs by the same owner deferral; the linear order carries them). The owner-directed
+> retrospective review of EP-0 … EP-12 inserted **EP-165 … EP-169** between EP-12 and EP-13 and **EP-170**
+> at the head of P2 (see `roadmap/README.md` Risk 15, `retro-2026-08-18-findings.md`, D-43). Consequences
+> for this brief: (1) **items 1–2 are already done** — EP-10's own session finished the full run
+> (41/41, 2026-08-18T03:50:04Z, `raw_snapshot_id 8209301d…`, 88 s) and committed
+> `docs/resources/raw-inventory.md`; verify only, do **not** re-run `mwh inventory build` before
+> `show`/`reconcile` (a no-op build rewrites the snapshot job block until EP-167 fixes it) and strike
+> README Risk 1 as resolved by EP-10/EP-16; (2) item 3: the name `EP-165` is consumed — the optional P2
+> toolchain-remediation slot is the **next free number (EP-171)**; (3) item 6 (amend P2 briefs) is
+> **now EP-170** (runs after this brief with the shipped names of EP-167 … EP-169) — this brief records
+> the retro table, DECISIONS addenda and ☑ reconciliation only, and confirms P2 readiness; (4) item 5:
+> the P1 rows now include EP-165 … EP-169 (☑ each with its hash) — expect 171 rows = 171 briefs;
+> (5) `--strict` is green (Risk 14 resolved by EP-164) — use it; (6) the acceptance clause "P2 briefs
+> carry pickup notes" moves to EP-170.
+
 > **Amended at EP-7 re-plan (2026-08-17).** Checked against the P0 code; header facts unchanged (EP-164 was
 > **not** added to this brief's Depends — a README-table change the owner may make; EP-164 declares
 > `Blocks: EP-16` and sits first in the P1 table, which carries the ordering). (1) **EP-164 exists** —
