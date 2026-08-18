@@ -62,7 +62,7 @@ Standing decisions for phase P0: uv-managed CPython 3.13, one venv, groups core/
 | EP-9 | [Schema registry (YAML contract)](EP-9-schema-registry.md) | M | EP-8 | core | ☑ `a6d4939` |
 | EP-10 | [Raw inventory manifest ⏱](EP-10-raw-inventory.md) | M | EP-3, EP-9 | core | ☑ `8418a53` |
 | EP-11 | [Synthetic fixture generator A (hosp)](EP-11-fixtures-hosp.md) | M | EP-9 | core | ☑ `f1fccf1` |
-| EP-12 | [Synthetic fixture generator B (icu) + pytest tier markers](EP-12-fixtures-icu-markers.md) | M | EP-11 | core | ☐ |
+| EP-12 | [Synthetic fixture generator B (icu) + pytest tier markers](EP-12-fixtures-icu-markers.md) | M | EP-11 | core | ☑ `ac4f51e` |
 | EP-13 | [Repos & awesome-lists inventory](EP-13-resources-repos.md) | M | — | core | ☐ |
 | EP-14 | [Ontologies & vocabularies inventory](EP-14-resources-vocabularies.md) | M | — | core | ☐ |
 | EP-15 | [Reading list + companion datasets + methods notes](EP-15-resources-reading-datasets.md) | M | — | core | ☐ |
