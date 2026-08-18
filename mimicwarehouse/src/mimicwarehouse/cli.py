@@ -5,7 +5,8 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 ``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3,
 :mod:`mimicwarehouse.config`) · ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``verify``
 (EP-6, :mod:`mimicwarehouse.verify`) · ``schema`` (EP-9, :mod:`mimicwarehouse.schema.cli`) ·
-``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``build`` (EP-19) · ``demo`` (EP-22) ·
+``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``fixtures`` (EP-11,
+:mod:`mimicwarehouse.fixtures.cli`) · ``build`` (EP-19) · ``demo`` (EP-22) ·
 ``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) ·
 ``disclose`` (EP-43/133) · ``init`` (EP-158).
 
@@ -34,6 +35,7 @@ from rich.markup import escape
 from mimicwarehouse import __version__, config
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.doctor import doctor_command
+from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
 from mimicwarehouse.inventory import inventory_app
 from mimicwarehouse.schema.cli import schema_app
@@ -44,8 +46,11 @@ from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 #: not be blocked by a mis-set ``MWH_DATA_ROOT`` (EP-4); ``verify`` only runs pytest in a fresh
 #: interpreter / reads the roadmap markdown, so a bad root must not hide a roadmap check (EP-6);
 #: ``schema`` only reads the packaged YAML contract and the vendored DDL, so a bad root must not
-#: hide a schema-drift check (EP-9).
-DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset({"doctor", "paths", "guard", "verify", "schema"})
+#: hide a schema-drift check (EP-9); ``fixtures`` reads the packaged vocab + contract and writes
+#: synthetic files under ``tests/fixtures/`` in the checkout - never the data root (EP-11).
+DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset(
+    {"doctor", "paths", "guard", "verify", "schema", "fixtures"}
+)
 
 console = Console()
 
@@ -114,6 +119,7 @@ def main(
 
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
 app.command("doctor")(doctor_command)
+app.add_typer(fixtures_app, name="fixtures")
 app.command("guard")(guard_command)
 app.add_typer(inventory_app, name="inventory")
 app.command("paths")(paths_command)

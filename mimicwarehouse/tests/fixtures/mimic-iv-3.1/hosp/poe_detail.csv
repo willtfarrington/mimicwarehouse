@@ -1,0 +1,1067 @@
+poe_id,poe_seq,subject_id,field_name,field_value
+90000000-1,1,90000000,Admit category,Observation
+90000000-1,1,90000000,Admit to,Medicine
+90000000-1,1,90000000,Level of Urgency,Routine
+90000000-8,8,90000000,Discharge Planning,Home
+90000000-8,8,90000000,Discharge When,Today
+90000001-1,1,90000001,Admit category,Observation
+90000001-1,1,90000001,Admit to,Medicine
+90000001-1,1,90000001,Level of Urgency,Routine
+90000001-10,10,90000001,Discharge Planning,Home
+90000001-10,10,90000001,Discharge When,Today
+90000002-1,1,90000002,Admit category,Observation
+90000002-1,1,90000002,Admit to,Medicine
+90000002-1,1,90000002,Level of Urgency,Routine
+90000002-10,10,90000002,Discharge Planning,Home
+90000002-10,10,90000002,Discharge When,Today
+90000002-9,9,90000002,Consult Status,Requested
+90000002-9,9,90000002,Consult Status Time,
+90000003-1,1,90000003,Admit category,Observation
+90000003-1,1,90000003,Admit to,Medicine
+90000003-1,1,90000003,Level of Urgency,Routine
+90000003-11,11,90000003,Discharge Planning,Home
+90000003-11,11,90000003,Discharge When,Today
+90000003-13,13,90000003,Admit category,Observation
+90000003-13,13,90000003,Admit to,Medicine
+90000003-13,13,90000003,Level of Urgency,Routine
+90000003-21,21,90000003,Consult Status,Requested
+90000003-21,21,90000003,Consult Status Time,
+90000003-23,23,90000003,Discharge Planning,Home
+90000003-23,23,90000003,Discharge When,Today
+90000004-1,1,90000004,Admit category,Observation
+90000004-1,1,90000004,Admit to,Medicine
+90000004-1,1,90000004,Level of Urgency,Routine
+90000004-4,4,90000004,Discharge Planning,Home
+90000004-4,4,90000004,Discharge When,Today
+90000005-1,1,90000005,Admit category,Observation
+90000005-1,1,90000005,Admit to,Medicine
+90000005-1,1,90000005,Level of Urgency,Routine
+90000005-13,13,90000005,Admit category,Observation
+90000005-13,13,90000005,Admit to,Medicine
+90000005-13,13,90000005,Level of Urgency,Routine
+90000005-20,20,90000005,Discharge Planning,Home
+90000005-20,20,90000005,Discharge When,Today
+90000005-8,8,90000005,Discharge Planning,Home
+90000005-8,8,90000005,Discharge When,Today
+90000006-1,1,90000006,Admit category,Observation
+90000006-1,1,90000006,Admit to,Medicine
+90000006-1,1,90000006,Level of Urgency,Routine
+90000006-8,8,90000006,Discharge Planning,Home
+90000006-8,8,90000006,Discharge When,Today
+90000007-1,1,90000007,Admit category,Observation
+90000007-1,1,90000007,Admit to,Medicine
+90000007-1,1,90000007,Level of Urgency,Routine
+90000007-9,9,90000007,Discharge Planning,Home
+90000007-9,9,90000007,Discharge When,Today
+90000008-1,1,90000008,Admit category,Observation
+90000008-1,1,90000008,Admit to,Medicine
+90000008-1,1,90000008,Level of Urgency,Routine
+90000008-9,9,90000008,Discharge Planning,Home
+90000008-9,9,90000008,Discharge When,Today
+90000009-13,13,90000009,Discharge Planning,Home
+90000009-13,13,90000009,Discharge When,Today
+90000009-3,3,90000009,Admit category,Observation
+90000009-3,3,90000009,Admit to,Medicine
+90000009-3,3,90000009,Level of Urgency,Routine
+90000010-1,1,90000010,Admit category,Observation
+90000010-1,1,90000010,Admit to,Medicine
+90000010-1,1,90000010,Level of Urgency,Routine
+90000010-5,5,90000010,Discharge Planning,Home
+90000010-5,5,90000010,Discharge When,Today
+90000011-1,1,90000011,Admit category,Observation
+90000011-1,1,90000011,Admit to,Medicine
+90000011-1,1,90000011,Level of Urgency,Routine
+90000011-10,10,90000011,Admit category,Observation
+90000011-10,10,90000011,Admit to,Medicine
+90000011-10,10,90000011,Level of Urgency,Routine
+90000011-21,21,90000011,Consult Status,Requested
+90000011-21,21,90000011,Consult Status Time,
+90000011-23,23,90000011,Discharge Planning,Home
+90000011-23,23,90000011,Discharge When,Today
+90000011-25,25,90000011,Admit category,Observation
+90000011-25,25,90000011,Admit to,Medicine
+90000011-25,25,90000011,Level of Urgency,Routine
+90000011-37,37,90000011,Discharge Planning,Home
+90000011-37,37,90000011,Discharge When,Today
+90000011-38,38,90000011,Admit category,Observation
+90000011-38,38,90000011,Admit to,Medicine
+90000011-38,38,90000011,Level of Urgency,Routine
+90000011-45,45,90000011,Discharge Planning,Home
+90000011-45,45,90000011,Discharge When,Today
+90000011-9,9,90000011,Discharge Planning,Home
+90000011-9,9,90000011,Discharge When,Today
+90000012-1,1,90000012,Admit category,Observation
+90000012-1,1,90000012,Admit to,Medicine
+90000012-1,1,90000012,Level of Urgency,Routine
+90000012-10,10,90000012,Admit category,Observation
+90000012-10,10,90000012,Admit to,Medicine
+90000012-10,10,90000012,Level of Urgency,Routine
+90000012-21,21,90000012,Discharge Planning,Home
+90000012-21,21,90000012,Discharge When,Today
+90000012-6,6,90000012,Consult Status,Requested
+90000012-6,6,90000012,Consult Status Time,
+90000012-9,9,90000012,Discharge Planning,Home
+90000012-9,9,90000012,Discharge When,Today
+90000013-1,1,90000013,Admit category,Observation
+90000013-1,1,90000013,Admit to,Medicine
+90000013-1,1,90000013,Level of Urgency,Routine
+90000013-11,11,90000013,Discharge Planning,Home
+90000013-11,11,90000013,Discharge When,Today
+90000014-1,1,90000014,Admit category,Observation
+90000014-1,1,90000014,Admit to,Medicine
+90000014-1,1,90000014,Level of Urgency,Routine
+90000014-20,20,90000014,Discharge Planning,Home
+90000014-20,20,90000014,Discharge When,Today
+90000014-8,8,90000014,Discharge Planning,Home
+90000014-8,8,90000014,Discharge When,Today
+90000014-9,9,90000014,Admit category,Observation
+90000014-9,9,90000014,Admit to,Medicine
+90000014-9,9,90000014,Level of Urgency,Routine
+90000015-1,1,90000015,Admit category,Observation
+90000015-1,1,90000015,Admit to,Medicine
+90000015-1,1,90000015,Level of Urgency,Routine
+90000015-10,10,90000015,Discharge Planning,Home
+90000015-10,10,90000015,Discharge When,Today
+90000016-1,1,90000016,Admit category,Observation
+90000016-1,1,90000016,Admit to,Medicine
+90000016-1,1,90000016,Level of Urgency,Routine
+90000016-11,11,90000016,Discharge Planning,Home
+90000016-11,11,90000016,Discharge When,Today
+90000017-1,1,90000017,Admit category,Observation
+90000017-1,1,90000017,Admit to,Medicine
+90000017-1,1,90000017,Level of Urgency,Routine
+90000017-12,12,90000017,Discharge Planning,Home
+90000017-12,12,90000017,Discharge When,Today
+90000017-13,13,90000017,Admit category,Observation
+90000017-13,13,90000017,Admit to,Medicine
+90000017-13,13,90000017,Level of Urgency,Routine
+90000017-24,24,90000017,Discharge Planning,Home
+90000017-24,24,90000017,Discharge When,Today
+90000018-1,1,90000018,Admit category,Observation
+90000018-1,1,90000018,Admit to,Medicine
+90000018-1,1,90000018,Level of Urgency,Routine
+90000018-20,20,90000018,Discharge Planning,Home
+90000018-20,20,90000018,Discharge When,Today
+90000018-8,8,90000018,Discharge Planning,Home
+90000018-8,8,90000018,Discharge When,Today
+90000018-9,9,90000018,Admit category,Observation
+90000018-9,9,90000018,Admit to,Medicine
+90000018-9,9,90000018,Level of Urgency,Routine
+90000019-1,1,90000019,Consult Status,Requested
+90000019-1,1,90000019,Consult Status Time,
+90000019-10,10,90000019,Admit category,Observation
+90000019-10,10,90000019,Admit to,Medicine
+90000019-10,10,90000019,Level of Urgency,Routine
+90000019-15,15,90000019,Consult Status,Requested
+90000019-15,15,90000019,Consult Status Time,
+90000019-2,2,90000019,Admit category,Observation
+90000019-2,2,90000019,Admit to,Medicine
+90000019-2,2,90000019,Level of Urgency,Routine
+90000019-20,20,90000019,Discharge Planning,Home
+90000019-20,20,90000019,Discharge When,Today
+90000019-21,21,90000019,Admit category,Observation
+90000019-21,21,90000019,Admit to,Medicine
+90000019-21,21,90000019,Level of Urgency,Routine
+90000019-31,31,90000019,Discharge Planning,Home
+90000019-31,31,90000019,Discharge When,Today
+90000019-9,9,90000019,Discharge Planning,Home
+90000019-9,9,90000019,Discharge When,Today
+90000020-1,1,90000020,Admit category,Observation
+90000020-1,1,90000020,Admit to,Medicine
+90000020-1,1,90000020,Level of Urgency,Routine
+90000020-10,10,90000020,Consult Status,Requested
+90000020-10,10,90000020,Consult Status Time,
+90000020-11,11,90000020,Discharge Planning,Home
+90000020-11,11,90000020,Discharge When,Today
+90000021-1,1,90000021,Admit category,Observation
+90000021-1,1,90000021,Admit to,Medicine
+90000021-1,1,90000021,Level of Urgency,Routine
+90000021-19,19,90000021,Discharge Planning,Home
+90000021-19,19,90000021,Discharge When,Today
+90000021-2,2,90000021,Consult Status,Requested
+90000021-2,2,90000021,Consult Status Time,
+90000021-8,8,90000021,Discharge Planning,Home
+90000021-8,8,90000021,Discharge When,Today
+90000021-9,9,90000021,Admit category,Observation
+90000021-9,9,90000021,Admit to,Medicine
+90000021-9,9,90000021,Level of Urgency,Routine
+90000022-1,1,90000022,Admit category,Observation
+90000022-1,1,90000022,Admit to,Medicine
+90000022-1,1,90000022,Level of Urgency,Routine
+90000022-2,2,90000022,Consult Status,Requested
+90000022-2,2,90000022,Consult Status Time,
+90000022-7,7,90000022,Discharge Planning,Home
+90000022-7,7,90000022,Discharge When,Today
+90000022-8,8,90000022,Consult Status,Requested
+90000022-8,8,90000022,Consult Status Time,
+90000023-1,1,90000023,Admit category,Observation
+90000023-1,1,90000023,Admit to,Medicine
+90000023-1,1,90000023,Level of Urgency,Routine
+90000023-10,10,90000023,Discharge Planning,Home
+90000023-10,10,90000023,Discharge When,Today
+90000023-12,12,90000023,Admit category,Observation
+90000023-12,12,90000023,Admit to,Medicine
+90000023-12,12,90000023,Level of Urgency,Routine
+90000023-22,22,90000023,Discharge Planning,Home
+90000023-22,22,90000023,Discharge When,Today
+90000024-1,1,90000024,Admit category,Observation
+90000024-1,1,90000024,Admit to,Medicine
+90000024-1,1,90000024,Level of Urgency,Routine
+90000024-11,11,90000024,Discharge Planning,Home
+90000024-11,11,90000024,Discharge When,Today
+90000024-12,12,90000024,Admit category,Observation
+90000024-12,12,90000024,Admit to,Medicine
+90000024-12,12,90000024,Level of Urgency,Routine
+90000024-24,24,90000024,Discharge Planning,Home
+90000024-24,24,90000024,Discharge When,Today
+90000024-25,25,90000024,Admit category,Observation
+90000024-25,25,90000024,Admit to,Medicine
+90000024-25,25,90000024,Level of Urgency,Routine
+90000024-32,32,90000024,Discharge Planning,Home
+90000024-32,32,90000024,Discharge When,Today
+90000025-1,1,90000025,Admit category,Observation
+90000025-1,1,90000025,Admit to,Medicine
+90000025-1,1,90000025,Level of Urgency,Routine
+90000025-10,10,90000025,Discharge Planning,Home
+90000025-10,10,90000025,Discharge When,Today
+90000025-5,5,90000025,Consult Status,Requested
+90000025-5,5,90000025,Consult Status Time,
+90000026-1,1,90000026,Admit category,Observation
+90000026-1,1,90000026,Admit to,Medicine
+90000026-1,1,90000026,Level of Urgency,Routine
+90000026-19,19,90000026,Discharge Planning,Home
+90000026-19,19,90000026,Discharge When,Today
+90000026-2,2,90000026,Consult Status,Requested
+90000026-2,2,90000026,Consult Status Time,
+90000026-3,3,90000026,Consult Status,Requested
+90000026-3,3,90000026,Consult Status Time,
+90000026-7,7,90000026,Consult Status,Requested
+90000026-7,7,90000026,Consult Status Time,
+90000026-8,8,90000026,Discharge Planning,Home
+90000026-8,8,90000026,Discharge When,Today
+90000026-9,9,90000026,Admit category,Observation
+90000026-9,9,90000026,Admit to,Medicine
+90000026-9,9,90000026,Level of Urgency,Routine
+90000027-1,1,90000027,Admit category,Observation
+90000027-1,1,90000027,Admit to,Medicine
+90000027-1,1,90000027,Level of Urgency,Routine
+90000027-11,11,90000027,Admit category,Observation
+90000027-11,11,90000027,Admit to,Medicine
+90000027-11,11,90000027,Level of Urgency,Routine
+90000027-20,20,90000027,Discharge Planning,Home
+90000027-20,20,90000027,Discharge When,Today
+90000027-21,21,90000027,Admit category,Observation
+90000027-21,21,90000027,Admit to,Medicine
+90000027-21,21,90000027,Level of Urgency,Routine
+90000027-31,31,90000027,Consult Status,Requested
+90000027-31,31,90000027,Consult Status Time,
+90000027-32,32,90000027,Discharge Planning,Home
+90000027-32,32,90000027,Discharge When,Today
+90000027-9,9,90000027,Discharge Planning,Home
+90000027-9,9,90000027,Discharge When,Today
+90000028-1,1,90000028,Admit category,Observation
+90000028-1,1,90000028,Admit to,Medicine
+90000028-1,1,90000028,Level of Urgency,Routine
+90000028-12,12,90000028,Discharge Planning,Home
+90000028-12,12,90000028,Discharge When,Today
+90000028-9,9,90000028,Consult Status,Requested
+90000028-9,9,90000028,Consult Status Time,
+90000029-1,1,90000029,Admit category,Observation
+90000029-1,1,90000029,Admit to,Medicine
+90000029-1,1,90000029,Level of Urgency,Routine
+90000029-12,12,90000029,Discharge Planning,Home
+90000029-12,12,90000029,Discharge When,Today
+90000030-1,1,90000030,Admit category,Observation
+90000030-1,1,90000030,Admit to,Medicine
+90000030-1,1,90000030,Level of Urgency,Routine
+90000030-9,9,90000030,Discharge Planning,Home
+90000030-9,9,90000030,Discharge When,Today
+90000031-1,1,90000031,Admit category,Observation
+90000031-1,1,90000031,Admit to,Medicine
+90000031-1,1,90000031,Level of Urgency,Routine
+90000031-11,11,90000031,Discharge Planning,Home
+90000031-11,11,90000031,Discharge When,Today
+90000031-12,12,90000031,Admit category,Observation
+90000031-12,12,90000031,Admit to,Medicine
+90000031-12,12,90000031,Level of Urgency,Routine
+90000031-22,22,90000031,Discharge Planning,Home
+90000031-22,22,90000031,Discharge When,Today
+90000032-1,1,90000032,Admit category,Observation
+90000032-1,1,90000032,Admit to,Medicine
+90000032-1,1,90000032,Level of Urgency,Routine
+90000032-10,10,90000032,Consult Status,Requested
+90000032-10,10,90000032,Consult Status Time,
+90000032-2,2,90000032,Consult Status,Requested
+90000032-2,2,90000032,Consult Status Time,
+90000032-7,7,90000032,Discharge Planning,Home
+90000032-7,7,90000032,Discharge When,Today
+90000033-1,1,90000033,Admit category,Observation
+90000033-1,1,90000033,Admit to,Medicine
+90000033-1,1,90000033,Level of Urgency,Routine
+90000033-12,12,90000033,Consult Status,Requested
+90000033-12,12,90000033,Consult Status Time,
+90000033-13,13,90000033,Discharge Planning,Home
+90000033-13,13,90000033,Discharge When,Today
+90000034-1,1,90000034,Admit category,Observation
+90000034-1,1,90000034,Admit to,Medicine
+90000034-1,1,90000034,Level of Urgency,Routine
+90000034-7,7,90000034,Discharge Planning,Home
+90000034-7,7,90000034,Discharge When,Today
+90000035-1,1,90000035,Admit category,Observation
+90000035-1,1,90000035,Admit to,Medicine
+90000035-1,1,90000035,Level of Urgency,Routine
+90000035-14,14,90000035,Discharge Planning,Home
+90000035-14,14,90000035,Discharge When,Today
+90000036-1,1,90000036,Admit category,Observation
+90000036-1,1,90000036,Admit to,Medicine
+90000036-1,1,90000036,Level of Urgency,Routine
+90000036-6,6,90000036,Consult Status,Requested
+90000036-6,6,90000036,Consult Status Time,
+90000036-8,8,90000036,Discharge Planning,Home
+90000036-8,8,90000036,Discharge When,Today
+90000037-1,1,90000037,Admit category,Observation
+90000037-1,1,90000037,Admit to,Medicine
+90000037-1,1,90000037,Level of Urgency,Routine
+90000037-13,13,90000037,Discharge Planning,Home
+90000037-13,13,90000037,Discharge When,Today
+90000037-14,14,90000037,Admit category,Observation
+90000037-14,14,90000037,Admit to,Medicine
+90000037-14,14,90000037,Level of Urgency,Routine
+90000037-19,19,90000037,Consult Status,Requested
+90000037-19,19,90000037,Consult Status Time,
+90000037-25,25,90000037,Discharge Planning,Home
+90000037-25,25,90000037,Discharge When,Today
+90000038-1,1,90000038,Admit category,Observation
+90000038-1,1,90000038,Admit to,Medicine
+90000038-1,1,90000038,Level of Urgency,Routine
+90000038-10,10,90000038,Admit category,Observation
+90000038-10,10,90000038,Admit to,Medicine
+90000038-10,10,90000038,Level of Urgency,Routine
+90000038-20,20,90000038,Discharge Planning,Home
+90000038-20,20,90000038,Discharge When,Today
+90000038-8,8,90000038,Discharge Planning,Home
+90000038-8,8,90000038,Discharge When,Today
+90000039-1,1,90000039,Admit category,Observation
+90000039-1,1,90000039,Admit to,Medicine
+90000039-1,1,90000039,Level of Urgency,Routine
+90000039-9,9,90000039,Discharge Planning,Home
+90000039-9,9,90000039,Discharge When,Today
+90000040-1,1,90000040,Admit category,Observation
+90000040-1,1,90000040,Admit to,Medicine
+90000040-1,1,90000040,Level of Urgency,Routine
+90000040-9,9,90000040,Discharge Planning,Home
+90000040-9,9,90000040,Discharge When,Today
+90000041-1,1,90000041,Admit category,Observation
+90000041-1,1,90000041,Admit to,Medicine
+90000041-1,1,90000041,Level of Urgency,Routine
+90000041-13,13,90000041,Discharge Planning,Home
+90000041-13,13,90000041,Discharge When,Today
+90000041-15,15,90000041,Admit category,Observation
+90000041-15,15,90000041,Admit to,Medicine
+90000041-15,15,90000041,Level of Urgency,Routine
+90000041-27,27,90000041,Discharge Planning,Home
+90000041-27,27,90000041,Discharge When,Today
+90000041-3,3,90000041,Consult Status,Requested
+90000041-3,3,90000041,Consult Status Time,
+90000042-1,1,90000042,Admit category,Observation
+90000042-1,1,90000042,Admit to,Medicine
+90000042-1,1,90000042,Level of Urgency,Routine
+90000042-11,11,90000042,Consult Status,Requested
+90000042-11,11,90000042,Consult Status Time,
+90000042-17,17,90000042,Discharge Planning,Home
+90000042-17,17,90000042,Discharge When,Today
+90000042-7,7,90000042,Discharge Planning,Home
+90000042-7,7,90000042,Discharge When,Today
+90000042-9,9,90000042,Admit category,Observation
+90000042-9,9,90000042,Admit to,Medicine
+90000042-9,9,90000042,Level of Urgency,Routine
+90000043-13,13,90000043,Discharge Planning,Home
+90000043-13,13,90000043,Discharge When,Today
+90000043-2,2,90000043,Admit category,Observation
+90000043-2,2,90000043,Admit to,Medicine
+90000043-2,2,90000043,Level of Urgency,Routine
+90000043-5,5,90000043,Consult Status,Requested
+90000043-5,5,90000043,Consult Status Time,
+90000044-1,1,90000044,Admit category,Observation
+90000044-1,1,90000044,Admit to,Medicine
+90000044-1,1,90000044,Level of Urgency,Routine
+90000044-6,6,90000044,Discharge Planning,Home
+90000044-6,6,90000044,Discharge When,Today
+90000045-1,1,90000045,Admit category,Observation
+90000045-1,1,90000045,Admit to,Medicine
+90000045-1,1,90000045,Level of Urgency,Routine
+90000045-8,8,90000045,Discharge Planning,Home
+90000045-8,8,90000045,Discharge When,Today
+90000046-1,1,90000046,Admit category,Observation
+90000046-1,1,90000046,Admit to,Medicine
+90000046-1,1,90000046,Level of Urgency,Routine
+90000046-12,12,90000046,Discharge Planning,Home
+90000046-12,12,90000046,Discharge When,Today
+90000046-14,14,90000046,Admit category,Observation
+90000046-14,14,90000046,Admit to,Medicine
+90000046-14,14,90000046,Level of Urgency,Routine
+90000046-21,21,90000046,Discharge Planning,Home
+90000046-21,21,90000046,Discharge When,Today
+90000046-7,7,90000046,Consult Status,Requested
+90000046-7,7,90000046,Consult Status Time,
+90000047-12,12,90000047,Discharge Planning,Home
+90000047-12,12,90000047,Discharge When,Today
+90000047-2,2,90000047,Admit category,Observation
+90000047-2,2,90000047,Admit to,Medicine
+90000047-2,2,90000047,Level of Urgency,Routine
+90000048-1,1,90000048,Admit category,Observation
+90000048-1,1,90000048,Admit to,Medicine
+90000048-1,1,90000048,Level of Urgency,Routine
+90000048-11,11,90000048,Discharge Planning,Home
+90000048-11,11,90000048,Discharge When,Today
+90000048-12,12,90000048,Consult Status,Requested
+90000048-12,12,90000048,Consult Status Time,
+90000048-13,13,90000048,Admit category,Observation
+90000048-13,13,90000048,Admit to,Medicine
+90000048-13,13,90000048,Level of Urgency,Routine
+90000048-17,17,90000048,Discharge Planning,Home
+90000048-17,17,90000048,Discharge When,Today
+90000048-21,21,90000048,Consult Status,Requested
+90000048-21,21,90000048,Consult Status Time,
+90000049-3,3,90000049,Admit category,Observation
+90000049-3,3,90000049,Admit to,Medicine
+90000049-3,3,90000049,Level of Urgency,Routine
+90000049-7,7,90000049,Consult Status,Requested
+90000049-7,7,90000049,Consult Status Time,
+90000049-8,8,90000049,Discharge Planning,Home
+90000049-8,8,90000049,Discharge When,Today
+90000050-1,1,90000050,Admit category,Observation
+90000050-1,1,90000050,Admit to,Medicine
+90000050-1,1,90000050,Level of Urgency,Routine
+90000050-8,8,90000050,Discharge Planning,Home
+90000050-8,8,90000050,Discharge When,Today
+90000051-12,12,90000051,Discharge Planning,Home
+90000051-12,12,90000051,Discharge When,Today
+90000051-13,13,90000051,Admit category,Observation
+90000051-13,13,90000051,Admit to,Medicine
+90000051-13,13,90000051,Level of Urgency,Routine
+90000051-18,18,90000051,Discharge Planning,Home
+90000051-18,18,90000051,Discharge When,Today
+90000051-2,2,90000051,Admit category,Observation
+90000051-2,2,90000051,Admit to,Medicine
+90000051-2,2,90000051,Level of Urgency,Routine
+90000051-23,23,90000051,Admit category,Observation
+90000051-23,23,90000051,Admit to,Medicine
+90000051-23,23,90000051,Level of Urgency,Routine
+90000051-31,31,90000051,Discharge Planning,Home
+90000051-31,31,90000051,Discharge When,Today
+90000052-1,1,90000052,Admit category,Observation
+90000052-1,1,90000052,Admit to,Medicine
+90000052-1,1,90000052,Level of Urgency,Routine
+90000052-10,10,90000052,Consult Status,Requested
+90000052-10,10,90000052,Consult Status Time,
+90000052-12,12,90000052,Admit category,Observation
+90000052-12,12,90000052,Admit to,Medicine
+90000052-12,12,90000052,Level of Urgency,Routine
+90000052-21,21,90000052,Discharge Planning,Home
+90000052-21,21,90000052,Discharge When,Today
+90000052-5,5,90000052,Discharge Planning,Home
+90000052-5,5,90000052,Discharge When,Today
+90000053-1,1,90000053,Admit category,Observation
+90000053-1,1,90000053,Admit to,Medicine
+90000053-1,1,90000053,Level of Urgency,Routine
+90000053-12,12,90000053,Consult Status,Requested
+90000053-12,12,90000053,Consult Status Time,
+90000053-13,13,90000053,Consult Status,Requested
+90000053-13,13,90000053,Consult Status Time,
+90000053-16,16,90000053,Discharge Planning,Home
+90000053-16,16,90000053,Discharge When,Today
+90000053-5,5,90000053,Consult Status,Requested
+90000053-5,5,90000053,Consult Status Time,
+90000054-1,1,90000054,Admit category,Observation
+90000054-1,1,90000054,Admit to,Medicine
+90000054-1,1,90000054,Level of Urgency,Routine
+90000054-11,11,90000054,Consult Status,Requested
+90000054-11,11,90000054,Consult Status Time,
+90000054-12,12,90000054,Discharge Planning,Home
+90000054-12,12,90000054,Discharge When,Today
+90000054-14,14,90000054,Admit category,Observation
+90000054-14,14,90000054,Admit to,Medicine
+90000054-14,14,90000054,Level of Urgency,Routine
+90000054-25,25,90000054,Discharge Planning,Home
+90000054-25,25,90000054,Discharge When,Today
+90000054-28,28,90000054,Admit category,Observation
+90000054-28,28,90000054,Admit to,Medicine
+90000054-28,28,90000054,Level of Urgency,Routine
+90000054-32,32,90000054,Discharge Planning,Home
+90000054-32,32,90000054,Discharge When,Today
+90000055-1,1,90000055,Admit category,Observation
+90000055-1,1,90000055,Admit to,Medicine
+90000055-1,1,90000055,Level of Urgency,Routine
+90000055-9,9,90000055,Discharge Planning,Home
+90000055-9,9,90000055,Discharge When,Today
+90000056-1,1,90000056,Admit category,Observation
+90000056-1,1,90000056,Admit to,Medicine
+90000056-1,1,90000056,Level of Urgency,Routine
+90000056-11,11,90000056,Discharge Planning,Home
+90000056-11,11,90000056,Discharge When,Today
+90000056-12,12,90000056,Consult Status,Requested
+90000056-12,12,90000056,Consult Status Time,
+90000057-1,1,90000057,Admit category,Observation
+90000057-1,1,90000057,Admit to,Medicine
+90000057-1,1,90000057,Level of Urgency,Routine
+90000057-16,16,90000057,Discharge Planning,Home
+90000057-16,16,90000057,Discharge When,Today
+90000057-17,17,90000057,Admit category,Observation
+90000057-17,17,90000057,Admit to,Medicine
+90000057-17,17,90000057,Level of Urgency,Routine
+90000057-20,20,90000057,Consult Status,Requested
+90000057-20,20,90000057,Consult Status Time,
+90000057-28,28,90000057,Discharge Planning,Home
+90000057-28,28,90000057,Discharge When,Today
+90000058-1,1,90000058,Admit category,Observation
+90000058-1,1,90000058,Admit to,Medicine
+90000058-1,1,90000058,Level of Urgency,Routine
+90000058-10,10,90000058,Discharge Planning,Home
+90000058-10,10,90000058,Discharge When,Today
+90000058-12,12,90000058,Admit category,Observation
+90000058-12,12,90000058,Admit to,Medicine
+90000058-12,12,90000058,Level of Urgency,Routine
+90000058-19,19,90000058,Discharge Planning,Home
+90000058-19,19,90000058,Discharge When,Today
+90000059-1,1,90000059,Admit category,Observation
+90000059-1,1,90000059,Admit to,Medicine
+90000059-1,1,90000059,Level of Urgency,Routine
+90000059-13,13,90000059,Discharge Planning,Home
+90000059-13,13,90000059,Discharge When,Today
+90000059-6,6,90000059,Consult Status,Requested
+90000059-6,6,90000059,Consult Status Time,
+90000060-1,1,90000060,Admit category,Observation
+90000060-1,1,90000060,Admit to,Medicine
+90000060-1,1,90000060,Level of Urgency,Routine
+90000060-10,10,90000060,Admit category,Observation
+90000060-10,10,90000060,Admit to,Medicine
+90000060-10,10,90000060,Level of Urgency,Routine
+90000060-25,25,90000060,Consult Status,Requested
+90000060-25,25,90000060,Consult Status Time,
+90000060-26,26,90000060,Discharge Planning,Home
+90000060-26,26,90000060,Discharge When,Today
+90000060-27,27,90000060,Admit category,Observation
+90000060-27,27,90000060,Admit to,Medicine
+90000060-27,27,90000060,Level of Urgency,Routine
+90000060-30,30,90000060,Consult Status,Requested
+90000060-30,30,90000060,Consult Status Time,
+90000060-39,39,90000060,Discharge Planning,Home
+90000060-39,39,90000060,Discharge When,Today
+90000060-41,41,90000060,Admit category,Observation
+90000060-41,41,90000060,Admit to,Medicine
+90000060-41,41,90000060,Level of Urgency,Routine
+90000060-50,50,90000060,Discharge Planning,Home
+90000060-50,50,90000060,Discharge When,Today
+90000060-8,8,90000060,Discharge Planning,Home
+90000060-8,8,90000060,Discharge When,Today
+90000061-1,1,90000061,Admit category,Observation
+90000061-1,1,90000061,Admit to,Medicine
+90000061-1,1,90000061,Level of Urgency,Routine
+90000061-16,16,90000061,Discharge Planning,Home
+90000061-16,16,90000061,Discharge When,Today
+90000061-8,8,90000061,Discharge Planning,Home
+90000061-8,8,90000061,Discharge When,Today
+90000061-9,9,90000061,Admit category,Observation
+90000061-9,9,90000061,Admit to,Medicine
+90000061-9,9,90000061,Level of Urgency,Routine
+90000062-1,1,90000062,Admit category,Observation
+90000062-1,1,90000062,Admit to,Medicine
+90000062-1,1,90000062,Level of Urgency,Routine
+90000062-12,12,90000062,Discharge Planning,Home
+90000062-12,12,90000062,Discharge When,Today
+90000063-1,1,90000063,Admit category,Observation
+90000063-1,1,90000063,Admit to,Medicine
+90000063-1,1,90000063,Level of Urgency,Routine
+90000063-13,13,90000063,Discharge Planning,Home
+90000063-13,13,90000063,Discharge When,Today
+90000064-1,1,90000064,Admit category,Observation
+90000064-1,1,90000064,Admit to,Medicine
+90000064-1,1,90000064,Level of Urgency,Routine
+90000064-13,13,90000064,Admit category,Observation
+90000064-13,13,90000064,Admit to,Medicine
+90000064-13,13,90000064,Level of Urgency,Routine
+90000064-22,22,90000064,Discharge Planning,Home
+90000064-22,22,90000064,Discharge When,Today
+90000064-7,7,90000064,Discharge Planning,Home
+90000064-7,7,90000064,Discharge When,Today
+90000065-1,1,90000065,Admit category,Observation
+90000065-1,1,90000065,Admit to,Medicine
+90000065-1,1,90000065,Level of Urgency,Routine
+90000065-10,10,90000065,Admit category,Observation
+90000065-10,10,90000065,Admit to,Medicine
+90000065-10,10,90000065,Level of Urgency,Routine
+90000065-12,12,90000065,Consult Status,Requested
+90000065-12,12,90000065,Consult Status Time,
+90000065-19,19,90000065,Discharge Planning,Home
+90000065-19,19,90000065,Discharge When,Today
+90000065-9,9,90000065,Discharge Planning,Home
+90000065-9,9,90000065,Discharge When,Today
+90000066-1,1,90000066,Admit category,Observation
+90000066-1,1,90000066,Admit to,Medicine
+90000066-1,1,90000066,Level of Urgency,Routine
+90000066-13,13,90000066,Discharge Planning,Home
+90000066-13,13,90000066,Discharge When,Today
+90000067-1,1,90000067,Admit category,Observation
+90000067-1,1,90000067,Admit to,Medicine
+90000067-1,1,90000067,Level of Urgency,Routine
+90000067-12,12,90000067,Admit category,Observation
+90000067-12,12,90000067,Admit to,Medicine
+90000067-12,12,90000067,Level of Urgency,Routine
+90000067-2,2,90000067,Consult Status,Requested
+90000067-2,2,90000067,Consult Status Time,
+90000067-20,20,90000067,Discharge Planning,Home
+90000067-20,20,90000067,Discharge When,Today
+90000067-9,9,90000067,Discharge Planning,Home
+90000067-9,9,90000067,Discharge When,Today
+90000068-1,1,90000068,Admit category,Observation
+90000068-1,1,90000068,Admit to,Medicine
+90000068-1,1,90000068,Level of Urgency,Routine
+90000068-5,5,90000068,Discharge Planning,Home
+90000068-5,5,90000068,Discharge When,Today
+90000069-10,10,90000069,Discharge Planning,Home
+90000069-10,10,90000069,Discharge When,Today
+90000069-2,2,90000069,Admit category,Observation
+90000069-2,2,90000069,Admit to,Medicine
+90000069-2,2,90000069,Level of Urgency,Routine
+90000070-1,1,90000070,Admit category,Observation
+90000070-1,1,90000070,Admit to,Medicine
+90000070-1,1,90000070,Level of Urgency,Routine
+90000070-10,10,90000070,Discharge Planning,Home
+90000070-10,10,90000070,Discharge When,Today
+90000070-12,12,90000070,Admit category,Observation
+90000070-12,12,90000070,Admit to,Medicine
+90000070-12,12,90000070,Level of Urgency,Routine
+90000070-27,27,90000070,Discharge Planning,Home
+90000070-27,27,90000070,Discharge When,Today
+90000071-1,1,90000071,Admit category,Observation
+90000071-1,1,90000071,Admit to,Medicine
+90000071-1,1,90000071,Level of Urgency,Routine
+90000071-10,10,90000071,Discharge Planning,Home
+90000071-10,10,90000071,Discharge When,Today
+90000072-1,1,90000072,Admit category,Observation
+90000072-1,1,90000072,Admit to,Medicine
+90000072-1,1,90000072,Level of Urgency,Routine
+90000072-5,5,90000072,Discharge Planning,Home
+90000072-5,5,90000072,Discharge When,Today
+90000073-1,1,90000073,Admit category,Observation
+90000073-1,1,90000073,Admit to,Medicine
+90000073-1,1,90000073,Level of Urgency,Routine
+90000073-18,18,90000073,Discharge Planning,Home
+90000073-18,18,90000073,Discharge When,Today
+90000073-8,8,90000073,Discharge Planning,Home
+90000073-8,8,90000073,Discharge When,Today
+90000073-9,9,90000073,Admit category,Observation
+90000073-9,9,90000073,Admit to,Medicine
+90000073-9,9,90000073,Level of Urgency,Routine
+90000074-1,1,90000074,Admit category,Observation
+90000074-1,1,90000074,Admit to,Medicine
+90000074-1,1,90000074,Level of Urgency,Routine
+90000074-13,13,90000074,Discharge Planning,Home
+90000074-13,13,90000074,Discharge When,Today
+90000075-1,1,90000075,Admit category,Observation
+90000075-1,1,90000075,Admit to,Medicine
+90000075-1,1,90000075,Level of Urgency,Routine
+90000075-11,11,90000075,Discharge Planning,Home
+90000075-11,11,90000075,Discharge When,Today
+90000075-12,12,90000075,Admit category,Observation
+90000075-12,12,90000075,Admit to,Medicine
+90000075-12,12,90000075,Level of Urgency,Routine
+90000075-22,22,90000075,Consult Status,Requested
+90000075-22,22,90000075,Consult Status Time,
+90000075-24,24,90000075,Discharge Planning,Home
+90000075-24,24,90000075,Discharge When,Today
+90000076-1,1,90000076,Admit category,Observation
+90000076-1,1,90000076,Admit to,Medicine
+90000076-1,1,90000076,Level of Urgency,Routine
+90000076-12,12,90000076,Admit category,Observation
+90000076-12,12,90000076,Admit to,Medicine
+90000076-12,12,90000076,Level of Urgency,Routine
+90000076-25,25,90000076,Discharge Planning,Home
+90000076-25,25,90000076,Discharge When,Today
+90000076-7,7,90000076,Consult Status,Requested
+90000076-7,7,90000076,Consult Status Time,
+90000076-8,8,90000076,Consult Status,Requested
+90000076-8,8,90000076,Consult Status Time,
+90000076-9,9,90000076,Discharge Planning,Home
+90000076-9,9,90000076,Discharge When,Today
+90000077-1,1,90000077,Admit category,Observation
+90000077-1,1,90000077,Admit to,Medicine
+90000077-1,1,90000077,Level of Urgency,Routine
+90000077-10,10,90000077,Discharge Planning,Home
+90000077-10,10,90000077,Discharge When,Today
+90000078-1,1,90000078,Admit category,Observation
+90000078-1,1,90000078,Admit to,Medicine
+90000078-1,1,90000078,Level of Urgency,Routine
+90000078-11,11,90000078,Admit category,Observation
+90000078-11,11,90000078,Admit to,Medicine
+90000078-11,11,90000078,Level of Urgency,Routine
+90000078-19,19,90000078,Discharge Planning,Home
+90000078-19,19,90000078,Discharge When,Today
+90000078-8,8,90000078,Discharge Planning,Home
+90000078-8,8,90000078,Discharge When,Today
+90000079-1,1,90000079,Admit category,Observation
+90000079-1,1,90000079,Admit to,Medicine
+90000079-1,1,90000079,Level of Urgency,Routine
+90000079-11,11,90000079,Discharge Planning,Home
+90000079-11,11,90000079,Discharge When,Today
+90000080-1,1,90000080,Admit category,Observation
+90000080-1,1,90000080,Admit to,Medicine
+90000080-1,1,90000080,Level of Urgency,Routine
+90000080-10,10,90000080,Discharge Planning,Home
+90000080-10,10,90000080,Discharge When,Today
+90000081-14,14,90000081,Discharge Planning,Home
+90000081-14,14,90000081,Discharge When,Today
+90000081-2,2,90000081,Admit category,Observation
+90000081-2,2,90000081,Admit to,Medicine
+90000081-2,2,90000081,Level of Urgency,Routine
+90000081-5,5,90000081,Consult Status,Requested
+90000081-5,5,90000081,Consult Status Time,
+90000082-1,1,90000082,Admit category,Observation
+90000082-1,1,90000082,Admit to,Medicine
+90000082-1,1,90000082,Level of Urgency,Routine
+90000082-4,4,90000082,Consult Status,Requested
+90000082-4,4,90000082,Consult Status Time,
+90000082-7,7,90000082,Discharge Planning,Home
+90000082-7,7,90000082,Discharge When,Today
+90000083-1,1,90000083,Admit category,Observation
+90000083-1,1,90000083,Admit to,Medicine
+90000083-1,1,90000083,Level of Urgency,Routine
+90000083-12,12,90000083,Discharge Planning,Home
+90000083-12,12,90000083,Discharge When,Today
+90000083-13,13,90000083,Admit category,Observation
+90000083-13,13,90000083,Admit to,Medicine
+90000083-13,13,90000083,Level of Urgency,Routine
+90000083-25,25,90000083,Discharge Planning,Home
+90000083-25,25,90000083,Discharge When,Today
+90000083-3,3,90000083,Consult Status,Requested
+90000083-3,3,90000083,Consult Status Time,
+90000084-1,1,90000084,Admit category,Observation
+90000084-1,1,90000084,Admit to,Medicine
+90000084-1,1,90000084,Level of Urgency,Routine
+90000084-11,11,90000084,Discharge Planning,Home
+90000084-11,11,90000084,Discharge When,Today
+90000084-15,15,90000084,Admit category,Observation
+90000084-15,15,90000084,Admit to,Medicine
+90000084-15,15,90000084,Level of Urgency,Routine
+90000084-22,22,90000084,Discharge Planning,Home
+90000084-22,22,90000084,Discharge When,Today
+90000085-1,1,90000085,Admit category,Observation
+90000085-1,1,90000085,Admit to,Medicine
+90000085-1,1,90000085,Level of Urgency,Routine
+90000085-12,12,90000085,Discharge Planning,Home
+90000085-12,12,90000085,Discharge When,Today
+90000085-14,14,90000085,Admit category,Observation
+90000085-14,14,90000085,Admit to,Medicine
+90000085-14,14,90000085,Level of Urgency,Routine
+90000085-21,21,90000085,Discharge Planning,Home
+90000085-21,21,90000085,Discharge When,Today
+90000085-9,9,90000085,Consult Status,Requested
+90000085-9,9,90000085,Consult Status Time,
+90000086-1,1,90000086,Admit category,Observation
+90000086-1,1,90000086,Admit to,Medicine
+90000086-1,1,90000086,Level of Urgency,Routine
+90000086-10,10,90000086,Discharge Planning,Home
+90000086-10,10,90000086,Discharge When,Today
+90000086-11,11,90000086,Consult Status,Requested
+90000086-11,11,90000086,Consult Status Time,
+90000086-7,7,90000086,Consult Status,Requested
+90000086-7,7,90000086,Consult Status Time,
+90000087-1,1,90000087,Admit category,Observation
+90000087-1,1,90000087,Admit to,Medicine
+90000087-1,1,90000087,Level of Urgency,Routine
+90000087-15,15,90000087,Discharge Planning,Home
+90000087-15,15,90000087,Discharge When,Today
+90000087-16,16,90000087,Admit category,Observation
+90000087-16,16,90000087,Admit to,Medicine
+90000087-16,16,90000087,Level of Urgency,Routine
+90000087-26,26,90000087,Discharge Planning,Home
+90000087-26,26,90000087,Discharge When,Today
+90000087-7,7,90000087,Consult Status,Requested
+90000087-7,7,90000087,Consult Status Time,
+90000088-1,1,90000088,Admit category,Observation
+90000088-1,1,90000088,Admit to,Medicine
+90000088-1,1,90000088,Level of Urgency,Routine
+90000088-7,7,90000088,Discharge Planning,Home
+90000088-7,7,90000088,Discharge When,Today
+90000089-1,1,90000089,Admit category,Observation
+90000089-1,1,90000089,Admit to,Medicine
+90000089-1,1,90000089,Level of Urgency,Routine
+90000089-6,6,90000089,Consult Status,Requested
+90000089-6,6,90000089,Consult Status Time,
+90000089-8,8,90000089,Discharge Planning,Home
+90000089-8,8,90000089,Discharge When,Today
+90000090-1,1,90000090,Admit category,Observation
+90000090-1,1,90000090,Admit to,Medicine
+90000090-1,1,90000090,Level of Urgency,Routine
+90000090-8,8,90000090,Discharge Planning,Home
+90000090-8,8,90000090,Discharge When,Today
+90000091-1,1,90000091,Admit category,Observation
+90000091-1,1,90000091,Admit to,Medicine
+90000091-1,1,90000091,Level of Urgency,Routine
+90000091-10,10,90000091,Discharge Planning,Home
+90000091-10,10,90000091,Discharge When,Today
+90000092-1,1,90000092,Admit category,Observation
+90000092-1,1,90000092,Admit to,Medicine
+90000092-1,1,90000092,Level of Urgency,Routine
+90000092-17,17,90000092,Discharge Planning,Home
+90000092-17,17,90000092,Discharge When,Today
+90000092-8,8,90000092,Discharge Planning,Home
+90000092-8,8,90000092,Discharge When,Today
+90000092-9,9,90000092,Admit category,Observation
+90000092-9,9,90000092,Admit to,Medicine
+90000092-9,9,90000092,Level of Urgency,Routine
+90000093-1,1,90000093,Admit category,Observation
+90000093-1,1,90000093,Admit to,Medicine
+90000093-1,1,90000093,Level of Urgency,Routine
+90000093-8,8,90000093,Discharge Planning,Home
+90000093-8,8,90000093,Discharge When,Today
+90000094-1,1,90000094,Admit category,Observation
+90000094-1,1,90000094,Admit to,Medicine
+90000094-1,1,90000094,Level of Urgency,Routine
+90000094-11,11,90000094,Discharge Planning,Home
+90000094-11,11,90000094,Discharge When,Today
+90000094-12,12,90000094,Admit category,Observation
+90000094-12,12,90000094,Admit to,Medicine
+90000094-12,12,90000094,Level of Urgency,Routine
+90000094-23,23,90000094,Discharge Planning,Home
+90000094-23,23,90000094,Discharge When,Today
+90000094-24,24,90000094,Admit category,Observation
+90000094-24,24,90000094,Admit to,Medicine
+90000094-24,24,90000094,Level of Urgency,Routine
+90000094-34,34,90000094,Discharge Planning,Home
+90000094-34,34,90000094,Discharge When,Today
+90000095-1,1,90000095,Admit category,Observation
+90000095-1,1,90000095,Admit to,Medicine
+90000095-1,1,90000095,Level of Urgency,Routine
+90000095-14,14,90000095,Discharge Planning,Home
+90000095-14,14,90000095,Discharge When,Today
+90000096-1,1,90000096,Admit category,Observation
+90000096-1,1,90000096,Admit to,Medicine
+90000096-1,1,90000096,Level of Urgency,Routine
+90000096-10,10,90000096,Discharge Planning,Home
+90000096-10,10,90000096,Discharge When,Today
+90000096-11,11,90000096,Admit category,Observation
+90000096-11,11,90000096,Admit to,Medicine
+90000096-11,11,90000096,Level of Urgency,Routine
+90000096-20,20,90000096,Discharge Planning,Home
+90000096-20,20,90000096,Discharge When,Today
+90000097-1,1,90000097,Admit category,Observation
+90000097-1,1,90000097,Admit to,Medicine
+90000097-1,1,90000097,Level of Urgency,Routine
+90000097-15,15,90000097,Discharge Planning,Home
+90000097-15,15,90000097,Discharge When,Today
+90000098-1,1,90000098,Admit category,Observation
+90000098-1,1,90000098,Admit to,Medicine
+90000098-1,1,90000098,Level of Urgency,Routine
+90000098-14,14,90000098,Discharge Planning,Home
+90000098-14,14,90000098,Discharge When,Today
+90000098-15,15,90000098,Admit category,Observation
+90000098-15,15,90000098,Admit to,Medicine
+90000098-15,15,90000098,Level of Urgency,Routine
+90000098-17,17,90000098,Consult Status,Requested
+90000098-17,17,90000098,Consult Status Time,
+90000098-27,27,90000098,Discharge Planning,Home
+90000098-27,27,90000098,Discharge When,Today
+90000099-1,1,90000099,Admit category,Observation
+90000099-1,1,90000099,Admit to,Medicine
+90000099-1,1,90000099,Level of Urgency,Routine
+90000099-8,8,90000099,Discharge Planning,Home
+90000099-8,8,90000099,Discharge When,Today
+90000100-1,1,90000100,Admit category,Observation
+90000100-1,1,90000100,Admit to,Medicine
+90000100-1,1,90000100,Level of Urgency,Routine
+90000100-10,10,90000100,Admit category,Observation
+90000100-10,10,90000100,Admit to,Medicine
+90000100-10,10,90000100,Level of Urgency,Routine
+90000100-17,17,90000100,Discharge Planning,Home
+90000100-17,17,90000100,Discharge When,Today
+90000100-19,19,90000100,Admit category,Observation
+90000100-19,19,90000100,Admit to,Medicine
+90000100-19,19,90000100,Level of Urgency,Routine
+90000100-25,25,90000100,Discharge Planning,Home
+90000100-25,25,90000100,Discharge When,Today
+90000100-28,28,90000100,Admit category,Observation
+90000100-28,28,90000100,Admit to,Medicine
+90000100-28,28,90000100,Level of Urgency,Routine
+90000100-36,36,90000100,Discharge Planning,Home
+90000100-36,36,90000100,Discharge When,Today
+90000100-9,9,90000100,Discharge Planning,Home
+90000100-9,9,90000100,Discharge When,Today
+90000101-1,1,90000101,Admit category,Observation
+90000101-1,1,90000101,Admit to,Medicine
+90000101-1,1,90000101,Level of Urgency,Routine
+90000101-11,11,90000101,Discharge Planning,Home
+90000101-11,11,90000101,Discharge When,Today
+90000102-10,10,90000102,Discharge Planning,Home
+90000102-10,10,90000102,Discharge When,Today
+90000102-2,2,90000102,Admit category,Observation
+90000102-2,2,90000102,Admit to,Medicine
+90000102-2,2,90000102,Level of Urgency,Routine
+90000103-1,1,90000103,Admit category,Observation
+90000103-1,1,90000103,Admit to,Medicine
+90000103-1,1,90000103,Level of Urgency,Routine
+90000103-13,13,90000103,Discharge Planning,Home
+90000103-13,13,90000103,Discharge When,Today
+90000104-1,1,90000104,Admit category,Observation
+90000104-1,1,90000104,Admit to,Medicine
+90000104-1,1,90000104,Level of Urgency,Routine
+90000104-12,12,90000104,Discharge Planning,Home
+90000104-12,12,90000104,Discharge When,Today
+90000105-1,1,90000105,Admit category,Observation
+90000105-1,1,90000105,Admit to,Medicine
+90000105-1,1,90000105,Level of Urgency,Routine
+90000105-17,17,90000105,Consult Status,Requested
+90000105-17,17,90000105,Consult Status Time,
+90000105-18,18,90000105,Discharge Planning,Home
+90000105-18,18,90000105,Discharge When,Today
+90000105-8,8,90000105,Discharge Planning,Home
+90000105-8,8,90000105,Discharge When,Today
+90000105-9,9,90000105,Admit category,Observation
+90000105-9,9,90000105,Admit to,Medicine
+90000105-9,9,90000105,Level of Urgency,Routine
+90000106-1,1,90000106,Admit category,Observation
+90000106-1,1,90000106,Admit to,Medicine
+90000106-1,1,90000106,Level of Urgency,Routine
+90000106-6,6,90000106,Consult Status,Requested
+90000106-6,6,90000106,Consult Status Time,
+90000106-8,8,90000106,Discharge Planning,Home
+90000106-8,8,90000106,Discharge When,Today
+90000107-1,1,90000107,Admit category,Observation
+90000107-1,1,90000107,Admit to,Medicine
+90000107-1,1,90000107,Level of Urgency,Routine
+90000107-10,10,90000107,Discharge Planning,Home
+90000107-10,10,90000107,Discharge When,Today
+90000107-11,11,90000107,Consult Status,Requested
+90000107-11,11,90000107,Consult Status Time,
+90000107-12,12,90000107,Consult Status,Requested
+90000107-12,12,90000107,Consult Status Time,
+90000107-14,14,90000107,Admit category,Observation
+90000107-14,14,90000107,Admit to,Medicine
+90000107-14,14,90000107,Level of Urgency,Routine
+90000107-17,17,90000107,Discharge Planning,Home
+90000107-17,17,90000107,Discharge When,Today
+90000107-3,3,90000107,Consult Status,Requested
+90000107-3,3,90000107,Consult Status Time,
+90000108-1,1,90000108,Admit category,Observation
+90000108-1,1,90000108,Admit to,Medicine
+90000108-1,1,90000108,Level of Urgency,Routine
+90000108-12,12,90000108,Discharge Planning,Home
+90000108-12,12,90000108,Discharge When,Today
+90000108-7,7,90000108,Consult Status,Requested
+90000108-7,7,90000108,Consult Status Time,
+90000109-1,1,90000109,Admit category,Observation
+90000109-1,1,90000109,Admit to,Medicine
+90000109-1,1,90000109,Level of Urgency,Routine
+90000109-11,11,90000109,Admit category,Observation
+90000109-11,11,90000109,Admit to,Medicine
+90000109-11,11,90000109,Level of Urgency,Routine
+90000109-25,25,90000109,Discharge Planning,Home
+90000109-25,25,90000109,Discharge When,Today
+90000109-9,9,90000109,Discharge Planning,Home
+90000109-9,9,90000109,Discharge When,Today
+90000110-1,1,90000110,Admit category,Observation
+90000110-1,1,90000110,Admit to,Medicine
+90000110-1,1,90000110,Level of Urgency,Routine
+90000110-10,10,90000110,Consult Status,Requested
+90000110-10,10,90000110,Consult Status Time,
+90000110-13,13,90000110,Discharge Planning,Home
+90000110-13,13,90000110,Discharge When,Today
+90000110-15,15,90000110,Admit category,Observation
+90000110-15,15,90000110,Admit to,Medicine
+90000110-15,15,90000110,Level of Urgency,Routine
+90000110-20,20,90000110,Consult Status,Requested
+90000110-20,20,90000110,Consult Status Time,
+90000110-22,22,90000110,Discharge Planning,Home
+90000110-22,22,90000110,Discharge When,Today
+90000111-1,1,90000111,Admit category,Observation
+90000111-1,1,90000111,Admit to,Medicine
+90000111-1,1,90000111,Level of Urgency,Routine
+90000111-12,12,90000111,Discharge Planning,Home
+90000111-12,12,90000111,Discharge When,Today
+90000111-14,14,90000111,Admit category,Observation
+90000111-14,14,90000111,Admit to,Medicine
+90000111-14,14,90000111,Level of Urgency,Routine
+90000111-20,20,90000111,Discharge Planning,Home
+90000111-20,20,90000111,Discharge When,Today
+90000112-1,1,90000112,Admit category,Observation
+90000112-1,1,90000112,Admit to,Medicine
+90000112-1,1,90000112,Level of Urgency,Routine
+90000112-18,18,90000112,Discharge Planning,Home
+90000112-18,18,90000112,Discharge When,Today
+90000112-19,19,90000112,Admit category,Observation
+90000112-19,19,90000112,Admit to,Medicine
+90000112-19,19,90000112,Level of Urgency,Routine
+90000112-22,22,90000112,Consult Status,Requested
+90000112-22,22,90000112,Consult Status Time,
+90000112-24,24,90000112,Discharge Planning,Home
+90000112-24,24,90000112,Discharge When,Today
+90000112-5,5,90000112,Discharge Planning,Home
+90000112-5,5,90000112,Discharge When,Today
+90000112-8,8,90000112,Admit category,Observation
+90000112-8,8,90000112,Admit to,Medicine
+90000112-8,8,90000112,Level of Urgency,Routine
+90000113-1,1,90000113,Admit category,Observation
+90000113-1,1,90000113,Admit to,Medicine
+90000113-1,1,90000113,Level of Urgency,Routine
+90000113-12,12,90000113,Admit category,Observation
+90000113-12,12,90000113,Admit to,Medicine
+90000113-12,12,90000113,Level of Urgency,Routine
+90000113-21,21,90000113,Discharge Planning,Home
+90000113-21,21,90000113,Discharge When,Today
+90000113-7,7,90000113,Discharge Planning,Home
+90000113-7,7,90000113,Discharge When,Today
+90000113-8,8,90000113,Consult Status,Requested
+90000113-8,8,90000113,Consult Status Time,
+90000114-1,1,90000114,Admit category,Observation
+90000114-1,1,90000114,Admit to,Medicine
+90000114-1,1,90000114,Level of Urgency,Routine
+90000114-12,12,90000114,Discharge Planning,Home
+90000114-12,12,90000114,Discharge When,Today
+90000115-1,1,90000115,Admit category,Observation
+90000115-1,1,90000115,Admit to,Medicine
+90000115-1,1,90000115,Level of Urgency,Routine
+90000115-10,10,90000115,Discharge Planning,Home
+90000115-10,10,90000115,Discharge When,Today
+90000115-11,11,90000115,Admit category,Observation
+90000115-11,11,90000115,Admit to,Medicine
+90000115-11,11,90000115,Level of Urgency,Routine
+90000115-17,17,90000115,Consult Status,Requested
+90000115-17,17,90000115,Consult Status Time,
+90000115-22,22,90000115,Discharge Planning,Home
+90000115-22,22,90000115,Discharge When,Today
+90000116-1,1,90000116,Admit category,Observation
+90000116-1,1,90000116,Admit to,Medicine
+90000116-1,1,90000116,Level of Urgency,Routine
+90000116-3,3,90000116,Consult Status,Requested
+90000116-3,3,90000116,Consult Status Time,
+90000116-7,7,90000116,Discharge Planning,Home
+90000116-7,7,90000116,Discharge When,Today
+90000117-1,1,90000117,Admit category,Observation
+90000117-1,1,90000117,Admit to,Medicine
+90000117-1,1,90000117,Level of Urgency,Routine
+90000117-13,13,90000117,Discharge Planning,Home
+90000117-13,13,90000117,Discharge When,Today
+90000118-1,1,90000118,Admit category,Observation
+90000118-1,1,90000118,Admit to,Medicine
+90000118-1,1,90000118,Level of Urgency,Routine
+90000118-11,11,90000118,Discharge Planning,Home
+90000118-11,11,90000118,Discharge When,Today
+90000119-1,1,90000119,Admit category,Observation
+90000119-1,1,90000119,Admit to,Medicine
+90000119-1,1,90000119,Level of Urgency,Routine
+90000119-10,10,90000119,Admit category,Observation
+90000119-10,10,90000119,Admit to,Medicine
+90000119-10,10,90000119,Level of Urgency,Routine
+90000119-14,14,90000119,Consult Status,Requested
+90000119-14,14,90000119,Consult Status Time,
+90000119-15,15,90000119,Consult Status,Requested
+90000119-15,15,90000119,Consult Status Time,
+90000119-20,20,90000119,Consult Status,Requested
+90000119-20,20,90000119,Consult Status Time,
+90000119-21,21,90000119,Discharge Planning,Home
+90000119-21,21,90000119,Discharge When,Today
+90000119-8,8,90000119,Consult Status,Requested
+90000119-8,8,90000119,Consult Status Time,
+90000119-9,9,90000119,Discharge Planning,Home
+90000119-9,9,90000119,Discharge When,Today

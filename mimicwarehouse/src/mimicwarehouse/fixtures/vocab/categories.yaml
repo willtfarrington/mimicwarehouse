@@ -1,0 +1,113 @@
+# mimicwarehouse fixture seed - categorical vocabularies (EP-11). Hand-typed from the public
+# MIMIC-IV documentation (mimic.mit.edu: admissions, transfers, services, drgcodes, omr,
+# microbiologyevents, poe), never from `source material/`. Each weighted list is
+# `[value, weight]`; a null value means "write NULL" with that weight.
+version_note: "MIMIC-IV 3.1 categorical vocabularies for the fixture, typed 2026-08-18 (EP-11)."
+anchor_year_groups: ["2008 - 2010", "2011 - 2013", "2014 - 2016", "2017 - 2019", "2020 - 2022"]
+admission_types:
+  ed: [["EW EMER.", 8], ["EU OBSERVATION", 2], ["OBSERVATION ADMIT", 2], ["DIRECT EMER.", 1]]
+  non_ed: [["ELECTIVE", 3], ["URGENT", 4], ["SURGICAL SAME DAY ADMISSION", 2], ["OBSERVATION ADMIT", 1], ["DIRECT EMER.", 1], ["DIRECT OBSERVATION", 1], ["AMBULATORY OBSERVATION", 1]]
+admission_locations:
+  ed: [["EMERGENCY ROOM", 10], ["WALK-IN/SELF REFERRAL", 1]]
+  non_ed: [["PHYSICIAN REFERRAL", 5], ["TRANSFER FROM HOSPITAL", 3], ["CLINIC REFERRAL", 2], ["PROCEDURE SITE", 1], ["TRANSFER FROM SKILLED NURSING FACILITY", 1], ["PACU", 1], ["INFORMATION NOT AVAILABLE", 1]]
+discharge_locations: [["HOME", 45], ["HOME HEALTH CARE", 20], ["SKILLED NURSING FACILITY", 15], ["REHAB", 8], ["HOSPICE", 3], ["CHRONIC/LONG TERM ACUTE CARE", 3], ["AGAINST ADVICE", 2], ["ACUTE HOSPITAL", 1], ["PSYCH FACILITY", 1], [null, 4]]
+death_discharge_location: "DIED"
+insurance: [["Medicare", 45], ["Medicaid", 12], ["Private", 30], ["Other", 10], ["No charge", 1]]
+language: [["English", 82], ["Spanish", 5], ["Portuguese", 3], ["Russian", 2], ["Chinese", 2], ["Haitian", 1], ["Vietnamese", 1], [null, 4]]
+marital_status: [["MARRIED", 45], ["SINGLE", 30], ["WIDOWED", 12], ["DIVORCED", 8], [null, 5]]
+race: [["WHITE", 55], ["BLACK/AFRICAN AMERICAN", 12], ["HISPANIC/LATINO - PUERTO RICAN", 3], ["HISPANIC OR LATINO", 3], ["ASIAN", 3], ["ASIAN - CHINESE", 2], ["WHITE - OTHER EUROPEAN", 3], ["BLACK/CAPE VERDEAN", 2], ["OTHER", 5], ["UNKNOWN", 5], ["PATIENT DECLINED TO ANSWER", 2], ["UNABLE TO OBTAIN", 2], ["PORTUGUESE", 2], ["AMERICAN INDIAN/ALASKA NATIVE", 1]]
+gender: [["F", 48], ["M", 52]]
+# Wards (non-ICU careunits) and the MetaVision ICU careunit names.
+ward_careunits: [["Medicine", 30], ["Med/Surg", 15], ["Med/Surg/GYN", 5], ["Cardiology", 8], ["Medicine/Cardiology", 6], ["Surgery", 6], ["Surgery/Trauma", 3], ["Neurology", 4], ["Hematology/Oncology", 4], ["Transplant", 2], ["Vascular", 2], ["Observation", 3], ["Emergency Department Observation", 3], ["Med/Surg/Trauma", 3], ["Cardiac Surgery", 2], ["Thoracic Surgery", 1], ["Psychiatry", 1], ["Discharge Lounge", 1], ["PACU", 1]]
+icu_careunits: [["Medical Intensive Care Unit (MICU)", 30], ["Surgical Intensive Care Unit (SICU)", 15], ["Cardiac Vascular Intensive Care Unit (CVICU)", 12], ["Coronary Care Unit (CCU)", 12], ["Trauma SICU (TSICU)", 10], ["Neuro Surgical Intensive Care Unit (Neuro SICU)", 6], ["Medical/Surgical Intensive Care Unit (MICU/SICU)", 12], ["Neuro Intermediate", 2], ["Neuro Stepdown", 1]]
+ed_careunit: "Emergency Department"
+services: [["MED", 45], ["SURG", 12], ["CMED", 12], ["CSURG", 5], ["NMED", 5], ["NSURG", 3], ["OMED", 4], ["ORTHO", 4], ["TRAUM", 3], ["VSURG", 3], ["GU", 2], ["TSURG", 1], ["PSURG", 1]]
+# DRG codes: HCFA (MS-DRG) and APR pairs; drg_code is stored as text.
+drg_hcfa:
+  - {code: "871", description: "SEPTICEMIA OR SEVERE SEPSIS WITHOUT MV >96 HOURS WITH MCC", weight: 5, tags: [sepsis]}
+  - {code: "872", description: "SEPTICEMIA OR SEVERE SEPSIS WITHOUT MV >96 HOURS WITHOUT MCC", weight: 3, tags: [sepsis]}
+  - {code: "291", description: "HEART FAILURE AND SHOCK WITH MCC", weight: 4}
+  - {code: "292", description: "HEART FAILURE AND SHOCK WITH CC", weight: 3}
+  - {code: "193", description: "SIMPLE PNEUMONIA AND PLEURISY WITH MCC", weight: 3}
+  - {code: "194", description: "SIMPLE PNEUMONIA AND PLEURISY WITH CC", weight: 3}
+  - {code: "682", description: "RENAL FAILURE WITH MCC", weight: 3, tags: [aki]}
+  - {code: "683", description: "RENAL FAILURE WITH CC", weight: 2, tags: [aki]}
+  - {code: "690", description: "KIDNEY AND URINARY TRACT INFECTIONS WITHOUT MCC", weight: 3}
+  - {code: "637", description: "DIABETES WITH MCC", weight: 1, tags: [t2dm]}
+  - {code: "638", description: "DIABETES WITH CC", weight: 2, tags: [t2dm]}
+  - {code: "190", description: "CHRONIC OBSTRUCTIVE PULMONARY DISEASE WITH MCC", weight: 3}
+  - {code: "280", description: "ACUTE MYOCARDIAL INFARCTION, DISCHARGED ALIVE WITH MCC", weight: 2}
+  - {code: "064", description: "INTRACRANIAL HEMORRHAGE OR CEREBRAL INFARCTION WITH MCC", weight: 1}
+  - {code: "207", description: "RESPIRATORY SYSTEM DIAGNOSIS WITH VENTILATOR SUPPORT >96 HOURS", weight: 1}
+  - {code: "308", description: "CARDIAC ARRHYTHMIA AND CONDUCTION DISORDERS WITH MCC", weight: 3}
+  - {code: "392", description: "ESOPHAGITIS, GASTROENTERITIS AND MISCELLANEOUS DIGESTIVE DISORDERS WITHOUT MCC", weight: 3}
+  - {code: "439", description: "DISORDERS OF PANCREAS EXCEPT MALIGNANCY WITH CC", weight: 1}
+drg_apr:
+  - {code: "720", description: "SEPTICEMIA & DISSEMINATED INFECTIONS", weight: 5, tags: [sepsis]}
+  - {code: "194", description: "HEART FAILURE", weight: 5}
+  - {code: "139", description: "OTHER PNEUMONIA", weight: 4}
+  - {code: "460", description: "RENAL FAILURE", weight: 3, tags: [aki]}
+  - {code: "463", description: "KIDNEY & URINARY TRACT INFECTIONS", weight: 3}
+  - {code: "420", description: "DIABETES", weight: 2, tags: [t2dm]}
+  - {code: "140", description: "CHRONIC OBSTRUCTIVE PULMONARY DISEASE", weight: 3}
+  - {code: "190", description: "ACUTE MYOCARDIAL INFARCTION", weight: 2}
+  - {code: "045", description: "CVA & PRECEREBRAL OCCLUSION W INFARCT", weight: 1}
+  - {code: "004", description: "TRACHEOSTOMY W MV 96+ HOURS W EXTENSIVE PROCEDURE OR ECMO", weight: 1}
+  - {code: "201", description: "CARDIAC ARRHYTHMIA & CONDUCTION DISORDERS", weight: 3}
+  - {code: "249", description: "OTHER GASTROENTERITIS, NAUSEA & VOMITING", weight: 3}
+  - {code: "282", description: "DISORDERS OF PANCREAS EXCEPT MALIGNANCY", weight: 1}
+# OMR result names and their text-value shapes.
+omr_result_names: [["Blood Pressure", 6], ["Weight (Lbs)", 4], ["BMI (kg/m2)", 3], ["Height (Inches)", 1], ["eGFR", 1], ["Blood Pressure Sitting", 1]]
+# Microbiology: specimen -> test, organisms and antibiotics (item ids and names typed from public
+# documentation; the concept excludes org_itemid 90856 / 90760, which are not used here).
+micro_specimens:
+  - {spec_itemid: 70012, spec_type_desc: "BLOOD CULTURE", test_itemid: 90201, test_name: "Blood Culture, Routine", weight: 5, tags: [sepsis]}
+  - {spec_itemid: 70079, spec_type_desc: "URINE", test_itemid: 90039, test_name: "URINE CULTURE", weight: 5}
+  - {spec_itemid: 70091, spec_type_desc: "SWAB", test_itemid: 90152, test_name: "MRSA SCREEN", weight: 3}
+  - {spec_itemid: 70070, spec_type_desc: "SPUTUM", test_itemid: 90111, test_name: "RESPIRATORY CULTURE", weight: 2}
+micro_organisms:
+  - {org_itemid: 80002, org_name: "ESCHERICHIA COLI", weight: 5}
+  - {org_itemid: 80023, org_name: "STAPH AUREUS COAG +", weight: 4}
+  - {org_itemid: 80026, org_name: "KLEBSIELLA PNEUMONIAE", weight: 3}
+  - {org_itemid: 80004, org_name: "PSEUDOMONAS AERUGINOSA", weight: 2}
+  - {org_itemid: 80155, org_name: "ENTEROCOCCUS FAECALIS", weight: 2}
+  - {org_itemid: 80293, org_name: "PROTEUS MIRABILIS", weight: 1}
+micro_antibiotics:
+  - {ab_itemid: 90002, ab_name: "AMPICILLIN"}
+  - {ab_itemid: 90004, ab_name: "CEFAZOLIN"}
+  - {ab_itemid: 90006, ab_name: "CIPROFLOXACIN"}
+  - {ab_itemid: 90008, ab_name: "GENTAMICIN"}
+  - {ab_itemid: 90012, ab_name: "NITROFURANTOIN"}
+  - {ab_itemid: 90015, ab_name: "OXACILLIN"}
+  - {ab_itemid: 90016, ab_name: "VANCOMYCIN"}
+  - {ab_itemid: 90020, ab_name: "TRIMETHOPRIM/SULFA"}
+  - {ab_itemid: 90025, ab_name: "PIPERACILLIN/TAZO"}
+  - {ab_itemid: 90029, ab_name: "CEFEPIME"}
+  - {ab_itemid: 90031, ab_name: "MEROPENEM"}
+micro_dilutions: [["<=1", "<=", 1.0], ["<=2", "<=", 2.0], ["=>32", "=>", 32.0], ["4", "=", 4.0], ["8", "=", 8.0], ["<=0.25", "<=", 0.25], ["16", "=", 16.0]]
+micro_interpretations: [["S", 6], ["R", 3], ["I", 1]]
+micro_quantities: [[null, 6], ["MODERATE", 1], ["FEW", 1], ["ABUNDANT", 1], [">100,000 CFU/mL", 2]]
+# Provider order entry: non-medication order types and their poe_detail fields.
+poe_nonmed_types:
+  - {order_type: "Lab", order_subtype: null, weight: 5}
+  - {order_type: "ADT orders", order_subtype: "Admit", weight: 2, details: [["Admit to", "Medicine"], ["Level of Urgency", "Routine"], ["Admit category", "Observation"]]}
+  - {order_type: "ADT orders", order_subtype: "Discharge", weight: 2, details: [["Discharge Planning", "Home"], ["Discharge When", "Today"]]}
+  - {order_type: "Consults", order_subtype: "Consult", weight: 2, details: [["Consult Status", "Requested"], ["Consult Status Time", null]]}
+  - {order_type: "Nutrition", order_subtype: "Diet", weight: 3}
+  - {order_type: "General Care", order_subtype: "Vital Signs", weight: 3}
+  - {order_type: "Radiology", order_subtype: "Chest X-Ray", weight: 2}
+  - {order_type: "IV therapy", order_subtype: "IV Access", weight: 1}
+poe_med_subtypes: [["Unit Dose", 5], ["IV Piggyback", 2], ["IV Large Volume", 1]]
+emar_events: [["Administered", 20], ["Not Given", 2], ["Delayed Administered", 1], ["Flushed", 1]]
+emar_infusion_events: ["Started", "Rate Change", "Stopped"]
+lab_priorities: [["ROUTINE", 7], ["STAT", 3]]
+# Lab comments: mostly NULL; the non-null ones deliberately include commas, double quotes and
+# embedded newlines (the writer must quote them; the loader must survive them). No line inside
+# a comment ends with whitespace (pre-commit trailing-whitespace hook).
+lab_comments:
+  - "SPECIMEN SLIGHTLY HEMOLYZED, MAY AFFECT POTASSIUM"
+  - "VERIFIED BY REPLICATE ANALYSIS"
+  - "PATIENT ON \"SLIDING SCALE\" INSULIN PER NURSING"
+  - "NOTIFIED ___ AT 14:32\nVERIFIED BY DILUTION\nREPEAT SAMPLE REQUESTED"
+  - "MODERATELY LIPEMIC, RESULTS MAY BE AFFECTED"
+  - "CRITICAL VALUE, CALLED TO ___ AT ___\nREAD BACK CONFIRMED"

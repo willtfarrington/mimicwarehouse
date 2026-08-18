@@ -1,0 +1,109 @@
+icd_code,icd_version,long_title
+03811,9,Methicillin susceptible Staphylococcus aureus septicemia
+03842,9,Septicemia due to escherichia coli [E. coli]
+0389,9,Unspecified septicemia
+2449,9,Unspecified acquired hypothyroidism
+25000,9,"Diabetes mellitus without mention of complication, type II or unspecified type, not stated as uncontrolled"
+25002,9,"Diabetes mellitus without mention of complication, type II or unspecified type, uncontrolled"
+25040,9,"Diabetes with renal manifestations, type II or unspecified type, not stated as uncontrolled"
+2720,9,Pure hypercholesterolemia
+2724,9,Other and unspecified hyperlipidemia
+2760,9,Hyperosmolality and/or hypernatremia
+2761,9,Hyposmolality and/or hyponatremia
+2762,9,Acidosis
+27651,9,Dehydration
+2767,9,Hyperpotassemia
+27800,9,"Obesity, unspecified"
+2851,9,Acute posthemorrhagic anemia
+2859,9,"Anemia, unspecified"
+30500,9,"Alcohol abuse, unspecified"
+3051,9,Tobacco use disorder
+311,9,"Depressive disorder, not elsewhere classified"
+34590,9,"Epilepsy, unspecified, without mention of intractable epilepsy"
+4011,9,Benign essential hypertension
+4019,9,Unspecified essential hypertension
+41071,9,"Subendocardial infarction, initial episode of care"
+41401,9,Coronary atherosclerosis of native coronary artery
+42731,9,Atrial fibrillation
+4280,9,"Congestive heart failure, unspecified"
+42823,9,Acute on chronic systolic heart failure
+42833,9,Acute on chronic diastolic heart failure
+43491,9,"Cerebral artery occlusion, unspecified with cerebral infarction"
+4821,9,Pneumonia due to Pseudomonas
+486,9,"Pneumonia, organism unspecified"
+49121,9,Obstructive chronic bronchitis with (acute) exacerbation
+496,9,"Chronic airway obstruction, not elsewhere classified"
+51881,9,Acute respiratory failure
+51884,9,Acute and chronic respiratory failure
+53081,9,Esophageal reflux
+5715,9,Cirrhosis of liver without mention of alcohol
+5770,9,Acute pancreatitis
+5845,9,Acute kidney failure with lesion of tubular necrosis
+5849,9,"Acute kidney failure, unspecified"
+5853,9,"Chronic kidney disease, Stage III (moderate)"
+5854,9,"Chronic kidney disease, Stage IV (severe)"
+5856,9,End stage renal disease
+5859,9,"Chronic kidney disease, unspecified"
+5990,9,"Urinary tract infection, site not specified"
+7802,9,Syncope and collapse
+78552,9,Septic shock
+78650,9,"Chest pain, unspecified"
+99591,9,Sepsis
+99592,9,Severe sepsis
+A4101,10,Sepsis due to Methicillin susceptible Staphylococcus aureus
+A4151,10,Sepsis due to Escherichia coli [E. coli]
+A419,10,"Sepsis, unspecified organism"
+D62,10,Acute posthemorrhagic anemia
+D649,10,"Anemia, unspecified"
+E039,10,"Hypothyroidism, unspecified"
+E1122,10,Type 2 diabetes mellitus with diabetic chronic kidney disease
+E1165,10,Type 2 diabetes mellitus with hyperglycemia
+E119,10,Type 2 diabetes mellitus without complications
+E669,10,"Obesity, unspecified"
+E7800,10,"Pure hypercholesterolemia, unspecified"
+E785,10,"Hyperlipidemia, unspecified"
+E860,10,Dehydration
+E870,10,Hyperosmolality and hypernatremia
+E871,10,Hypo-osmolality and hyponatremia
+E872,10,Acidosis
+E875,10,Hyperkalemia
+F1010,10,"Alcohol abuse, uncomplicated"
+F17210,10,"Nicotine dependence, cigarettes, uncomplicated"
+F329,10,"Major depressive disorder, single episode, unspecified"
+G40909,10,"Epilepsy, unspecified, not intractable, without status epilepticus"
+I10,10,Essential (primary) hypertension
+I110,10,Hypertensive heart disease with heart failure
+I120,10,Hypertensive chronic kidney disease with stage 5 chronic kidney disease or end stage renal disease
+I214,10,Non-ST elevation (NSTEMI) myocardial infarction
+I2510,10,Atherosclerotic heart disease of native coronary artery without angina pectoris
+I4891,10,Unspecified atrial fibrillation
+I5023,10,Acute on chronic systolic (congestive) heart failure
+I5033,10,Acute on chronic diastolic (congestive) heart failure
+I509,10,"Heart failure, unspecified"
+I639,10,"Cerebral infarction, unspecified"
+J151,10,Pneumonia due to Pseudomonas
+J189,10,"Pneumonia, unspecified organism"
+J441,10,Chronic obstructive pulmonary disease with (acute) exacerbation
+J449,10,"Chronic obstructive pulmonary disease, unspecified"
+J9601,10,Acute respiratory failure with hypoxia
+J9621,10,Acute and chronic respiratory failure with hypoxia
+K219,10,Gastro-esophageal reflux disease without esophagitis
+K7460,10,Unspecified cirrhosis of liver
+K8590,10,"Acute pancreatitis without necrosis or infection, unspecified"
+N170,10,Acute kidney failure with tubular necrosis
+N179,10,"Acute kidney failure, unspecified"
+N1830,10,"Chronic kidney disease, stage 3 unspecified"
+N184,10,"Chronic kidney disease, stage 4 (severe)"
+N186,10,End stage renal disease
+N189,10,"Chronic kidney disease, unspecified"
+N390,10,"Urinary tract infection, site not specified"
+R079,10,"Chest pain, unspecified"
+R55,10,Syncope and collapse
+R6520,10,Severe sepsis without septic shock
+R6521,10,Severe sepsis with septic shock
+V4581,9,Aortocoronary bypass status
+V5867,9,Long-term (current) use of insulin
+Z515,10,Encounter for palliative care
+Z66,10,Do not resuscitate
+Z794,10,Long term (current) use of insulin
+Z951,10,Presence of aortocoronary bypass graft

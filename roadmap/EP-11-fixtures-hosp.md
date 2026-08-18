@@ -122,3 +122,76 @@ enough for the loader, concepts and phenotypes", not clinical fidelity.
   EP-20/EP-29 stage them (dictionaries are not patient data); trigger: a concept or phenotype needs an itemid the
   hand-typed seed lacks.
 - Synthea-based richer synthetic cohorts; trigger: fixture realism blocks a method test (see EP-15 `datasets.md`).
+
+> **Completion note (2026-08-18).** Executed as one autonomous session (≈ 1¼ h against M ≈ 1 h; the
+> transcript timestamps are the retro's source), tier fixture, no MIMIC data touched: every input was the
+> EP-9 contract, the vendored concept SQL (to pick the itemids / drug names the concepts look up) and public
+> documentation typed by hand into `fixtures/vocab/*.yaml`. Every command output was schema, counts, hashes,
+> byte sizes or synthetic aggregates (GOVERNANCE §4); no CSV was ever opened by a tool.
+>
+> **Items 1–6 — as specified.** `src/mimicwarehouse/fixtures/{__init__,spec,vocab,hosp,check,write,cli}.py`
+> + `vocab/{d_labitems,icd,d_hcpcs,drugs,categories}.yaml` (package data); `mwh fixtures build [--out DIR]
+> [--seed N] [--subjects N] [--no-check] [--json]` attached with one `add_typer` line and **added to
+> `DIAGNOSTIC_COMMANDS`** (amendment item 4, the recommended form: it never touches the data root). Committed
+> fixture: `mimicwarehouse/tests/fixtures/mimic-iv-3.1/hosp/<22 tables>.csv` + `manifest.json` + `README.md`
+> — seed 2026, 120 subjects (ids 90 000 000–90 000 119; `subject_id % 100 < 5` keeps 10), 186 admissions,
+> **75 ICU segments** (`plan.icu_segments`, `stay_id` from 90 000 000 — EP-12's `icustays`), 18 in-hospital
+> deaths, 28 `dod`s, **27,954 rows / 3,056,499 bytes = 2.91 MiB** (labevents 9,619 rows / 1.18 MB, emar
+> 2,872, emar_detail 5,586, poe 2,028, prescriptions 1,141, pharmacy 958, diagnoses_icd 1,400, omr 1,066,
+> transfers 604, drgcodes 356, microbiologyevents 212 …) — under the 6 MB hosp budget with room for EP-12's
+> icu tables (`labs_per_admission` stays 40). `uv run mwh fixtures build` twice ⇒ identical bytes; a build
+> takes ≈ 1.2 s wall. Checks: `validate()` clean (contract columns/dtypes/NOT NULL, id floor, no integer
+> column inside 10 000 000–39 999 999, 29 contract FKs + 15 extra documented links, PKs / uniqueness hints,
+> sort keys, admission/death/dod sanity, every ICU segment inside its admission with exactly one matching
+> `transfers` row); all 22 files load through DuckDB `read_csv(columns=<contract types>, header=true,
+> ignore_errors=false)` with the manifest's row counts and zero rejects; ICD-9 only in 2008–2010 / 2011–2013,
+> ICD-10 only in 2017–2019 / 2020–2022, both inside 2014–2016; 179 `labevents.comments` carry an embedded
+> newline (others a comma / a doubled quote); planted signal verified by joins (creatinine ≥ 2× within 48 h in
+> the 6 planted admissions, blood culture + IV vancomycin / piperacillin-tazobactam within 24 h in the 6
+> planted, primary T2DM code + insulin + glucose ≥ 180 in the 6 planted); `mwh guard` clean over the fixture
+> tree (24 files) and over the new source / test files (44 files); `pre-commit run <end-of-file-fixer |
+> trailing-whitespace | check-json | check-added-large-files> --files <the 24 fixture files>` all Passed
+> **and rewrote nothing** (manifest sha256s unchanged afterwards — amendment item 1). Tests:
+> `tests/ep/test_ep11.py` (43, marker `ep_11`), `poe check` green (ruff, pyright, **362 tests**), `mwh verify
+> EP-11` green; `test_ep06::test_mwh_verify_usage_errors` now probes **EP-12** as its "code brief without a
+> test module". `mwh --help` still imports no numpy / polars / duckdb (asserted by a test in a fresh
+> interpreter; 0.45 s wall here). DESIGN §4 + §15 notes written; parked items mirrored into
+> `final-roadmap.md` (FIX-1, FIX-2).
+>
+> **Choices worth knowing (all inside the brief; none changes an interface a later EP cites):**
+> - **Per-table child generators.** The plan comes from one `default_rng(seed)`; every table then draws from
+>   `table_rng(spec, name) = default_rng([seed, crc32(name)])`, and the cross-table stages (`orders` → poe /
+>   pharmacy / prescriptions / emar / emar_detail; `labs`; `micro`; `trait_times`) are built once per
+>   `HospContext` from their own child generator. EP-12's icu generators therefore cannot perturb a single
+>   hosp byte, and adding a table never reshuffles another.
+> - **`FixtureSpec.first_event_id`** (default 90 000 000) is the floor for the other row ids (`labevent_id`,
+>   `specimen_id`, `microevent_id`, `micro_specimen_id`, `transfer_id`, `pharmacy_id`) — the brief listed
+>   only the three subject/hadm/stay floors; `check.ID_COLUMNS` enforces all of them (+ EP-12's `orderid`,
+>   `linkorderid`, `caregiver_id`).
+> - **The CLI lives in `fixtures/cli.py`** (the `schema/cli.py` precedent) rather than inside `write.py`, so
+>   `write.py` stays importable without typer noise; `write.build_and_write` is what the command runs.
+> - **Byte discipline is enforced before writing:** `write.check_bytes` (final `\n`, no blank last line, no
+>   `\r`, no trailing blank on any physical line — quoted multi-line comments included — and the guard's own
+>   `id_band_hits`) runs over every rendered file first; a violation leaves the directory untouched. The
+>   same function backs the tests, so "the fixer hooks are no-ops" is asserted without spawning pre-commit.
+> - **Simplifications the realism target allows** (say so once so nobody mistakes them for MIMIC facts):
+>   `edouttime == admittime` (the ED → admit chain is contiguous, so `transfers` and `admissions` agree
+>   without a boarding gap); at most one ICU segment per admission (EP-12 gets one `icustays` row per
+>   segment); `language` / `marital_status` / `race` constant per subject; `hadm_id` is NULL only in
+>   `labevents` (the outpatient draws — ~16 %), never in poe / emar / transfers; `emar_detail` = a summary
+>   row + one `1.1` detail row per event ("Not Given" events carry only the summary row); micro item ids
+>   (`spec_itemid` 70012 … , `org_itemid` 800xx, `ab_itemid` 900xx) are plausible 5-digit values typed from
+>   documentation, and the two organism ids the mimic-code concept excludes (90856 / 90760) are not used;
+>   `provider` = 40 ids `P90001`…`P90040` (the brief's own example shape). ICD titles were typed from the
+>   public CMS/NCHS lists (a few newer forms: `N1830`, `K8590`, `F17210`, `G40909`; `E872` in its pre-2023
+>   form) — the ICD-10 connector was not needed.
+> - **Planted admissions** are chosen among stays ≥ 3 days, preferring ICU stays for `aki` / `sepsis`; the
+>   planted diagnosis is always the *primary* tagged code (99591 / A419, 5849 / N179, 25000 / E119) plus a
+>   second tagged code half of the time, so EP-41/42's phenotypes and the T2DM code set find them by number.
+>
+> **Hand-off to EP-12:** consume `plan.icu_segments` (stay ids already assigned) and `plan.admissions_with(
+> "aki" | "sepsis")` for the ICU-side signal; extend `check.validate` (it is hosp-only today: `validate(frames,
+> contract, plan)` expects exactly the 22 hosp frames — EP-12 generalises the schema argument or adds an icu
+> twin), extend `write.write_fixture` calls with `module="icu"` (the writer already takes `module` /
+> `dataset_dir`) and rewrite `manifest.json` from both frame sets in one `build`; keep
+> `write.GENERATOR_VERSION` at `0.1.0` unless a hosp byte changes.

@@ -1,0 +1,143 @@
+# mimicwarehouse fixture seed - ICD-9-CM / ICD-10-CM diagnoses and ICD-9-CM / ICD-10-PCS
+# procedures (EP-11). Hand-typed from the public code lists (CMS / NCHS), never from
+# `source material/`. Codes are stored without dots, exactly as MIMIC-IV does. `tags` mark the
+# codes the planted phenotype signal uses (t2dm / sepsis / aki); `weight` biases sampling.
+version_note: "ICD-9-CM + ICD-10-CM/PCS subset for the fixture (~50 + ~50 diagnoses, 12 + 12 procedures), typed 2026-08-18 (EP-11)."
+diagnoses:
+  9:
+    - {code: "4019", title: "Unspecified essential hypertension", weight: 8}
+    - {code: "4011", title: "Benign essential hypertension", weight: 2}
+    - {code: "25000", title: "Diabetes mellitus without mention of complication, type II or unspecified type, not stated as uncontrolled", weight: 4, tags: [t2dm]}
+    - {code: "25002", title: "Diabetes mellitus without mention of complication, type II or unspecified type, uncontrolled", weight: 1, tags: [t2dm]}
+    - {code: "25040", title: "Diabetes with renal manifestations, type II or unspecified type, not stated as uncontrolled", weight: 1, tags: [t2dm]}
+    - {code: "V5867", title: "Long-term (current) use of insulin", weight: 1, tags: [t2dm]}
+    - {code: "99591", title: "Sepsis", weight: 2, tags: [sepsis]}
+    - {code: "99592", title: "Severe sepsis", weight: 1, tags: [sepsis]}
+    - {code: "78552", title: "Septic shock", weight: 1, tags: [sepsis]}
+    - {code: "0389", title: "Unspecified septicemia", weight: 2, tags: [sepsis]}
+    - {code: "03811", title: "Methicillin susceptible Staphylococcus aureus septicemia", weight: 1, tags: [sepsis]}
+    - {code: "03842", title: "Septicemia due to escherichia coli [E. coli]", weight: 1, tags: [sepsis]}
+    - {code: "5849", title: "Acute kidney failure, unspecified", weight: 3, tags: [aki]}
+    - {code: "5845", title: "Acute kidney failure with lesion of tubular necrosis", weight: 1, tags: [aki]}
+    - {code: "5859", title: "Chronic kidney disease, unspecified", weight: 2}
+    - {code: "5853", title: "Chronic kidney disease, Stage III (moderate)", weight: 2}
+    - {code: "5854", title: "Chronic kidney disease, Stage IV (severe)", weight: 1}
+    - {code: "5856", title: "End stage renal disease", weight: 1}
+    - {code: "4280", title: "Congestive heart failure, unspecified", weight: 5}
+    - {code: "42823", title: "Acute on chronic systolic heart failure", weight: 2}
+    - {code: "42833", title: "Acute on chronic diastolic heart failure", weight: 2}
+    - {code: "486", title: "Pneumonia, organism unspecified", weight: 4}
+    - {code: "4821", title: "Pneumonia due to Pseudomonas", weight: 1}
+    - {code: "51881", title: "Acute respiratory failure", weight: 3}
+    - {code: "51884", title: "Acute and chronic respiratory failure", weight: 1}
+    - {code: "41071", title: "Subendocardial infarction, initial episode of care", weight: 2}
+    - {code: "41401", title: "Coronary atherosclerosis of native coronary artery", weight: 5}
+    - {code: "42731", title: "Atrial fibrillation", weight: 5}
+    - {code: "2724", title: "Other and unspecified hyperlipidemia", weight: 5}
+    - {code: "2720", title: "Pure hypercholesterolemia", weight: 2}
+    - {code: "5990", title: "Urinary tract infection, site not specified", weight: 3}
+    - {code: "2859", title: "Anemia, unspecified", weight: 3}
+    - {code: "2851", title: "Acute posthemorrhagic anemia", weight: 2}
+    - {code: "27651", title: "Dehydration", weight: 2}
+    - {code: "2762", title: "Acidosis", weight: 2}
+    - {code: "2760", title: "Hyperosmolality and/or hypernatremia", weight: 1}
+    - {code: "2761", title: "Hyposmolality and/or hyponatremia", weight: 2}
+    - {code: "2767", title: "Hyperpotassemia", weight: 1}
+    - {code: "496", title: "Chronic airway obstruction, not elsewhere classified", weight: 3}
+    - {code: "49121", title: "Obstructive chronic bronchitis with (acute) exacerbation", weight: 2}
+    - {code: "5715", title: "Cirrhosis of liver without mention of alcohol", weight: 1}
+    - {code: "5770", title: "Acute pancreatitis", weight: 1}
+    - {code: "3051", title: "Tobacco use disorder", weight: 3}
+    - {code: "30500", title: "Alcohol abuse, unspecified", weight: 1}
+    - {code: "311", title: "Depressive disorder, not elsewhere classified", weight: 3}
+    - {code: "43491", title: "Cerebral artery occlusion, unspecified with cerebral infarction", weight: 1}
+    - {code: "V4581", title: "Aortocoronary bypass status", weight: 1}
+    - {code: "27800", title: "Obesity, unspecified", weight: 2}
+    - {code: "2449", title: "Unspecified acquired hypothyroidism", weight: 3}
+    - {code: "53081", title: "Esophageal reflux", weight: 3}
+    - {code: "34590", title: "Epilepsy, unspecified, without mention of intractable epilepsy", weight: 1}
+    - {code: "7802", title: "Syncope and collapse", weight: 1}
+    - {code: "78650", title: "Chest pain, unspecified", weight: 2}
+  10:
+    - {code: "I10", title: "Essential (primary) hypertension", weight: 8}
+    - {code: "I110", title: "Hypertensive heart disease with heart failure", weight: 2}
+    - {code: "I120", title: "Hypertensive chronic kidney disease with stage 5 chronic kidney disease or end stage renal disease", weight: 1}
+    - {code: "E119", title: "Type 2 diabetes mellitus without complications", weight: 4, tags: [t2dm]}
+    - {code: "E1165", title: "Type 2 diabetes mellitus with hyperglycemia", weight: 1, tags: [t2dm]}
+    - {code: "E1122", title: "Type 2 diabetes mellitus with diabetic chronic kidney disease", weight: 1, tags: [t2dm]}
+    - {code: "Z794", title: "Long term (current) use of insulin", weight: 1, tags: [t2dm]}
+    - {code: "A419", title: "Sepsis, unspecified organism", weight: 3, tags: [sepsis]}
+    - {code: "A4101", title: "Sepsis due to Methicillin susceptible Staphylococcus aureus", weight: 1, tags: [sepsis]}
+    - {code: "A4151", title: "Sepsis due to Escherichia coli [E. coli]", weight: 1, tags: [sepsis]}
+    - {code: "R6520", title: "Severe sepsis without septic shock", weight: 1, tags: [sepsis]}
+    - {code: "R6521", title: "Severe sepsis with septic shock", weight: 1, tags: [sepsis]}
+    - {code: "N179", title: "Acute kidney failure, unspecified", weight: 3, tags: [aki]}
+    - {code: "N170", title: "Acute kidney failure with tubular necrosis", weight: 1, tags: [aki]}
+    - {code: "N189", title: "Chronic kidney disease, unspecified", weight: 2}
+    - {code: "N1830", title: "Chronic kidney disease, stage 3 unspecified", weight: 2}
+    - {code: "N184", title: "Chronic kidney disease, stage 4 (severe)", weight: 1}
+    - {code: "N186", title: "End stage renal disease", weight: 1}
+    - {code: "I509", title: "Heart failure, unspecified", weight: 4}
+    - {code: "I5023", title: "Acute on chronic systolic (congestive) heart failure", weight: 2}
+    - {code: "I5033", title: "Acute on chronic diastolic (congestive) heart failure", weight: 2}
+    - {code: "J189", title: "Pneumonia, unspecified organism", weight: 4}
+    - {code: "J151", title: "Pneumonia due to Pseudomonas", weight: 1}
+    - {code: "J9601", title: "Acute respiratory failure with hypoxia", weight: 3}
+    - {code: "J9621", title: "Acute and chronic respiratory failure with hypoxia", weight: 1}
+    - {code: "I214", title: "Non-ST elevation (NSTEMI) myocardial infarction", weight: 2}
+    - {code: "I2510", title: "Atherosclerotic heart disease of native coronary artery without angina pectoris", weight: 5}
+    - {code: "I4891", title: "Unspecified atrial fibrillation", weight: 5}
+    - {code: "E785", title: "Hyperlipidemia, unspecified", weight: 5}
+    - {code: "E7800", title: "Pure hypercholesterolemia, unspecified", weight: 2}
+    - {code: "N390", title: "Urinary tract infection, site not specified", weight: 3}
+    - {code: "D649", title: "Anemia, unspecified", weight: 3}
+    - {code: "D62", title: "Acute posthemorrhagic anemia", weight: 2}
+    - {code: "E860", title: "Dehydration", weight: 2}
+    - {code: "E872", title: "Acidosis", weight: 2}
+    - {code: "E870", title: "Hyperosmolality and hypernatremia", weight: 1}
+    - {code: "E871", title: "Hypo-osmolality and hyponatremia", weight: 2}
+    - {code: "E875", title: "Hyperkalemia", weight: 1}
+    - {code: "J449", title: "Chronic obstructive pulmonary disease, unspecified", weight: 3}
+    - {code: "J441", title: "Chronic obstructive pulmonary disease with (acute) exacerbation", weight: 2}
+    - {code: "K7460", title: "Unspecified cirrhosis of liver", weight: 1}
+    - {code: "K8590", title: "Acute pancreatitis without necrosis or infection, unspecified", weight: 1}
+    - {code: "F17210", title: "Nicotine dependence, cigarettes, uncomplicated", weight: 3}
+    - {code: "F1010", title: "Alcohol abuse, uncomplicated", weight: 1}
+    - {code: "F329", title: "Major depressive disorder, single episode, unspecified", weight: 3}
+    - {code: "I639", title: "Cerebral infarction, unspecified", weight: 1}
+    - {code: "Z951", title: "Presence of aortocoronary bypass graft", weight: 1}
+    - {code: "E669", title: "Obesity, unspecified", weight: 2}
+    - {code: "E039", title: "Hypothyroidism, unspecified", weight: 3}
+    - {code: "K219", title: "Gastro-esophageal reflux disease without esophagitis", weight: 3}
+    - {code: "G40909", title: "Epilepsy, unspecified, not intractable, without status epilepticus", weight: 1}
+    - {code: "R55", title: "Syncope and collapse", weight: 1}
+    - {code: "R079", title: "Chest pain, unspecified", weight: 2}
+    - {code: "Z66", title: "Do not resuscitate", weight: 1}
+    - {code: "Z515", title: "Encounter for palliative care", weight: 1}
+procedures:
+  9:
+    - {code: "9604", title: "Insertion of endotracheal tube", weight: 2}
+    - {code: "9671", title: "Continuous invasive mechanical ventilation for less than 96 consecutive hours", weight: 2}
+    - {code: "9672", title: "Continuous invasive mechanical ventilation for 96 consecutive hours or more", weight: 1}
+    - {code: "3893", title: "Venous catheterization, not elsewhere classified", weight: 4}
+    - {code: "3891", title: "Arterial catheterization", weight: 2}
+    - {code: "3995", title: "Hemodialysis", weight: 2}
+    - {code: "9904", title: "Transfusion of packed cells", weight: 3}
+    - {code: "0066", title: "Percutaneous transluminal coronary angioplasty [PTCA]", weight: 1}
+    - {code: "3722", title: "Left heart cardiac catheterization", weight: 2}
+    - {code: "8856", title: "Coronary arteriography using two catheters", weight: 2}
+    - {code: "4513", title: "Other endoscopy of small intestine", weight: 2}
+    - {code: "5491", title: "Percutaneous abdominal drainage", weight: 1}
+  10:
+    - {code: "0BH17EZ", title: "Insertion of Endotracheal Airway into Trachea, Via Natural or Artificial Opening", weight: 2}
+    - {code: "5A1945Z", title: "Respiratory Ventilation, 24-96 Consecutive Hours", weight: 2}
+    - {code: "5A1955Z", title: "Respiratory Ventilation, Greater than 96 Consecutive Hours", weight: 1}
+    - {code: "02HV33Z", title: "Insertion of Infusion Device into Superior Vena Cava, Percutaneous Approach", weight: 4}
+    - {code: "03HY32Z", title: "Insertion of Monitoring Device into Upper Artery, Percutaneous Approach", weight: 2}
+    - {code: "5A1D70Z", title: "Performance of Urinary Filtration, Intermittent, Less than 6 Hours Per Day", weight: 2}
+    - {code: "30233N1", title: "Transfusion of Nonautologous Red Blood Cells into Peripheral Vein, Percutaneous Approach", weight: 3}
+    - {code: "02703DZ", title: "Dilation of Coronary Artery, One Artery with Intraluminal Device, Percutaneous Approach", weight: 1}
+    - {code: "4A023N7", title: "Measurement of Cardiac Sampling and Pressure, Left Heart, Percutaneous Approach", weight: 2}
+    - {code: "B2111ZZ", title: "Fluoroscopy of Multiple Coronary Arteries using Low Osmolar Contrast", weight: 2}
+    - {code: "0DJ08ZZ", title: "Inspection of Upper Intestinal Tract, Via Natural or Artificial Opening Endoscopic", weight: 2}
+    - {code: "0W9G3ZZ", title: "Drainage of Peritoneal Cavity, Percutaneous Approach", weight: 1}

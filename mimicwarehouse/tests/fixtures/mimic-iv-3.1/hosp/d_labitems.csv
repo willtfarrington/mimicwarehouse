@@ -1,0 +1,46 @@
+itemid,label,fluid,category
+50802,Base Excess,Blood,Blood Gas
+50813,Lactate,Blood,Blood Gas
+50817,Oxygen Saturation,Blood,Blood Gas
+50818,pCO2,Blood,Blood Gas
+50820,pH,Blood,Blood Gas
+50821,pO2,Blood,Blood Gas
+50861,Alanine Aminotransferase (ALT),Blood,Chemistry
+50862,Albumin,Blood,Chemistry
+50863,Alkaline Phosphatase,Blood,Chemistry
+50868,Anion Gap,Blood,Chemistry
+50878,Asparate Aminotransferase (AST),Blood,Chemistry
+50882,Bicarbonate,Blood,Chemistry
+50885,"Bilirubin, Total",Blood,Chemistry
+50889,C-Reactive Protein,Blood,Chemistry
+50893,"Calcium, Total",Blood,Chemistry
+50902,Chloride,Blood,Chemistry
+50912,Creatinine,Blood,Chemistry
+50931,Glucose,Blood,Chemistry
+50954,Lactate Dehydrogenase (LD),Blood,Chemistry
+50960,Magnesium,Blood,Chemistry
+50963,NTproBNP,Blood,Chemistry
+50970,Phosphate,Blood,Chemistry
+50971,Potassium,Blood,Chemistry
+50983,Sodium,Blood,Chemistry
+51003,Troponin T,Blood,Chemistry
+51006,Urea Nitrogen,Blood,Chemistry
+51196,D-Dimer,Blood,Hematology
+51214,"Fibrinogen, Functional",Blood,Hematology
+51221,Hematocrit,Blood,Hematology
+51222,Hemoglobin,Blood,Hematology
+51237,INR(PT),Blood,Hematology
+51244,Lymphocytes,Blood,Hematology
+51248,MCH,Blood,Hematology
+51249,MCHC,Blood,Hematology
+51250,MCV,Blood,Hematology
+51256,Neutrophils,Blood,Hematology
+51265,Platelet Count,Blood,Hematology
+51274,PT,Blood,Hematology
+51275,PTT,Blood,Hematology
+51277,RDW,Blood,Hematology
+51279,Red Blood Cells,Blood,Hematology
+51301,White Blood Cells,Blood,Hematology
+51464,Bilirubin,Urine,Hematology
+51491,pH,Urine,Hematology
+51498,Specific Gravity,Urine,Hematology

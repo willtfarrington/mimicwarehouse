@@ -1,0 +1,13 @@
+code,category,long_description,short_description
+31500,1,"Intubation, endotracheal, emergency procedure",Insert emergency airway
+36556,1,Insertion of non-tunneled centrally inserted central venous catheter; age 5 years or older,Insert non-tunnel cv cath
+71046,1,"Radiologic examination, chest; 2 views",X-ray exam chest 2 views
+90935,1,Hemodialysis procedure with single evaluation by a physician or other qualified health care professional,Hemodialysis one evaluation
+93000,1,"Electrocardiogram, routine ECG with at least 12 leads; with interpretation and report",Electrocardiogram complete
+94002,1,"Ventilation assist and management, initiation of pressure or volume preset ventilators for assisted or controlled breathing; hospital inpatient/observation, initial day",Vent mgmt inpat init day
+99223,1,"Initial hospital inpatient or observation care, per day, high level of medical decision making",Initial hospital care
+99233,1,"Subsequent hospital inpatient or observation care, per day, high level of medical decision making",Subsequent hospital care
+99239,1,Hospital inpatient or observation discharge day management; more than 30 minutes,Hospital discharge day
+99291,1,"Critical care, evaluation and management of the critically ill or critically injured patient; first 30-74 minutes",Critical care first hour
+C1751,2,"Catheter, infusion, inserted peripherally, centrally or midline (other than hemodialysis)",Cath infusion inserted periph
+G0378,2,"Hospital observation service, per hour",Hospital observation per hr

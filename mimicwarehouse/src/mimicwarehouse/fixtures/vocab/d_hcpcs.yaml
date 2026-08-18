@@ -1,0 +1,17 @@
+# mimicwarehouse fixture seed - d_hcpcs (EP-11). Hand-typed from the public CPT/HCPCS
+# short-description lists (CMS), never from `source material/`. `category` follows the
+# MIMIC-IV column (small integer code category).
+version_note: "12 HCPCS/CPT codes for the fixture, typed 2026-08-18 (EP-11)."
+items:
+  - {code: "99291", category: 1, long_description: "Critical care, evaluation and management of the critically ill or critically injured patient; first 30-74 minutes", short_description: "Critical care first hour"}
+  - {code: "99223", category: 1, long_description: "Initial hospital inpatient or observation care, per day, high level of medical decision making", short_description: "Initial hospital care"}
+  - {code: "99233", category: 1, long_description: "Subsequent hospital inpatient or observation care, per day, high level of medical decision making", short_description: "Subsequent hospital care"}
+  - {code: "99239", category: 1, long_description: "Hospital inpatient or observation discharge day management; more than 30 minutes", short_description: "Hospital discharge day"}
+  - {code: "36556", category: 1, long_description: "Insertion of non-tunneled centrally inserted central venous catheter; age 5 years or older", short_description: "Insert non-tunnel cv cath"}
+  - {code: "31500", category: 1, long_description: "Intubation, endotracheal, emergency procedure", short_description: "Insert emergency airway"}
+  - {code: "94002", category: 1, long_description: "Ventilation assist and management, initiation of pressure or volume preset ventilators for assisted or controlled breathing; hospital inpatient/observation, initial day", short_description: "Vent mgmt inpat init day"}
+  - {code: "90935", category: 1, long_description: "Hemodialysis procedure with single evaluation by a physician or other qualified health care professional", short_description: "Hemodialysis one evaluation"}
+  - {code: "71046", category: 1, long_description: "Radiologic examination, chest; 2 views", short_description: "X-ray exam chest 2 views"}
+  - {code: "93000", category: 1, long_description: "Electrocardiogram, routine ECG with at least 12 leads; with interpretation and report", short_description: "Electrocardiogram complete"}
+  - {code: "G0378", category: 2, long_description: "Hospital observation service, per hour", short_description: "Hospital observation per hr"}
+  - {code: "C1751", category: 2, long_description: "Catheter, infusion, inserted peripherally, centrally or midline (other than hemodialysis)", short_description: "Cath infusion inserted periph"}

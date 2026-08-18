@@ -1,0 +1,25 @@
+icd_code,icd_version,long_title
+0066,9,Percutaneous transluminal coronary angioplasty [PTCA]
+02703DZ,10,"Dilation of Coronary Artery, One Artery with Intraluminal Device, Percutaneous Approach"
+02HV33Z,10,"Insertion of Infusion Device into Superior Vena Cava, Percutaneous Approach"
+03HY32Z,10,"Insertion of Monitoring Device into Upper Artery, Percutaneous Approach"
+0BH17EZ,10,"Insertion of Endotracheal Airway into Trachea, Via Natural or Artificial Opening"
+0DJ08ZZ,10,"Inspection of Upper Intestinal Tract, Via Natural or Artificial Opening Endoscopic"
+0W9G3ZZ,10,"Drainage of Peritoneal Cavity, Percutaneous Approach"
+30233N1,10,"Transfusion of Nonautologous Red Blood Cells into Peripheral Vein, Percutaneous Approach"
+3722,9,Left heart cardiac catheterization
+3891,9,Arterial catheterization
+3893,9,"Venous catheterization, not elsewhere classified"
+3995,9,Hemodialysis
+4513,9,Other endoscopy of small intestine
+4A023N7,10,"Measurement of Cardiac Sampling and Pressure, Left Heart, Percutaneous Approach"
+5491,9,Percutaneous abdominal drainage
+5A1945Z,10,"Respiratory Ventilation, 24-96 Consecutive Hours"
+5A1955Z,10,"Respiratory Ventilation, Greater than 96 Consecutive Hours"
+5A1D70Z,10,"Performance of Urinary Filtration, Intermittent, Less than 6 Hours Per Day"
+8856,9,Coronary arteriography using two catheters
+9604,9,Insertion of endotracheal tube
+9671,9,Continuous invasive mechanical ventilation for less than 96 consecutive hours
+9672,9,Continuous invasive mechanical ventilation for 96 consecutive hours or more
+9904,9,Transfusion of packed cells
+B2111ZZ,10,Fluoroscopy of Multiple Coronary Arteries using Low Osmolar Contrast

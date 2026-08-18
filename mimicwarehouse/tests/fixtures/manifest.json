@@ -1,0 +1,201 @@
+{
+  "generator": "mimicwarehouse.fixtures",
+  "generator_version": "0.1.0",
+  "seed": 2026,
+  "spec": {
+    "seed": 2026,
+    "n_subjects": 120,
+    "first_subject_id": 90000000,
+    "first_hadm_id": 90000000,
+    "first_stay_id": 90000000,
+    "first_event_id": 90000000,
+    "admissions_per_subject_mean": 1.5,
+    "max_admissions_per_subject": 5,
+    "icu_fraction": 0.4,
+    "mortality_rate": 0.08,
+    "dod_fraction": 0.15,
+    "ed_fraction": 0.5,
+    "labs_per_admission": 40,
+    "outpatient_lab_fraction": 0.2,
+    "n_providers": 40,
+    "anchor_year_range": [
+      2110,
+      2200
+    ],
+    "anchor_age_range": [
+      18,
+      88
+    ],
+    "age_cap_fraction": 0.04,
+    "los_days": [
+      1.0,
+      20.0
+    ],
+    "los_lognormal": [
+      1.252762968495368,
+      0.7
+    ],
+    "planted_per_trait": 6
+  },
+  "contract_hash": "e4cd5aa908d1df1caeb3a737308e7ad9f08b6548478a907a24779e0bbc6dd02b",
+  "regenerate": "uv run --group dev mwh fixtures build",
+  "id_floor": 90000000,
+  "files": {
+    "mimic-iv-3.1/hosp/admissions.csv": {
+      "sha256": "ed5d397ab1e5b300519aad81a9d6e7dc3ffffe9b88d7508ccaf06ac7929e946d",
+      "bytes": 31264,
+      "rows": 186,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/d_hcpcs.csv": {
+      "sha256": "6d9bcdfb39c9296ecd373128a5b97970dda78fae8ae10794df59e03e83047a0d",
+      "bytes": 1524,
+      "rows": 12,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/d_icd_diagnoses.csv": {
+      "sha256": "32b8c5f3325576b2bd6f20543150e2d654d9f34118e0e4cd6bfbf123a291797d",
+      "bytes": 5086,
+      "rows": 108,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/d_icd_procedures.csv": {
+      "sha256": "93e3895b07554a2a7538981f36e9672c768c7e4e5dd67191b0d0fc97fd9c4b6f",
+      "bytes": 1645,
+      "rows": 24,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/d_labitems.csv": {
+      "sha256": "fac7d7842b971146500d63720c346f863ceb754b1ea26e08da6c3a8c86897117",
+      "bytes": 1572,
+      "rows": 45,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/diagnoses_icd.csv": {
+      "sha256": "c674c5aa48e1e941954fc85fa13d9ed7c60725df7c37d63106f182f3cac6ff2e",
+      "bytes": 39045,
+      "rows": 1400,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/drgcodes.csv": {
+      "sha256": "31b821028e0f3e59c5c481a686a098edc46171943ca50aa977867db4fb07d96d",
+      "bytes": 23333,
+      "rows": 356,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/emar.csv": {
+      "sha256": "068d0b4a05e02177182fbcaf3c67bba8b5863203dbf52311d19644417cc8f680",
+      "bytes": 406089,
+      "rows": 2872,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/emar_detail.csv": {
+      "sha256": "49831d302c6afa8100f308e27dfba13d566d16b376894e256240234ebeea0f73",
+      "bytes": 580323,
+      "rows": 5586,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/hcpcsevents.csv": {
+      "sha256": "f929368c5a20e150b0b6cf65e959c2f691643e8a0a2478ba094f62dea16a274c",
+      "bytes": 6977,
+      "rows": 110,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/labevents.csv": {
+      "sha256": "6e601ad6e7021a9a6fe01f29e48e77aaf2016f4d6c7d96434cf938ef3f73cc35",
+      "bytes": 1178969,
+      "rows": 9619,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/microbiologyevents.csv": {
+      "sha256": "2ca07bb7a818500284c513f275fb097264ba4c4a36a4175ae3572a2ce0aab13e",
+      "bytes": 45206,
+      "rows": 212,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/omr.csv": {
+      "sha256": "24694e596efea6b91ccb4b5f8023f6e87124572d1a3ae9a0e3ece757a48aedda",
+      "bytes": 44351,
+      "rows": 1066,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/patients.csv": {
+      "sha256": "74fd44ae4488f5aa44726c94e60e8b584d1506b1550922b7d339ed3aab62b00c",
+      "bytes": 4183,
+      "rows": 120,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/pharmacy.csv": {
+      "sha256": "f4351fa4e48618b55dd2c732fc340ffa2fcdba50864484fa4cc298f21c777f32",
+      "bytes": 185516,
+      "rows": 958,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/poe.csv": {
+      "sha256": "4e3f052ea8dbe97881eec9f6b19d8edab8d4b07c7bfb07267edef20f9d444ab5",
+      "bytes": 189771,
+      "rows": 2028,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/poe_detail.csv": {
+      "sha256": "8e2a41912fd025cee25372ce0015c62220c6617455e5723083709ef219b3d77d",
+      "bytes": 49011,
+      "rows": 1066,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/prescriptions.csv": {
+      "sha256": "2ecb3087fb7ec71f1f4252cac8a20b6027904457216666937f5f6d9f736dfd80",
+      "bytes": 195838,
+      "rows": 1141,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/procedures_icd.csv": {
+      "sha256": "fa0f8acb0ec166fb6b92ec4dae2d3452cae1d3159fdcbb837445562403a7eee3",
+      "bytes": 7432,
+      "rows": 185,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/provider.csv": {
+      "sha256": "1b87c2e6fb525a3478cc2f0311e8e15e42c8fa7c61963b0bcc346cc3eb2dcb14",
+      "bytes": 292,
+      "rows": 40,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/services.csv": {
+      "sha256": "11cfaa2d6027228ce856f2d856473d7941b1fc799ba6d98c44d0966f2d1e3cb0",
+      "bytes": 9618,
+      "rows": 216,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    },
+    "mimic-iv-3.1/hosp/transfers.csv": {
+      "sha256": "dcc8a3d5d8155a8c662f25e033db98d7ed25d8b70a6868b514af0c750d63d401",
+      "bytes": 49444,
+      "rows": 604,
+      "seed": 2026,
+      "generator_version": "0.1.0"
+    }
+  },
+  "total_bytes": 3056489,
+  "total_rows": 27954
+}

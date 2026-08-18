@@ -1,0 +1,74 @@
+# mimicwarehouse fixture seed - d_labitems (EP-11).
+#
+# Hand-typed from public documentation (mimic.mit.edu d_labitems, the vendored mimic-code
+# measurement concepts) - never from `source material/`. Real itemids are used on purpose:
+# concepts (EP-37) and phenotypes (EP-41/42) look labs up by number. Ranges are coarse
+# "plausible" sampling bounds (low/high) plus the reference range the fixture writes into
+# labevents.ref_range_lower / ref_range_upper; `decimals` fixes the text form of `value`.
+# `panel` groups items into specimen draws; `text_values` items carry no valuenum.
+version_note: "MIMIC-IV 3.1 d_labitems subset (~44 items), typed 2026-08-18 (EP-11)."
+items:
+  # ---- Chemistry (Blood) ----
+  - {itemid: 50862, label: "Albumin", fluid: Blood, category: Chemistry, valueuom: "g/dL", decimals: 1, low: 2.0, high: 5.0, ref_lower: 3.5, ref_upper: 5.2, panel: chem}
+  - {itemid: 50868, label: "Anion Gap", fluid: Blood, category: Chemistry, valueuom: "mEq/L", decimals: 0, low: 6, high: 26, ref_lower: 8, ref_upper: 20, panel: bmp}
+  - {itemid: 50882, label: "Bicarbonate", fluid: Blood, category: Chemistry, valueuom: "mEq/L", decimals: 0, low: 14, high: 34, ref_lower: 22, ref_upper: 32, panel: bmp}
+  - {itemid: 50885, label: "Bilirubin, Total", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 1, low: 0.2, high: 4.0, ref_lower: 0.0, ref_upper: 1.5, panel: lft}
+  - {itemid: 50893, label: "Calcium, Total", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 1, low: 7.4, high: 10.8, ref_lower: 8.4, ref_upper: 10.3, panel: chem}
+  - {itemid: 50902, label: "Chloride", fluid: Blood, category: Chemistry, valueuom: "mEq/L", decimals: 0, low: 92, high: 114, ref_lower: 96, ref_upper: 108, panel: bmp}
+  - {itemid: 50912, label: "Creatinine", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 1, low: 0.5, high: 2.4, ref_lower: 0.4, ref_upper: 1.1, panel: bmp}
+  - {itemid: 50931, label: "Glucose", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 0, low: 70, high: 220, ref_lower: 70, ref_upper: 100, panel: bmp}
+  - {itemid: 50960, label: "Magnesium", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 1, low: 1.3, high: 2.9, ref_lower: 1.6, ref_upper: 2.6, panel: chem}
+  - {itemid: 50970, label: "Phosphate", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 1, low: 2.0, high: 6.0, ref_lower: 2.7, ref_upper: 4.5, panel: chem}
+  - {itemid: 50971, label: "Potassium", fluid: Blood, category: Chemistry, valueuom: "mEq/L", decimals: 1, low: 3.0, high: 5.8, ref_lower: 3.3, ref_upper: 5.1, panel: bmp}
+  - {itemid: 50983, label: "Sodium", fluid: Blood, category: Chemistry, valueuom: "mEq/L", decimals: 0, low: 128, high: 150, ref_lower: 133, ref_upper: 145, panel: bmp}
+  - {itemid: 51006, label: "Urea Nitrogen", fluid: Blood, category: Chemistry, valueuom: "mg/dL", decimals: 0, low: 5, high: 60, ref_lower: 6, ref_upper: 20, panel: bmp}
+  - {itemid: 50861, label: "Alanine Aminotransferase (ALT)", fluid: Blood, category: Chemistry, valueuom: "IU/L", decimals: 0, low: 8, high: 120, ref_lower: 0, ref_upper: 40, panel: lft}
+  - {itemid: 50878, label: "Asparate Aminotransferase (AST)", fluid: Blood, category: Chemistry, valueuom: "IU/L", decimals: 0, low: 10, high: 140, ref_lower: 0, ref_upper: 40, panel: lft}
+  - {itemid: 50863, label: "Alkaline Phosphatase", fluid: Blood, category: Chemistry, valueuom: "IU/L", decimals: 0, low: 35, high: 220, ref_lower: 40, ref_upper: 130, panel: lft}
+  - {itemid: 51003, label: "Troponin T", fluid: Blood, category: Chemistry, valueuom: "ng/mL", decimals: 2, low: 0.01, high: 0.60, ref_lower: 0.0, ref_upper: 0.01, panel: cardiac, below_detection: "<0.01", below_detection_prob: 0.5}
+  - {itemid: 50889, label: "C-Reactive Protein", fluid: Blood, category: Chemistry, valueuom: "mg/L", decimals: 1, low: 0.5, high: 120.0, ref_lower: 0.0, ref_upper: 5.0, panel: inflam}
+  - {itemid: 50963, label: "NTproBNP", fluid: Blood, category: Chemistry, valueuom: "pg/mL", decimals: 0, low: 50, high: 6000, ref_lower: 0, ref_upper: 900, panel: cardiac}
+  - {itemid: 50954, label: "Lactate Dehydrogenase (LD)", fluid: Blood, category: Chemistry, valueuom: "IU/L", decimals: 0, low: 100, high: 500, ref_lower: 94, ref_upper: 250, panel: lft}
+  # ---- Blood Gas (Blood) ----
+  - {itemid: 50813, label: "Lactate", fluid: Blood, category: "Blood Gas", valueuom: "mmol/L", decimals: 1, low: 0.5, high: 5.0, ref_lower: 0.5, ref_upper: 2.0, panel: bg}
+  - {itemid: 50820, label: "pH", fluid: Blood, category: "Blood Gas", valueuom: units, decimals: 2, low: 7.20, high: 7.52, ref_lower: 7.35, ref_upper: 7.45, panel: bg}
+  - {itemid: 50818, label: "pCO2", fluid: Blood, category: "Blood Gas", valueuom: "mm Hg", decimals: 0, low: 28, high: 62, ref_lower: 35, ref_upper: 45, panel: bg}
+  - {itemid: 50821, label: "pO2", fluid: Blood, category: "Blood Gas", valueuom: "mm Hg", decimals: 0, low: 55, high: 160, ref_lower: 85, ref_upper: 105, panel: bg}
+  - {itemid: 50802, label: "Base Excess", fluid: Blood, category: "Blood Gas", valueuom: "mEq/L", decimals: 0, low: -8, high: 6, ref_lower: -3, ref_upper: 3, panel: bg}
+  - {itemid: 50817, label: "Oxygen Saturation", fluid: Blood, category: "Blood Gas", valueuom: "%", decimals: 0, low: 86, high: 100, ref_lower: 95, ref_upper: 100, panel: bg}
+  # ---- Hematology (Blood) ----
+  - {itemid: 51301, label: "White Blood Cells", fluid: Blood, category: Hematology, valueuom: "K/uL", decimals: 1, low: 3.0, high: 18.0, ref_lower: 4.0, ref_upper: 11.0, panel: cbc}
+  - {itemid: 51222, label: "Hemoglobin", fluid: Blood, category: Hematology, valueuom: "g/dL", decimals: 1, low: 7.0, high: 16.5, ref_lower: 12.0, ref_upper: 16.0, panel: cbc}
+  - {itemid: 51221, label: "Hematocrit", fluid: Blood, category: Hematology, valueuom: "%", decimals: 1, low: 22.0, high: 49.0, ref_lower: 36.0, ref_upper: 48.0, panel: cbc}
+  - {itemid: 51265, label: "Platelet Count", fluid: Blood, category: Hematology, valueuom: "K/uL", decimals: 0, low: 60, high: 450, ref_lower: 150, ref_upper: 400, panel: cbc}
+  - {itemid: 51279, label: "Red Blood Cells", fluid: Blood, category: Hematology, valueuom: "m/uL", decimals: 2, low: 2.6, high: 5.8, ref_lower: 4.2, ref_upper: 5.9, panel: cbc}
+  - {itemid: 51250, label: "MCV", fluid: Blood, category: Hematology, valueuom: fL, decimals: 0, low: 74, high: 106, ref_lower: 82, ref_upper: 98, panel: cbc}
+  - {itemid: 51248, label: "MCH", fluid: Blood, category: Hematology, valueuom: pg, decimals: 1, low: 24.0, high: 35.0, ref_lower: 27.0, ref_upper: 32.0, panel: cbc}
+  - {itemid: 51249, label: "MCHC", fluid: Blood, category: Hematology, valueuom: "%", decimals: 1, low: 29.0, high: 36.0, ref_lower: 31.0, ref_upper: 35.0, panel: cbc}
+  - {itemid: 51277, label: "RDW", fluid: Blood, category: Hematology, valueuom: "%", decimals: 1, low: 11.0, high: 20.0, ref_lower: 10.5, ref_upper: 15.5, panel: cbc}
+  - {itemid: 51256, label: "Neutrophils", fluid: Blood, category: Hematology, valueuom: "%", decimals: 1, low: 40.0, high: 92.0, ref_lower: 50.0, ref_upper: 70.0, panel: diff}
+  - {itemid: 51244, label: "Lymphocytes", fluid: Blood, category: Hematology, valueuom: "%", decimals: 1, low: 4.0, high: 45.0, ref_lower: 18.0, ref_upper: 42.0, panel: diff}
+  - {itemid: 51237, label: "INR(PT)", fluid: Blood, category: Hematology, valueuom: null, decimals: 1, low: 0.9, high: 3.5, ref_lower: 0.9, ref_upper: 1.1, panel: coag}
+  - {itemid: 51274, label: "PT", fluid: Blood, category: Hematology, valueuom: sec, decimals: 1, low: 9.5, high: 30.0, ref_lower: 9.4, ref_upper: 12.5, panel: coag}
+  - {itemid: 51275, label: "PTT", fluid: Blood, category: Hematology, valueuom: sec, decimals: 1, low: 22.0, high: 80.0, ref_lower: 25.0, ref_upper: 36.5, panel: coag}
+  - {itemid: 51214, label: "Fibrinogen, Functional", fluid: Blood, category: Hematology, valueuom: "mg/dL", decimals: 0, low: 120, high: 700, ref_lower: 150, ref_upper: 400, panel: coag}
+  - {itemid: 51196, label: "D-Dimer", fluid: Blood, category: Hematology, valueuom: "ng/mL", decimals: 0, low: 150, high: 5000, ref_lower: 0, ref_upper: 500, panel: coag}
+  # ---- Urine ----
+  - {itemid: 51498, label: "Specific Gravity", fluid: Urine, category: Hematology, valueuom: null, decimals: 3, low: 1.003, high: 1.032, ref_lower: 1.001, ref_upper: 1.035, panel: ua}
+  - {itemid: 51491, label: "pH", fluid: Urine, category: Hematology, valueuom: units, decimals: 1, low: 5.0, high: 8.0, ref_lower: 5.0, ref_upper: 8.0, panel: ua}
+  - {itemid: 51464, label: "Bilirubin", fluid: Urine, category: Hematology, valueuom: null, decimals: 0, low: 0, high: 0, ref_lower: null, ref_upper: null, panel: ua, text_values: [NEG, NEG, NEG, SM, MOD]}
+# Specimen panels: which items are drawn together (one specimen_id per draw).
+panels:
+  bmp: [50983, 50971, 50902, 50882, 50868, 51006, 50912, 50931]
+  chem: [50893, 50960, 50970, 50862]
+  lft: [50861, 50878, 50863, 50885, 50954]
+  cbc: [51301, 51222, 51221, 51265, 51279, 51250, 51248, 51249, 51277]
+  diff: [51256, 51244]
+  coag: [51274, 51237, 51275, 51214, 51196]
+  bg: [50820, 50818, 50821, 50802, 50817, 50813]
+  cardiac: [51003, 50963]
+  inflam: [50889]
+  ua: [51498, 51491, 51464]
+# Draw weights per admission (relative frequency of each panel); the outpatient draws use
+# only the first four.
+panel_weights: {bmp: 6, cbc: 5, chem: 2, lft: 2, coag: 2, bg: 2, cardiac: 1, inflam: 1, diff: 1, ua: 1}
