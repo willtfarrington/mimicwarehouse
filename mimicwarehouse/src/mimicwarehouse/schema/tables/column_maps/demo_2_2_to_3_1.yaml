@@ -1,0 +1,70 @@
+# mimicwarehouse schema contract - column map: MIMIC-IV Demo 2.2 (+ MIMIC-IV-ED Demo 2.2) -> the
+# 3.1 / ED 2.2 contract (EP-9, D-27; used by the EP-22 demo tier loader).
+#
+# Result: the map is the IDENTITY for all 31 hosp/icu tables and all 6 ED tables. The EP-9
+# brief expected the demo to lack provider / caregiver and the *_provider_id / caregiver_id
+# columns; the evidence says otherwise, so those "expected differences" were verified and
+# rejected (see `derivation`). EP-22 still validates this map against the real demo headers in
+# code (ColumnMap.check) before loading - never by printing them.
+name: demo_2_2
+description: "MIMIC-IV Clinical Database Demo v2.2 and MIMIC-IV-ED Demo v2.2 CSV headers mapped onto the MIMIC-IV 3.1 / MIMIC-IV-ED 2.2 contract."
+source_versions: {mimic-iv-demo: "2.2", mimic-iv-ed-demo: "2.2"}
+target_versions: {mimic-iv: "3.1", mimic-iv-ed: "2.2"}
+derivation: >-
+  Derived 2026-08-17 (EP-9) from the EP-8 mimic-code clone at the pinned sha, three ways:
+  (1) `git log -- mimic-iv/buildmimic/postgres/create.sql`: the provider and caregiver tables and
+  every *_provider_id / caregiver_id column were ADDED by commit db74e5d ("update create and load
+  psql scripts for v2.2", 2023-01-06) - i.e. they are part of MIMIC-IV v2.2, not v3.0; the only
+  DDL change between db74e5d and the pinned 3.1 DDL is admissions.language VARCHAR(10) ->
+  VARCHAR(25) (b52db56, 2024-08-08), a width change with no effect on the contract;
+  (2) PhysioNet's public file listing for mimic-iv-demo/2.2 shows hosp/provider.csv.gz and
+  icu/caregiver.csv.gz among the 22 + 9 files, and the v3.0 / v3.1 release notes list no
+  column additions, renames or removals (v3.0 added 2020-2022 stays and standardised language /
+  insurance values; v3.1 fixed itemids and two orphan subject_ids);
+  (3) mimic-iv-ed/buildmimic/postgres/create.sql is unchanged since the v2.0 update (2022-07) and
+  the ED demo is v2.2, the same release our ED source is. Hence identity everywhere;
+  MIMIC-IV-Note has no demo release.
+schemas: [mimiciv_hosp, mimiciv_icu, mimiciv_ed]
+schemas_absent_in_source: [mimiciv_note]
+identity_tables:
+  - mimiciv_hosp.admissions
+  - mimiciv_hosp.d_hcpcs
+  - mimiciv_hosp.diagnoses_icd
+  - mimiciv_hosp.d_icd_diagnoses
+  - mimiciv_hosp.d_icd_procedures
+  - mimiciv_hosp.d_labitems
+  - mimiciv_hosp.drgcodes
+  - mimiciv_hosp.emar_detail
+  - mimiciv_hosp.emar
+  - mimiciv_hosp.hcpcsevents
+  - mimiciv_hosp.labevents
+  - mimiciv_hosp.microbiologyevents
+  - mimiciv_hosp.omr
+  - mimiciv_hosp.patients
+  - mimiciv_hosp.pharmacy
+  - mimiciv_hosp.poe_detail
+  - mimiciv_hosp.poe
+  - mimiciv_hosp.prescriptions
+  - mimiciv_hosp.procedures_icd
+  - mimiciv_hosp.provider
+  - mimiciv_hosp.services
+  - mimiciv_hosp.transfers
+  - mimiciv_icu.caregiver
+  - mimiciv_icu.chartevents
+  - mimiciv_icu.datetimeevents
+  - mimiciv_icu.d_items
+  - mimiciv_icu.icustays
+  - mimiciv_icu.ingredientevents
+  - mimiciv_icu.inputevents
+  - mimiciv_icu.outputevents
+  - mimiciv_icu.procedureevents
+  - mimiciv_ed.diagnosis
+  - mimiciv_ed.edstays
+  - mimiciv_ed.medrecon
+  - mimiciv_ed.pyxis
+  - mimiciv_ed.triage
+  - mimiciv_ed.vitalsign
+# Tables whose demo header differs from the contract: none. Shape when needed:
+#   mimiciv_hosp.<table>: {added_in_3_1: [col, ...], renamed: {old: new}, dropped_in_3_1: [col, ...]}
+tables: {}
+tables_absent_in_2_2: []

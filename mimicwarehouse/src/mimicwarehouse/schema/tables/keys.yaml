@@ -1,0 +1,152 @@
+# mimicwarehouse schema contract - keys (EP-9).
+#
+# primary_keys: exactly what the vendored mimic-code constraint.sql declares (hosp/icu); null
+#   where upstream declares none - including tables that are obviously unique on one column
+#   (provider, caregiver): the contract records upstream truth, EP-28/EP-44 test candidates.
+#   ED and Note have no upstream constraint file, so every ED/Note primary key is null.
+# uniqueness_hints: candidate unique column sets for tables without a declared PK, from the
+#   MIMIC documentation - to be *tested* by the integrity tests, never asserted. Known caveats
+#   are in the table comments (chartevents has upstream duplicates).
+# foreign_keys: `source: constraint.sql` rows are verbatim from the vendored file (order kept)
+#   and are drift-checked; `source: docs` rows tie ED / Note into hosp per the MIMIC-IV-ED /
+#   -Note documentation (no upstream constraint file exists) and are not drift-checked. Further
+#   documented links inside hosp/icu (provider ids, emar -> pharmacy/poe, transfers -> admissions
+#   ...) are left to EP-28's integrity tests.
+# Keys are metadata: Table.duckdb_ddl() never emits PRIMARY KEY / FOREIGN KEY constraints.
+version_note: "MIMIC-IV 3.1 (mimic-code constraint.sql @ EP-8 pin) + MIMIC-IV-ED 2.2 + MIMIC-IV-Note 2.2 documented keys; curated 2026-08-17 (EP-9)."
+
+primary_keys:
+  # hosp (constraint.sql)
+  mimiciv_hosp.admissions: [hadm_id]
+  mimiciv_hosp.d_hcpcs: [code]
+  mimiciv_hosp.diagnoses_icd: [hadm_id, seq_num, icd_code, icd_version]
+  mimiciv_hosp.d_icd_diagnoses: [icd_code, icd_version]
+  mimiciv_hosp.d_icd_procedures: [icd_code, icd_version]
+  mimiciv_hosp.d_labitems: [itemid]
+  mimiciv_hosp.drgcodes: null
+  mimiciv_hosp.emar_detail: null
+  mimiciv_hosp.emar: [emar_id]
+  mimiciv_hosp.hcpcsevents: [hadm_id, hcpcs_cd, seq_num]
+  mimiciv_hosp.labevents: [labevent_id]
+  mimiciv_hosp.microbiologyevents: [microevent_id]
+  mimiciv_hosp.omr: null
+  mimiciv_hosp.patients: [subject_id]
+  mimiciv_hosp.pharmacy: [pharmacy_id]
+  mimiciv_hosp.poe_detail: [poe_id, field_name]
+  mimiciv_hosp.poe: [poe_id]
+  mimiciv_hosp.prescriptions: [pharmacy_id, drug_type, drug]
+  mimiciv_hosp.procedures_icd: [hadm_id, seq_num, icd_code, icd_version]
+  mimiciv_hosp.provider: null
+  mimiciv_hosp.services: [hadm_id, transfertime, curr_service]
+  mimiciv_hosp.transfers: [transfer_id]
+  # icu (constraint.sql)
+  mimiciv_icu.caregiver: null
+  mimiciv_icu.chartevents: null
+  mimiciv_icu.datetimeevents: [stay_id, itemid, charttime]
+  mimiciv_icu.d_items: [itemid]
+  mimiciv_icu.icustays: [stay_id]
+  mimiciv_icu.ingredientevents: null
+  mimiciv_icu.inputevents: [orderid, itemid]
+  mimiciv_icu.outputevents: [stay_id, charttime, itemid]
+  mimiciv_icu.procedureevents: [orderid]
+  # ed (no upstream constraint file)
+  mimiciv_ed.diagnosis: null
+  mimiciv_ed.edstays: null
+  mimiciv_ed.medrecon: null
+  mimiciv_ed.pyxis: null
+  mimiciv_ed.triage: null
+  mimiciv_ed.vitalsign: null
+  # note (no upstream constraint file)
+  mimiciv_note.discharge: null
+  mimiciv_note.radiology: null
+  mimiciv_note.discharge_detail: null
+  mimiciv_note.radiology_detail: null
+
+uniqueness_hints:
+  mimiciv_hosp.drgcodes: [hadm_id, drg_type, drg_code]
+  mimiciv_hosp.emar_detail: [emar_id, parent_field_ordinal]
+  mimiciv_hosp.omr: [subject_id, chartdate, seq_num, result_name]
+  mimiciv_hosp.provider: [provider_id]
+  mimiciv_icu.caregiver: [caregiver_id]
+  mimiciv_icu.chartevents: [stay_id, charttime, itemid]
+  mimiciv_icu.ingredientevents: [orderid, itemid]
+  mimiciv_ed.diagnosis: [stay_id, seq_num]
+  mimiciv_ed.edstays: [stay_id]
+  mimiciv_ed.medrecon: [stay_id, charttime, name, gsn, etc_rn]
+  mimiciv_ed.pyxis: [stay_id, charttime, med_rn, gsn_rn]
+  mimiciv_ed.triage: [stay_id]
+  mimiciv_ed.vitalsign: [stay_id, charttime]
+  mimiciv_note.discharge: [note_id]
+  mimiciv_note.radiology: [note_id]
+  mimiciv_note.discharge_detail: [note_id, field_name, field_ordinal]
+  mimiciv_note.radiology_detail: [note_id, field_name, field_ordinal]
+
+foreign_keys:
+  # ---- hosp (constraint.sql, in file order) ----
+  - {name: admissions_patients_fk, table: mimiciv_hosp.admissions, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: diagnoses_icd_patients_fk, table: mimiciv_hosp.diagnoses_icd, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: diagnoses_icd_admissions_fk, table: mimiciv_hosp.diagnoses_icd, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: drgcodes_patients_fk, table: mimiciv_hosp.drgcodes, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: drgcodes_admissions_fk, table: mimiciv_hosp.drgcodes, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: emar_detail_patients_fk, table: mimiciv_hosp.emar_detail, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: emar_detail_emar_fk, table: mimiciv_hosp.emar_detail, columns: [emar_id], ref_table: mimiciv_hosp.emar, ref_columns: [emar_id]}
+  - {name: emar_patients_fk, table: mimiciv_hosp.emar, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: emar_admissions_fk, table: mimiciv_hosp.emar, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: hcpcsevents_patients_fk, table: mimiciv_hosp.hcpcsevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: hcpcsevents_admissions_fk, table: mimiciv_hosp.hcpcsevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: hcpcsevents_d_hcpcs_fk, table: mimiciv_hosp.hcpcsevents, columns: [hcpcs_cd], ref_table: mimiciv_hosp.d_hcpcs, ref_columns: [code]}
+  - {name: labevents_patients_fk, table: mimiciv_hosp.labevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: labevents_d_labitems_fk, table: mimiciv_hosp.labevents, columns: [itemid], ref_table: mimiciv_hosp.d_labitems, ref_columns: [itemid]}
+  - {name: microbiologyevents_patients_fk, table: mimiciv_hosp.microbiologyevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: microbiologyevents_admissions_fk, table: mimiciv_hosp.microbiologyevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: pharmacy_patients_fk, table: mimiciv_hosp.pharmacy, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: pharmacy_admissions_fk, table: mimiciv_hosp.pharmacy, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: poe_detail_patients_fk, table: mimiciv_hosp.poe_detail, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: poe_detail_poe_fk, table: mimiciv_hosp.poe_detail, columns: [poe_id], ref_table: mimiciv_hosp.poe, ref_columns: [poe_id]}
+  - {name: poe_patients_fk, table: mimiciv_hosp.poe, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: poe_admissions_fk, table: mimiciv_hosp.poe, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: prescriptions_patients_fk, table: mimiciv_hosp.prescriptions, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: prescriptions_admissions_fk, table: mimiciv_hosp.prescriptions, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: procedures_icd_patients_fk, table: mimiciv_hosp.procedures_icd, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: procedures_icd_admissions_fk, table: mimiciv_hosp.procedures_icd, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: services_patients_fk, table: mimiciv_hosp.services, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: services_admissions_fk, table: mimiciv_hosp.services, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: transfers_patients_fk, table: mimiciv_hosp.transfers, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  # ---- icu (constraint.sql, in file order) ----
+  - {name: chartevents_patients_fk, table: mimiciv_icu.chartevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: chartevents_admissions_fk, table: mimiciv_icu.chartevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: chartevents_icustays_fk, table: mimiciv_icu.chartevents, columns: [stay_id], ref_table: mimiciv_icu.icustays, ref_columns: [stay_id]}
+  - {name: chartevents_d_items_fk, table: mimiciv_icu.chartevents, columns: [itemid], ref_table: mimiciv_icu.d_items, ref_columns: [itemid]}
+  - {name: datetimeevents_patients_fk, table: mimiciv_icu.datetimeevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: datetimeevents_admissions_fk, table: mimiciv_icu.datetimeevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: datetimeevents_icustays_fk, table: mimiciv_icu.datetimeevents, columns: [stay_id], ref_table: mimiciv_icu.icustays, ref_columns: [stay_id]}
+  - {name: datetimeevents_d_items_fk, table: mimiciv_icu.datetimeevents, columns: [itemid], ref_table: mimiciv_icu.d_items, ref_columns: [itemid]}
+  - {name: icustays_patients_fk, table: mimiciv_icu.icustays, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: icustays_admissions_fk, table: mimiciv_icu.icustays, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: inputevents_patients_fk, table: mimiciv_icu.inputevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: inputevents_admissions_fk, table: mimiciv_icu.inputevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: inputevents_icustays_fk, table: mimiciv_icu.inputevents, columns: [stay_id], ref_table: mimiciv_icu.icustays, ref_columns: [stay_id]}
+  - {name: inputevents_d_items_fk, table: mimiciv_icu.inputevents, columns: [itemid], ref_table: mimiciv_icu.d_items, ref_columns: [itemid]}
+  - {name: outputevents_patients_fk, table: mimiciv_icu.outputevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: outputevents_admissions_fk, table: mimiciv_icu.outputevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: outputevents_icustays_fk, table: mimiciv_icu.outputevents, columns: [stay_id], ref_table: mimiciv_icu.icustays, ref_columns: [stay_id]}
+  - {name: outputevents_d_items_fk, table: mimiciv_icu.outputevents, columns: [itemid], ref_table: mimiciv_icu.d_items, ref_columns: [itemid]}
+  - {name: procedureevents_patients_fk, table: mimiciv_icu.procedureevents, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: procedureevents_admissions_fk, table: mimiciv_icu.procedureevents, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: procedureevents_icustays_fk, table: mimiciv_icu.procedureevents, columns: [stay_id], ref_table: mimiciv_icu.icustays, ref_columns: [stay_id]}
+  - {name: procedureevents_d_items_fk, table: mimiciv_icu.procedureevents, columns: [itemid], ref_table: mimiciv_icu.d_items, ref_columns: [itemid]}
+  # ---- ed (documentation; no upstream constraint file) ----
+  - {name: edstays_patients_fk, source: docs, table: mimiciv_ed.edstays, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: edstays_admissions_fk, source: docs, table: mimiciv_ed.edstays, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: ed_diagnosis_edstays_fk, source: docs, table: mimiciv_ed.diagnosis, columns: [stay_id], ref_table: mimiciv_ed.edstays, ref_columns: [stay_id]}
+  - {name: medrecon_edstays_fk, source: docs, table: mimiciv_ed.medrecon, columns: [stay_id], ref_table: mimiciv_ed.edstays, ref_columns: [stay_id]}
+  - {name: pyxis_edstays_fk, source: docs, table: mimiciv_ed.pyxis, columns: [stay_id], ref_table: mimiciv_ed.edstays, ref_columns: [stay_id]}
+  - {name: triage_edstays_fk, source: docs, table: mimiciv_ed.triage, columns: [stay_id], ref_table: mimiciv_ed.edstays, ref_columns: [stay_id]}
+  - {name: vitalsign_edstays_fk, source: docs, table: mimiciv_ed.vitalsign, columns: [stay_id], ref_table: mimiciv_ed.edstays, ref_columns: [stay_id]}
+  # ---- note (documentation; no upstream constraint file) ----
+  - {name: discharge_patients_fk, source: docs, table: mimiciv_note.discharge, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: discharge_admissions_fk, source: docs, table: mimiciv_note.discharge, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: radiology_patients_fk, source: docs, table: mimiciv_note.radiology, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}
+  - {name: radiology_admissions_fk, source: docs, table: mimiciv_note.radiology, columns: [hadm_id], ref_table: mimiciv_hosp.admissions, ref_columns: [hadm_id]}
+  - {name: discharge_detail_discharge_fk, source: docs, table: mimiciv_note.discharge_detail, columns: [note_id], ref_table: mimiciv_note.discharge, ref_columns: [note_id]}
+  - {name: radiology_detail_radiology_fk, source: docs, table: mimiciv_note.radiology_detail, columns: [note_id], ref_table: mimiciv_note.radiology, ref_columns: [note_id]}

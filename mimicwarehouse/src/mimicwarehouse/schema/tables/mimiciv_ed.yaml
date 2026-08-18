@@ -1,0 +1,119 @@
+# mimicwarehouse schema contract - MIMIC-IV-ED 2.2 (6 tables).
+#
+# Transcribed from the vendored mimic-code DDL mimic-iv-ed/buildmimic/postgres/create.sql (EP-8
+# pin) and curated by EP-9; see mimiciv_hosp.yaml for the file conventions. MIMIC-IV-ED is a
+# separate PhysioNet project (own DUA) linked to MIMIC-IV by subject_id and, when the visit led
+# to an admission, hadm_id; ED stay_id values are a separate namespace from ICU stay_id
+# (both 30 000 000-39 999 999). Upstream declares no keys for ED (index.sql only), so
+# every primary_key is null with a documented uniqueness_hint (keys.yaml). The MIMIC-IV-ED Demo
+# v2.2 is the same layout (identity column map).
+#
+# Vital-sign columns: upstream types are unbounded NUMERIC (triage) and a mix of NUMERIC /
+# NUMERIC(10, 4) / INTEGER (vitalsign). Unbounded NUMERIC maps to DOUBLE (transcribe.py); the
+# one NUMERIC(10, 4) column (vitalsign.resprate) is also DOUBLE by contract choice - recorded as
+# `upstream_type` so `mwh schema check` still detects upstream drift - because a lone
+# DECIMAL(10,4) among DOUBLE vitals would leak Decimal objects into every downstream frame.
+# Units are fixed by the ED data dictionary (units.yaml): temperature degF, heartrate and
+# resprate per minute, o2sat %, sbp/dbp mmHg.
+schema: mimiciv_ed
+dataset: mimic-iv-ed-2.2
+csv_dir: ed
+source_ddl: mimic-iv-ed/buildmimic/postgres/create.sql
+source_keys: null
+expected_rows_source: mimic-iv-ed/buildmimic/postgres/validate.sql
+comment: "Emergency department module: ED stays, triage, vital signs, medication reconciliation, Pyxis dispensations and ED diagnoses. Source: PhysioNet MIMIC-IV-ED v2.2."
+tables:
+  - name: diagnosis
+    comment: "ED discharge diagnoses per stay (ICD-9/10, seq_num priority) with the code title inline."
+    time_column: null
+    sort_keys: [subject_id, stay_id, seq_num]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier (shared with MIMIC-IV)."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier (-> edstays)."}
+      - {name: seq_num, type: INTEGER, nullable: false, comment: "Priority of the diagnosis within the stay (1 = primary)."}
+      - {name: icd_code, type: VARCHAR, nullable: false, comment: "ICD code without the dot."}
+      - {name: icd_version, type: SMALLINT, nullable: false, comment: "9 or 10."}
+      - {name: icd_title, type: VARCHAR, nullable: false, comment: "Code title."}
+
+  - name: edstays
+    comment: "One row per ED stay (stay_id): intime/outtime bound the visit; hadm_id is set when the visit led to a hospital admission; disposition says where the patient went (HOME, ADMITTED, TRANSFER, LEFT WITHOUT BEING SEEN, ...)."
+    time_column: intime
+    sort_keys: [subject_id, intime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Hospital admission the visit led to (-> mimiciv_hosp.admissions), else NULL."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier (unique; candidate primary key)."}
+      - {name: intime, type: TIMESTAMP, nullable: false, comment: "ED arrival / registration time (shifted, naive)."}
+      - {name: outtime, type: TIMESTAMP, nullable: false, comment: "ED departure time."}
+      - {name: gender, type: VARCHAR, nullable: false, comment: "M / F."}
+      - {name: race, type: VARCHAR, comment: "Self-reported race/ethnicity."}
+      - {name: arrival_transport, type: VARCHAR, nullable: false, comment: "AMBULANCE, WALK IN, HELICOPTER, OTHER, UNKNOWN."}
+      - {name: disposition, type: VARCHAR, comment: "Disposition at ED departure."}
+
+  - name: medrecon
+    comment: "Medication reconciliation at ED arrival: medications the patient reports taking (name, GSN, NDC, ETC therapeutic class); one row per medication x ETC class (etc_rn)."
+    time_column: charttime
+    sort_keys: [subject_id, stay_id, charttime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier."}
+      - {name: charttime, type: TIMESTAMP, comment: "Time of the reconciliation."}
+      - {name: name, type: VARCHAR, comment: "Medication name (free text)."}
+      - {name: gsn, type: VARCHAR, comment: "Generic Sequence Number."}
+      - {name: ndc, type: VARCHAR, comment: "National Drug Code."}
+      - {name: etc_rn, type: SMALLINT, comment: "Row number of the ETC class for this medication (a drug may map to several classes)."}
+      - {name: etccode, type: VARCHAR, comment: "Enhanced Therapeutic Classification code."}
+      - {name: etcdescription, type: VARCHAR, comment: "ETC class description."}
+
+  - name: pyxis
+    comment: "Medications dispensed from the ED Pyxis machine: one row per dispensation x GSN (med_rn numbers dispensations, gsn_rn the GSN rows within one)."
+    time_column: charttime
+    sort_keys: [subject_id, stay_id, charttime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier."}
+      - {name: charttime, type: TIMESTAMP, comment: "Time of the dispensation."}
+      - {name: med_rn, type: SMALLINT, nullable: false, comment: "Row number of the dispensation within the stay."}
+      - {name: name, type: VARCHAR, comment: "Medication name."}
+      - {name: gsn_rn, type: SMALLINT, nullable: false, comment: "Row number of the GSN within the dispensation."}
+      - {name: gsn, type: VARCHAR, comment: "Generic Sequence Number."}
+
+  - name: triage
+    comment: "Triage assessment at ED arrival: first vital signs, pain score (text), acuity (Emergency Severity Index 1-5, 1 = most urgent) and free-text chief complaint. One row per stay (no timestamp: taken at intime)."
+    time_column: null
+    sort_keys: [subject_id, stay_id]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier (one triage row per stay)."}
+      - {name: temperature, type: DOUBLE, comment: "Temperature in degrees Fahrenheit (upstream unbounded NUMERIC)."}
+      - {name: heartrate, type: DOUBLE, comment: "Heart rate, beats per minute."}
+      - {name: resprate, type: DOUBLE, comment: "Respiratory rate, breaths per minute."}
+      - {name: o2sat, type: DOUBLE, comment: "Peripheral oxygen saturation, percent."}
+      - {name: sbp, type: DOUBLE, comment: "Systolic blood pressure, mmHg."}
+      - {name: dbp, type: DOUBLE, comment: "Diastolic blood pressure, mmHg."}
+      - {name: pain, type: VARCHAR, comment: "Pain score as entered (0-10 or free text such as 'unable')."}
+      - {name: acuity, type: DOUBLE, comment: "Emergency Severity Index level 1-5 (1 = highest acuity)."}
+      - {name: chiefcomplaint, type: VARCHAR, comment: "Free-text chief complaint (de-identified)."}
+
+  - name: vitalsign
+    comment: "Vital signs charted during the ED stay (aperiodic): temperature degF, heart rate, respiratory rate, o2sat, blood pressure, rhythm and pain score at charttime."
+    time_column: charttime
+    sort_keys: [subject_id, stay_id, charttime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ED stay identifier."}
+      - {name: charttime, type: TIMESTAMP, comment: "Time of the measurement."}
+      - {name: temperature, type: DOUBLE, comment: "Temperature in degrees Fahrenheit."}
+      - {name: heartrate, type: DOUBLE, comment: "Heart rate, beats per minute."}
+      - {name: resprate, type: DOUBLE, upstream_type: "NUMERIC(10, 4)", comment: "Respiratory rate, breaths per minute. Upstream NUMERIC(10, 4); DOUBLE by contract choice so all ED vitals share one type (see file header)."}
+      - {name: o2sat, type: DOUBLE, comment: "Peripheral oxygen saturation, percent."}
+      - {name: sbp, type: INTEGER, comment: "Systolic blood pressure, mmHg (upstream INTEGER)."}
+      - {name: dbp, type: INTEGER, comment: "Diastolic blood pressure, mmHg (upstream INTEGER)."}
+      - {name: rhythm, type: VARCHAR, comment: "Heart rhythm as charted (free text)."}
+      - {name: pain, type: VARCHAR, comment: "Pain score as entered (0-10 or free text)."}

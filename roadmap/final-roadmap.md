@@ -154,6 +154,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | MEDS export of the spine + meds-tab baselines + MEDS-DEV tasks | after EP-50 | Python < 3.14 (fine on 3.13); disk | v2 MEDS-1 |
 | OMOP CDM conversion (CogStack dbt_mimic_omop, DuckDB + dbt, MIMIC-IV 3.1) | OHDSI tooling wanted | ~200 GB disk; immature; dbt | v2 OMOP-1 |
 | MIMIC-IV-FHIR (2.1) via kind-lab/mimic-fhir | FHIR interop demo | separate DUA; lags at 2.2 | v2 FHIR-1 |
+| OMOP/FHIR-style semantic annotations on the schema contract (concept ids per column in `schema/tables/*.yaml`) — parked by EP-9 (2026-08-17); v1's contract carries names, DuckDB types, nullability, keys, units and free-text comments only | OMOP conversion (v2 OMOP-1) or FHIR demo (v2 FHIR-1) | Athena vocabulary licences (D-35); the drift oracle (`mwh schema check`) must ignore annotation-only columns | v2 OMOP-1 / FHIR-1 |
 | More PhysioNet sources via the wizard (MIMIC-IV-ECG, MIMIC-CXR metadata, MIMIC-IV waveform indices, eICU-CRD) | after EP-145 | separate DUAs; keys | v2 LINK-* |
 | dbt-duckdb as an alternative transform runner (resume keyword) | if the custom runner needs docs/lineage features | vendored SQL → Jinja models | v2 DAG-1 |
 

@@ -199,6 +199,30 @@ readers are open (audit, run ledger, benchmark ledger) goes to **append-only JSO
   `icu_day`, `hour_bin`, `person_time`, `note` (P10) — each with its key, time anchor and
   default index-event rule; every cohort spec, mart and model dataset declares its grain.
 
+> **Note (2026-08-17, EP-9).** The schema contract shipped as package data under
+> `src/mimicwarehouse/schema/tables/` — `mimiciv_hosp.yaml` (22 tables), `mimiciv_icu.yaml` (9),
+> `mimiciv_ed.yaml` (6), `mimiciv_note.yaml` (4), `keys.yaml`, `units.yaml`,
+> `column_maps/demo_2_2_to_3_1.yaml` — transcribed from the EP-8 vendored DDL and kept honest by
+> `mwh schema check` (re-parses `create.sql` / `constraint.sql` at the pin; any table / column /
+> order / type / nullability / PK / FK difference is a finding and exit 1). Type map as shipped:
+> `INTEGER/SMALLINT/BIGINT` unchanged, `VARCHAR(n)/TEXT/CHAR(n)` → `VARCHAR`, `TIMESTAMP(n)` →
+> `TIMESTAMP` (naive), `DATE`, `DOUBLE PRECISION`/`FLOAT` → `DOUBLE`, `REAL` → `FLOAT` (4-byte),
+> `NUMERIC(p,s)` → `DECIMAL(p,s)`, unbounded `NUMERIC` → `DOUBLE`. **Deliberate deviations are
+> recorded on the column** (`upstream_type` / `upstream_nullable`) and the drift check compares
+> those against the DDL instead — three exist: `microbiologyevents.spec_type_desc` and
+> `prescriptions.drug` are nullable (upstream `NOT NULL`, but the data holds zero-length strings
+> that DuckDB's CSV reader loads as NULL; upstream's own `build_mimic.sh` relaxes the same two),
+> and `mimiciv_ed.vitalsign.resprate` is `DOUBLE` (upstream `NUMERIC(10, 4)`, kept alongside its
+> DOUBLE siblings). **Keys are metadata**: `Table.duckdb_ddl()` never emits `PRIMARY KEY` /
+> `FOREIGN KEY` (an ART index over 400 M rows; upstream duplicates in `chartevents`); PKs are
+> exactly `constraint.sql`'s (none for `drgcodes`, `emar_detail`, `omr`, `provider`, `caregiver`,
+> `chartevents`, `ingredientevents`, nor for any ED / Note table — those carry a
+> `uniqueness_hint` for EP-28/EP-44 to test), FKs are the 51 upstream ones plus 13 documented
+> ED/Note ties marked `source: docs`. `Column.unit_of` is stamped from `units.yaml`. The **demo
+> 2.2 → 3.1 column map is the identity** for all 37 hosp/icu/ed tables (D-27 addendum): the
+> provider/caregiver tables and `*_provider_id`/`caregiver_id` columns are part of v2.2, so EP-22
+> only has to validate headers (`ColumnMap.check`) — no NULL-filling or renames.
+
 ## 8. Concepts, code sets & phenotypes
 
 - **mimic-code concepts** (EP-8, 37, 38): `concepts_duckdb/` vendored at a pinned commit
@@ -502,6 +526,36 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > (26, marker `ep_8`, fixture tier; the re-vendor no-op test skips without the clone).
 > `test_ep06::test_mwh_verify_usage_errors` now uses EP-9 as its "code brief without a test module".
 > EP-37 adds the concept runner and EP-38 `patches/` beside `vendor/`.
+
+> **Note (2026-08-17, EP-9).** `src/mimicwarehouse/schema/` is now a package: `contract.py`
+> (pydantic, frozen, `extra="forbid"`: `Column(name, type→duckdb_type, nullable, comment, unit_of,
+> upstream_type, upstream_nullable)`, `Table(schema→schema_name, name, dataset, csv_path, columns,
+> primary_key, uniqueness_hint, subject_keyed, time_column, sort_keys, partitioned, load_class,
+> expected_rows_source, comment)` with validators for every brief rule (subject_keyed ⇔ has
+> `subject_id`, partitioned ⇔ subject_keyed, `sort_keys[0] == subject_id`, time column is
+> TIMESTAMP/DATE, key columns exist), `ForeignKey(table, columns, ref_table, ref_columns, name,
+> source)`, `TableMap` / `ColumnMap.apply | missing | check | table_map`, `ValueUnitPair` /
+> `FixedUnit` / `ImpliedUnit` / `UnitsSpec`, `SchemaInfo`, `Contract.table("s.t" | s, t) |
+> by_schema | by_dataset | subject_keyed | dims | large | foreign_keys_of | column_map |
+> duckdb_schema_ddl | content_hash`; `load_contract()` (cached, `importlib.resources`) and
+> `load_contract_from(root)` for tests). `transcribe.py`: `pg_to_duckdb`, `normalise_pg_type`,
+> `parse_create_sql` (line-oriented, paren-aware, comment-stripping), `parse_constraint_sql`,
+> `draft_schema_yaml`, `check_tables | check_keys | check_contract → list[Drift]`. `cli.py`:
+> `schema_app` (`list [--schema] [--json]`, `show <s.t> [--json]`, `ddl <s.t> | --all
+> [--if-not-exists]`, `check [--json]` → exit 0/1/2, `transcribe --create-sql --schema --out`)
+> attached with one `app.add_typer(schema_app, name="schema")` and **added to
+> `DIAGNOSTIC_COMMANDS`** (`{doctor, paths, guard, verify, schema}`). The package `__init__`
+> re-exports lazily (module `__getattr__`) so `mwh --help` does not import yaml / the models —
+> measured +3 ms; wall unchanged (0.6–0.7 s here, noise-bound). Console output is
+> cp1252-safe (`overflow="fold"`, ASCII-only YAML — a test enforces ASCII, single-document,
+> tag-free, LF, hook-clean, guard-clean). Tests: `tests/ep/test_ep09.py` (46, marker `ep_9`,
+> fixture tier; DDL executed in an in-memory DuckDB opened with `duckdb_settings("app")`; the
+> "edit one type → exit 1" recipe runs in a fresh interpreter over a temp copy).
+> `test_ep06::test_mwh_verify_usage_errors` now uses **EP-10** as its "code brief without a test
+> module". Downstream: EP-10 reads `expected_rows_source`, EP-11/12 generate against
+> `read_csv_columns()`, EP-17/18 use `csv_path` / `sort_keys` / `load_class` / `partitioned`,
+> EP-21/29 apply `comment`s, EP-22 uses `column_map("demo_2_2").check`, EP-28/44 test
+> `primary_key` / `uniqueness_hint` / `foreign_keys`, EP-35 cites `content_hash()`.
 
 ## 16. App structure (D-21)
 

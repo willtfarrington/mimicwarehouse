@@ -1,0 +1,53 @@
+# mimicwarehouse schema contract - units seed (EP-9).
+#
+# Column-level unit expectations only. Itemid-level unit expectations, harmonisation rules and
+# per-itemid plausibility bounds are EP-39 (units.py); nothing here is enforced on load.
+#   value_unit_pairs: a numeric value column and the column carrying its unit of measure
+#                     (the loader stamps Column.unit_of on the unit column);
+#   fixed_units:      value columns whose unit is fixed by the data dictionary, with COARSE
+#                     physiologic plausibility bounds (wide sanity bounds, not clinical
+#                     reference ranges) for the fixed-unit ED columns only;
+#   implied_units:    value columns whose unit is implied by another (categorical) column.
+version_note: "MIMIC-IV 3.1 / MIMIC-IV-ED 2.2 column-level units; curated 2026-08-17 (EP-9). Itemid-level rules -> EP-39."
+
+value_unit_pairs:
+  - {table: mimiciv_hosp.labevents, value: valuenum, unit: valueuom, note: "Free-text units per itemid (e.g. mg/dL, mmol/L, %, K/uL); ref_range_lower/upper share valueuom."}
+  - {table: mimiciv_icu.chartevents, value: valuenum, unit: valueuom, note: "Per-itemid units; d_items.unitname is the expected unit."}
+  - {table: mimiciv_icu.inputevents, value: amount, unit: amountuom, note: "mL, mg, mcg, units, ..."}
+  - {table: mimiciv_icu.inputevents, value: rate, unit: rateuom, note: "mL/hour, mcg/kg/min, units/hour, ..."}
+  - {table: mimiciv_icu.inputevents, value: totalamount, unit: totalamountuom, note: "Bag / order total."}
+  - {table: mimiciv_icu.ingredientevents, value: amount, unit: amountuom}
+  - {table: mimiciv_icu.ingredientevents, value: rate, unit: rateuom}
+  - {table: mimiciv_icu.outputevents, value: value, unit: valueuom, note: "Almost always mL."}
+  - {table: mimiciv_icu.procedureevents, value: value, unit: valueuom, note: "Duration (min / hour / day) or amount."}
+  - {table: mimiciv_hosp.emar_detail, value: dose_given, unit: dose_given_unit, note: "Both text columns; parse before use."}
+  - {table: mimiciv_hosp.emar_detail, value: dose_due, unit: dose_due_unit, note: "Both text columns."}
+  - {table: mimiciv_hosp.emar_detail, value: product_amount_given, unit: product_unit, note: "Both text columns."}
+  - {table: mimiciv_hosp.emar_detail, value: infusion_rate, unit: infusion_rate_unit, note: "Both text columns."}
+  - {table: mimiciv_hosp.prescriptions, value: dose_val_rx, unit: dose_unit_rx, note: "Text; dose_val_rx may be a range ('1-2')."}
+  - {table: mimiciv_hosp.prescriptions, value: form_val_disp, unit: form_unit_disp, note: "Text."}
+  - {table: mimiciv_hosp.pharmacy, value: duration, unit: duration_interval, note: "Numeric duration + text unit (Days, Hours, ...)."}
+  - {table: mimiciv_hosp.pharmacy, value: expiration_value, unit: expiration_unit}
+
+fixed_units:
+  # MIMIC-IV-ED data dictionary: vital signs share units in triage and vitalsign.
+  - {table: mimiciv_ed.vitalsign, column: temperature, unit: degF, plausible_min: 80, plausible_max: 110, note: "Degrees Fahrenheit; a few Celsius entries exist upstream (values ~35-42) - EP-39 decides."}
+  - {table: mimiciv_ed.vitalsign, column: heartrate, unit: /min, plausible_min: 0, plausible_max: 300}
+  - {table: mimiciv_ed.vitalsign, column: resprate, unit: /min, plausible_min: 0, plausible_max: 100}
+  - {table: mimiciv_ed.vitalsign, column: o2sat, unit: "%", plausible_min: 0, plausible_max: 100}
+  - {table: mimiciv_ed.vitalsign, column: sbp, unit: mmHg, plausible_min: 0, plausible_max: 400}
+  - {table: mimiciv_ed.vitalsign, column: dbp, unit: mmHg, plausible_min: 0, plausible_max: 300}
+  - {table: mimiciv_ed.triage, column: temperature, unit: degF, plausible_min: 80, plausible_max: 110, note: "Same dictionary as vitalsign."}
+  - {table: mimiciv_ed.triage, column: heartrate, unit: /min, plausible_min: 0, plausible_max: 300}
+  - {table: mimiciv_ed.triage, column: resprate, unit: /min, plausible_min: 0, plausible_max: 100}
+  - {table: mimiciv_ed.triage, column: o2sat, unit: "%", plausible_min: 0, plausible_max: 100}
+  - {table: mimiciv_ed.triage, column: sbp, unit: mmHg, plausible_min: 0, plausible_max: 400}
+  - {table: mimiciv_ed.triage, column: dbp, unit: mmHg, plausible_min: 0, plausible_max: 300}
+  # Non-ED fixed units (no plausibility bounds here).
+  - {table: mimiciv_icu.icustays, column: los, unit: day, note: "Fractional days."}
+  - {table: mimiciv_icu.inputevents, column: patientweight, unit: kg}
+  - {table: mimiciv_icu.procedureevents, column: patientweight, unit: kg}
+  - {table: mimiciv_hosp.patients, column: anchor_age, unit: year, note: "Ages >= 89 are shown as 91."}
+
+implied_units:
+  - {table: mimiciv_hosp.omr, value: result_value, implied_by: result_name, note: "Text values; result_name carries the unit: 'Blood Pressure' (systolic/diastolic mmHg), 'Weight (Lbs)', 'Height (Inches)', 'BMI (kg/m2)', 'eGFR' ... plus 'Blood Pressure Sitting/Standing/Lying' variants."}

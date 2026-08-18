@@ -114,4 +114,51 @@ works from the vendored SQL and public documentation only (`source material/**` 
 ## Parked → final-roadmap.md
 
 - Full OMOP/FHIR-style semantic annotations on the contract (concept ids per column); trigger: OMOP conversion
-  (v2 OMOP-1) or FHIR demo (v2 FHIR-1).
+  (v2 OMOP-1) or FHIR demo (v2 FHIR-1). *(Mirrored into `final-roadmap.md` §34–35 by EP-9 itself.)*
+
+> **Completion note (2026-08-17).** Executed as one autonomous session (≈ 55 min against M ≈ 1 h), tier
+> fixture, no MIMIC data touched: everything was derived from the EP-8 vendored DDL, the `%TEMP%\mimic-code`
+> clone (still present at the pinned sha — item 4 needed no re-clone) and PhysioNet's public pages.
+>
+> **Items 1–3, 6 — as specified.** `src/mimicwarehouse/schema/{__init__,contract,transcribe,cli}.py` +
+> `tables/{mimiciv_hosp,mimiciv_icu,mimiciv_ed,mimiciv_note,keys,units}.yaml` +
+> `tables/column_maps/demo_2_2_to_3_1.yaml`; 41 tables (22/9/6/4), 421 columns, 64 FKs (51 upstream + 13 docs), every table and column
+> commented (the MIMIC facts from the Context paragraph are in the file headers and the `patients` /
+> `diagnoses_icd` / `admissions` comments; EP-29 inherits them). `mwh schema list | show | ddl | check |
+> transcribe`, attached with one `add_typer` line and in `DIAGNOSTIC_COMMANDS`. `mwh schema check` = **no
+> drift** against mimic-code `8bcbd190`; contract hash `e4cd5aa908d1…` (`Contract.content_hash()`, for
+> EP-35 manifests). 46 tests (`ep_9`), `poe check` green (291 tests), `mwh verify EP-9` green; the
+> "edit one type → exit 1 → revert → exit 0" recipe was run live (`labevents.valuenum` DOUBLE→FLOAT) and is
+> also a test in a fresh interpreter over a temp copy. `mwh --help` import cost +3 ms (lazy package
+> `__init__`).
+>
+> **Facts that differed from the brief (all verified, none trusted):**
+> 1. **Item 4 — the demo 2.2 → 3.1 column map is the identity.** The provider/caregiver tables and every
+>    `*_provider_id` / `caregiver_id` column were added *in* the v2.2 DDL commit (`db74e5d`, 2023-01-06); the
+>    only DDL change from there to the pin is `admissions.language VARCHAR(10→25)`; PhysioNet's file listing
+>    for `mimic-iv-demo/2.2` shows `hosp/provider.csv.gz` and `icu/caregiver.csv.gz`; v3.0/v3.1 release notes
+>    add/rename/drop no columns. `tables_absent_in_2_2: []`, 37 identity tables, `mimiciv_note` absent (no
+>    Note demo). Recorded as a D-27 addendum; EP-22 validates headers with `ColumnMap.check` only.
+> 2. **Item 2 — PKs from `constraint.sql`:** the brief's guesses `prescriptions` / `poe_detail` *do* have
+>    composite PKs (`(pharmacy_id, drug_type, drug)`, `(poe_id, field_name)`); the tables **without** an
+>    upstream PK are `drgcodes`, `emar_detail`, `omr`, `provider`, `caregiver`, `chartevents`,
+>    `ingredientevents` (+ all ED/Note tables: no constraint file upstream). All carry a `uniqueness_hint`.
+> 3. **Type map additions** (brief silent): Postgres `FLOAT` → `DOUBLE`, `REAL` → DuckDB `FLOAT`, bare
+>    `NUMERIC` (ED vitals) → `DOUBLE`. One curated deviation, `ed.vitalsign.resprate` `NUMERIC(10, 4)` →
+>    `DOUBLE`, and two nullability relaxations upstream's own `build_mimic.sh` also makes
+>    (`microbiologyevents.spec_type_desc`, `prescriptions.drug`) are recorded on the column as
+>    `upstream_type` / `upstream_nullable`, which the drift oracle checks against the DDL instead — so
+>    upstream drift on those columns is still caught. D-17 addendum.
+> 4. `keys.yaml` also carries 13 `source: docs` FKs tying ED/Note into hosp (edstays→patients/admissions,
+>    ED tables→edstays, notes→patients/admissions, `*_detail`→note) — not drift-checked, for EP-28.
+> 5. `units.yaml` covers `ed.triage` too (same dictionary as `vitalsign`) plus a few non-ED fixed units
+>    (`icustays.los` day, `patientweight` kg, `anchor_age` year) and text value/unit pairs in `emar_detail`,
+>    `prescriptions`, `pharmacy`; bounds are coarse and only on the ED vitals as the brief asked.
+>
+> **Deltas worth knowing.** `Table.duckdb_ddl()` emits no key constraints (keys are metadata for
+> EP-28/44); `Table` derives `subject_keyed` / `partitioned` from the columns and validates every brief
+> rule; `expected_rows_source` is a file-level default with `null` overrides for `provider`, `caregiver`,
+> `ingredientevents` (absent from `validate.sql`) and Note; `load_contract_from(root)` exists so tests can
+> point the loader at an edited copy; YAML files are ASCII-only, single-document, tag-free, hook- and
+> guard-clean by test. `test_ep06::test_mwh_verify_usage_errors` now probes EP-10. Owner review points:
+> the three `upstream_*` deviations (one YAML line each to revert) and the docs-sourced ED/Note FKs.

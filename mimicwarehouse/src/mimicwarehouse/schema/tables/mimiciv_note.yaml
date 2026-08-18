@@ -1,0 +1,72 @@
+# mimicwarehouse schema contract - MIMIC-IV-Note 2.2 (4 tables).
+#
+# Transcribed from the vendored mimic-code DDL mimic-iv-note/buildmimic/postgres/create.sql
+# (EP-8 pin) and curated by EP-9; see mimiciv_hosp.yaml for the file conventions.
+#
+# GOVERNANCE sec. 9: notes are the highest-risk asset (separate DUA, D-3). They are staged only
+# in P10 (EP-148) into a segregated lake/catalog that only the owner role attaches; note text
+# never enters safe_query results, run records, reports, fixtures, git, tool output or any LLM
+# prompt. This file describes the *shape* only. Upstream declares no keys and no validate.sql
+# for Note, so primary_key is null everywhere (keys.yaml carries uniqueness hints) and
+# expected_rows_source is null. There is no MIMIC-IV-Note demo.
+schema: mimiciv_note
+dataset: mimic-iv-note-2.2
+csv_dir: note
+source_ddl: mimic-iv-note/buildmimic/postgres/create.sql
+source_keys: null
+expected_rows_source: null
+comment: "Free-text clinical notes: discharge summaries and radiology reports with their structured detail tables. Source: PhysioNet MIMIC-IV-Note v2.2 (separate DUA; text never leaves this machine)."
+tables:
+  - name: discharge
+    comment: "Discharge summaries: one row per note (note_id) with the de-identified full text; charttime is the note time, note_seq orders a patient's notes. Segregated lake only (GOVERNANCE sec. 9)."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: note_id, type: VARCHAR, nullable: false, comment: "Note identifier '<subject_id>-DS-<note_seq>' (unique; candidate primary key)."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission the summary belongs to."}
+      - {name: note_type, type: VARCHAR, nullable: false, comment: "'DS' (discharge summary)."}
+      - {name: note_seq, type: SMALLINT, nullable: false, comment: "Sequence of the note within the patient."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Note chart time (shifted, naive)."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the note was stored / signed."}
+      - {name: text, type: VARCHAR, nullable: false, comment: "De-identified note text (PHI replaced by '___'). NEVER returned by any CLI, query wrapper or test."}
+
+  - name: radiology
+    comment: "Radiology reports: one row per report (note_id) with the de-identified text; hadm_id is NULL for outpatient imaging. Segregated lake only."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: note_id, type: VARCHAR, nullable: false, comment: "Note identifier '<subject_id>-RR-<note_seq>' (unique; candidate primary key)."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier; NULL for outpatient imaging."}
+      - {name: note_type, type: VARCHAR, nullable: false, comment: "'RR' (radiology report) or 'AR' (addendum)."}
+      - {name: note_seq, type: SMALLINT, nullable: false, comment: "Sequence of the note within the patient."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Report chart time."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the report was stored / signed."}
+      - {name: text, type: VARCHAR, nullable: false, comment: "De-identified report text. NEVER returned by any CLI, query wrapper or test."}
+
+  - name: discharge_detail
+    comment: "Structured fields attached to discharge summaries (field_name / field_value / field_ordinal per note_id), e.g. author, note version."
+    time_column: null
+    sort_keys: [subject_id, note_id, field_ordinal]
+    load_class: small
+    columns:
+      - {name: note_id, type: VARCHAR, nullable: false, comment: "Discharge note identifier (-> discharge)."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: field_name, type: VARCHAR, nullable: false, comment: "Detail field name."}
+      - {name: field_value, type: VARCHAR, nullable: false, comment: "Detail field value (text)."}
+      - {name: field_ordinal, type: INTEGER, nullable: false, comment: "Order of the field within the note."}
+
+  - name: radiology_detail
+    comment: "Structured fields attached to radiology reports (exam name, exam code, CPT code, addendum links ...) as field_name / field_value / field_ordinal per note_id."
+    time_column: null
+    sort_keys: [subject_id, note_id, field_ordinal]
+    load_class: small
+    columns:
+      - {name: note_id, type: VARCHAR, nullable: false, comment: "Radiology note identifier (-> radiology)."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: field_name, type: VARCHAR, nullable: false, comment: "Detail field name (exam_name, exam_code, cpt_code, addendum_note_id, ...)."}
+      - {name: field_value, type: VARCHAR, nullable: false, comment: "Detail field value (text)."}
+      - {name: field_ordinal, type: INTEGER, nullable: false, comment: "Order of the field within the note."}

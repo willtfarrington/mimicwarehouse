@@ -1,0 +1,415 @@
+# mimicwarehouse schema contract - MIMIC-IV 3.1 `hosp` module (22 tables).
+#
+# Transcribed by `mwh schema transcribe` from the vendored mimic-code DDL
+# mimic-iv/buildmimic/postgres/create.sql at the EP-8 pin (VENDOR.json) and curated by EP-9:
+# metadata (time_column, sort_keys, load_class), comments for the data dictionary (EP-29) and
+# two deliberate nullability relaxations recorded as `upstream_nullable`. Keys live in keys.yaml,
+# unit expectations in units.yaml. `mwh schema check` re-parses the DDL and fails on any drift.
+#
+# Types are DuckDB (see transcribe.py for the Postgres -> DuckDB map). `nullable` defaults to
+# true; `csv_path` defaults to `<csv_dir>/<name>.csv`; `expected_rows_source` (file default
+# below) names the vendored validate.sql that pins the table's row count (EP-10 reconciles);
+# `subject_keyed` / `partitioned` are derived from the columns (a table with subject_id is
+# Hive-partitioned by subject_bucket = subject_id % 100, DESIGN sec. 4/5).
+#
+# MIMIC-IV facts every reader must know (also in DESIGN sec. 7):
+#   * all timestamps are per-patient date-shifted into the future and stored as naive TIMESTAMP
+#     exactly as shipped; intervals within a patient are real, absolute dates are not;
+#   * `patients.anchor_year_group` (2008-2010 ... 2020-2022) is the only cross-patient temporal
+#     axis; `anchor_year` is the shifted year of `anchor_age`;
+#   * ages >= 89 are shown as 91 (`anchor_age`);
+#   * `dod` is available for ~1 year after the last discharge -> explicit censoring rules;
+#   * ICD-9 -> ICD-10 switch (~2015): `icd_version` is part of every diagnosis / procedure key;
+#   * the MIMIC-IV Demo v2.2 ships the same 22 + 9 tables and columns as 3.1 (verified at
+#     EP-9; see column_maps/demo_2_2_to_3_1.yaml).
+schema: mimiciv_hosp
+dataset: mimic-iv-3.1
+csv_dir: hosp
+source_ddl: mimic-iv/buildmimic/postgres/create.sql
+source_keys: mimic-iv/buildmimic/postgres/constraint.sql
+expected_rows_source: mimic-iv/buildmimic/postgres/validate.sql
+comment: "Hospital-wide EHR data for every patient admitted to Beth Israel Deaconess Medical Center: demographics, admissions, transfers, diagnoses/procedures, labs, microbiology, medications (poe, pharmacy, prescriptions, emar), billing (drg, hcpcs), outpatient measurements (omr) and the provider dimension. Source: PhysioNet MIMIC-IV v3.1 (Credentialed Health Data License 1.5.0)."
+tables:
+  - name: admissions
+    comment: "One row per hospital admission (hadm_id). admittime..dischtime bound the stay; deathtime is set for in-hospital deaths; edregtime/edouttime cover a preceding ED visit."
+    time_column: admittime
+    sort_keys: [subject_id, admittime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier (-> patients)."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Hospital admission identifier; unique per admission."}
+      - {name: admittime, type: TIMESTAMP, nullable: false, comment: "Admission time (shifted, naive)."}
+      - {name: dischtime, type: TIMESTAMP, comment: "Discharge time (shifted, naive)."}
+      - {name: deathtime, type: TIMESTAMP, comment: "Time of in-hospital death, else NULL; consistent with hospital_expire_flag."}
+      - {name: admission_type, type: VARCHAR, nullable: false, comment: "Urgency/route of admission (e.g. EW EMER., URGENT, ELECTIVE, OBSERVATION ADMIT, SURGICAL SAME DAY ADMISSION ...)."}
+      - {name: admit_provider_id, type: VARCHAR, comment: "Anonymised admitting provider (-> provider). Present since v2.2."}
+      - {name: admission_location, type: VARCHAR, comment: "Where the patient came from (EMERGENCY ROOM, PHYSICIAN REFERRAL, TRANSFER FROM HOSPITAL ...)."}
+      - {name: discharge_location, type: VARCHAR, comment: "Disposition at discharge (HOME, SKILLED NURSING FACILITY, DIED, HOSPICE ...)."}
+      - {name: insurance, type: VARCHAR, comment: "Payer category (Medicare, Medicaid, Private, Self-pay, No charge, Other; categories expanded in v3.0)."}
+      - {name: language, type: VARCHAR, comment: "Preferred language (standardised in v3.0; DDL widened to VARCHAR(25))."}
+      - {name: marital_status, type: VARCHAR, comment: "Marital status."}
+      - {name: race, type: VARCHAR, comment: "Self-reported race/ethnicity (column renamed from ethnicity in v2.0)."}
+      - {name: edregtime, type: TIMESTAMP, comment: "ED registration time when the admission came through the ED."}
+      - {name: edouttime, type: TIMESTAMP, comment: "ED departure time."}
+      - {name: hospital_expire_flag, type: SMALLINT, comment: "1 = died during this admission, 0 = survived to discharge."}
+
+  - name: d_hcpcs
+    comment: "Dimension: HCPCS/CPT codes billed in hcpcsevents."
+    time_column: null
+    sort_keys: [code]
+    load_class: small
+    columns:
+      - {name: code, type: VARCHAR, nullable: false, comment: "HCPCS/CPT code (5 chars)."}
+      - {name: category, type: SMALLINT, comment: "Code category."}
+      - {name: long_description, type: VARCHAR, comment: "Long description."}
+      - {name: short_description, type: VARCHAR, comment: "Short description."}
+
+  - name: diagnoses_icd
+    comment: "Billed ICD-9/ICD-10 diagnoses per admission, ordered by seq_num (priority). Codes are stored without dots; icd_version distinguishes the two vocabularies (switch ~2015)."
+    time_column: null
+    sort_keys: [subject_id, hadm_id, seq_num]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: seq_num, type: INTEGER, nullable: false, comment: "Priority order of the diagnosis within the admission (1 = principal)."}
+      - {name: icd_code, type: VARCHAR, comment: "ICD code without the dot (-> d_icd_diagnoses with icd_version)."}
+      - {name: icd_version, type: SMALLINT, comment: "9 or 10 - mandatory in every join and code set."}
+
+  - name: d_icd_diagnoses
+    comment: "Dimension: ICD-9-CM and ICD-10-CM diagnosis codes and titles."
+    time_column: null
+    sort_keys: [icd_code, icd_version]
+    load_class: small
+    columns:
+      - {name: icd_code, type: VARCHAR, nullable: false, comment: "ICD code without the dot."}
+      - {name: icd_version, type: SMALLINT, nullable: false, comment: "9 or 10."}
+      - {name: long_title, type: VARCHAR, comment: "Code title."}
+
+  - name: d_icd_procedures
+    comment: "Dimension: ICD-9-CM and ICD-10-PCS procedure codes and titles."
+    time_column: null
+    sort_keys: [icd_code, icd_version]
+    load_class: small
+    columns:
+      - {name: icd_code, type: VARCHAR, nullable: false, comment: "ICD code without the dot."}
+      - {name: icd_version, type: SMALLINT, nullable: false, comment: "9 or 10."}
+      - {name: long_title, type: VARCHAR, comment: "Code title."}
+
+  - name: d_labitems
+    comment: "Dimension: laboratory measurements (itemid) referenced by labevents. LOINC codes were removed from the public table (D-35: bring your own crosswalk)."
+    time_column: null
+    sort_keys: [itemid]
+    load_class: small
+    columns:
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Lab item identifier."}
+      - {name: label, type: VARCHAR, comment: "Measurement name."}
+      - {name: fluid, type: VARCHAR, comment: "Specimen fluid (Blood, Urine, ...)."}
+      - {name: category, type: VARCHAR, comment: "Lab category (Chemistry, Hematology, Blood Gas, ...)."}
+
+  - name: drgcodes
+    comment: "Diagnosis-related groups per admission (HCFA and APR types); APR rows carry severity/mortality subclasses. No upstream primary key - see keys.yaml uniqueness_hint."
+    time_column: null
+    sort_keys: [subject_id, hadm_id]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: drg_type, type: VARCHAR, comment: "DRG system: HCFA or APR."}
+      - {name: drg_code, type: VARCHAR, nullable: false, comment: "DRG code."}
+      - {name: description, type: VARCHAR, comment: "DRG description."}
+      - {name: drg_severity, type: SMALLINT, comment: "APR severity of illness subclass (1-4); NULL for HCFA."}
+      - {name: drg_mortality, type: SMALLINT, comment: "APR risk of mortality subclass (1-4); NULL for HCFA."}
+
+  - name: emar_detail
+    comment: "Detail rows for each eMAR administration event: one row per emar_id per formulary product / dose fragment (parent_field_ordinal), incl. barcode scanning, dose given, infusion rate. Free-text-ish varchar columns; NULL parent_field_ordinal marks the summary row. No upstream primary key."
+    time_column: null
+    sort_keys: [subject_id, emar_id, parent_field_ordinal]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: emar_id, type: VARCHAR, nullable: false, comment: "eMAR event identifier '<subject_id>-<emar_seq>' (-> emar)."}
+      - {name: emar_seq, type: INTEGER, nullable: false, comment: "Sequence number of the eMAR event within the patient."}
+      - {name: parent_field_ordinal, type: VARCHAR, comment: "Ordinal of the detail row within the event ('1.1', '1.2', ...); NULL on the summary row."}
+      - {name: administration_type, type: VARCHAR, comment: "Type of administration (e.g. IV Bolus, Oral, ...)."}
+      - {name: pharmacy_id, type: INTEGER, comment: "Pharmacy order (-> pharmacy)."}
+      - {name: barcode_type, type: VARCHAR, comment: "Barcode type scanned."}
+      - {name: reason_for_no_barcode, type: VARCHAR, comment: "Reason when no barcode was scanned."}
+      - {name: complete_dose_not_given, type: VARCHAR, comment: "Y/N flag."}
+      - {name: dose_due, type: VARCHAR, comment: "Dose due (text)."}
+      - {name: dose_due_unit, type: VARCHAR, comment: "Unit of dose_due."}
+      - {name: dose_given, type: VARCHAR, comment: "Dose given (text)."}
+      - {name: dose_given_unit, type: VARCHAR, comment: "Unit of dose_given."}
+      - {name: will_remainder_of_dose_be_given, type: VARCHAR, comment: "Y/N flag."}
+      - {name: product_amount_given, type: VARCHAR, comment: "Product amount given (text)."}
+      - {name: product_unit, type: VARCHAR, comment: "Unit of product_amount_given."}
+      - {name: product_code, type: VARCHAR, comment: "Formulary product code."}
+      - {name: product_description, type: VARCHAR, comment: "Formulary product description."}
+      - {name: product_description_other, type: VARCHAR, comment: "Alternative product description."}
+      - {name: prior_infusion_rate, type: VARCHAR, comment: "Infusion rate before this event (text)."}
+      - {name: infusion_rate, type: VARCHAR, comment: "Infusion rate (text)."}
+      - {name: infusion_rate_adjustment, type: VARCHAR, comment: "Type of rate adjustment."}
+      - {name: infusion_rate_adjustment_amount, type: VARCHAR, comment: "Amount of rate adjustment (text)."}
+      - {name: infusion_rate_unit, type: VARCHAR, comment: "Unit of infusion_rate."}
+      - {name: route, type: VARCHAR, comment: "Route of administration."}
+      - {name: infusion_complete, type: VARCHAR, comment: "Y/N flag."}
+      - {name: completion_interval, type: VARCHAR, comment: "Completion interval (text)."}
+      - {name: new_iv_bag_hung, type: VARCHAR, comment: "Y/N flag."}
+      - {name: continued_infusion_in_other_location, type: VARCHAR, comment: "Y/N flag."}
+      - {name: restart_interval, type: VARCHAR, comment: "Restart interval (free text; DDL width 2305)."}
+      - {name: side, type: VARCHAR, comment: "Body side of administration."}
+      - {name: site, type: VARCHAR, comment: "Body site of administration."}
+      - {name: non_formulary_visual_verification, type: VARCHAR, comment: "Y/N flag."}
+
+  - name: emar
+    comment: "Electronic medication administration record: one row per medication administration event (or intended event), timed by charttime; event_txt says what happened (Administered, Not Given, ...). Links poe and pharmacy orders to bedside administration."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier (NULL for events outside an admission)."}
+      - {name: emar_id, type: VARCHAR, nullable: false, comment: "eMAR event identifier '<subject_id>-<emar_seq>'; primary key."}
+      - {name: emar_seq, type: INTEGER, nullable: false, comment: "Sequence number of the event within the patient."}
+      - {name: poe_id, type: VARCHAR, nullable: false, comment: "Provider order (-> poe)."}
+      - {name: pharmacy_id, type: INTEGER, comment: "Pharmacy order (-> pharmacy)."}
+      - {name: enter_provider_id, type: VARCHAR, comment: "Anonymised provider who entered the event (-> provider). Present since v2.2."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Time of the administration event (shifted, naive)."}
+      - {name: medication, type: VARCHAR, comment: "Medication name (free text)."}
+      - {name: event_txt, type: VARCHAR, comment: "Event description: Administered, Not Given, Delayed, Flushed, ..."}
+      - {name: scheduletime, type: TIMESTAMP, comment: "Scheduled administration time."}
+      - {name: storetime, type: TIMESTAMP, nullable: false, comment: "Time the event was recorded."}
+
+  - name: hcpcsevents
+    comment: "Billed HCPCS/CPT events per admission (dated by chartdate)."
+    time_column: chartdate
+    sort_keys: [subject_id, chartdate]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: chartdate, type: DATE, comment: "Date of the event."}
+      - {name: hcpcs_cd, type: VARCHAR, nullable: false, comment: "HCPCS/CPT code (-> d_hcpcs.code)."}
+      - {name: seq_num, type: INTEGER, nullable: false, comment: "Sequence within the admission."}
+      - {name: short_description, type: VARCHAR, comment: "Short description of the code."}
+
+  - name: labevents
+    comment: "Laboratory measurements (~158 M rows, 17.5 GB CSV): one row per analyte result. valuenum is the numeric value with valueuom its unit; value keeps the raw text (e.g. '<0.1'). hadm_id is NULL for outpatient labs. Sourced from the hospital lab system, so it covers the whole hospital stay, not only the ICU."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: labevent_id, type: INTEGER, nullable: false, comment: "Row identifier; primary key."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier; NULL when the lab was drawn outside an admission."}
+      - {name: specimen_id, type: INTEGER, nullable: false, comment: "Specimen identifier grouping analytes drawn together."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Lab item (-> d_labitems)."}
+      - {name: order_provider_id, type: VARCHAR, comment: "Anonymised ordering provider (-> provider). Present since v2.2."}
+      - {name: charttime, type: TIMESTAMP, comment: "Specimen collection time (shifted, naive)."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the result was available."}
+      - {name: value, type: VARCHAR, comment: "Raw result text."}
+      - {name: valuenum, type: DOUBLE, comment: "Numeric result when parseable, else NULL."}
+      - {name: valueuom, type: VARCHAR, comment: "Unit of measure of valuenum (free text; harmonised in EP-39)."}
+      - {name: ref_range_lower, type: DOUBLE, comment: "Lower reference bound in the same unit."}
+      - {name: ref_range_upper, type: DOUBLE, comment: "Upper reference bound in the same unit."}
+      - {name: flag, type: VARCHAR, comment: "'abnormal' when outside the reference range, else NULL."}
+      - {name: priority, type: VARCHAR, comment: "Order priority (STAT / ROUTINE)."}
+      - {name: comments, type: VARCHAR, comment: "Free-text lab comment (may be de-identified with '___')."}
+
+  - name: microbiologyevents
+    comment: "Microbiology cultures and sensitivities: one row per specimen x test x organism x antibiotic (nested via spec_itemid, test_itemid, org_itemid, ab_itemid). chartdate is always set; charttime only when a time is known. NULL org_name = no growth."
+    time_column: charttime
+    sort_keys: [subject_id, chartdate, charttime]
+    load_class: large
+    columns:
+      - {name: microevent_id, type: INTEGER, nullable: false, comment: "Row identifier; primary key."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier (NULL for outpatient specimens)."}
+      - {name: micro_specimen_id, type: INTEGER, nullable: false, comment: "Specimen identifier grouping tests on the same specimen."}
+      - {name: order_provider_id, type: VARCHAR, comment: "Anonymised ordering provider (-> provider). Present since v2.2."}
+      - {name: chartdate, type: TIMESTAMP, nullable: false, comment: "Date of specimen collection (time part 00:00 when only the date is known)."}
+      - {name: charttime, type: TIMESTAMP, comment: "Time of specimen collection when known."}
+      - {name: spec_itemid, type: INTEGER, nullable: false, comment: "Specimen type item identifier (no dictionary table upstream; spec_type_desc carries the label)."}
+      - {name: spec_type_desc, type: VARCHAR, nullable: true, upstream_nullable: false, comment: "Specimen type description. Upstream DDL says NOT NULL, but exactly one zero-length string in the data loads as NULL under DuckDB's CSV reader (mimic-code build_mimic.sh relaxes it too) - contract keeps it nullable."}
+      - {name: test_seq, type: INTEGER, nullable: false, comment: "Sequence of the test within the specimen."}
+      - {name: storedate, type: TIMESTAMP, comment: "Date the result was stored."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the result was stored."}
+      - {name: test_itemid, type: INTEGER, comment: "Test item."}
+      - {name: test_name, type: VARCHAR, comment: "Test name (e.g. BLOOD CULTURE)."}
+      - {name: org_itemid, type: INTEGER, comment: "Organism item; NULL when no growth."}
+      - {name: org_name, type: VARCHAR, comment: "Organism name; NULL when no growth."}
+      - {name: isolate_num, type: SMALLINT, comment: "Isolate number when several organisms grew."}
+      - {name: quantity, type: VARCHAR, comment: "Quantity of growth (text)."}
+      - {name: ab_itemid, type: INTEGER, comment: "Antibiotic item tested; NULL when no sensitivity was run."}
+      - {name: ab_name, type: VARCHAR, comment: "Antibiotic name."}
+      - {name: dilution_text, type: VARCHAR, comment: "Raw dilution text (e.g. '<=1')."}
+      - {name: dilution_comparison, type: VARCHAR, comment: "Comparison operator of the dilution."}
+      - {name: dilution_value, type: DOUBLE, comment: "Numeric dilution value."}
+      - {name: interpretation, type: VARCHAR, comment: "S / I / R / P (sensitive, intermediate, resistant, pending)."}
+      - {name: comments, type: VARCHAR, comment: "Free-text comment."}
+
+  - name: omr
+    comment: "Online Medical Record: outpatient/office measurements (blood pressure, weight, height, BMI, eGFR) as text result_value with the unit implied by result_name (e.g. 'Weight (Lbs)', 'Blood Pressure' = 'systolic/diastolic' mmHg). No upstream primary key."
+    time_column: chartdate
+    sort_keys: [subject_id, chartdate, seq_num]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: chartdate, type: DATE, nullable: false, comment: "Date of the measurement."}
+      - {name: seq_num, type: INTEGER, nullable: false, comment: "Sequence within the day."}
+      - {name: result_name, type: VARCHAR, nullable: false, comment: "Measurement name incl. its unit (Blood Pressure, Weight (Lbs), BMI (kg/m2), Height (Inches), eGFR ...)."}
+      - {name: result_value, type: VARCHAR, nullable: false, comment: "Measurement as text (e.g. '120/80')."}
+
+  - name: patients
+    comment: "One row per patient. anchor_age is the age in anchor_year; ages >= 89 are shown as 91. anchor_year_group (a 3-year window, 2008-2010 ... 2020-2022) is the only cross-patient temporal axis. dod = date of death (in or out of hospital), available for ~1 year after the last discharge; NULL means alive at that horizon or unknown."
+    time_column: null
+    sort_keys: [subject_id]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier; primary key."}
+      - {name: gender, type: VARCHAR, nullable: false, comment: "Genotypical sex: M / F."}
+      - {name: anchor_age, type: SMALLINT, comment: "Age in anchor_year; >= 89 shown as 91."}
+      - {name: anchor_year, type: SMALLINT, nullable: false, comment: "Shifted year to which anchor_age refers."}
+      - {name: anchor_year_group, type: VARCHAR, nullable: false, comment: "Real 3-year window in which anchor_year falls: '2008 - 2010' ... '2020 - 2022'."}
+      - {name: dod, type: DATE, comment: "Date of death (shifted) or NULL; ~1-year follow-up after last discharge."}
+
+  - name: pharmacy
+    comment: "Pharmacy-verified medication orders (~17.8 M rows): one row per pharmacy_id with formulary detail, route, frequency, dispensation; starttime/stoptime bound the intended course. Joins to prescriptions (pharmacy_id) and emar."
+    time_column: starttime
+    sort_keys: [subject_id, starttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: pharmacy_id, type: INTEGER, nullable: false, comment: "Pharmacy order identifier; primary key."}
+      - {name: poe_id, type: VARCHAR, comment: "Provider order (-> poe)."}
+      - {name: starttime, type: TIMESTAMP, comment: "Intended start of the medication course."}
+      - {name: stoptime, type: TIMESTAMP, comment: "Intended stop."}
+      - {name: medication, type: VARCHAR, comment: "Medication name."}
+      - {name: proc_type, type: VARCHAR, nullable: false, comment: "Order type (Unit Dose, IV Piggyback, ...)."}
+      - {name: status, type: VARCHAR, comment: "Order status (Active, Discontinued, ...)."}
+      - {name: entertime, type: TIMESTAMP, nullable: false, comment: "Time the order was entered."}
+      - {name: verifiedtime, type: TIMESTAMP, comment: "Time the pharmacy verified the order."}
+      - {name: route, type: VARCHAR, comment: "Route of administration."}
+      - {name: frequency, type: VARCHAR, comment: "Dosing frequency (text)."}
+      - {name: disp_sched, type: VARCHAR, comment: "Dispensing schedule (hours of day, text)."}
+      - {name: infusion_type, type: VARCHAR, comment: "Infusion type."}
+      - {name: sliding_scale, type: VARCHAR, comment: "Y when a sliding-scale order."}
+      - {name: lockout_interval, type: VARCHAR, comment: "PCA lockout interval (text)."}
+      - {name: basal_rate, type: FLOAT, comment: "PCA basal rate (upstream REAL)."}
+      - {name: one_hr_max, type: VARCHAR, comment: "PCA one-hour maximum (text)."}
+      - {name: doses_per_24_hrs, type: FLOAT, comment: "Doses per 24 h (upstream REAL)."}
+      - {name: duration, type: FLOAT, comment: "Duration of the order in duration_interval units (upstream REAL)."}
+      - {name: duration_interval, type: VARCHAR, comment: "Unit of duration (Days, Hours, ...)."}
+      - {name: expiration_value, type: INTEGER, comment: "Expiration value in expiration_unit."}
+      - {name: expiration_unit, type: VARCHAR, comment: "Unit of expiration_value."}
+      - {name: expirationdate, type: TIMESTAMP, comment: "Expiration date."}
+      - {name: dispensation, type: VARCHAR, comment: "Dispensation type."}
+      - {name: fill_quantity, type: VARCHAR, comment: "Fill quantity (text)."}
+
+  - name: poe_detail
+    comment: "Key/value details for provider orders (field_name / field_value per poe_id); most poe rows have none. Primary key (poe_id, field_name)."
+    time_column: null
+    sort_keys: [subject_id, poe_id, field_name]
+    load_class: small
+    columns:
+      - {name: poe_id, type: VARCHAR, nullable: false, comment: "Provider order identifier (-> poe)."}
+      - {name: poe_seq, type: INTEGER, nullable: false, comment: "Sequence of the order within the patient (same as poe.poe_seq)."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: field_name, type: VARCHAR, nullable: false, comment: "Detail field name (Admit to, Level of Urgency, Transfer to, ...)."}
+      - {name: field_value, type: VARCHAR, comment: "Detail field value."}
+
+  - name: poe
+    comment: "Provider order entry (~52 M rows): every order placed for the patient (medications, labs, nutrition, consults, ADT ...), timed by ordertime; discontinue_of_poe_id / discontinued_by_poe_id chain replacements. Medication orders link to pharmacy/emar via poe_id."
+    time_column: ordertime
+    sort_keys: [subject_id, ordertime]
+    load_class: large
+    columns:
+      - {name: poe_id, type: VARCHAR, nullable: false, comment: "Order identifier '<subject_id>-<poe_seq>'; primary key."}
+      - {name: poe_seq, type: INTEGER, nullable: false, comment: "Sequence of the order within the patient."}
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier (NULL for orders outside an admission)."}
+      - {name: ordertime, type: TIMESTAMP, nullable: false, comment: "Time the order was placed."}
+      - {name: order_type, type: VARCHAR, nullable: false, comment: "Order class (Medications, Lab, ADT orders, Consults, Nutrition, ...)."}
+      - {name: order_subtype, type: VARCHAR, comment: "Order subclass."}
+      - {name: transaction_type, type: VARCHAR, comment: "New / Change / D/C / Hold / Ack ..."}
+      - {name: discontinue_of_poe_id, type: VARCHAR, comment: "The order this one discontinues."}
+      - {name: discontinued_by_poe_id, type: VARCHAR, comment: "The order that discontinued this one."}
+      - {name: order_provider_id, type: VARCHAR, comment: "Anonymised ordering provider (-> provider). Present since v2.2."}
+      - {name: order_status, type: VARCHAR, comment: "Active / Inactive."}
+
+  - name: prescriptions
+    comment: "Prescribed medications (~20 M rows): one row per drug per pharmacy order with dose/form/route as ordered; starttime/stoptime bound the course. Upstream primary key (pharmacy_id, drug_type, drug) - test, do not assume, before relying on it."
+    time_column: starttime
+    sort_keys: [subject_id, starttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: pharmacy_id, type: INTEGER, nullable: false, comment: "Pharmacy order (-> pharmacy)."}
+      - {name: poe_id, type: VARCHAR, comment: "Provider order (-> poe)."}
+      - {name: poe_seq, type: INTEGER, comment: "Sequence of the provider order within the patient."}
+      - {name: order_provider_id, type: VARCHAR, comment: "Anonymised ordering provider (-> provider). Present since v2.2."}
+      - {name: starttime, type: TIMESTAMP, comment: "Start of the prescription."}
+      - {name: stoptime, type: TIMESTAMP, comment: "Stop of the prescription."}
+      - {name: drug_type, type: VARCHAR, nullable: false, comment: "MAIN / BASE / ADDITIVE."}
+      - {name: drug, type: VARCHAR, nullable: true, upstream_nullable: false, comment: "Drug name. Upstream DDL says NOT NULL, but zero-length strings in the data load as NULL under DuckDB's CSV reader (mimic-code build_mimic.sh relaxes it too) - contract keeps it nullable."}
+      - {name: formulary_drug_cd, type: VARCHAR, comment: "Hospital formulary code."}
+      - {name: gsn, type: VARCHAR, comment: "Generic Sequence Number(s); may hold several space-separated codes."}
+      - {name: ndc, type: VARCHAR, comment: "National Drug Code (11 digits, may be 0 when unknown)."}
+      - {name: prod_strength, type: VARCHAR, comment: "Product strength (text)."}
+      - {name: form_rx, type: VARCHAR, comment: "Form of the prescription."}
+      - {name: dose_val_rx, type: VARCHAR, comment: "Prescribed dose value (text, may be a range)."}
+      - {name: dose_unit_rx, type: VARCHAR, comment: "Unit of dose_val_rx."}
+      - {name: form_val_disp, type: VARCHAR, comment: "Amount dispensed (text)."}
+      - {name: form_unit_disp, type: VARCHAR, comment: "Unit of form_val_disp."}
+      - {name: doses_per_24_hrs, type: FLOAT, comment: "Doses per 24 h (upstream REAL)."}
+      - {name: route, type: VARCHAR, comment: "Route of administration."}
+
+  - name: procedures_icd
+    comment: "Billed ICD-9/ICD-10-PCS procedures per admission with the procedure date; icd_version distinguishes the vocabularies."
+    time_column: chartdate
+    sort_keys: [subject_id, hadm_id, seq_num]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: seq_num, type: INTEGER, nullable: false, comment: "Priority order within the admission."}
+      - {name: chartdate, type: DATE, nullable: false, comment: "Date of the procedure."}
+      - {name: icd_code, type: VARCHAR, comment: "ICD code without the dot (-> d_icd_procedures with icd_version)."}
+      - {name: icd_version, type: SMALLINT, comment: "9 or 10 - mandatory in every join and code set."}
+
+  - name: provider
+    comment: "Dimension: anonymised provider identifiers referenced by *_provider_id columns (admissions, labevents, microbiologyevents, poe, prescriptions, emar). Added in v2.2. Not subject-keyed; identical in every tier. No upstream primary key declared."
+    time_column: null
+    sort_keys: [provider_id]
+    load_class: small
+    expected_rows_source: null
+    columns:
+      - {name: provider_id, type: VARCHAR, nullable: false, comment: "Anonymised provider identifier (P + 5 alphanumerics)."}
+
+  - name: services
+    comment: "Hospital service transfers within an admission (prev_service -> curr_service at transfertime); the first row of an admission has NULL prev_service."
+    time_column: transfertime
+    sort_keys: [subject_id, transfertime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: transfertime, type: TIMESTAMP, nullable: false, comment: "Time of the service change."}
+      - {name: prev_service, type: VARCHAR, comment: "Previous service (MED, SURG, CMED, ...); NULL at admission."}
+      - {name: curr_service, type: VARCHAR, comment: "New service."}
+
+  - name: transfers
+    comment: "Physical location history (ADT): one row per ward stay (eventtype admit / transfer / discharge; careunit names the ward; ICU careunits map to icustays). hadm_id is NULL for ED-only stays."
+    time_column: intime
+    sort_keys: [subject_id, intime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, comment: "Admission identifier (NULL for ED-only stays)."}
+      - {name: transfer_id, type: INTEGER, nullable: false, comment: "Row identifier; primary key."}
+      - {name: eventtype, type: VARCHAR, comment: "ED / admit / transfer / discharge."}
+      - {name: careunit, type: VARCHAR, comment: "Ward / care unit name (NULL on discharge rows)."}
+      - {name: intime, type: TIMESTAMP, comment: "Arrival at the unit."}
+      - {name: outtime, type: TIMESTAMP, comment: "Departure from the unit (NULL on discharge rows)."}

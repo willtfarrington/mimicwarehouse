@@ -1,0 +1,192 @@
+# mimicwarehouse schema contract - MIMIC-IV 3.1 `icu` module (9 tables).
+#
+# Transcribed from the vendored mimic-code DDL mimic-iv/buildmimic/postgres/create.sql (EP-8
+# pin) and curated by EP-9; see mimiciv_hosp.yaml for the file conventions and the MIMIC-IV
+# facts. ICU data come from the MetaVision clinical information system: every event carries a
+# stay_id (icustays) and an itemid (-> d_items, whose `linksto` names the event table).
+# `caregiver_id` columns and the caregiver dimension exist since v2.2.
+schema: mimiciv_icu
+dataset: mimic-iv-3.1
+csv_dir: icu
+source_ddl: mimic-iv/buildmimic/postgres/create.sql
+source_keys: mimic-iv/buildmimic/postgres/constraint.sql
+expected_rows_source: mimic-iv/buildmimic/postgres/validate.sql
+comment: "ICU module: ICU stays and the MetaVision event tables (chartevents, datetimeevents, inputevents, ingredientevents, outputevents, procedureevents) plus the d_items and caregiver dimensions. Source: PhysioNet MIMIC-IV v3.1."
+tables:
+  - name: caregiver
+    comment: "Dimension: anonymised caregiver identifiers referenced by caregiver_id on the ICU event tables. Added in v2.2. Not subject-keyed. No upstream primary key declared."
+    time_column: null
+    sort_keys: [caregiver_id]
+    load_class: small
+    expected_rows_source: null
+    columns:
+      - {name: caregiver_id, type: INTEGER, nullable: false, comment: "Anonymised caregiver identifier."}
+
+  - name: chartevents
+    comment: "Charted ICU observations (~433 M rows, 40 GB CSV): vital signs, ventilator settings, scores, labs re-charted at the bedside ... one row per itemid per charttime per stay. valuenum/valueuom hold the numeric value and unit, value the raw text; warning = 1 flags a MetaVision warning. Known upstream duplicates: no primary key (see keys.yaml)."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier (-> icustays)."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver who charted the value (-> caregiver). Present since v2.2."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Time the observation was charted / taken (shifted, naive)."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the row was stored (validated) in the system."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Concept identifier (-> d_items, linksto = chartevents)."}
+      - {name: value, type: VARCHAR, comment: "Raw charted value (text; numeric values are also in valuenum)."}
+      - {name: valuenum, type: DOUBLE, comment: "Numeric value when the item is numeric, else NULL (upstream FLOAT = double precision)."}
+      - {name: valueuom, type: VARCHAR, comment: "Unit of measure of valuenum."}
+      - {name: warning, type: SMALLINT, comment: "1 when MetaVision raised a warning for the value."}
+
+  - name: datetimeevents
+    comment: "Charted date/time observations (e.g. last dialysis, line insertion dates): the observation itself is a shifted TIMESTAMP in `value`."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Time the observation was charted."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the row was stored."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Concept identifier (-> d_items, linksto = datetimeevents)."}
+      - {name: value, type: TIMESTAMP, nullable: false, comment: "The charted date/time (shifted like all timestamps)."}
+      - {name: valueuom, type: VARCHAR, comment: "Unit label ('Date' / 'Date and time')."}
+      - {name: warning, type: SMALLINT, comment: "1 when MetaVision raised a warning."}
+
+  - name: d_items
+    comment: "Dimension: MetaVision items (itemid) for every ICU event table; linksto names the table, param_type the value kind (Numeric, Text, Date and time, Checkbox, Solution ...), unitname the expected unit, low/highnormalvalue reference bounds where defined."
+    time_column: null
+    sort_keys: [itemid]
+    load_class: small
+    columns:
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Item identifier; primary key."}
+      - {name: label, type: VARCHAR, nullable: false, comment: "Item label."}
+      - {name: abbreviation, type: VARCHAR, nullable: false, comment: "Short label used on the ICU flowsheet."}
+      - {name: linksto, type: VARCHAR, nullable: false, comment: "Event table the item appears in (chartevents, datetimeevents, inputevents, ingredientevents, outputevents, procedureevents)."}
+      - {name: category, type: VARCHAR, nullable: false, comment: "Item category (Routine Vital Signs, Labs, Respiratory, ...)."}
+      - {name: unitname, type: VARCHAR, comment: "Expected unit of measure."}
+      - {name: param_type, type: VARCHAR, nullable: false, comment: "Value type: Numeric, Text, Date and time, Checkbox, Solution, Process, Numeric with tag ..."}
+      - {name: lownormalvalue, type: DOUBLE, comment: "Lower normal bound where defined."}
+      - {name: highnormalvalue, type: DOUBLE, comment: "Upper normal bound where defined."}
+
+  - name: icustays
+    comment: "One row per ICU stay (stay_id); consecutive ICU ward stays are merged into one stay when the gap is short. intime/outtime bound the stay; los is the length of stay in fractional days; first/last_careunit name the ICU types."
+    time_column: intime
+    sort_keys: [subject_id, intime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier; primary key."}
+      - {name: first_careunit, type: VARCHAR, comment: "First ICU care unit (MICU, SICU, CVICU, CCU, TSICU, Neuro ...)."}
+      - {name: last_careunit, type: VARCHAR, comment: "Last ICU care unit."}
+      - {name: intime, type: TIMESTAMP, comment: "ICU admission time."}
+      - {name: outtime, type: TIMESTAMP, comment: "ICU discharge time."}
+      - {name: los, type: DOUBLE, comment: "Length of stay in days (fractional; upstream FLOAT)."}
+
+  - name: ingredientevents
+    comment: "Ingredients of inputevents orders (e.g. water, dextrose, sodium per solution) with the same start/end/amount/rate shape; orderid links back to the inputevents order. No upstream primary key (candidate: orderid, itemid)."
+    time_column: starttime
+    sort_keys: [subject_id, starttime]
+    load_class: large
+    expected_rows_source: null
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, comment: "ICU stay identifier (may be NULL)."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
+      - {name: starttime, type: TIMESTAMP, nullable: false, comment: "Start of the infusion / administration."}
+      - {name: endtime, type: TIMESTAMP, nullable: false, comment: "End of the infusion / administration."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the row was stored."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Ingredient item (-> d_items, linksto = ingredientevents)."}
+      - {name: amount, type: DOUBLE, comment: "Amount given (in amountuom)."}
+      - {name: amountuom, type: VARCHAR, comment: "Unit of amount."}
+      - {name: rate, type: DOUBLE, comment: "Rate of administration (in rateuom)."}
+      - {name: rateuom, type: VARCHAR, comment: "Unit of rate."}
+      - {name: orderid, type: INTEGER, nullable: false, comment: "Order identifier shared with inputevents."}
+      - {name: linkorderid, type: INTEGER, comment: "Links rate changes of the same order."}
+      - {name: statusdescription, type: VARCHAR, comment: "FinishedRunning, Stopped, Changed, Paused, Rewritten, Flushed ..."}
+      - {name: originalamount, type: DOUBLE, comment: "Amount originally ordered."}
+      - {name: originalrate, type: DOUBLE, comment: "Rate originally ordered."}
+
+  - name: inputevents
+    comment: "Fluid and medication inputs delivered via the ICU infusion / order system: one row per (order, item) segment with start/end, amount and rate; patientweight is the weight used for weight-based dosing. Rate changes create new rows linked by linkorderid."
+    time_column: starttime
+    sort_keys: [subject_id, starttime]
+    load_class: large
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, comment: "ICU stay identifier (may be NULL)."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
+      - {name: starttime, type: TIMESTAMP, nullable: false, comment: "Start of the input."}
+      - {name: endtime, type: TIMESTAMP, nullable: false, comment: "End of the input."}
+      - {name: storetime, type: TIMESTAMP, comment: "Time the row was stored."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Input item (-> d_items, linksto = inputevents)."}
+      - {name: amount, type: DOUBLE, comment: "Amount delivered (in amountuom)."}
+      - {name: amountuom, type: VARCHAR, comment: "Unit of amount (mL, mg, units, ...)."}
+      - {name: rate, type: DOUBLE, comment: "Rate of delivery (in rateuom)."}
+      - {name: rateuom, type: VARCHAR, comment: "Unit of rate (mL/hour, mcg/kg/min, ...)."}
+      - {name: orderid, type: INTEGER, nullable: false, comment: "Order identifier; (orderid, itemid) is the primary key."}
+      - {name: linkorderid, type: INTEGER, comment: "Links rate changes of the same order (equals orderid on the first segment)."}
+      - {name: ordercategoryname, type: VARCHAR, comment: "Order category (e.g. 01-Drips, 02-Fluids (Crystalloids), 03-IV Fluid Bolus ...)."}
+      - {name: secondaryordercategoryname, type: VARCHAR, comment: "Secondary order category."}
+      - {name: ordercomponenttypedescription, type: VARCHAR, comment: "Main order parameter / Mixed solution / Additive ..."}
+      - {name: ordercategorydescription, type: VARCHAR, comment: "Continuous Med / Continuous IV / Drug Push / Bolus ..."}
+      - {name: patientweight, type: DOUBLE, comment: "Patient weight (kg) used for the order."}
+      - {name: totalamount, type: DOUBLE, comment: "Total amount in the bag / order (in totalamountuom)."}
+      - {name: totalamountuom, type: VARCHAR, comment: "Unit of totalamount."}
+      - {name: isopenbag, type: SMALLINT, comment: "1 when the bag was open."}
+      - {name: continueinnextdept, type: SMALLINT, comment: "1 when the order continued after ICU transfer."}
+      - {name: statusdescription, type: VARCHAR, comment: "FinishedRunning, Stopped, Changed, Paused, Rewritten, Flushed ..."}
+      - {name: originalamount, type: DOUBLE, comment: "Amount originally ordered."}
+      - {name: originalrate, type: DOUBLE, comment: "Rate originally ordered."}
+
+  - name: outputevents
+    comment: "Fluid outputs (urine, drains, stool ...): one row per measurement with value/valueuom (usually mL) at charttime."
+    time_column: charttime
+    sort_keys: [subject_id, charttime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Time of the output measurement."}
+      - {name: storetime, type: TIMESTAMP, nullable: false, comment: "Time the row was stored."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Output item (-> d_items, linksto = outputevents)."}
+      - {name: value, type: DOUBLE, nullable: false, comment: "Output amount (in valueuom)."}
+      - {name: valueuom, type: VARCHAR, comment: "Unit of value (mL)."}
+
+  - name: procedureevents
+    comment: "ICU procedures with a duration (ventilation, lines, dialysis, imaging ...): start/end times, value = duration or amount in valueuom, location of the device where relevant."
+    time_column: starttime
+    sort_keys: [subject_id, starttime]
+    load_class: small
+    columns:
+      - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
+      - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
+      - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier."}
+      - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
+      - {name: starttime, type: TIMESTAMP, nullable: false, comment: "Start of the procedure."}
+      - {name: endtime, type: TIMESTAMP, nullable: false, comment: "End of the procedure."}
+      - {name: storetime, type: TIMESTAMP, nullable: false, comment: "Time the row was stored."}
+      - {name: itemid, type: INTEGER, nullable: false, comment: "Procedure item (-> d_items, linksto = procedureevents)."}
+      - {name: value, type: DOUBLE, comment: "Duration or amount (in valueuom)."}
+      - {name: valueuom, type: VARCHAR, comment: "Unit of value (min, hour, day, mL, ...)."}
+      - {name: location, type: VARCHAR, comment: "Body location of the device / procedure."}
+      - {name: locationcategory, type: VARCHAR, comment: "Location category."}
+      - {name: orderid, type: INTEGER, comment: "Order identifier; primary key."}
+      - {name: linkorderid, type: INTEGER, comment: "Links related order rows."}
+      - {name: ordercategoryname, type: VARCHAR, comment: "Order category (Ventilation, Invasive Lines, Dialysis, Imaging, ...)."}
+      - {name: ordercategorydescription, type: VARCHAR, comment: "Order category description."}
+      - {name: patientweight, type: DOUBLE, comment: "Patient weight (kg) at the time of the order."}
+      - {name: isopenbag, type: SMALLINT, comment: "1 when the bag was open (inherited field)."}
+      - {name: continueinnextdept, type: SMALLINT, comment: "1 when the order continued after ICU transfer."}
+      - {name: statusdescription, type: VARCHAR, comment: "FinishedRunning, Stopped, Paused, Rewritten ..."}
+      - {name: originalamount, type: DOUBLE, comment: "Amount originally ordered."}
+      - {name: originalrate, type: DOUBLE, comment: "Rate originally ordered."}

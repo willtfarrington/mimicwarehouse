@@ -121,6 +121,20 @@ conformed catalog → derived concepts → marts; Polars primary, pandas at libr
 boundaries.** *Alternatives:* Postgres in Docker; Polars-only; ClickHouse; CSV → DuckDB
 native only; pandas primary.
 
+> **Addendum (2026-08-17, EP-9).** The typed layer's contract is the YAML under
+> `src/mimicwarehouse/schema/tables/` (DESIGN §7 note), transcribed from the D-19 pin and guarded
+> by `mwh schema check`. Two policy points settled while transcribing, both reversible with one
+> YAML edit and both visible to the drift oracle through `upstream_type` / `upstream_nullable`:
+> (1) **types follow upstream except where upstream has no DuckDB equivalent** — unbounded
+> `NUMERIC` (ED vitals) is `DOUBLE`, `REAL` is DuckDB `FLOAT`, and the single `NUMERIC(10, 4)`
+> column (`ed.vitalsign.resprate`) is `DOUBLE` so one table does not mix `Decimal` and float
+> vitals; (2) **nullability follows upstream except where upstream's own DuckDB build relaxes it**
+> (`microbiologyevents.spec_type_desc`, `prescriptions.drug`: zero-length strings load as NULL).
+> Keys are metadata, not constraints: `Table.duckdb_ddl()` emits no `PRIMARY KEY` / `FOREIGN KEY`
+> (EP-28/EP-44 test them per tier). *Alternatives:* `DECIMAL(18,3)` for bare NUMERIC (DuckDB's
+> default; would constrain scale on load); DECIMAL(10,4) for resprate (faithful, awkward
+> downstream); PK constraints in DDL (ART index over 400 M rows; rejects upstream duplicates).
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
@@ -181,6 +195,18 @@ skip.
 
 **D-27 Fixtures = synthetic mini-MIMIC generator (ids ≥ 90 000 000) committed +
 on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synthetic only.
+
+> **Addendum (2026-08-17, EP-9).** The planning assumption that the Demo 2.2 lacks the
+> `provider` / `caregiver` tables and the `*_provider_id` / `caregiver_id` columns is **wrong**:
+> mimic-code's DDL history shows all of them were added in the v2.2 commit (`db74e5d`,
+> 2023-01-06), PhysioNet's public file listing for `mimic-iv-demo/2.2` includes
+> `hosp/provider.csv.gz` and `icu/caregiver.csv.gz`, and the v3.0/v3.1 release notes list no
+> column additions, renames or removals (only `admissions.language` widened in the DDL). The
+> demo 2.2 → 3.1 column map (`schema/tables/column_maps/demo_2_2_to_3_1.yaml`) is therefore the
+> **identity** for all 22 + 9 + 6 tables; MIMIC-IV-Note has no demo. Consequence for EP-22: the
+> demo loader validates headers against the contract (`ColumnMap.check`, in code, never printed)
+> and applies no NULL-filling or renames; if the real headers ever disagree, EP-22 amends the map
+> file rather than the loader.
 
 **D-28 Latency ≤ 5 s typical on full data via marts; interactive pages default to
 dev.** *Alternatives:* ≤ 2 s always; whatever DuckDB gives.
