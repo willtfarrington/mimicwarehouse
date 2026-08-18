@@ -234,6 +234,8 @@ no data is touched. Commands run in `mimicwarehouse/`; git at the repo root.
 > | ≥ 100 GB free confirmed by doctor | **yes** — 414.9 / 951.5 GB free on C: | `mwh doctor` `disk_free` pass, EP-7 |
 > | Proceed to EP-8? | **owner to confirm** at hand-off — with EP-164 now first in P1 (the doctor `antivirus` check), then EP-8; and whether to authorise the one-line `test_ep06` relaxation (Risk 14) as a hotfix or leave it to EP-164 item 6 | this note |
 >
-> **Commits.** `docs(roadmap): add EP-164 — toolchain remediation (P1)` → `docs(roadmap): re-plan P0
-> (EP-7)` (this note, DECISIONS/DESIGN addenda, README risks + P1 amendments, final-roadmap RM-1)
-> → `docs(roadmap): record EP-7 commit hash`. Hashes are recorded in `roadmap/README.md`.
+> **Commits.** `5072451` `docs(roadmap): add EP-164 — toolchain remediation (P1)` (the step-5 slot; subject
+> as the brief prescribes, so it carries no `(EP-7)` tag and is cited here rather than in the ☑ cell — a second
+> cell hash would add a second `--strict` warning) → `45aa3f6` `docs(roadmap): re-plan P0 (EP-7)` (this note,
+> DECISIONS/DESIGN addenda, README risks + P1 amendments, final-roadmap RM-1; the ☑ hash) → `docs(roadmap):
+> record EP-7 commit hash`.
