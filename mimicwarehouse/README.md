@@ -1,17 +1,23 @@
 # mimicwarehouse (workspace)
 
-The Python workspace of the mimicwarehouse data lab — a uv project that will hold the
-package (`src/mimicwarehouse/`), the Streamlit app (`app/`), tests, docs and design
-files. As of 2026-08-17 (EP-1 … EP-5) it holds the **toolchain** — `pyproject.toml`, `uv.lock`,
-`.python-version`, the package skeleton `src/mimicwarehouse/` and `tests/` — the
-**`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`), `mwh paths` and `mwh guard`
-(`guard.py`, the pre-commit data-leak guard — see "Contributing" below), the
-**settings + data-root module** (`config.py`: `Settings`, the 15-directory layout, the D-29
-location refusals, the free-space guard), and the **visual identity** (`theme.py`, EP-5:
-`Palette` light/dark, Altair `mwh_light`/`mwh_dark` themes, Streamlit theme →
-`.streamlit/config.toml`, wordmark + banner SVGs → [docs/brand/](docs/brand/README.md)); no
-data code yet — that arrives with the roadmap briefs from
-`roadmap/EP-8-mimic-code-vendoring.md` on.
+The Python workspace of the mimicwarehouse data lab — a uv project that holds the
+package (`src/mimicwarehouse/`), tests, docs and design files, and will hold the Streamlit
+app (`app/`). As of 2026-08-18 (EP-1 … EP-12 + EP-164; work in progress, paused, resumes at
+EP-165) it holds the **toolchain** — `pyproject.toml`, `uv.lock`, `.python-version` — the
+**`mwh` CLI** (`cli.py`) with `mwh doctor` (`doctor.py`), `mwh paths`, `mwh guard`
+(`guard.py`, the pre-commit data-leak guard — see "Contributing" below), `mwh verify`
+(`verify.py`, per-brief test runner + roadmap consistency check), `mwh schema` (`schema/`,
+the YAML schema contract for hosp/icu/ed/note transcribed from the vendored DDL),
+`mwh inventory` (`inventory.py`, hash/row-count manifest of the raw CSVs reconciled against
+upstream `validate.sql`) and `mwh fixtures` (`fixtures/`, the deterministic **synthetic**
+hosp + icu fixture generator behind `tests/fixtures/`); the **settings + data-root module**
+(`config.py`: `Settings`, the 15-directory layout, the D-29 location refusals, the free-space
+guard); the vendored, pinned **mimic-code** concepts (`concepts/vendor/`, EP-8); and the
+**visual identity** (`theme.py`, EP-5: `Palette` light/dark, Altair `mwh_light`/`mwh_dark`
+themes, Streamlit theme → `.streamlit/config.toml`, wordmark + banner SVGs →
+[docs/brand/](docs/brand/README.md)). The loader, warehouse build, concepts runner,
+cohorts, `safe_query` and the Lab app are not built yet — they arrive with the roadmap
+briefs from P1b on (`../roadmap/README.md`).
 
 | Doc | What |
 |---|---|

@@ -6,6 +6,13 @@
 > full brief by EP-147 (Re-plan P9, which writes full P10/P11) before execution; EP-136 (Re-plan P8)
 > re-charters it first.
 
+> **Amended 2026-08-18 (D-41 addendum, before EP-165).** The repo went **public early** as a
+> governed work-in-progress after a first full-history guard + secrets sweep, and the MIT
+> `LICENSE` now exists at the repo root. For this brief: scope item 2(c) verifies the existing
+> `LICENSE` instead of adding it; 2(d) is a **re-sweep** with `mwh guard --history` (still to be
+> built here); 2(h) "remote flipped to public" is already done — replace with "visibility and
+> repo settings re-checked".
+
 ## Context
 
 The last brief of v1: compile the extension roadmap, release v1.0.0 and write the final retro. Owner

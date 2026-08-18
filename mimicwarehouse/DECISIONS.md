@@ -434,6 +434,28 @@ PreToolUse output-scanning hook is parked. *Alternatives:* prose only; hook.
 **D-41 MIT now; repo public at v1.0.0 after a full-history guard sweep.**
 *Alternatives:* public from day one; private indefinitely.
 
+> **Addendum (2026-08-18, owner decision between EP-12 and EP-165).** The repository goes
+> **public before v1.0.0**, as a governed work-in-progress (portfolio / job-search purpose,
+> D-1), because development is paused for a while after P1a. The "private until v1.0.0"
+> half of D-41 is superseded; the **"after a full-history guard sweep" half is kept and was
+> executed the same day**, before the flip: (a) `mwh guard --all-tracked` clean (428 tracked
+> files) and `--selfcheck` all ok; (b) `guard.scan_tracked` run at **every commit reachable
+> from every ref** (37 commits, `cd67743` … `f3eb115`) — 0 violations (data-shaped files,
+> real-band ids, source-material paths, notebook outputs, oversize); (c) a secrets/PII regex
+> sweep over every unique non-CSV/SVG/lock blob in history (518 blobs; cloud/API/VCS tokens,
+> private keys, `password=`-style assignments, e-mail addresses, PhysioNet credentials) — 0
+> hits apart from `PHI-report@physionet.org`, test dummies and `C:\Users\<owner>` paths;
+> (d) no path ever added-then-deleted in history; (e) `origin/main` held only the planning
+> commit `cd67743`, so the push is a fast-forward (no rewrite, no force). Owner-side actions
+> at the flip: repo-root `LICENSE` (MIT) added now rather than at EP-163; root and workspace
+> READMEs carry a dated work-in-progress status block; GOVERNANCE §3 amended in place with a
+> dated note (history kept). Consequences for EP-163: its release checklist item (d)
+> becomes a **re-sweep** with `mwh guard --history` (still to be built) rather than the
+> first sweep, and item (h) "remote flipped to public" is already done. Standing rule from
+> here on: the remote is public, so every commit is publication — the pre-commit guard, the
+> Claude deny rules and the disclosure gate (D-40) are the only things between a session and
+> the world; nothing may be pushed that would not pass them.
+
 ---
 
 ## Defaults assumed by the planning session (owner may veto any; say so and the

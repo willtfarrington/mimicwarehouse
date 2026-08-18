@@ -64,6 +64,17 @@ real-time scanning at the owner's discretion (D-38); the repository is not.
   history (`git filter-repo`), rotate any pushed remote, and record the incident in
   `DECISIONS.md`.
 
+  > **Amended 2026-08-18 (D-41 addendum).** The remote is **public from 2026-08-18**, before
+  > v1.0.0, as a governed work-in-progress. The full-history guard sweep was run first
+  > (every commit reachable from every ref through `guard.scan_tracked`, plus a secrets/PII
+  > regex sweep over every blob in history — both clean; details in the D-41 addendum).
+  > From now on **every push is a publication**: the pre-commit `mwh guard` hook, the
+  > Claude Code deny rules (§4) and the disclosure gate (§7) are the release gate for each
+  > commit, and the "if row-level data is ever committed" rule above applies with the remote
+  > already public — stop, do not push; if already pushed, rewrite and force-push with the
+  > owner's explicit go, then treat the leak as disclosed and report per §1. The v1.0.0
+  > release (EP-163) re-runs the sweep with `mwh guard --history`.
+
 ## 4. LLM / Claude Code policy (D-31, D-32, D-39)
 
 PhysioNet's policy prohibits sending credentialed data through non-compliant online
@@ -130,7 +141,8 @@ tests and screenshots.
 
 ## 10. Dependency & vocabulary licensing (D-34, D-35)
 
-- Code license: **MIT** (`LICENSE` at the repo root from EP-163; header not required per file).
+- Code license: **MIT** (`LICENSE` at the repo root — added 2026-08-18 at the public flip
+  rather than at EP-163, D-41 addendum; header not required per file).
 - Runtime dependencies in the core groups must be permissive (MIT/BSD/Apache-2.0/PSF/
   ISC/MPL-2.0). GPL-licensed tools (e.g. scikit-survival, GPL-3) may only be used through
   the optional `gpl` dependency group and are named in the brief that uses them.
