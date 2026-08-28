@@ -285,7 +285,8 @@ def redact_band_ids(data: bytes) -> tuple[bytes, list[int]]:
     marker = REDACTED.encode()
 
     def redact(match: re.Match[bytes]) -> bytes:
-        return marker if guard.band_of(int(match.group())) is not None else match.group()
+        value = guard.token_value(match.group().decode("ascii"))
+        return marker if guard.band_of(value) is not None else match.group()
 
     out: list[bytes] = []
     for no, line in enumerate(data.split(b"\n"), start=1):

@@ -18,6 +18,8 @@ Data root: `MWH_DATA_ROOT` (default `C:\mimicdata`) — outside the repository, 
 
 **Tiers** (D-18, DESIGN §4). Every brief states its tier in its header using this vocabulary: `fixture` (synthetic, committed) · `fixture+dev` · `fixture+dev+full` · `fixture+dev (full ⏱ → verified by EP-n)` (the brief launches a resumable background full-tier job and the named later brief records its timing) · `demo` (ODbL demo data) · `n/a` (docs-only). ⏱ in a title marks a brief that launches a long full-tier job; foreground shell commands are capped at ~10 min, so full-tier work is always a logged background job.
 
+**Power mode (owner note, 2026-08-26).** Timings and tier sizing assume the Windows power mode is *Best performance* on AC (D-38), but the owner turns it off between sessions. Every remaining EP session must confirm it is re-enabled **before** compiling, testing, querying or other compute-heavy steps — `mwh doctor`'s `power_scheme` check (or registry `ActiveOverlayAcPowerScheme`) shows it; if it reads Balanced/default, ask the owner to toggle it on and wait. See `CLAUDE.md` §3.
+
 **Core / Stretch.** The `Core` column is the cutline: if time runs short, stretch briefs are dropped first (numbering gaps are fine, hupsim precedent). Re-plan EPs may move briefs across the line.
 
 **Acceptance phrasing by brief class** (mechanically checkable, per hupsim):

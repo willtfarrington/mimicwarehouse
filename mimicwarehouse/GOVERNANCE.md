@@ -44,6 +44,25 @@ BitLocker on C: is required (owner verified on 2026-08-16; `mwh doctor` re-check
 records the result in every run manifest). The data root is excluded from Windows Defender
 real-time scanning at the owner's discretion (D-38); the repository is not.
 
+> **Amended 2026-08-28 (EP-165; D-38 addenda, D-42, D-43 item 5).** Endpoint security is
+> **two** real-time products, both on: Windows Defender (excludes `C:\mimicdata`; the
+> repository is not Defender-excluded) and **Malwarebytes 5.1 Premium**, whose allow list
+> is now **nine** paths — the seven of D-38 (`C:\Program Files\Git`; uv's CPython under
+> `%APPDATA%\uv\python`; the unsigned `uv.exe` WinGet package dir; the workspace `.venv`;
+> `%USERPROFILE%\.cache\pre-commit`; `C:\mimicdata`; `source material\`) plus, decided
+> 2026-08-18, `%LOCALAPPDATA%\uv\cache` and the Claude scratchpad
+> `%LOCALAPPDATA%\Temp\claude\`. Two of the nine are **inside the repository directory**
+> (`source material\` and the `.venv`), so the sentence above holds for Defender only.
+> Both products' usage/threat statistics and sample submission are **off**. The
+> data-location exclusions are a **disclosure control**, part of keeping the local copy
+> "secured" (§1): a scanner that ships detected objects to a vendor cloud must never have
+> reason to open MIMIC files. Neither exclusion list is readable non-elevated — `mwh
+> doctor` `antivirus` names the products and required paths on the owner's word (D-42).
+> **Relocating the data root:** the `.claude/settings.json` deny rules and both products'
+> exclusions hard-code `C:\mimicdata`, so a relocated `MWH_DATA_ROOT` has no prefix
+> coverage until the deny rules, both exclusion lists and `.env`/`mwh.toml` are updated —
+> update them **before** moving anything (retro GOV-3).
+
 ## 3. What may be committed to git (D-40, D-41)
 
 - **Yes**: code, docs, YAML specs, DDL, schema contracts, synthetic fixtures, manifests
@@ -96,6 +115,35 @@ Anthropic. Therefore, in this repository:
    writes an audit entry; those views are never exported and never appear in tool output.
 5. Suspected PHI encountered by anyone → report to PhysioNet; do not paste it anywhere.
 6. Owner action: check that the claude.ai "improve the model" / training toggle is off.
+
+> **Amended 2026-08-28 (EP-165; D-39, D-43 items 2–3).** Item 3's chain is now **five**
+> layers: this document → `CLAUDE.md` → repo-shared `.claude/settings.json`, which since
+> EP-165 carries deny rules **plus** an `env` block (`PYTHONUTF8=1`), an allow list for
+> read-only project commands (deny keeps precedence), and a registered **PreToolUse
+> command-string hook** (`mimicwarehouse/scripts/claude_pretool_guard.py`, run by the
+> allow-listed workspace-venv python) that denies any command/path mentioning
+> `mimicdata` / `source material` / `.csv` / `.parquet` / `.duckdb` outside allow-listed
+> project launchers (`mwh guard --selfcheck` pins its registration) → `mwh guard` +
+> pre-commit (the git-side layer, §3) → `safe_query` (EP-30; until it ships, sessions run
+> no queries against the real data at all). Scope note (EP-0 finding, D-39 addendum):
+> `Read(**/*.csv)`-style extension rules are **project-relative**; the real data is
+> protected by the absolute `//C:/mimicdata/**` and `source material/…` rules, the
+> absolute `Read(//C:/**/*.csv|.csv.gz|.parquet|.duckdb)` rules added at EP-165, and the
+> hook. Deny rules and hook are blocklists of common forms, not a data-path firewall —
+> prose and `safe_query` remain the primary controls.
+>
+> **Connectors (owner decision 2026-08-18, D-43 item 3).** claude.ai MCP connectors and
+> the WebFetch/WebSearch tools are an egress path **beyond** Anthropic that the deny rules
+> on data files do not cover; the control is therefore prose plus denied send/write tools.
+> Sessions may use connectors for **public-reference lookups only** — PubMed, bioRxiv,
+> ICD-10 Codes, Context7, GitHub/DOI URLs via WebFetch (EP-13/EP-15 need them) — and must
+> never place fixture rows, aggregates, ids, run records or note text in a request.
+> Send/write-capable connector tools (Gmail send/reply/forward/draft/trash, Calendar
+> create/update/delete/respond, Hugging Face `hf_fs`/`dynamic_space`) are denied in
+> `.claude/settings.json`: they would bypass the D-40 disclosure gate, which only guards
+> git. The Google Drive connector stays off (no project content in Google-hosted storage;
+> distinct from, but adjacent to, D-29's ban on the G: sync client). The connector roster
+> is claude.ai account state, invisible to git — re-check it at every re-plan EP.
 
 ## 5. Small-cell rule (D-33)
 

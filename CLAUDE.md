@@ -10,7 +10,9 @@ style preferences. Read them fully before doing anything.
 1. `mimicwarehouse/GOVERNANCE.md` — the safety/licensing contract (overrides everything).
 2. The **one** roadmap brief you were handed (`roadmap/EP-<n>-*.md`) and `roadmap/README.md`
    §"How to use this roadmap". One brief per session; do not start the next one.
-3. `mimicwarehouse/DESIGN.md` and `mimicwarehouse/DECISIONS.md` for architecture and the
+3. What already exists: `mimicwarehouse/README.md` § "State of the workspace" (from EP-166)
+   and the `roadmap/README.md` phase tables — a ☑ hash means shipped.
+4. `mimicwarehouse/DESIGN.md` and `mimicwarehouse/DECISIONS.md` for architecture and the
    settled decisions the brief cites as **D-n**.
 
 ## 2. Data access — hard rules
@@ -18,11 +20,21 @@ style preferences. Read them fully before doing anything.
 - **Never** print, read, `head`, `cat`, `type`, `Get-Content`, `Select-String`, grep, or
   open any file under `source material/` (except `*.md`) or under the data root
   (`C:\mimicdata`, `MWH_DATA_ROOT`), and never run the `duckdb` executable directly.
-  Repo `.claude/settings.json` denies these; do not work around a denial.
+  `.claude/settings.json` denies the common forms; its PreToolUse hook (EP-165) refuses
+  commands/paths mentioning `mimicdata`/`source material`/`.csv`/`.parquet`/`.duckdb`
+  outside allow-listed project commands. Blocklists, not a firewall — `python`/`cp`/nested
+  shells against those paths are equally forbidden. Never work around a denial; the shell
+  rules match the *string*, so use the Read/Grep tools for docs that merely mention the
+  tokens, and for `source material/README.md`.
 - All queries go through `mimicwarehouse.safe.safe_query(...)` or `uv run mwh sql`
-  (read-only, allow-listed, row-capped, k = 11 suppression, audit-logged). You may only
-  see **aggregates, schemas, dictionaries, counts and statistics** — never identifiers
-  (`subject_id`, `hadm_id`, `stay_id`, `note_id`, …), never row samples, never note text.
+  (read-only, allow-listed, row-capped, k = 11 suppression, audit-logged; until EP-30
+  ships them, sessions query no real data at all). You may only see **aggregates, schemas,
+  dictionaries, counts and statistics** — never identifiers (`subject_id`, `hadm_id`,
+  `stay_id`, `note_id`, …), never row samples, never note text.
+- claude.ai connectors and WebFetch/WebSearch are a second egress path: public-reference
+  lookups only (PubMed, bioRxiv, ICD-10 Codes, Context7, GitHub/DOI); never fixture rows,
+  aggregates, ids, run records or note text in a query; connector send/write tools are
+  denied; the Google Drive connector stays off (GOVERNANCE §4, D-29, D-43).
 - If a command output unexpectedly contains row-level data or note text: stop, do not
   repeat it, tell the owner, and note the incident in `DECISIONS.md` § Addenda.
 - Never write real rows into fixtures, golden files, tests, docs, screenshots, or commits.
@@ -33,17 +45,40 @@ style preferences. Read them fully before doing anything.
 ## 3. Environment & commands
 
 - Workspace: `mimicwarehouse/` (uv project). Run everything as
-  `uv run --project mimicwarehouse --group <group> mwh <cmd>` (or `cd mimicwarehouse` first).
-  Groups: `dev` (default for tests), `ui` (Streamlit; isolated because it pins
-  `pyarrow<25`), `gpu`, `gpl`, `text`. Never `pip install` into the system Python 3.14;
-  uv manages CPython 3.13.
+  `uv run --project mimicwarehouse --group <group> mwh <cmd>` (or `cd mimicwarehouse`
+  first). Groups: `dev` (default for tests), `ui` (isolated; pins `pyarrow<25`), `gpu`,
+  `gpl`, `text`. `default-groups=["dev"]`, so `uv run mwh` ≡ `uv run --group dev mwh`.
+- **Session tooling (D-42, Risks 12/13).** Overrides the harness's own suggestion to use
+  heredocs/`sed`/stdin scripts:
+  (a) `uv` may be missing from the tool shells' PATH (stale VS Code process; owner
+  restarts VS Code). Fallback, needed before `uv`, `poe`, `pre-commit` **and `git commit`**
+  (the hook shells out to `uv run`): `export PATH="$LOCALAPPDATA/Microsoft/WinGet/Links:$PATH"`
+  (Bash) / `$env:PATH="$env:LOCALAPPDATA\Microsoft\WinGet\Links;$env:PATH"` (PowerShell).
+  (b) Bare `python`/`pip` in the tool shells is the system CPython 3.14 — never use or
+  `pip install` into it; always `uv run python …` (uv manages CPython 3.13).
+  (c) Files only via Write/Edit — **never** bash heredocs (Defender kills the shell as
+  ClickFix), never `python -`/stdin scripts (hangs; EP-12); commit messages via
+  `git commit -F <scratch file>`; no burst copy/`sed -i`/delete loops over many scratch
+  files (Malwarebytes ransomware heuristic); "process killed / binary vanished / access
+  denied" → check Malwarebytes Quarantine + `mbamservice.log` first.
+  (d) Foreground `sleep` is blocked in the Bash tool; long work = background jobs + logs.
+  (e) Console: `PYTHONUTF8=1` comes from `.claude/settings.json`; new CLI strings still
+  stay ASCII or go through the shared console helper (EP-167).
 - Tiers: develop and test on `fixture` (synthetic) and `dev` (5 %); `full` runs are
   background jobs (`mwh build --tier full …` with a log) that the **next** EP verifies.
-  Foreground shell commands are capped at ~10 min — never run a full-tier scan in the
+  Foreground shell commands are capped at ~10 min — never a full-tier scan in the
   foreground.
 - Set DuckDB `memory_limit`, `threads`, `temp_directory` explicitly (the config module
   does); keep ≥ 100 GB free on C:; nothing on G:/D:.
 - Guard `if __name__ == "__main__":` for any multiprocessing (Windows spawn).
+- **Power mode (2026-08-26).** The roadmap's timings assume the Windows power mode is
+  **Best performance** while plugged in (D-38 and its addenda), but the owner toggles it
+  **off between sessions**. Before any compute-heavy work — builds, test runs, dev/full-tier
+  queries, compiles — confirm it is re-enabled: check the `power_scheme` line of
+  `uv run mwh doctor` (or registry `ActiveOverlayAcPowerScheme` = `ded574b5-…`, readable
+  non-elevated). If it shows Balanced/default, pause and ask the owner to re-enable it
+  (Settings › System › Power & battery › Power mode › Best performance) — do not run the
+  heavy step first, and do not change the power plan yourself.
 
 ## 4. Doing an EP
 
@@ -51,8 +86,9 @@ style preferences. Read them fully before doing anything.
 2. Implement only the brief's **In scope**; hand anything else to the EP named in
    **Out of scope**; put deliberately-skipped algorithms in the brief's **Parked** section
    and mirror them into `roadmap/final-roadmap.md`.
-3. Tests: `tests/ep/test_ep<NN>.py` with tier markers; `uv run poe test -m ep_<NN>` and
-   `uv run mwh verify EP-<n>` must be green on fixture (+dev where stated).
+3. Tests: `tests/ep/test_ep<NN>.py` (zero-padded file, unpadded marker `ep_<n>`);
+   `uv run poe test -m ep_<n>` and `uv run mwh verify EP-<n>` must be green on fixture
+   (+dev where stated).
 4. Record timings / run ids for any full-tier run in a `> **Completion note (date).**`
    block appended to the brief.
 5. Commit in two steps: `feat(mimicwarehouse): <what> (EP-<n>)` then, after updating the
@@ -76,4 +112,5 @@ style preferences. Read them fully before doing anything.
 Deleting or moving anything under `source material/` or the data root; changing
 `.gitignore`, `.gitattributes`, `.claude/settings.json`, `GOVERNANCE.md`; installing
 system-level software; enabling remote/network calls from text modules
-(`MWH_ALLOW_REMOTE`); force-pushing or rewriting history.
+(`MWH_ALLOW_REMOTE`); sending anything through a connector (reference lookups need no
+ask; transmitting project content does); force-pushing or rewriting history.

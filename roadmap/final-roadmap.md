@@ -139,7 +139,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | marimo-as-app lane (reactive notebooks served as apps) | if Streamlit's rerun model bites on Freezer/Wizard pages | two app frameworks | v2 UI-1 |
 | Panel / hvPlot / Datashader big-data lane (chartevents-scale rasterized scatter/heatmaps) | when Explorer needs 1e7+ points | heavier stack | v2 UI-2 |
 | Mosaic / DuckDB-WASM public aggregate site (Evidence / Observable Framework) | democratization beyond docs | JS toolchain; WASM 4 GB ceiling; aggregates only | v2 UI-3 |
-| PreToolUse output-scanning hook for Claude sessions | if deny rules + wrapper prove insufficient | false positives | v2 GOV-1 |
+| ~~PreToolUse output-scanning hook for Claude sessions~~ **Resolved by EP-165 (2026-08-28)** — trigger fired (retro 2026-08-18, GOV-1: deny rules bypassable by `python -c`/`cp`/nested shells); shipped as a PreToolUse *command-string* filter (`mimicwarehouse/scripts/claude_pretool_guard.py` — an output scanner cannot prevent transmission). Residual parked: a PostToolUse **output-scanning** hook, only if the command-string hook proves insufficient | ~~if deny rules + wrapper prove insufficient~~ | false positives (mitigated: allow-listed launchers + "use Read/Grep tools" rule) | v2 GOV-1 |
 
 ## 33 Reproducible reporting
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

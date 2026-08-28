@@ -239,13 +239,21 @@ def test_g4_non_matches_are_clean(repo: Path) -> None:
             f"sha {HEX_SHA}",  # 40-char hex
             f"bytes {BYTE_COUNT}",  # 12 digits
             f"const ({SUBJECT_BAND[0]:_}, {SUBJECT_BAND[1]:_})",  # underscore groups
-            f"decimal {SUBJECT_ID}.5 and 0.{HADM_ID}",  # bordered by '.'
-            f"ident x{STAY_ID} {STAY_ID}y _{SUBJECT_ID}",  # bordered by \\w
+            f"decimal {SUBJECT_ID}.5 and 0.{HADM_ID}",  # bordered by '.' (a non-.0 decimal)
+            f"ident x{STAY_ID} {STAY_ID}y",  # bordered by letters
             "iso 2026-08-17 and 1 000 000",
         ]
     )
     md = _write(repo / "x.md", text + "\n")
     assert scan([md], repo) == []
+
+
+def test_g4_float_rendered_and_underscore_bordered_ids_are_hits(repo: Path) -> None:
+    # EP-165 (GOV-4): the pandas nullable-BIGINT rendering and `_`-bordered tokens match.
+    md = _write(repo / "x.md", f"h {HADM_ID}.0\nhh {HADM_ID}.00\ns _{SUBJECT_ID}\n")
+    violations = scan([md], repo)
+    assert [(v.rule, v.line) for v in violations] == [("G4", 1), ("G4", 2), ("G4", 3)]
+    assert f"{str(HADM_ID)[0]}{'*' * 7}.0" in violations[0].detail  # mask keeps the .0 tail
 
 
 def test_g4_only_text_files_are_scanned(repo: Path) -> None:

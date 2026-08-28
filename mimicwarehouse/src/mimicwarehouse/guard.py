@@ -18,12 +18,16 @@ Five rules, each with an id used in messages and tests:
     ``__marimo__/`` directory (marimo's per-notebook cache).
 ``G4`` real-id band
     in text files (UTF-8-decodable, no NUL byte; :data:`TEXT_EXTENSIONS` or no extension)
-    any token matching :data:`ID_TOKEN` — an isolated 8-digit run starting with 1, 2 or 3 —
-    whose value lies in :data:`SUBJECT_BAND`, :data:`HADM_BAND` or :data:`STAY_BAND`,
-    unless the same line carries the pragma ``mwh-guard: allow``. Compact ``YYYYMMDD``
-    dates are *not* exempt (write ISO dates with hyphens); longer digit runs, hex hashes
-    and decimals never match by construction, and the band constants are written with
-    digit-group underscores so this module never trips itself.
+    any token matching :data:`ID_TOKEN` — an isolated 8-digit run starting with 1, 2 or 3,
+    optionally rendered as a float (``.0`` tail, the pandas nullable-int form; EP-165,
+    GOV-4) — whose value lies in :data:`SUBJECT_BAND`, :data:`HADM_BAND` or
+    :data:`STAY_BAND`, unless the same line carries the pragma ``mwh-guard: allow``.
+    Since EP-165 the *path* of every entry is scanned too (:data:`PATH_ID_TOKEN`, digit
+    boundaries only, so ``stay_3xxxxxxx.parquet`` / ``stay-3xxxxxxx.png`` are caught; no
+    pragma escape — ids never belong in tracked names). Compact ``YYYYMMDD`` dates are
+    *not* exempt (write ISO dates with hyphens); longer digit runs, hex hashes and
+    non-``.0`` decimals never match by construction, and the band constants are written
+    with digit-group underscores so this module never trips itself.
 ``G5`` oversize
     any blob larger than :data:`MAX_FILE_BYTES` (20 000 KiB, the same bound as
     ``check-added-large-files --maxkb=20000``); fixtures included.
@@ -37,7 +41,8 @@ Public surface (DESIGN §15): :class:`Violation`, :func:`scan` (working-tree pat
 unstaged edit cannot mask a staged one), :func:`scan_tracked` (every tracked path, or a
 revision's tree — the per-commit primitive EP-163's history sweep will call),
 :func:`selfcheck` (the EP-0 ``.gitignore`` / ``.gitattributes`` probe list, the
-``.pre-commit-config.yaml`` wiring and the installed hook) and :func:`guard_command`
+``.pre-commit-config.yaml`` wiring, the installed hook and — since EP-165 — the
+``.claude/settings.json`` PreToolUse hook registration) and :func:`guard_command`
 (``mwh guard [PATHS…] [--staged] [--all-tracked] [--selfcheck] [--json]``; exit 0 clean /
 1 violations / 2 usage). Import cost is a few stdlib modules + typer; nothing data-related.
 """
@@ -93,6 +98,28 @@ DATA_EXTENSIONS: tuple[str, ...] = (
     ".npy",
     ".npz",
     ".h5",
+    # EP-165 (GOV-5): export/archive/db shapes an ad-hoc session dump could take. The
+    # longest-suffix rule means bare ".gz"/".zst"/".xz"/".bz2" also cover ".parquet.gz",
+    # ".csv.zst" and friends.
+    ".tsv",
+    ".xlsx",
+    ".xls",
+    ".zip",
+    ".7z",
+    ".tar",
+    ".tgz",
+    ".tar.gz",
+    ".gz",
+    ".bz2",
+    ".zst",
+    ".xz",
+    ".sqlite",
+    ".sqlite3",
+    ".db",
+    ".orc",
+    ".avro",
+    ".ndjson",
+    ".hdf5",
 )
 #: The only place data-shaped files may live (repo-relative, posix, trailing slash).
 FIXTURE_DIR = "mimicwarehouse/tests/fixtures/"
@@ -113,6 +140,7 @@ TEXT_EXTENSIONS: tuple[str, ...] = (
     ".sql",
     ".txt",
     ".csv",
+    ".tsv",
     ".jsonl",
     ".html",
     ".svg",
@@ -121,8 +149,13 @@ TEXT_EXTENSIONS: tuple[str, ...] = (
     ".ini",
     ".cfg",
 )
-#: G4 — an isolated 8-digit run starting with 1, 2 or 3 (ASCII digits only).
-ID_TOKEN = re.compile(r"(?<![\w.])[123]\d{7}(?![\w.])", re.ASCII)
+#: G4 — an isolated 8-digit run starting with 1, 2 or 3 (ASCII digits only), optionally
+#: with a float-rendered ``.0`` tail (pandas nullable BIGINT → ``NNNNNNNN.0``; EP-165).
+#: ``_`` is a boundary on purpose so ``hadm_2xxxxxxx``-style tokens match too.
+ID_TOKEN = re.compile(r"(?<![A-Za-z0-9.])[123]\d{7}(?:\.0+)?(?![A-Za-z0-9.])", re.ASCII)
+#: G4 (paths) — digit boundaries only, so extensions/underscores/hyphens around an id in a
+#: file name (``stay_3xxxxxxx.parquet``) do not hide it (EP-165, GOV-4).
+PATH_ID_TOKEN = re.compile(r"(?<![0-9])[123]\d{7}(?![0-9])", re.ASCII)
 #: G4 — a line carrying this pragma is exempt (use it for documented examples only).
 ALLOW_PRAGMA = "mwh-guard: allow"
 #: G4 — at most this many per-line violations are reported per file, then one summary row.
@@ -147,6 +180,10 @@ IGNORED_PROBES: tuple[str, ...] = (
     "mimicwarehouse/x.duckdb.new",
     ".claude/settings.local.json",
     "mimicwarehouse/.env",
+    # EP-165 (GOV-6/GOV-5): the root-anchored directory pair + the new G1 suffixes.
+    "mimicwarehouse/data/x.parquet",
+    "mimicwarehouse/x.tsv",
+    "mimicwarehouse/x.zip",
 )
 #: … and must NOT be ignored.
 TRACKED_PROBES: tuple[str, ...] = (
@@ -154,9 +191,17 @@ TRACKED_PROBES: tuple[str, ...] = (
     "mimicwarehouse/.env.example",
     ".claude/settings.json",
     "mimicwarehouse/.streamlit/config.toml",
+    # EP-165 (GOV-6): future in-repo files an unanchored `data/`/`models/` would have
+    # silently dropped — EP-39 package data and app models.
+    "mimicwarehouse/src/mimicwarehouse/data/item_units.yaml",
+    "mimicwarehouse/app/models/x.py",
 )
 #: ``git check-attr binary`` must be ``set`` for these.
-BINARY_PROBES: tuple[str, ...] = ("x.csv", "x.parquet", "x.duckdb")
+BINARY_PROBES: tuple[str, ...] = ("x.csv", "x.parquet", "x.duckdb", "x.tsv", "x.zip")
+
+#: EP-165 (GOV-2): the PreToolUse hook script whose ``.claude/settings.json`` registration
+#: ``selfcheck`` verifies (repo-relative posix).
+PRETOOL_HOOK_SCRIPT = "mimicwarehouse/scripts/claude_pretool_guard.py"
 
 GIT_TIMEOUT_S = 120
 
@@ -260,10 +305,17 @@ def band_of(value: int) -> str | None:
     return None
 
 
+def token_value(token: str) -> int:
+    """Integer value of an :data:`ID_TOKEN` match (a float-rendered ``.0`` tail is stripped)."""
+    return int(token.partition(".")[0])
+
+
 def mask(token: str) -> str:
-    """First digit + ``*`` for the rest (``1*******``) — the only form an id token ever takes
-    in output. (No literal example here: the guard scans this file too.)"""
-    return token[:1] + "*" * (len(token) - 1)
+    """First digit + ``*`` for the rest of the digit part (``1*******``; a ``.0`` tail stays
+    visible) — the only form an id token ever takes in output. (No literal example here:
+    the guard scans this file too.)"""
+    digits, dot, tail = token.partition(".")
+    return digits[:1] + "*" * (len(digits) - 1) + dot + tail
 
 
 def needs_content(rel: str, size: int | None) -> bool:
@@ -294,6 +346,20 @@ def notebook_problem(data: bytes) -> str | None:
     )
 
 
+def path_id_hits(rel: str) -> list[tuple[str, str]]:
+    """G4 (paths): ``(band, masked_token)`` per real-band token in a path string (EP-165).
+
+    :data:`PATH_ID_TOKEN` uses digit-only boundaries so ``stay_3xxxxxxx.parquet`` and
+    ``stay-3xxxxxxx.png`` are caught; there is no pragma escape for names.
+    """
+    hits: list[tuple[str, str]] = []
+    for match in PATH_ID_TOKEN.finditer(rel):
+        band = band_of(int(match.group()))
+        if band is not None:
+            hits.append((band, mask(match.group())))
+    return hits
+
+
 def id_band_hits(data: bytes) -> list[tuple[int, str, int, str]]:
     """G4: ``(line_no, band, count, masked_example)`` per offending line of a text blob.
 
@@ -313,7 +379,7 @@ def id_band_hits(data: bytes) -> list[tuple[int, str, int, str]]:
         found: dict[str, tuple[int, str]] = {}
         for match in ID_TOKEN.finditer(line):
             token = match.group()
-            band = band_of(int(token))
+            band = band_of(token_value(token))
             if band is None:
                 continue
             count, example = found.get(band, (0, mask(token)))
@@ -338,6 +404,17 @@ def check_entry(entry: Entry) -> list[Violation]:
         if not (in_fixtures and ext in FIXTURE_EXTENSIONS):
             where = f"under {FIXTURE_DIR}" if in_fixtures else f"outside {FIXTURE_DIR}"
             out.append(Violation("G1", rel, None, f"data-shaped extension {ext} {where}"))
+    for band, example in path_id_hits(rel):
+        out.append(
+            Violation(
+                "G4",
+                rel,
+                None,
+                f"path contains a token in the {band} band ({example}); real MIMIC ids "
+                f"never belong in tracked names — use fixture ids >= {FIXTURE_ID_FLOOR:_} "
+                "or a hash/ordinal (no pragma escape for paths)",
+            )
+        )
     if under_source_material(rel) and not rel.lower().endswith(".md"):
         out.append(
             Violation("G2", rel, None, f"only *.md may be tracked under {SOURCE_MATERIAL_DIR!r}")
@@ -637,7 +714,35 @@ def selfcheck(repo_root: Path) -> list[SelfcheckResult]:
             level="warn",
         )
     )
+    results.append(_pretool_hook_check(repo_root))
     return results
+
+
+def _pretool_hook_check(repo_root: Path) -> SelfcheckResult:
+    """EP-165 (GOV-2): the PreToolUse hook is registered in ``.claude/settings.json``
+    (some ``hooks.PreToolUse[*].hooks[*].command`` names the script) and the script exists."""
+    registered = False
+    try:
+        settings = json.loads((repo_root / ".claude" / "settings.json").read_text("utf-8"))
+        groups = settings.get("hooks", {}).get("PreToolUse", [])
+        registered = any(
+            PurePosixPath(PRETOOL_HOOK_SCRIPT).name in str(hook.get("command", ""))
+            for group in groups
+            if isinstance(group, dict)
+            for hook in group.get("hooks", [])
+            if isinstance(hook, dict)
+        )
+    except (OSError, ValueError, AttributeError):
+        registered = False
+    ok = registered and (repo_root / PRETOOL_HOOK_SCRIPT).is_file()
+    return SelfcheckResult(
+        "pretool-hook",
+        ok,
+        "registered"
+        if ok
+        else f"NOT registered ({PRETOOL_HOOK_SCRIPT} missing from hooks.PreToolUse, "
+        "or the script file is absent)",
+    )
 
 
 def selfcheck_ok(results: Iterable[SelfcheckResult]) -> bool:
@@ -809,6 +914,8 @@ __all__ = [
     "HADM_BAND",
     "ID_TOKEN",
     "MAX_FILE_BYTES",
+    "PATH_ID_TOKEN",
+    "PRETOOL_HOOK_SCRIPT",
     "STAY_BAND",
     "SUBJECT_BAND",
     "TEXT_EXTENSIONS",
@@ -826,12 +933,14 @@ __all__ = [
     "index_entries",
     "mask",
     "notebook_problem",
+    "path_id_hits",
     "scan",
     "scan_staged",
     "scan_tracked",
     "selfcheck",
     "selfcheck_ok",
     "staged_paths",
+    "token_value",
     "tracked_paths",
     "worktree_entries",
 ]

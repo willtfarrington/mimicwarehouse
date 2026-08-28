@@ -1,5 +1,5 @@
 {
-  "_readme": "Repo-shared Claude Code settings for mimicwarehouse (decision D-39; GOVERNANCE.md section 4). These deny rules keep Claude sessions from reading licensed patient-level data (PhysioNet Credentialed Health Data License 1.5.0) via the Read/Grep/Glob tools or shell commands, and from opening DuckDB catalogs directly. All data access must go through mimicwarehouse.safe.safe_query / `mwh sql` (read-only, k=11 suppression, audit-logged). Deny rules take precedence over allow rules and cannot be overridden by settings.local.json. Do not weaken without updating GOVERNANCE.md and DECISIONS.md.",
+  "_readme": "Repo-shared Claude Code settings for mimicwarehouse (decision D-39 + EP-165/D-43; GOVERNANCE.md section 4). Four parts: (1) deny rules that keep Claude sessions from reading licensed patient-level data (PhysioNet Credentialed Health Data License 1.5.0) via the Read/Grep/Glob tools, shell readers, two-step copy/interpreter paths (cp, python -c, uv run python, nested sh -c, .NET file APIs), or the duckdb executable, plus the send/write tools of claude.ai MCP connectors (reference lookups only, GOVERNANCE section 4); (2) allow rules for read-only project commands (convenience only — deny rules keep precedence and cannot be overridden by settings.local.json); (3) env PYTHONUTF8=1 so both tool shells run Python with UTF-8 stdio (Risk 13); (4) a PreToolUse command-string hook (mimicwarehouse/scripts/claude_pretool_guard.py, run by the allow-listed workspace venv python — path-bound like the pre-commit hook, re-wire after moving the clone) that denies any command/path mentioning mimicdata / source material / .csv / .parquet / .duckdb unless it is an allow-listed project launcher. The deny list is a blocklist of common forms, not a data-path firewall — the hook, CLAUDE.md prose and safe_query (EP-30) are the remaining layers. All data access goes through mimicwarehouse.safe.safe_query / `mwh sql` (read-only, k=11 suppression, audit-logged). Do not weaken without updating GOVERNANCE.md and DECISIONS.md; `mwh guard --selfcheck` pins the hook registration.",
   "permissions": {
     "deny": [
       "Read(./source material/mimic-iv-3.1/**)",
@@ -12,6 +12,10 @@
       "Read(**/*.parquet)",
       "Read(**/*.duckdb)",
       "Read(**/*.duckdb.wal)",
+      "Read(//C:/**/*.csv)",
+      "Read(//C:/**/*.csv.gz)",
+      "Read(//C:/**/*.parquet)",
+      "Read(//C:/**/*.duckdb)",
       "Grep(./source material/mimic-iv-3.1/**)",
       "Grep(./source material/mimic-iv-ed-2.2/**)",
       "Grep(./source material/mimic-iv-note-deidentified-free-text-clinical-notes-2.2/**)",
@@ -33,6 +37,10 @@
       "Bash(rg *source material*)",
       "Bash(cut *source material*)",
       "Bash(sort *source material*)",
+      "Bash(cp *source material*)",
+      "Bash(mv *source material*)",
+      "Bash(python* *source material*)",
+      "Bash(uv run *python* *source material*)",
       "Bash(zcat *)",
       "Bash(gunzip -c *)",
       "Bash(gzip -dc *)",
@@ -45,6 +53,17 @@
       "Bash(awk *mimicdata*)",
       "Bash(grep *mimicdata*)",
       "Bash(rg *mimicdata*)",
+      "Bash(cp *mimicdata*)",
+      "Bash(mv *mimicdata*)",
+      "Bash(python* *mimicdata*)",
+      "Bash(uv run *python* *mimicdata*)",
+      "Bash(sh -c *)",
+      "Bash(bash -c *)",
+      "Bash(perl *)",
+      "Bash(node -e *)",
+      "Bash(od *)",
+      "Bash(nl *.csv*)",
+      "Bash(diff *.csv*)",
       "Bash(cat *.csv)",
       "Bash(cat *.csv.gz)",
       "Bash(head *.csv)",
@@ -60,15 +79,79 @@
       "PowerShell(cat *source material*)",
       "PowerShell(type *source material*)",
       "PowerShell(Select-String *source material*)",
+      "PowerShell(Copy-Item *source material*)",
       "PowerShell(Import-Csv *)",
       "PowerShell(Get-Content *mimicdata*)",
       "PowerShell(gc *mimicdata*)",
       "PowerShell(cat *mimicdata*)",
       "PowerShell(type *mimicdata*)",
       "PowerShell(Select-String *mimicdata*)",
+      "PowerShell(Copy-Item *mimicdata*)",
+      "PowerShell(Get-ChildItem *mimicdata*)",
+      "PowerShell(*ReadAllText*)",
+      "PowerShell(*ReadAllLines*)",
+      "PowerShell(*ReadAllBytes*)",
       "PowerShell(Get-Content *.csv*)",
+      "PowerShell(gc *.csv*)",
+      "PowerShell(cat *.csv*)",
+      "PowerShell(type *.csv*)",
       "PowerShell(Get-Content *.parquet*)",
-      "PowerShell(Format-Hex *)"
+      "PowerShell(Format-Hex *)",
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Gmail__reply",
+      "mcp__claude_ai_Gmail__forward",
+      "mcp__claude_ai_Gmail__create_draft",
+      "mcp__claude_ai_Gmail__update_draft",
+      "mcp__claude_ai_Gmail__trash_message",
+      "mcp__claude_ai_Gmail__trash_thread",
+      "mcp__claude_ai_Google_Calendar__create_event",
+      "mcp__claude_ai_Google_Calendar__update_event",
+      "mcp__claude_ai_Google_Calendar__delete_event",
+      "mcp__claude_ai_Google_Calendar__respond_to_event",
+      "mcp__claude_ai_Hugging_Face__hf_fs",
+      "mcp__claude_ai_Hugging_Face__dynamic_space"
+    ],
+    "allow": [
+      "Bash(uv run mwh *)",
+      "Bash(uv run --project mimicwarehouse * mwh *)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run poe *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run pyright*)",
+      "Bash(git log*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git ls-files*)",
+      "Bash(ls *)",
+      "PowerShell(uv run mwh *)",
+      "PowerShell(uv run --project mimicwarehouse * mwh *)",
+      "PowerShell(uv run pytest *)",
+      "PowerShell(uv run poe *)",
+      "PowerShell(uv run ruff *)",
+      "PowerShell(uv run pyright*)",
+      "PowerShell(git log*)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git show*)",
+      "PowerShell(git ls-files*)",
+      "PowerShell(ls *)"
+    ]
+  },
+  "env": {
+    "PYTHONUTF8": "1"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/willi/Documents/DATA/mimicwarehouse/mimicwarehouse/.venv/Scripts/python.exe\" \"C:/Users/willi/Documents/DATA/mimicwarehouse/mimicwarehouse/scripts/claude_pretool_guard.py\""
+          }
+        ]
+      }
     ]
   }
 }

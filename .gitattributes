@@ -39,6 +39,27 @@
 *.skops   binary
 *.pt      binary
 *.safetensors binary
+# EP-165 (GOV-5): the new mwh guard G1 suffixes (mirrored in .gitignore; refused by the
+# guard — `binary` here only stops normalise/diff if one ever slips through)
+*.tsv     binary
+*.xlsx    binary
+*.xls     binary
+*.7z      binary
+*.tar     binary
+*.tgz     binary
+*.bz2     binary
+*.zst     binary
+*.xz      binary
+*.sqlite  binary
+*.sqlite3 binary
+*.db      binary
+*.orc     binary
+*.avro    binary
+*.ndjson  binary
+*.hdf5    binary
+*.npy     binary
+*.npz     binary
+*.h5      binary
 *.png     binary
 *.jpg     binary
 *.jpeg    binary

@@ -457,6 +457,20 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > `--markdown-linebreak-ext=md`, detect-private-key). Import cost of `guard.py` is stdlib +
 > typer; rich is imported inside the command.
 
+> **Note (2026-08-28, EP-165).** Guard hardening from the 2026-08-18 retro (GOV-4/GOV-5,
+> D-43): G4's `ID_TOKEN` now also matches the float rendering `NNNNNNNN.0` (pandas nullable
+> BIGINT — the realistic aggregate-table leak) and `_`-bordered tokens (`\w` boundaries →
+> `[A-Za-z0-9.]`, with `token_value()` stripping the `.0` tail and `mask()` masking only the
+> digit part); entry **paths** are scanned with the digit-boundary `PATH_ID_TOKEN`
+> (`stay_3xxxxxxx.parquet` / `stay-3xxxxxxx.png`; no pragma escape for names). G1 gained 19
+> extensions (`.tsv .xlsx .xls .zip .7z .tar .tgz .tar.gz .gz .bz2 .zst .xz .sqlite .sqlite3
+> .db .orc .avro .ndjson .hdf5`, mirrored in `.gitignore`/`.gitattributes`), `.tsv` joined
+> `TEXT_EXTENSIONS`, and `selfcheck` verifies the `.claude/settings.json` PreToolUse hook
+> registration (`pretool-hook` row) next to three new ignore probes (root-anchored
+> data-directory patterns, GOV-6). `vendoring.redact_band_ids` consumes the new pattern
+> unchanged via `guard.token_value`. All 430 tracked blobs stay clean under the new rules
+> (one pragma added: the retro ledger's own float-form example).
+
 > **Note (2026-08-17, EP-6).** **`verify.py`** landed with the two roadmap-driven services
 > DESIGN §15 promised. `verify(ep, pytest_args)` resolves `EP-6` / `ep6` / `6`, finds
 > `../roadmap/EP-<n>-*.md`, and runs `[sys.executable, -m pytest -m ep_<n> -p no:cacheprovider

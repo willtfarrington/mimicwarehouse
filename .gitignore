@@ -36,15 +36,51 @@ source material/*
 *.skops
 *.pt
 *.safetensors
-data/
-lake/
-warehouse/
-runs/
-models/
-notes/
-studies/
-exports/
-mimicdata/
+# EP-165 (GOV-5): mirror mwh guard G1 — export/archive/db shapes an ad-hoc dump could take
+*.tsv
+*.xlsx
+*.xls
+*.zip
+*.7z
+*.tar
+*.tgz
+*.tar.gz
+*.gz
+*.bz2
+*.zst
+*.xz
+*.sqlite
+*.sqlite3
+*.db
+*.orc
+*.avro
+*.ndjson
+*.hdf5
+*.npy
+*.npz
+*.h5
+# EP-165 (GOV-6): data-root-shaped directories, anchored to the two places a mis-set root
+# could land (repo root, uv project root) so future in-repo files like
+# src/mimicwarehouse/data/item_units.yaml (EP-39), docs/studies/, app/models/ are NOT
+# silently dropped by an unanchored pattern.
+/data/
+/mimicwarehouse/data/
+/lake/
+/mimicwarehouse/lake/
+/warehouse/
+/mimicwarehouse/warehouse/
+/runs/
+/mimicwarehouse/runs/
+/models/
+/mimicwarehouse/models/
+/notes/
+/mimicwarehouse/notes/
+/studies/
+/mimicwarehouse/studies/
+/exports/
+/mimicwarehouse/exports/
+/mimicdata/
+/mimicwarehouse/mimicdata/
 !mimicwarehouse/tests/fixtures/**
 !mimicwarehouse/tests/fixtures/**/*.csv
 !mimicwarehouse/tests/fixtures/**/*.parquet

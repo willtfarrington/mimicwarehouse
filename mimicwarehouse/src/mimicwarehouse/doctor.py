@@ -150,6 +150,10 @@ def _run(argv: list[str], *, cwd: Path | None = None) -> subprocess.CompletedPro
             argv,
             capture_output=True,
             text=True,
+            # Under PYTHONUTF8=1 (settings.json, EP-165) text-mode decoding is strict
+            # UTF-8, but PowerShell/powercfg children emit OEM bytes when piped — never
+            # let a stray glyph turn a probe into an uncaught UnicodeDecodeError.
+            errors="replace",
             timeout=SUBPROCESS_TIMEOUT_S,
             check=False,
             cwd=cwd,

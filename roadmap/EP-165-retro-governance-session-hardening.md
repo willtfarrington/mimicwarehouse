@@ -138,3 +138,92 @@ GOV-7, GOV-9…, ENV-4…, DOC-8 — see the ledger index rows tagged EP-165).
 
 - Elevated `mwh doctor --elevated` (already DOC-1). Output-scanning (post-tool) hook: only if the
   command-string hook proves insufficient (note under GOV-1's struck row).
+
+> **Completion note (2026-08-28).** All eight In-scope items shipped in one session (M, ≈ the
+> budget). Gates: `poe test -m ep_165` 57 passed · `poe check` green (ruff + pyright + 452
+> fixture tests, test_ep04/test_ep08 re-run after the guard/vendoring changes) · `mwh guard
+> --selfcheck` passed with the three new ignore probes, two new binary probes, two new
+> tracked probes and the `pretool-hook registered` row · `mwh guard --staged`/`--all-tracked`
+> clean (18 / 432 files) · `mwh verify EP-165` exit 0 · `poe roadmap-check --strict` 0/0.
+> Power mode confirmed Best performance (`ded574b5-…`) before any test run.
+>
+> **Live-fire results (no data involved; nonexistent paths or the 2-line synthetic
+> `probe.csv` from the EP-0 recipe).** Writing `.claude/settings.json` hot-reloaded BOTH
+> layers into the running session — the denied connector tools vanished from the tool
+> roster immediately, and the PreToolUse hook began firing without any restart (the D-43
+> assumption that hooks load only at session start proved wrong for this harness build;
+> the owner's VS Code restart is still wanted for the uv PATH). 14/14 probes refused:
+> hook-layer (its deny message names the rule, never the data) — `cp`/`python -c`/`uv run
+> --project … python -c` mentioning `mimicdata`, `nl`/`cp` on `probe.csv`, PowerShell
+> `Copy-Item *mimicdata*`, `[IO.File]::ReadAllText(probe.csv)`, `Get-ChildItem
+> *mimicdata*`, and the **Read tool on an absolute scratchpad `.csv`** (the EP-0
+> project-relative gap, now closed twice: hook + `Read(//C:/**/*.csv)`); static-layer
+> (classic permission denial, proving the new deny rules independently of the hook) —
+> `sh -c 'echo …'`, `perl --version`, `od --version`, `node -e "1"`. Positive controls:
+> `uv run mwh|poe|pytest …`, `git …`, `ls …`, Read/Grep on docs mentioning the tokens all
+> ran normally throughout the session with the hook live (~60 ms/call measured, budget
+> 200 ms). D-42(4) AV verification: the hook launch line ran dozens of times against both
+> endpoint products with no Defender/Malwarebytes reaction (allow-listed venv python;
+> stdin carries JSON data, not code).
+>
+> **Owner-review points (deviations, alternatives, recommendations).**
+> 1. *CLAUDE.md size: 7.8 KB vs the brief's ~6 KB.* The brief was sized before the owner's
+>    power-mode block (2026-08-26, ~0.7 KB, kept verbatim — it rode into this commit as
+>    already-uncommitted local edits, together with the matching roadmap-README note), and
+>    the mandated verbatim facts (items a–g + connector bullet + interim-EP-30 rule) did
+>    not compress further without losing the incident specifics that make them stick.
+>    Options: (a) keep as is; (b) cut the power block to one line (owner's text — not
+>    touched without an ask); (c) drop the ClickFix/EP-12 specifics (~0.4 KB, weakens the
+>    "why"). Recommendation: (a); EP-166 can re-balance when it builds the status surface.
+> 2. *`.gitattributes` was amended although D-43 item 4 says ".gitattributes unchanged".*
+>    The brief's In-scope item 5 explicitly instructs mirroring the new G1 suffixes as
+>    `binary`, and the addition is protective-only (no normalise/diff for data shapes; it
+>    weakens nothing). Options: keep (consistent three-layer story: G1 = refuse, .gitignore
+>    = ignore, .gitattributes = never diff) or revert the 19 lines to honour D-43's letter.
+>    Recommendation: keep; recorded as a deviation in the D-43 addendum.
+> 3. *Deny-rule pattern substitution.* `Bash(uv run *python* *mimicdata*)` (and the
+>    source-material twin) shipped instead of the brief's `Bash(uv run python* …)` — the
+>    ledger's GOV-1 corrected fix shows the narrower form misses `uv run --project
+>    mimicwarehouse python -c …`, and the live probe confirms the shipped form catches it.
+>    The ledger's further extras (`ipcsv`, `pwsh`/`cmd /c` nesting, `Invoke-Expression`,
+>    `OpenRead`, PowerShell `cp`/`sh`/`bash`) were *not* added: the brief's list is the
+>    owner-approved set and the hook already denies every launcher that mentions a data
+>    token. Recommendation: revisit the extras only if the EP-16 re-plan wants the static
+>    layer self-sufficient without the hook.
+> 4. *Ledger pragma.* The new G4 float rule immediately flagged the retro ledger's own
+>    `NNNNNNNN.0` example (GOV-4 Impact line — committed after the verifier's 421-blob
+>    sweep, hence "0 hits" then, 1 hit now). Added ` mwh-guard: allow` on that line
+>    (the sanctioned mechanism for documented examples) rather than masking the example
+>    (which would rewrite the review record). Nice property: the guard change caught a
+>    real instance of exactly the leak shape it was built for on its first index sweep.
+> 5. *Hook matcher and Grep semantics.* The brief's matcher `Bash|PowerShell|Read|Grep|Glob`
+>    shipped (the ledger's correction suggested Bash|PowerShell only, fearing latency —
+>    moot at ~60 ms). For Grep only the `path` field is checked, never the search pattern,
+>    so `Grep("mimicdata", DESIGN.md)` doc work stays legal (GOV-12); Glob checks pattern +
+>    path because a Glob pattern *is* a filesystem path. Known limitation (documented in
+>    D-39 addendum): an allow-prefixed *compound* (`uv run poe x && cat foo.parquet`) is
+>    rescued by its prefix unless it contains nested-interpreter tokens — the static
+>    `Bash(cat *.parquet)`-family rules backstop exactly that class. The hook fails OPEN on
+>    internal error (a guard bug must not brick sessions; prose + static rules remain).
+> 6. *Small out-of-letter touches, all argued by the cited ledger entries:* `doctor._run`
+>    gained `errors="replace"` (ENV-2 corrected fix — PYTHONUTF8 flips subprocess text
+>    decoding to strict UTF-8 and PowerShell/powercfg children emit OEM bytes);
+>    CLAUDE.md §4's marker notation fixed to "zero-padded file, unpadded marker" (DOC-8 —
+>    tagged EP-166 in the index but a one-line fix while §4 was already open);
+>    `vendoring.redact_band_ids` now strips the float tail via `guard.token_value` (the
+>    old `int(match.group())` would crash on the widened pattern; test_ep08 green).
+> 7. *Process slip, self-reported:* one Bash call in this session started as a heredoc
+>    append (the exact D-42(1) pattern) before being caught — the shell only warned, ran
+>    nothing, appended nothing (verified by diff), and the edit was redone with the Edit
+>    tool. No AV reaction. Filed here because the session that hardened the rule tripped
+>    on it once itself; the new CLAUDE.md §3(c) is the mitigation.
+> 8. *Outstanding owner actions (D-43 item 5, D-38 addendum):* restart VS Code (uv PATH;
+>    hooks were live without it, so this is now PATH-only) and add the two new Malwarebytes
+>    allow-list paths (`%LOCALAPPDATA%\uv\cache`, `%LOCALAPPDATA%\Temp\claude\`) — nine
+>    total. Both stay on the owner's word; doctor continues to name them.
+> Ledger disposition: DOC-1, ENV-1, ENV-2, ENV-3, GOV-1, GOV-2, GOV-4, GOV-5, GOV-6,
+> GOV-8, DOC-6, CMP-1 implemented; GOV-3 (relocation rule) and GOV-12/GOV-14 (honest-scope
+> + use-Read/Grep wording) absorbed into the GOVERNANCE/CLAUDE.md text; GOV-10 partially
+> (settings pinned by test_ep165 + selfcheck row; no staged-file WARN nudge); GOV-7, GOV-9,
+> GOV-11, GOV-13, GOV-15, GOV-16, ENV-4…ENV-10, GOV-17 remain with their ledger tags
+> (EP-166/re-plan/owner). final-roadmap GOV-1 struck with the PostToolUse residual parked.

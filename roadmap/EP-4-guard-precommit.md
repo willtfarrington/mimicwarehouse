@@ -130,3 +130,14 @@ transcript, so tokens are masked. pre-commit is already in the `dev` group (EP-1
 > (4) `.gitignore` already blocks `*.csv`, `*.ipynb`, `__marimo__/`; the guard is the second layer
 > that also catches `git add -f`, band ids inside allowed text files, and oversize blobs.
 > `mwh verify EP-4` runs once EP-6 lands.
+
+> **Addendum (2026-08-28, EP-165 — retro GOV-4/GOV-5).** Two of this brief's design sentences are
+> superseded. G4's token is now `(?<![A-Za-z0-9.])[123]\d{7}(?:\.0+)?(?![A-Za-z0-9.])`: the
+> float rendering `NNNNNNNN.0` (pandas nullable BIGINT) and `_`-bordered tokens **do** match —
+> "decimals never match by construction" held only for non-`.0` decimals, and the `\w` boundary
+> hid `hadm_2xxxxxxx`-style tokens — and entry *paths* are scanned with a digit-boundary regex
+> (`stay_3xxxxxxx.parquet` is caught; no pragma escape for names). G1 gained 19 extensions
+> (`.tsv .xlsx .xls .zip .7z .tar .tgz .tar.gz .gz .bz2 .zst .xz .sqlite .sqlite3 .db .orc .avro
+> .ndjson .hdf5`), `.tsv` joined the G4 text extensions, and `mwh guard --selfcheck` gained the
+> `pretool-hook` row (the EP-165 `.claude/settings.json` PreToolUse hook registration). Ledger:
+> `retro-2026-08-18-findings.md` GOV-4/GOV-5; decision D-43 item 2.

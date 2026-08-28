@@ -394,6 +394,17 @@ reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 > verification parked, `final-roadmap.md` DOC-1). Doctor summary at EP-164: exit 0, **8 pass ·
 > 1 warn · 0 fail · 5 info** (the one warn is this row, by design).
 
+> **Addendum (2026-08-28, EP-165).** Owner decisions of 2026-08-18 (D-43 item 5): the
+> Malwarebytes allow list grows seven → **nine** paths — adding `%LOCALAPPDATA%\uv\cache`
+> and the Claude scratchpad `%LOCALAPPDATA%\Temp\claude\` — and the owner **restarts VS
+> Code** after EP-165 lands (the hosting process predates the uv install, which is why `uv`
+> is missing from the tool shells' PATH; the `export PATH` fallback stays documented in
+> CLAUDE.md §3; the restart also loads the newly registered PreToolUse hook, which Claude
+> Code snapshots at session start). Both remain owner actions taken on the owner's word;
+> `mwh doctor` `antivirus` keeps naming paths without reading either exclusion list.
+> GOVERNANCE §2 now records the two-product reality as a dated amendment (was: Defender
+> only, "owner's discretion").
+
 **D-39 Enforcement of the Claude data policy = `CLAUDE.md` + safe-query wrapper +
 repo-shared `.claude/settings.json` deny rules** (reading `source material/**` except
 `*.md`, `C:\mimicdata\**`, `*.csv/*.parquet/*.duckdb`, the `duckdb` executable). A
@@ -426,6 +437,36 @@ PreToolUse output-scanning hook is parked. *Alternatives:* prose only; hook.
 > `source material/…` rules are what protect the real data, so the guard and EP-30 `safe_query`
 > remain necessary layers), and `safe_query` (EP-30). The PreToolUse output-scanning hook stays
 > parked (final-roadmap GOV-1); secret scanning parked (GOV-3).
+
+> **Addendum (2026-08-28, EP-165 — owner-authorised, D-43 items 2–3).** `.claude/settings.json`
+> gained four parts. (1) `"env": {"PYTHONUTF8": "1"}` — an environment default, not a permission
+> change — so both tool shells run Python with UTF-8 stdio (Risk 13; `doctor._run` hardened with
+> `errors="replace"` because UTF-8 mode also flips `subprocess` text decoding and its
+> PowerShell/powercfg children can emit OEM bytes). (2) Literal deny rules for the two-step leak
+> paths the 2026-08-18 review verified (GOV-1): `cp`/`mv` on `mimicdata`/`source material`,
+> `python*` and `uv run *python*` mentioning either location (the `uv run *python*` form covers
+> `uv run --project … python -c`, per the ledger's corrected fix), nested `sh -c`/`bash -c`,
+> `perl`/`node -e`, `od`, `nl *.csv`, `diff *.csv`, PowerShell `Copy-Item`, `.NET
+> ReadAllText/Lines/Bytes`, `Get-ChildItem *mimicdata*`, `gc|cat|type *.csv`, and absolute
+> `Read(//C:/**/*.csv|*.csv.gz|*.parquet|*.duckdb)` so non-repo copies (e.g. the scratchpad) are
+> no longer Read-able. (3) An **allow** list for read-only project commands (`uv run
+> mwh|pytest|poe|ruff|pyright`, `uv run --project mimicwarehouse * mwh`, `git
+> log|status|diff|show|ls-files`, `ls`, + PowerShell twins) — convenience only; deny rules keep
+> precedence. (4) Deny rules for connector send/write tools (Gmail send/reply/forward/
+> create_draft/update_draft/trash_message/trash_thread, Calendar create/update/delete/
+> respond_to_event, Hugging Face `hf_fs`/`dynamic_space`) — the reference-lookup-only connector
+> policy is GOVERNANCE §4's new paragraph. And (5) the parked hook is **unparked, corrected**: what
+> shipped is a *pre-execution command-string filter* (`mimicwarehouse/scripts/
+> claude_pretool_guard.py`, matcher `Bash|PowerShell|Read|Grep|Glob`, run by the allow-listed
+> workspace-venv `python.exe` reading the hook JSON from stdin; deny on `mimicdata` /
+> `source material` / `.csv` / `.parquet` / `.duckdb` outside allow-listed launchers; Grep
+> checked by *path* only so doc searches for the tokens stay legal; decision log — never data —
+> to `%LOCALAPPDATA%\Temp\claude\mwh-pretool.log`; fail-open on internal error; ~60 ms/call).
+> A PostToolUse *output-scanning* hook cannot prevent transmission and stays parked under
+> GOV-1's struck row. `mwh guard --selfcheck` gained the `pretool-hook` registration row; the
+> hook command is path-bound to this clone (like `.git/hooks/pre-commit`) — re-register after
+> moving the repo. G1 gained 19 data-shaped extensions and G4 the float-rendered (`NNNNNNNN.0`)
+> and path-token forms in the same EP (details: EP-165 brief + completion note).
 
 **D-40 Remote content = code + docs + gated aggregates** — results committed only after
 `mwh disclose check` passes and a `.disclosure.json` sidecar is recorded.
@@ -546,6 +587,15 @@ never have reason to look at MIMIC files). *Alternatives:* disable Ransomware Pr
 owner keeps it on); uninstall Malwarebytes (rejected); code-sign the toolchain (not possible for
 uv-managed CPython / MSYS2 binaries).
 
+> **Addendum (2026-08-28, EP-165).** CLAUDE.md §3 "Session tooling" now carries D-42's
+> session-facing rules verbatim (heredoc/stdin-script ban, Write/Edit only, `git commit -F`,
+> burst-loop ban, quarantine-first triage) plus the uv-PATH fallback, bare-python and console
+> facts, so the machine-local auto-memory notes that duplicated them can retire to pointers.
+> D-42 (4) verification for the new PreToolUse hook: the launch line
+> (`.venv\Scripts\python.exe scripts\claude_pretool_guard.py`, hook JSON on stdin — data, not
+> code) was exercised repeatedly against both endpoint products during EP-165 with no
+> Defender/Malwarebytes reaction; the interpreter is the allow-listed workspace-venv python.
+
 **D-43 Retrospective consolidation of P0 + P1a (2026-08-18) — owner decisions, to be
 distributed as addenda by EP-166.** After EP-12 the owner paused the roadmap for an adversarial
 retrospective review of EP-0 … EP-12 (ten lenses, one verifier per material finding, completeness
@@ -617,6 +667,16 @@ option first, all chosen as recommended unless noted; the implementing brief is 
     after EP-16, not by each brief at pickup; `settings.dev_buckets` is the only bucket source (no
     `DEV_BUCKETS` constant); `psutil` joins core at EP-19; EP-42's disclosure dependency is fixed by
     wording, not by moving EP-43. [EP-170]
+
+> **Addendum (2026-08-28, EP-165).** Items **2** and **3** are shipped by EP-165
+> (settings.json env/deny/allow + PreToolUse hook; CLAUDE.md §§1–3/6; GOVERNANCE §2/§4
+> amendments; `.gitignore` anchoring; guard G1/G4; ledger ids DOC-1, ENV-1/2/3, GOV-1/2/4/5/6/8,
+> DOC-6, CMP-1 struck or absorbed — completion note in the EP-165 brief). Item 4's ask-before
+> pre-authorisation was used for GOVERNANCE and `.gitignore`; **deviation:** `.gitattributes`
+> also gained `binary` marks for the new G1 suffixes (the brief's In-scope item 5 instructed the
+> mirror although item 4 above says "unchanged" — protective-only, flagged for owner review).
+> Item 5 (VS Code restart; ninth/eighth Malwarebytes paths) remains with the owner; the restart
+> also loads the newly registered hook, which Claude Code snapshots at session start.
 
 *Why:* the owner wants the remaining ~150 briefs to build on a foundation whose environment realities,
 governance layers, status prose, test semantics and contract are settled once rather than re-discovered
