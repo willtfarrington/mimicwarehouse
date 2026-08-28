@@ -178,6 +178,8 @@ tagged EP-166).
 >    one-sentence CLAUDE.md §5 amendment ("manifests of hashes/counts/schema need no sidecar;
 >    before EP-43 nothing else derived from real data is committed") rides with EP-167;
 >    (b) leave to EP-16. Recommendation: (a) — EP-10's precedent already relies on it.
+>    *(Owner verdict, post-session 2026-08-28: **(a)** — recorded as a D-40 addendum; EP-167
+>    carries a pickup note with the exact CLAUDE.md §5 sentence.)*
 > 4. *The owner's uncommitted no-AI-attribution edits rode into this commit*
 >    (`.claude/settings.json`: `includeCoAuthoredBy: false` + `_readme` sentence; CLAUDE.md
 >    §4(5) paragraph; both owner-authored 2026-08-28, present in the working tree before this
@@ -191,6 +193,9 @@ tagged EP-166).
 >    Malwarebytes paths — the last two are still pending — and decide the doctor
 >    "acknowledged" option), CMP-6 (acceptance-template rewording) and CMP-8 (doctor `git`
 >    probe) → next re-plan, ARCH-13/ARCH-15 brief clauses → EP-170/re-plan.
+>    *(Post-session 2026-08-28: CMP-4's re-confirmation is done — owner confirmed all nine
+>    paths, and the VS Code restart landed (`uv` on both tool-shell PATHs, ENV-1 closed) —
+>    D-38 addendum; the doctor "acknowledged" option stays a re-plan candidate.)*
 > Ledger disposition: DOC-2/3/4/11/18, CMP-2 (this brief executing *is* the decided vehicle),
 > CMP-3, ARCH-1/2/5/6 (words), INV-3, FC-8, FC-9 (D-15 note) implemented; low DOC-5/7/12/13/
 > 14/15/17, CMP-5, CMP-9 (README half), ARCH-11/12/14/16 (words) implemented; DOC-8/10/16

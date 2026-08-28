@@ -488,6 +488,16 @@ reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 > GOVERNANCE §2 now records the two-product reality as a dated amendment (was: Defender
 > only, "owner's discretion").
 
+> **Addendum (2026-08-28, owner — recorded by EP-166, post-session).** Both D-43 item 5
+> owner actions are **done**: (1) VS Code restarted — `uv` now resolves natively in both
+> tool shells (`%LOCALAPPDATA%\Microsoft\WinGet\Links`, verified in-session 2026-08-28;
+> ENV-1's stale-process diagnosis confirmed; the CLAUDE.md §3 PATH prefix stays documented
+> as the fallback only); (2) the **nine-path Malwarebytes allow list confirmed in place**,
+> the two 2026-08-18 additions (`%LOCALAPPDATA%\uv\cache`, `%LOCALAPPDATA%\Temp\claude\`)
+> included — this is also the re-confirmation ledger CMP-4 asked for ahead of EP-17+
+> full-tier writes (previous confirmation 2026-08-17). Still on the owner's word, as
+> designed; the doctor `antivirus` row is unchanged.
+
 **D-39 Enforcement of the Claude data policy = `CLAUDE.md` + safe-query wrapper +
 repo-shared `.claude/settings.json` deny rules** (reading `source material/**` except
 `*.md`, `C:\mimicdata\**`, `*.csv/*.parquet/*.duckdb`, the `duckdb` executable). A
@@ -554,6 +564,15 @@ PreToolUse output-scanning hook is parked. *Alternatives:* prose only; hook.
 **D-40 Remote content = code + docs + gated aggregates** — results committed only after
 `mwh disclose check` passes and a `.disclosure.json` sidecar is recorded.
 *Alternatives:* code + docs only; two repos.
+
+> **Addendum (2026-08-28, owner — recorded by EP-166; ledger DOC-9).** Confirmed reading:
+> GOVERNANCE §3's allowance for **manifests that contain only hashes/counts/schema** stands
+> apart from the sidecar-gated aggregates — such manifests (EP-10's
+> `docs/resources/raw-inventory.md`, future lake-manifest summaries) are committable
+> **without** a `.disclosure.json` sidecar, and before EP-43 ships `mwh disclose check`,
+> nothing else derived from real data enters `docs/` or git. CLAUDE.md §5's blanket
+> sentence gains the one-line manifest exception with EP-167's commit (pickup note on that
+> brief); no retro-fit sidecar for `raw-inventory.md`.
 
 **D-41 MIT now; repo public at v1.0.0 after a full-history guard sweep.**
 *Alternatives:* public from day one; private indefinitely.

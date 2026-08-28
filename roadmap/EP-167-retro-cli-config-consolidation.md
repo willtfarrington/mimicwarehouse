@@ -7,6 +7,18 @@
 > fixture tier; nothing reads data. Ledger ids: CFG-1 … CFG-6, ARCH-3, FXT-10, ARCH-8, FC-15, ARCH-9,
 > GOV-3, INV-1, INV-2, INV-4 (+ low CFG-7 …, INV-5 …, ARCH-12 … tagged EP-167).
 
+> **EP-166 pickup note (2026-08-28, owner verdict on ledger DOC-9 — one extra one-line item).**
+> Alongside the items below, amend **CLAUDE.md §5** first bullet with one sentence (owner chose
+> option (a) post-EP-166; D-40 addendum records it): *"Manifests of hashes/counts/schema
+> (GOVERNANCE §3) may be committed without a sidecar; any other aggregate, figure or screenshot
+> needs `mwh disclose check` + `.disclosure.json` (EP-43) — before EP-43 nothing else derived
+> from real data enters `docs/` or git."* This resolves the contradiction between CLAUDE.md §5's
+> blanket sidecar rule and GOVERNANCE §3's manifest exception (EP-10's committed
+> `raw-inventory.md` is the precedent). CLAUDE.md changes are pre-authorised for this line only.
+> Environment note: since the owner's 2026-08-28 VS Code restart, `uv` resolves natively in both
+> tool shells (ENV-1 closed) — the CLAUDE.md §3 PATH prefix is now only the stale-process
+> fallback, so this brief's recipes need no export.
+
 ## Context
 
 `config.py`/`cli.py`/`doctor.py`/`inventory.py` are sound and well tested, but five things will trip

@@ -41,17 +41,18 @@ later re-plans refresh this list):
   no burst copy/`sed -i`/delete loops over many scratch files (Malwarebytes ransomware
   heuristic); "process killed / binary vanished / access denied" → check the Malwarebytes
   Quarantine and `mbamservice.log` before anything else.
-- `uv` may be missing from the tool shells' PATH (stale VS Code process) — prefix
-  `%LOCALAPPDATA%\Microsoft\WinGet\Links` before `uv`, `poe`, `pre-commit` **and**
-  `git commit` (the hook shells out to `uv run`).
+- `uv` resolves natively in both tool shells since the owner's VS Code restart (verified
+  2026-08-28; the miss was a stale-process artefact). If a stale process recurs, the
+  CLAUDE.md §3 fallback still applies: prefix `%LOCALAPPDATA%\Microsoft\WinGet\Links`
+  before `uv`, `poe`, `pre-commit` **and** `git commit` (the hook shells out to `uv run`).
 - Bare `python`/`pip` in the tool shells is the **system CPython 3.14** — never use it or
   `pip install` into it; always `uv run python …` (uv manages CPython 3.13).
 - Console: `PYTHONUTF8=1` comes from `.claude/settings.json` (EP-165); new CLI strings
   still stay ASCII or go through the shared console helper (EP-167) — some hosts run
   cp1252 (DESIGN §2, roadmap Risk 13).
 - Endpoint security is **two** real-time products (Windows Defender + Malwarebytes 5.1
-  Premium), both on, with a nine-path Malwarebytes allow list (D-38 addenda; the last two
-  paths — uv cache, Claude scratchpad — pending owner confirmation as of 2026-08-28).
+  Premium), both on, with a nine-path Malwarebytes allow list (D-38 addenda; all nine
+  confirmed in place by the owner on 2026-08-28).
 - The owner toggles Windows power mode off between sessions — confirm **Best performance**
   (`mwh doctor` `power_scheme`) before any compute-heavy step (D-38, CLAUDE.md §3).
 - No `MWH_*` environment variables, `.env` or `mwh.toml` exist on this machine — settings
