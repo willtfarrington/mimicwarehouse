@@ -122,3 +122,77 @@ tagged EP-166).
   all relative links resolve (`grep -o '](\S*\.md' | test -e`); `uv run poe roadmap-check --strict`
   0/0; `mwh guard --all-tracked` clean; `uv run poe test` still green (docs only).
 - Commit `docs(mimicwarehouse): consolidate status docs — README § State, DESIGN §5/§6/§11 protocol + glossary, DECISIONS D-43 distribution + owner verdicts, roadmap notation table (EP-166)`, then `docs(roadmap): record EP-166 commit hash`.
+
+> **Completion note (2026-08-28).** All eight In-scope items shipped in one session (M).
+> Gates: `uv run poe test` **452 passed** (35.8 s) · `poe roadmap-check --strict` **0 errors /
+> 0 warnings** (171 rows, 15 done) · `mwh guard --all-tracked` clean (432 files) and clean over
+> the 15 edited working-tree files · all **211** relative `.md` links across the 185 tracked
+> markdown files resolve — the three grep-level hits are not links (the regex lookahead
+> `(?! README…)` in the EP-165 brief/ledger, and the ledger's two verbatim quotes of the stale
+> text it was recording; the review record is append-only and was left untouched, EP-165
+> precedent). Power mode confirmed Best performance (`ded574b5-…`) before the test run.
+>
+> **What landed where.** (1) Root README status block rewritten (2026-08-28; 16/171; `mwh`
+> surface; pointer to the new § State). (2) Workspace README: new **§ State of the workspace**
+> (module → EP → CLI → tests table, EP-165 gates line, Environment-realities list), rewritten
+> intro, current Quick start (+ `schema`/`inventory`/`fixtures`/`poe test-dev`/`test-full`/
+> `vendor-mimic-code`), corrected unknown-keys sentence, "15 (18 from EP-167)" layout notes,
+> doc-table D-43 + resources rows, shipped-marked Layout tree (Contributing table needed
+> nothing — EP-165 had already updated G1/G4). (3) DESIGN: intro + §15 header/tree de-staled;
+> dated notes in §2 (console/`PYTHONUTF8`), §3 (tree growth: `lake/fixture|demo|rejects`,
+> manifests, `runs.duckdb`, `.build.lock`), §4 (fixture built-for-keeps, `--tier fixture`),
+> §5 (rename-aside dir swap + `_progress.json` placement + `partition_glob` pin; two-pass =
+> `load_class`; 31-table stage scope), §6 (rename-aside catalog protocol, instance-cache
+> caveat, one-build-connection rule, disposable catalogs), §11 (identifier glossary + logical
+> snapshot id), §20 (tier readiness, demo opt-in marker, CFG-1 correction); §21 "Defender +
+> Malwarebytes" fix (DOC-5); fixture byte total corrected to 5,370,674 here and in the EP-12
+> note (DOC-13). (4) DECISIONS: D-43 distributed — addenda under D-15 (psutil, FC-9), D-17
+> (item 9 + EP-9 owner verdict), D-18 (items 7–8), D-24 + D-26 (item 11 + EP-10 owner verdict
+> + the "source manifest id" two-field refinement), D-27 (item 10), D-38 (EP-164 owner
+> verdict), a D-43 closing addendum, and the keyring-parked parenthetical (DOC-17).
+> (5) Roadmap README: D-1 … D-43 and 171-brief counts, the **"Notation used in briefs"** table
+> (overrides brief text), Risk 1 and Risk 8's done fragments struck, Risk 8's hook + connector
+> sentence, Risk 11 ≈ 160 h / 171, Risks 12/13 trimmed to two-line pointers, Risk 15 progress
+> lines (EP-165/EP-166); the P1 ordering-rationale retro paragraph checked, accurate.
+> (6) tests/README: corrected `PYTEST_TIER` rationale (CFG-1), PowerShell fallback form
+> (CMP-9), EP-12 marker-probe sentence (DOC-14), new **"Changing the synthetic fixture"**
+> protocol (FXT-3/D-43 item 10). (7) final-roadmap: FIX-1 gained the EP-169 `COVERAGE.md`
+> note; GOV-1 was already struck by EP-165; RM-1/DOC-1 and `NOTICE` untouched. Plus: EP-6's
+> placeholder link escaped (DOC-17), the stale `[project.scripts]` comment deleted (DOC-17),
+> an EP-166 pickup note on EP-13 (DOC-15). (8) Project-status memory updated to point at
+> § State and CLAUDE.md §3.
+>
+> **Owner-review points (deviations, alternatives, recommendations).**
+> 1. *In-scope item 1 says "171 briefs / 13 phases"; written as **12 phases**.* The roadmap
+>    has twelve `## Phase` sections (P0 … P11 — the retro added briefs, not a phase) and every
+>    other document says 12, so 13 would have introduced a fresh inconsistency. Options:
+>    (a) keep 12; (b) if the retro batch was meant to count as a phase, say so once in
+>    roadmap README § How to use. Recommendation: (a).
+> 2. *Item 2's "13/14 checks" fragment does not exist* — the public-flip commit (`08b15e8`)
+>    had already refreshed the doctor sentences to "14 host checks". No action needed or taken.
+> 3. *DOC-9 not implemented.* Its stale sentence lives in CLAUDE.md §5 (blanket "aggregates
+>    only after `mwh disclose check` + sidecar", contradicting GOVERNANCE §3's manifest
+>    exception and EP-10's committed page), but CLAUDE.md is this brief's Out-of-scope
+>    (→ EP-165, which shipped without taking DOC-9), the ledger marks it **owner-decision**,
+>    and D-43 records no verdict. Options: (a) owner confirms the GOVERNANCE §3 reading and a
+>    one-sentence CLAUDE.md §5 amendment ("manifests of hashes/counts/schema need no sidecar;
+>    before EP-43 nothing else derived from real data is committed") rides with EP-167;
+>    (b) leave to EP-16. Recommendation: (a) — EP-10's precedent already relies on it.
+> 4. *The owner's uncommitted no-AI-attribution edits rode into this commit*
+>    (`.claude/settings.json`: `includeCoAuthoredBy: false` + `_readme` sentence; CLAUDE.md
+>    §4(5) paragraph; both owner-authored 2026-08-28, present in the working tree before this
+>    session). EP-165 precedent for pre-existing local edits; committing keeps the checkpoint
+>    clean. Alternative: a separate owner commit. Recommendation: keep.
+> 5. *Small out-of-letter touches, each argued by its ledger entry while the file was open:*
+>    Risk 8's done owner items struck (DOC-12); ARCH-11 (one-build-connection) and ARCH-16
+>    (disposable catalogs) folded into the §6 note; ARCH-12 (paths) into the §3/§5 notes;
+>    ARCH-14 (stage-coverage scoping) into the §5 note.
+> 6. *Left with their tags, not silently dropped:* **CMP-4** (owner: re-confirm the nine
+>    Malwarebytes paths — the last two are still pending — and decide the doctor
+>    "acknowledged" option), CMP-6 (acceptance-template rewording) and CMP-8 (doctor `git`
+>    probe) → next re-plan, ARCH-13/ARCH-15 brief clauses → EP-170/re-plan.
+> Ledger disposition: DOC-2/3/4/11/18, CMP-2 (this brief executing *is* the decided vehicle),
+> CMP-3, ARCH-1/2/5/6 (words), INV-3, FC-8, FC-9 (D-15 note) implemented; low DOC-5/7/12/13/
+> 14/15/17, CMP-5, CMP-9 (README half), ARCH-11/12/14/16 (words) implemented; DOC-8/10/16
+> were already fixed by EP-165's CLAUDE.md rewrite; DOC-9 → owner (point 3); CMP-4 → owner;
+> CMP-6/CMP-8, ARCH-13/ARCH-15 → EP-170/re-plan.

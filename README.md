@@ -6,7 +6,7 @@
 # mimicwarehouse
 local EMR data warehouse — MIMIC-IV · DuckDB · Polars · Streamlit (MIT-licensed code; data not included)
 
-# Project status (2026-08-18)
+# Project status (2026-08-28)
 
 **Work in progress — public as a governed, in-flight project.** `mimicwarehouse` is a local,
 single-machine data lab over MIMIC-IV 3.1 (hosp + icu), MIMIC-IV-ED 2.2 and MIMIC-IV-Note 2.2
@@ -17,19 +17,23 @@ self-contained session briefs across 12 phases; one tested end-to-end representa
 per capability category (38) is the completion bar, and everything named-but-not-built is
 parked in the extension roadmap.
 
-**Where it stands (2026-08-18): 14 of 171 briefs done — phase P0 and the first half of P1.**
-Shipped: uv/CPython 3.13 toolchain with DuckDB 1.5.5 pinned (EP-1); the `mwh` CLI with
-`doctor`, `paths`, `guard`, `verify`, `schema`, `inventory`, `fixtures` (EP-2 … EP-12);
-settings + data-root safety checks (EP-3); the pre-commit data-leak guard and repo-shared
-Claude Code deny rules (EP-4, EP-164); visual identity (EP-5); `mwh verify` + roadmap
-consistency checker (EP-6); vendored, pinned MIT-LCP/mimic-code concepts (EP-8); the YAML
-schema contract for all four datasets (EP-9); a hash/row-count raw-inventory manifest
-reconciled against upstream (EP-10); and a deterministic **synthetic** fixture generator
-(hosp + icu, 31 tables, ids ≥ 90 000 000) with tiered pytest markers (EP-11/12). 394 fixture-tier
-tests and `roadmap_check` are green at every ☑ commit. Loader, warehouse build, concepts,
-cohorts, safe-query and the Lab app are next (P1b onward — see the roadmap). Development is
-paused as of 2026-08-18 and resumes at EP-165; the roadmap tables in
-[roadmap/README.md](roadmap/README.md) are the source of truth for what is and isn't built.
+**Where it stands (2026-08-28): 16 of 171 briefs done — phase P0, the first half of P1,
+and two of the six consolidation briefs (EP-165/EP-166) from the 2026-08-18 retrospective
+review.** Shipped: uv/CPython 3.13 toolchain with DuckDB 1.5.5 pinned (EP-1); the `mwh` CLI
+with `doctor`, `paths`, `guard`, `verify`, `schema`, `inventory`, `fixtures`
+(EP-2 … EP-12, EP-164); settings + data-root safety checks (EP-3); the pre-commit
+data-leak guard, repo-shared Claude Code deny rules and a live PreToolUse session guard
+(EP-4, EP-164, EP-165); visual identity (EP-5); `mwh verify` + roadmap consistency checker
+(EP-6); vendored, pinned MIT-LCP/mimic-code concepts (EP-8); the YAML schema contract for
+all four datasets (EP-9); a hash/row-count raw-inventory manifest reconciled against
+upstream (EP-10); and a deterministic **synthetic** fixture generator (hosp + icu,
+31 tables, ids ≥ 90 000 000) with tiered pytest markers (EP-11/12). 452 fixture-tier tests
+and `roadmap_check --strict` are green at every ☑ commit. What exists, in one page:
+[mimicwarehouse/README.md § State of the workspace](mimicwarehouse/README.md#state-of-the-workspace)
+(the living status surface, D-43; refreshed at every re-plan EP). Next: the remaining
+consolidations (EP-167 … EP-169), the P1 resource inventories (EP-13 … EP-15), then
+staging (P2). The roadmap tables in [roadmap/README.md](roadmap/README.md) are the source
+of truth for what is and isn't built.
 
 The data is **not** in this repository and never will be (PhysioNet credentialed
 license; ~98 GB). See `source material/README.md`. Everything committed here — code, docs,

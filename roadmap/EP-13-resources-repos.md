@@ -16,6 +16,16 @@
 > EP-10/13/14/15 runs first creates it and `README.md`. Command forms: `uv run mwh …` ≡ `uv run --group dev
 > mwh …`.
 
+> **EP-166 pickup note (2026-08-28; ledger DOC-15).** Amendment item (4) above is overtaken:
+> `mimicwarehouse/docs/resources/` **exists** — EP-10 committed `raw-inventory.md` there — but has
+> **no `README.md` yet**: create it in this session (index rows for `raw-inventory.md` and the new
+> `repos.md`, plus placeholders for EP-14/15's files) so EP-16 item 2's "add its row" has a file to
+> land in. The mimic-code row in `repos.md` cites the D-19 pin (`vendor_info().sha`,
+> `concepts/vendor/VENDOR.json`) and the repo-root `NOTICE` attribution — the entry EP-8's
+> completion note handed to this brief. The status prose a cold session reads first is current
+> again since EP-166 (workspace `README.md` § "State of the workspace"); the "Notation used in
+> briefs" table in `README.md` (this folder) § How to use overrides brief shorthand.
+
 ## Context
 
 **D-10** makes resource gathering explicit (owner template steps 2–3): before the staging phase we

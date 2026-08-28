@@ -110,6 +110,11 @@ cp313 Windows wheels for every library in the stack; spaCy has no cp314 wheels; 
 > update-shell` was not run — everything goes through `uv run`. *Alternatives considered at EP-7:*
 > vendor `autograd-gamma`; drop lifelines to an optional group (rejected — survival is core, P6).
 
+> **Addendum (2026-08-28, EP-166 — D-43 item 14 / ledger FC-9).** `psutil` (pid liveness,
+> RSS sampling for EP-19/35/36) joins the **core** dependencies at EP-19 — it ships abi3
+> `win_amd64` wheels, so `test_ep01`'s wheel check stays green; EP-19 states the addition in
+> its completion note per the rule above. No other new core dependency is planned for P2.
+
 **D-16 CPU-first; GPU is an opt-in late track.** `gpu` dependency group installs torch
 from `https://download.pytorch.org/whl/cu130` (`explicit=true`; PyPI torch is CPU-only on
 Windows; cu126 lacks sm_120); XGBoost `device="cuda"` as comparator; LightGBM CPU is the
@@ -135,10 +140,40 @@ native only; pandas primary.
 > default; would constrain scale on load); DECIMAL(10,4) for resprate (faithful, awkward
 > downstream); PK constraints in DDL (ART index over 400 M rows; rejects upstream duplicates).
 
+> **Addendum (2026-08-18, owner — recorded by EP-166; ledger CMP-3).** Verdict on the EP-9
+> completion note's deferred review points: **accepted as shipped** — `ed.vitalsign.resprate`
+> as `DOUBLE`, the two `upstream_nullable` relaxations (`microbiologyevents.spec_type_desc`,
+> `prescriptions.drug`), and the 13 docs-sourced ED/Note FKs (`source: docs`). No reverts;
+> the contract hash the committed fixture pins stands.
+
+> **Addendum (2026-08-28, EP-166 — D-43 item 9; code EP-169).** Contract refinements decided
+> at the 2026-08-18 retro, landing in **one** hash bump at EP-169: sort-key **tie-breakers**
+> adopted in one edit (`+itemid` / `+orderid` / `+emar_seq` / `+transfer_id` / `+pharmacy_id`
+> / `+poe_seq` / `+microevent_id`, ED/Note uniform) so EP-18's per-bucket sort and
+> determinism tests are well-defined under ties; `microbiologyevents` **stays `large`**
+> (owner exception to the "> 1 GB" rule of thumb); a `Contract.structural_hash()` over the
+> load-relevant facts becomes what the fixture manifest pins (the full `content_hash()`
+> stays informational/provenance, so comment-only YAML edits stop forcing fixture
+> regenerations); one CSV-dialect constant (`allow_quoted_nulls=true`, no
+> `timestampformat`); `upstream_type: TIMESTAMP(3)` recorded on the nine columns. Details
+> and evidence: ledger ARCH-4/SCH-2/FC-4.
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
 full only; full runs batched per phase.
+
+> **Addendum (2026-08-28, EP-166 — D-43 items 7–8; code EP-167/EP-168).** Two retro
+> refinements (owner, 2026-08-18). (1) **Per-tier lake roots:** `Settings.lake_root(tier)`
+> — `lake/` for dev/full, `lake/demo`, `lake/fixture` (+ `lake/rejects`); layout keys
+> 15 → 18; fixture/demo builds hard-refuse resolving to the credentialed lake;
+> `catalog_path(tier)` stays `warehouse/<tier>.duckdb` for all four tiers so
+> `mwh app`/`mwh sql --tier fixture` work (DESIGN §3/§4 notes; code EP-167).
+> (2) **Test-tier readiness:** the pytest ladder keeps deselect-above-max semantics, but
+> skips key on requestable readiness fixtures (`raw_root`, `dev_catalog`, `full_catalog`,
+> `dev_ready(step)`, `item_tier`) via a `tier(name, needs=…)` kwarg rather than on one
+> catalog file; demo tests are an **orthogonal opt-in** `@pytest.mark.demo` + `--with-demo`
+> (`PYTEST_DEMO`), never a ladder step (DESIGN §20 note; code EP-168).
 
 **D-19 Adopt mimic-code `concepts_duckdb` (MIT), vendored at a pinned commit, tested,
 fixes ported; re-derive only what is missing.** *Alternatives:* re-derive everything;
@@ -184,6 +219,13 @@ notebook export.
 **D-24 Run/provenance store = DuckDB `runs` views over per-run JSON sidecars +
 append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain files.
 
+> **Addendum (2026-08-28, EP-166 — D-43 item 11).** The snapshot ids these stores cite are
+> **logical** (stable across identical rebuilds), with the per-file Parquet sha256 kept for
+> integrity only; the definition and the full identifier glossary (`raw_snapshot_id`,
+> `source_sha256`, `build_id`, layer `snapshot_id`, catalog `build_id` + `core_snapshot_id`,
+> `run_id`, `audit_id`, protocol hash) live in DESIGN §11's dated note and the D-26
+> addendum below. `runs.duckdb` follows the §6 rename-aside swap protocol (D-43 item 6).
+
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
@@ -206,6 +248,24 @@ skip.
 > `docs/resources/raw-inventory.md`. Each dataset's `SHA256SUMS.txt` archive hash is carried per file
 > for the parked `.csv.gz` re-verification (RAW-1).
 
+> **Addendum (2026-08-18, owner — recorded by EP-166; ledger CMP-3).** Verdict on the EP-10
+> completion note's five deferred review points: **accepted as shipped** — the fourth
+> reconcile status `pending`, `reconcile` exiting 1 on any mismatch, raw integers in
+> `--json` output (human-readable surfaces stay thousands-separated), the docs page
+> committed ahead of EP-16, and the snapshot id being issued with `rows=null` after a
+> `--no-rowcount` pass. No reverts; EP-16 verifies, it does not re-litigate.
+
+> **Addendum (2026-08-28, EP-166 — D-43 item 11; ledger ARCH-6/INV-3/FC-8).** The addendum
+> above says "This id is the `source manifest id` every lake manifest (EP-17+) cites" —
+> refined, not rewritten: every lake manifest line carries **two** fields, the per-file
+> **`source_sha256`** (the sha256 this manifest recorded for the source CSV; `None` on the
+> fixture tier) **plus** this **`raw_snapshot_id`** (the 41-file snapshot id; the demo
+> tier cites the PhysioNet sha256 from `ext\demo\source.yaml` as `source_sha256`). Layer
+> snapshot ids are **logical** — the EP-10 hash-of-sorted-tuples pattern over `(schema,
+> table, path, rows, schema_hash, source_sha256/raw_snapshot_id, sort_keys,
+> writer_version)` — with per-file Parquet sha256 kept for integrity only; the dev id
+> hashes only `dev_buckets` paths + unpartitioned tables. Full glossary: DESIGN §11 note.
+
 **D-27 Fixtures = synthetic mini-MIMIC generator (ids ≥ 90 000 000) committed +
 on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synthetic only.
 
@@ -220,6 +280,21 @@ on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synth
 > demo loader validates headers against the contract (`ColumnMap.check`, in code, never printed)
 > and applies no NULL-filling or renames; if the real headers ever disagree, EP-22 amends the map
 > file rather than the loader.
+
+> **Addendum (2026-08-28, EP-166 — D-43 item 10; code EP-169, protocol prose this EP).**
+> Fixture refinements decided at the 2026-08-18 retro, landing in **one** regeneration at
+> EP-169: **disjoint id floors** per key space — `subject_id` from 90 000 000, `hadm_id`
+> from 91 000 000, `stay_id` from 92 000 000, event/caregiver ids from 93 000 000 — so a
+> wrong-key join can no longer match by accident (ledger FXT-1); that regeneration bumps
+> `GENERATOR_VERSION` to **0.2.0**; the manifest additionally records numpy/polars/python
+> versions and the contract's `structural_hash` (numpy/polars are deliberately **not**
+> pinned — byte identity is asserted against the locked versions, ledger FXT-2); a
+> `tests/fixtures/COVERAGE.md` names the vendored concepts that are empty or degraded on
+> the fixture (ledger FXT-4). The **fixture-change protocol** — when to regenerate, how to
+> review (manifest diff; CSVs are binary in `.gitattributes`), when to bump patch vs minor,
+> one commit — is written once in `tests/README.md` § "Changing the synthetic fixture"
+> (this EP) and supersedes the EP-11/12 hand-off phrasing "bump only when a hosp byte
+> changes" (which was scoped to EP-12, ledger FXT-3).
 
 **D-28 Latency ≤ 5 s typical on full data via marts; interactive pages default to
 dev.** *Alternatives:* ≤ 2 s always; whatever DuckDB gives.
@@ -394,6 +469,14 @@ reboot), "Best performance" power plan when plugged in. *Alternatives:* none.
 > verification parked, `final-roadmap.md` DOC-1). Doctor summary at EP-164: exit 0, **8 pass ·
 > 1 warn · 0 fail · 5 info** (the one warn is this row, by design).
 
+> **Addendum (2026-08-18, owner — recorded by EP-166; ledger CMP-3).** Verdict on the
+> EP-164 completion note's deferred review points: **accepted as shipped** — the
+> presence-based `antivirus` warn rule (warn whenever a non-Defender product is listed,
+> rather than keying on the Security Center real-time bit) and the taken optional item 6
+> (EP-0 hash-pin relaxation that made `roadmap-check --strict` green). The permanent warn
+> on this host is by design; an acknowledged-state doctor option remains a candidate for a
+> later re-plan (ledger CMP-4).
+
 > **Addendum (2026-08-28, EP-165).** Owner decisions of 2026-08-18 (D-43 item 5): the
 > Malwarebytes allow list grows seven → **nine** paths — adding `%LOCALAPPDATA%\uv\cache`
 > and the Claude scratchpad `%LOCALAPPDATA%\Temp\claude\` — and the owner **restarts VS
@@ -506,7 +589,8 @@ Stack & repo: `mwh` typer + rich CLI · pydantic-settings (`MWH_` env + `.env` +
 pydantic models for cohort/phenotype/protocol specs (JSON-schema → UI forms) · poethepoet
 tasks · pytest + hypothesis + DuckDB data checks · ruff + pyright(basic) · pre-commit +
 `mwh guard` · semver tags + CHANGELOG + separate warehouse `build_id` · `.env` + keyring
-for any future tokens · `MWH_ALLOW_REMOTE=false` gate · single process + engine threads +
+for any future tokens (keyring parked → final-roadmap CFG-1; D-29 EP-3 addendum) ·
+`MWH_ALLOW_REMOTE=false` gate · single process + engine threads +
 joblib for CV · `if __name__ == "__main__"` guards (Windows spawn) · dependency groups
 `core / dev / ui / gpu / gpl / text` with `[tool.uv] conflicts` isolating `ui` (Streamlit
 pins `pyarrow<25`) — commands in briefs always name their groups · commit `uv.lock` ·
@@ -678,7 +762,18 @@ option first, all chosen as recommended unless noted; the implementing brief is 
 > Item 5 (VS Code restart; ninth/eighth Malwarebytes paths) remains with the owner; the restart
 > also loads the newly registered hook, which Claude Code snapshots at session start.
 
-*Why:* the owner wants the remaining ~150 briefs to build on a foundation whose environment realities,
+> **Addendum (2026-08-28, EP-166).** The distribution this decision asked for is done: the
+> word-side of items **6** and **11** is in DESIGN §6/§11 dated notes and a D-24/D-26
+> addendum; item **7** in a D-18 addendum + DESIGN §3/§4 notes; item **8** in the same D-18
+> addendum + DESIGN §20 note; item **9** in a D-17 addendum; item **10** in a D-27 addendum
+> + `tests/README.md` § "Changing the synthetic fixture"; item **13** is live — workspace
+> `README.md` § "State of the workspace" exists, CLAUDE.md §1 (EP-165) and the root README
+> point at it, roadmap README carries the "Notation used in briefs" table, and the owner
+> verdicts on the EP-9/EP-10/EP-164 review points are recorded under D-17/D-26/D-38; item
+> **14**'s psutil clause is a D-15 addendum. Still pending: code for items 6–8 and 11–12
+> (EP-167/168 + EP-21/30/35/57), item 9–10 code (EP-169), item 14's brief amendments
+> (EP-170), and item 5's two owner actions (VS Code restart; ninth/eighth Malwarebytes
+> paths — see the D-38 EP-165 addendum).
 governance layers, status prose, test semantics and contract are settled once rather than re-discovered
 per session; every choice above took the reviewers' recommended option after independent verification.
 *Alternatives considered:* a standalone retro document (less traceable); implementing everything in the

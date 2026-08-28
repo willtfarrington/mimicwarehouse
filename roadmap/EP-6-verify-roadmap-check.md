@@ -11,7 +11,7 @@ yet. `mimicwarehouse.verify` (DESIGN §15) provides both: `mwh verify` runs one 
 set (markers `ep_<n>` registered by EP-1's `conftest.py`; tier selection arrives with EP-12 and is
 passed through untouched), and `roadmap_check` parses the master roadmap tables and the briefs'
 header lines — the formats fixed by the planning session: table rows
-`| EP-n | [Title](EP-n-slug.md) | Size | Depends | core/stretch | ☐ or ☑ \`hash\` (+ \`hash2\`) |`,
+`| EP-n | [Title]( EP-n-slug.md ) | Size | Depends | core/stretch | ☐ or ☑ \`hash\` (+ \`hash2\`) |` (spaces around the link target added at EP-166 so the placeholder is invisible to link checkers; real rows have none),
 brief header `**Size:** … · **Tier:** … · **Core/Stretch:** … · **Depends on:** EP-a (name), … ·
 **Blocks:** …`. Docs-only briefs (Tier `n/a`, e.g. EP-0, EP-7) have no test module and must still
 verify cleanly. Commands run in `mimicwarehouse/`; the roadmap lives at `../roadmap/`.

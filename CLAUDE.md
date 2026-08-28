@@ -94,6 +94,10 @@ style preferences. Read them fully before doing anything.
 5. Commit in two steps: `feat(mimicwarehouse): <what> (EP-<n>)` then, after updating the
    ☑ hash in `roadmap/README.md`, `docs(roadmap): record EP-<n> commit hash`. Only commit
    when the owner asks or the brief's commit recipe says so; never `--no-verify`.
+   **No AI attribution trailers** (owner preference, 2026-08-28): do not add
+   `Co-Authored-By: Claude …` or "Generated with Claude Code" lines to commits or PRs —
+   `includeCoAuthoredBy` is off in `.claude/settings.json`; don't re-add them by hand.
+   (AI-assisted development is disclosed in the project narrative, not per-commit.)
 6. If you hit the context limit mid-EP: commit a green checkpoint if possible and write
    `roadmap/EP-<n>-completion-handoff.md` (hupsim precedent) for the next session.
 

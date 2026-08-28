@@ -2,9 +2,11 @@
 
 Architecture of the local MIMIC-IV data lab. This document is the "why and how"; the
 roadmap (`../roadmap/README.md`) is the "when". Every module below is marked with the
-EP brief that builds it — as of 2026-08-16 nothing here exists as code yet. Sessions
-update this file when an EP changes a design fact (append a dated note; do not rewrite
-history).
+EP brief that builds it — as of 2026-08-16 nothing here existed as code; the P0/P1a
+modules (EP-1 … EP-12, EP-164, EP-165) have since shipped — the living inventory is the
+workspace `README.md` § "State of the workspace" (D-43 item 13), the history is the dated
+notes below. Sessions update this file when an EP changes a design fact (append a dated
+note; do not rewrite history).
 
 Owner decisions are cited as **D-n** (see [`DECISIONS.md`](DECISIONS.md)). Safety and
 licensing rules live in [`GOVERNANCE.md`](GOVERNANCE.md) and override anything here.
@@ -66,6 +68,14 @@ to leave this machine. All of these are catalogued in
 > or pass through `verify._console_safe` (roadmap Risk 13); JSON outputs are unaffected. Versions
 > re-verified at EP-7: unchanged from the EP-1 note; `mwh doctor` 8 pass · 5 info; 414.9 GB free.
 
+> **Note (2026-08-28, EP-166 — console, updating the EP-7 note's item (2)).** Since EP-165,
+> `.claude/settings.json` sets `PYTHONUTF8=1` for both tool shells (D-43 item 2), so `mwh` run
+> from a Claude session gets UTF-8 stdio and the cp1252 crash class is gone *there*; other hosts
+> (a plain PowerShell, Task Scheduler) may still be cp1252. The standing rule is unchanged: new
+> CLI strings stay ASCII or pass through the console helper — EP-167 replaces the per-module
+> `_console_safe` with one shared `mimicwarehouse/console.py` and a UTF-8 entry point (D-43
+> item 12). Roadmap Risk 13 is now a two-line pointer to this note.
+
 ## 3. Layers & disk budget
 
 ```
@@ -122,6 +132,19 @@ notes lake + FTS + embeddings 5–15 GB (P10 only) · models ≤ 10 GB · build 
 > the probes see C: = fixed NTFS "Windows", D: = remote cryptoFs "Google Cryptomator",
 > G: = fixed FAT32 "Google Drive" — the last two are refused by label, filesystem and letter.
 
+> **Note (2026-08-28, EP-166 — tree entries decided by the 2026-08-18 retro; code EP-167+).**
+> The EP-3 tree above grows as follows, so P2 briefs stop inventing paths ad hoc (D-43 items
+> 6–7; ledger ARCH-3, ARCH-12): under `lake\` the **per-tier lake roots** `fixture\`
+> (`lake_fixture`) and `demo\` (`lake_demo`) — the fixture/demo tiers never write into the
+> credentialed `lake\core` — plus `rejects\` (`lake_rejects`, EP-17's per-table reject
+> Parquet); under `lake\manifests\` the EP-10 `raw\<dataset-dir>.jsonl` + `raw_snapshot.json`
+> (already real) and EP-17/19's `status.json`, `snapshots.json` and `<build_id>.jsonl`; under
+> `warehouse\` the catalogs become `{fixture,demo,dev,full}.duckdb` plus `runs.duckdb`
+> (EP-30/35 views over the JSONL ledgers) and the `.build.lock` (EP-19). `Settings.layout`
+> goes 15 → **18** keys (`lake_fixture`, `lake_demo`, `lake_rejects`) at EP-167, which bumps
+> the `test_ep03` pin once and updates `mwh paths`; briefs reference the layout keys, not
+> literal paths.
+
 ## 4. Tiers & sampler spec (D-18, D-27)
 
 | Tier | What | Where | Used for |
@@ -162,7 +185,7 @@ Every brief states its tier using the vocabulary in the roadmap README (`fixture
 > construction; `chartevents` 20,125 rows / 1.96 MB, `outputevents` 1,857, `ingredientevents` 364,
 > `inputevents` 285, `procedureevents` 136, `datetimeevents` 116, `d_items` 47, `caregiver` 15) and
 > one `manifest.json` (`modules: [hosp, icu]`, 31 files) + `README.md` for both modules — **50,974
-> rows / 5,370,673 bytes = 5.12 MiB** in total (budget ≤ 10 MB; chartevents ≤ 3 MB). The hosp
+> rows / 5,370,674 bytes = 5.12 MiB** in total (budget ≤ 10 MB; chartevents ≤ 3 MB). The hosp
 > bytes did not move (per-table child generators). Tests read the tree through
 > `mimicwarehouse.fixtures.catalog.build_fixture_catalog()` — an in-memory DuckDB (app profile of
 > `Settings.duckdb_settings`) with the 31 contract tables loaded by `read_csv(columns=<contract
@@ -171,7 +194,18 @@ Every brief states its tier using the vocabulary in the roadmap README (`fixture
 > `datetimeevents` / `ingredientevents` items, which no vendored concept reads, carry fixture-only
 > 2401xx / 2402xx ids on purpose.
 
-## 5. Lake physical layout
+> **Note (2026-08-28, EP-166 — fixture/demo lake roots; decided 2026-08-18, D-43 item 7;
+> code EP-167).** The `fixture` tier's *sources* stay committed in the repo (the table
+> above), but a fixture tier **built for keeps** through the loader/DAG lives under the data
+> root like every other tier: lake root `lake\fixture` (`Settings.lake_root("fixture")`),
+> catalog `warehouse\fixture.duckdb` (`catalog_path` is already uniform across all four
+> tiers), and likewise `lake\demo` for the demo tier. Fixture/demo builds **hard-refuse**
+> resolving to the credentialed `lake\core`, so a stray `mwh build --tier fixture` can never
+> pollute the real lake or its `status.json`. Consequence: the app and `mwh sql` may target
+> `--tier fixture` (GOVERNANCE §6 row-view development no longer depends on the demo tier
+> alone). Tests keep building into temp roots via `--data-root`. Code lands in EP-167
+> (`lake_root(tier)`, layout keys, runner refusal); EP-12's in-memory
+> `build_fixture_catalog()` remains the test-time path until EP-21.
 
 Hive-partitioned Parquet: `lake/core/<schema>/<table>/subject_bucket=NN/part-*.parquet`,
 sorted `(subject_id, <time column>)`, ZSTD level 3, ~1 M-row row groups, statistics on.
@@ -188,7 +222,36 @@ two-pass load (EP-18): stream `COPY … (PARTITION_BY subject_bucket)` with
 progress file. Small tables load in one pass (EP-17). Loader accepts `.csv` and `.csv.gz`
 and applies column maps (demo 2.2 → 3.1).
 
-## 6. DuckDB configuration & the single-writer rule
+> **Note (2026-08-28, EP-166 — directory swap on Windows + scope; decided 2026-08-18,
+> ledger ARCH-2/ARCH-12/ARCH-14; code EP-17/18).** Three corrections to the section above,
+> settled by the retro's probes (evidence in the ledger; no data touched):
+>
+> 1. **Restage over an existing table directory.** `os.replace(dest.new → dest)` fails on
+>    Windows with `PermissionError [WinError 5]` whenever `dest` exists (empty or not), and
+>    renaming a directory that holds an open file fails the same way — so the one-line
+>    "swaps `.new` → `dest` atomically" recipe only covers a *first* stage. EP-17 ships
+>    `paths.swap_dir(new, dest)` implementing the **rename-aside two-step**: restore a stale
+>    `<table>.old` if `dest` is missing (crash recovery) / `rmtree` a stale `.old` /
+>    `os.rename(dest → dest.old)` / `os.rename(new → dest)` / `rmtree(dest.old)` with a
+>    PermissionError retry loop — crash-safe, **not** atomic. A table under (re)stage is
+>    unavailable in every tier; readers must be closed first (even the rename fails while
+>    any handle is open inside the directory), which matters because `dev.duckdb`'s views
+>    point at the **same files** a full-tier restage rewrites — a dev rebuild while the app
+>    is open needs the same courtesy as the catalog swap (§6 note). Pass-1 progress travels
+>    in `<dest>.new/_progress.json` so the crash window between swap and progress-write is
+>    closed, and `partition_glob` is pinned to `subject_bucket=*/part-*.parquet` so
+>    in-progress `raw_*` files are never visible to a catalog view.
+> 2. **"Large" is the contract's word.** The three-table list above predates EP-9: two-pass
+>    = every contract table with `load_class: large` (13 today; 12 after EP-169 moves
+>    `microbiologyevents` to `small` — rule of thumb CSV > 1 GB).
+> 3. **Stage coverage is 31 tables.** The P2 stage steps cover exactly the `mimiciv_hosp`
+>    (22) + `mimiciv_icu` (9) contract tables; `mimiciv_ed` (6) has no stage step until
+>    EP-142 and `mimiciv_note` (4) none until EP-148 — and note tables go to the segregated
+>    notes lake (§18), **never** `lake/core`. Coverage tests assert the negative too.
+>
+> The manifest-line field "source manifest id" above is two fields since the retro:
+> per-file `source_sha256` **plus** the 41-file `raw_snapshot_id` — see the §11 glossary
+> note (D-43 item 11).
 
 Explicit in every build/analysis process (never rely on defaults): `memory_limit`
 (36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`
@@ -208,6 +271,32 @@ readers are open (audit, run ledger, benchmark ledger) goes to **append-only JSO
 > the pin, so bumping it is a deliberate one-line change + re-lock + version note here). No
 > DuckDB CLI is installed or permitted (GOVERNANCE §4); the Python client is the only
 > engine, so the "one version across every process" rule has a single moving part.
+
+> **Note (2026-08-28, EP-166 — catalog reader/writer protocol; owner decision 2026-08-18,
+> D-43 item 6; ledger ARCH-1; code EP-21/30/35/57).** The paragraph above says the writer
+> "atomically swaps" — on Windows it cannot: `os.replace(<tier>.duckdb.new → <tier>.duckdb)`
+> raises `PermissionError [WinError 5]` while **any** process holds `<tier>.duckdb` open
+> (verified with duckdb 1.5.5 READ_ONLY handles; probe in the ledger). The adopted protocol
+> is the **rename-aside two-step**: `os.rename(<tier>.duckdb → <tier>.duckdb.old)` — this
+> *succeeds* with readers open, because DuckDB opens files with `FILE_SHARE_DELETE` — then
+> `os.replace(.new → <tier>.duckdb)`, then `os.remove(.old)` (Windows holds it
+> delete-pending while a reader lives). Open readers keep serving the old snapshot until
+> they reconnect. Caveats the implementing EPs own: (a) the swap is *not* atomic — there is
+> a sub-millisecond window with no `<tier>.duckdb`, so `open_catalog` (EP-21) retries on
+> `FileNotFoundError`; (b) DuckDB's in-process instance cache is keyed on **path** — a
+> process that still holds an old connection and re-connects to the same path gets the OLD
+> instance, so it must close first (the EP-57 app clears its cached connection when
+> `meta.catalog_info.build_id`/mtime changes; cross-process readers are unaffected);
+> (c) the same scheme covers `warehouse/runs.duckdb` (EP-30/35 `mwh runs refresh`), which
+> the app may hold ATTACHed. The app **caches results, not connections** (EP-57), so a
+> rebuild while the Lab app is open no longer fails. Two companion rules from the same
+> review: **one build-profile (36 GB / 12-thread) connection per machine at a time** — the
+> EP-19 build lock covers `mwh build`; tests and ad-hoc readers use the app profile
+> (ledger ARCH-11) — and **catalogs are derived and disposable**: they embed absolute lake
+> paths and assert the DuckDB version on open, so after a data-root move or a DuckDB pin
+> bump the fix is `mwh build --select catalog` per tier, never surgery (ledger ARCH-16).
+> The fallback, if rename-aside misbehaves in practice, is versioned catalog files + a
+> `.current` pointer (D-43 alternatives).
 
 ## 7. Schema, keys, time semantics, unit of analysis
 
@@ -322,7 +411,32 @@ build from the catalog, not the external ETL.
   `mwh runs` read.
 - Snapshot id = hash of the layer manifest; every run cites the snapshot ids it read.
 
-## 12. Safe-query (D-31, D-32)
+> **Note (2026-08-28, EP-166 — identifier glossary + snapshot-id definition; owner decision
+> 2026-08-18, D-43 item 11; ledger ARCH-5/ARCH-6/INV-3/FC-8; code EP-17/19).** The
+> provenance identifiers, defined once — briefs and modules use these names and no others:
+>
+> - **`raw_snapshot_id`** (EP-10, shipped) — sha256 over the sorted `(rel_path, bytes,
+>   sha256, rows)` tuples of **all 41** raw CSVs; `None` until all 41 are inventoried.
+> - **`source_sha256`** (EP-17) — the per-file sha256 the EP-10 raw manifest recorded for
+>   one source CSV (`None` on the fixture tier). Every lake `ManifestLine` carries **both**
+>   `source_sha256` and `raw_snapshot_id` — the EP-17 brief's single `source_manifest_id`
+>   and the D-26 addendum's "this id is the source manifest id" each meant a different one
+>   of the two; the pair supersedes both wordings (D-26 addendum records the same).
+> - **`build_id`** (EP-19) — one DAG-runner invocation.
+> - **layer `snapshot_id`** (EP-19), one per `{core, derived, marts, notes}` × tier — a
+>   **logical** id: sha256 over the sorted JSON of `(schema, table, path, rows,
+>   schema_hash, source_sha256 or raw_snapshot_id, sort_keys, writer_version)` per file
+>   (the EP-10 pattern above), so it is *stable when raw + contract + code are unchanged*
+>   and two identical rebuilds agree. The per-file Parquet `sha256` in the manifest line is
+>   **integrity-only**, never part of the snapshot id (file bytes need not be reproducible
+>   under non-total sort orders). The **dev** id hashes only manifest lines whose path lies
+>   in `settings.dev_buckets` plus unpartitioned tables — it must **not** move when buckets
+>   5–99 finish during a full ⏱ pass.
+> - **catalog `build_id` + `core_snapshot_id`** (EP-21, `meta.catalog_info`) — what the
+>   catalog was built from; EP-30's audit `snapshot_id` is the queried catalog's
+>   `core_snapshot_id`.
+> - **`run_id` / `audit_id`** (EP-35/EP-30) and the **protocol hash** (EP-51). Every run
+>   and audit line cites `snapshot_ids` — a `{layer: id}` dict from the EP-19 helpers.
 
 `mimicwarehouse.safe` (EP-30) is the choke point for anything an agent or an export can
 see: `safe_query(sql, k=11)` opens the tier catalog read-only, refuses statements outside
@@ -350,20 +464,20 @@ built from a frozen protocol states that MIMIC-IV analyses remain retrospective.
 and embedded data arrays, and a `.disclosure.json` sidecar writer. In-app: warn badge at
 n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59, EP-133).
 
-## 15. Package / module map (all planned)
+## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
 ```
 mimicwarehouse/                    uv project root (nested, hupsim-style)
-├── pyproject.toml                 EP-1   groups: core dev ui gpu gpl text
+├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2   `mwh` (typer): doctor paths build sql verify demo runs protocol disclose backup app init
-│   ├── config.py                  EP-3   pydantic-settings; MWH_DATA_ROOT layout; safety checks
-│   ├── guard.py                   EP-4   pre-commit data-leak guard
-│   ├── theme.py                   EP-5   palette, Altair/Streamlit themes
-│   ├── verify.py                  EP-6   `mwh verify EP-n`; roadmap_check
-│   ├── schema/                    EP-9   YAML contract loader; keys; column maps
-│   ├── inventory.py               EP-10  raw manifest
-│   ├── fixtures/                  EP-11/12 synthetic generator
+│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures; planned: build sql demo runs protocol disclose backup app init
+│   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
+│   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
+│   ├── theme.py                   EP-5 shipped   palette, Altair/Streamlit themes
+│   ├── verify.py                  EP-6 shipped   `mwh verify EP-n`; roadmap_check
+│   ├── schema/                    EP-9 shipped   YAML contract loader; keys; column maps
+│   ├── inventory.py               EP-10 shipped  raw manifest
+│   ├── fixtures/                  EP-11/12 shipped synthetic generator
 │   ├── loader/                    EP-17/18 CSV→Parquet, buckets, resume
 │   ├── dag/                       EP-19  `mwh build` runner, manifests, snapshot ids
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
@@ -371,7 +485,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── safe.py                    EP-30  safe_query, audit
 │   ├── timesem.py                 EP-34  eras, relative time, dod rule, grains
 │   ├── run.py                     EP-35/36 run ledger, seeds, resource log
-│   ├── concepts/                  EP-37/38 vendored mimic-code + patches
+│   ├── concepts/                  EP-8 shipped (vendor/ + pin); EP-37/38 runner + patches
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42
@@ -851,10 +965,29 @@ runs the EP's marker set. Never snapshot real rows into fixtures, cassettes or g
 > test content beyond two marker-mechanics probes that open the catalog file read-only; the first
 > real dev tests are EP-17's.
 
-## 21. Open design questions (to be resolved by the named EP)
+> **Note (2026-08-28, EP-166 — tier readiness + demo marker; decided 2026-08-18, D-43
+> item 8; code EP-168).** Two refinements to the EP-12 note, words now so P2 briefs cite
+> them, mechanics in EP-168: (1) **readiness is per-need, not one catalog file** — keying
+> every dev/full skip on `catalog_path(tier)` would leave EP-17…EP-20's dev tests (which
+> need raw data or a lake, not a catalog) skipped and their "dev green" acceptance vacuous
+> (ledger FC-1/VT-1). EP-168 keeps the ladder's deselect rule but replaces the blanket skip
+> with requestable readiness fixtures (`raw_root`, `dev_catalog`, `full_catalog`,
+> `dev_ready(step)`, `item_tier`) and a `tier(name, needs=…)` kwarg, so each test skips on
+> exactly the artefact it needs. (2) **demo tests are orthogonal opt-in** — `demo` never
+> joins the ladder (it is not "between" fixture and dev): EP-168 adds
+> `@pytest.mark.demo` + `--with-demo` (env `PYTEST_DEMO`), deselected unless opted in,
+> skipped while the demo catalog is absent; EP-22's "extend the tier vocabulary with demo"
+> is superseded by this (EP-170 amends the brief). Also a correction to the EP-12 note's
+> `PYTEST_TIER` rationale (ledger CFG-1): a stray `MWH_TEST_TIER` *environment variable*
+> would **not** break `Settings()` — pydantic-settings ignores env vars that match no
+> field; only unknown lines in `.env`/`mwh.toml` are rejected (`extra="forbid"`). The
+> non-`MWH_` prefix is still right — it keeps the test knob out of the `Settings` namespace
+> and the `.env.example` parity test — and `mwh doctor` gains an unknown-`MWH_*`-vars warn
+> at EP-167 (D-43 item 12).
 
-- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3 000 files) vs Defender/NTFS
-  overhead — measure in EP-18/28.
+- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
+  Malwarebytes/NTFS overhead (D-42; the ARW module judges write bursts) — measure in
+  EP-18/28.
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —
   EP-21/55.
 - FTS engine for notes if DuckDB FTS build exceeds memory — SQLite FTS5 fallback (EP-148).

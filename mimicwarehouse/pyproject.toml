@@ -33,7 +33,6 @@ dependencies = [
 ]
 
 [project.scripts]
-# cli.py lands in EP-2; until then `uv run mwh` fails with ImportError (expected).
 mwh = "mimicwarehouse.cli:app"
 
 [dependency-groups]

@@ -126,7 +126,7 @@ docs (mimic.mit.edu), never from `source material/`. The `dev`/`full` markers mu
 > [hosp, icu]`, 31 files) + `README.md` — seed 2026, **75 ICU stays** (= `plan.icu_segments`; `stay_id` from
 > 90 000 000), 15 caregivers, `chartevents` 20,125 rows / 1,962,815 bytes (≤ 3 MB), `outputevents` 1,857,
 > `ingredientevents` 364, `inputevents` 285, `procedureevents` 136, `datetimeevents` 116, `d_items` 47,
-> `icustays` 75; **whole fixture 31 CSVs, 50,974 rows, 5,370,673 bytes = 5.12 MiB** (≤ 10 MB). **The 22 hosp
+> `icustays` 75; **whole fixture 31 CSVs, 50,974 rows, 5,370,674 bytes = 5.12 MiB** (≤ 10 MB; byte total corrected at EP-166 to match `manifest.json`, ledger DOC-13). **The 22 hosp
 > CSVs did not change by a byte** (per-table child generators; `git status` shows only the icu tree, manifest and
 > README). `uv run mwh fixtures build` twice ⇒ identical manifest sha256; a build takes ≈ 1.6 s wall.
 > `validate(hosp, contract, plan, icu=icu)` clean (icu columns / dtypes / NOT NULL, id floor, 22 icu contract
