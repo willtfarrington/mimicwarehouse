@@ -78,7 +78,7 @@ Standing decisions for phase P0: uv-managed CPython 3.13, one venv, groups core/
 | EP-11 | [Synthetic fixture generator A (hosp)](EP-11-fixtures-hosp.md) | M | EP-9 | core | ☑ `f1fccf1` |
 | EP-12 | [Synthetic fixture generator B (icu) + pytest tier markers](EP-12-fixtures-icu-markers.md) | M | EP-11 | core | ☑ `ac4f51e` |
 | EP-165 | [Retro A: session & repo governance hardening](EP-165-retro-governance-session-hardening.md) | M | EP-4, EP-12 | core | ☑ `b9b8d03` |
-| EP-166 | [Retro B: docs consolidation & status surface](EP-166-retro-docs-consolidation.md) | M | EP-12 | core | ☐ |
+| EP-166 | [Retro B: docs consolidation & status surface](EP-166-retro-docs-consolidation.md) | M | EP-12 | core | ☑ `611d0d1` |
 | EP-167 | [Retro C: CLI, settings & inventory consolidation](EP-167-retro-cli-config-consolidation.md) | M | EP-3, EP-10 | core | ☐ |
 | EP-168 | [Retro D: test-infrastructure consolidation (tier readiness, demo marker, churn)](EP-168-retro-test-infrastructure.md) | S | EP-12 | core | ☐ |
 | EP-169 | [Retro E: contract tie-breaks, structural hash & fixture regeneration (0.2.0)](EP-169-retro-contract-fixture-regen.md) | M | EP-9, EP-12 | core | ☐ |
