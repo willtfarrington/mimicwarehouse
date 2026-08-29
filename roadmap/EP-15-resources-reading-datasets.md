@@ -88,3 +88,18 @@ which modern `3…` PMIDs are; amended EP-7).
 
 - eICU-CRD external validation (v2 EXT-1), MIMIC-CXR/ECG/waveform linkage (v2 LINK-*), Synthea-enriched fixtures
   — each with the trigger noted in `datasets.md`; EP-16 mirrors them.
+
+> **Completion note (2026-08-28).** Shipped `docs/resources/reading.md` (38 numbered category
+> sections pinned to the roadmap coverage table, 78 entries — every anchor from item 1 present),
+> `datasets.md` (nine-column register, 13 rows incl. the synthetic fixture as the only
+> "may enter git: yes" row; both plain facts stated) and `methods-notes.md` (12 caveats,
+> §B defaults citing D-18/D-24/D-25/D-26/D-33/D-40 a.o., §C citation stub for EP-32); index
+> updated. Link verification: all 64 cited DOIs resolved via the doi.org handle API and every plain
+> `https://` URL fetched HTTP 200 the same day (curl, browser UA; PhysioNet sizes/licenses read
+> from the live pages — MEDS demo is `mimic-iv-demo-meds` 0.0.1, FHIR demo `mimic-iv-fhir-demo`
+> 2.1.0, and MIMIC-IV-ECG/waveforms turn out to be **open** ODbL, no DUA). One deliberate swap:
+> Hyndman's free FPP3 book sits behind a bot-check (HTTP 202, no stable 200), so category 17
+> cites Petropoulos 2022 (open-access IJF survey) + Bernal 2017 (ITS tutorial) instead. Parked
+> items already had `final-roadmap.md` rows (EXT-1, LINK-*, FHIR-1, OMOP-1, MEDS-1, FIX-2) —
+> nothing new to mirror; EP-16 re-audits. `poe test -m ep_15` 10 passed; full fixture suite
+> 545 passed; ruff/pyright clean; `mwh verify EP-15` green. No data touched (tier n/a).
