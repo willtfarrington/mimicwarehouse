@@ -30,6 +30,9 @@ dependencies = [
   "pyyaml",
   "jinja2",
   "altair>=5.5",
+  # EP-19 (D-15 addendum, D-43 item 14): pid liveness for the build lock / jobs, RSS
+  # sampling for the runner and EP-35/36; ships abi3 win_amd64 wheels (test_ep01).
+  "psutil",
 ]
 
 [project.scripts]

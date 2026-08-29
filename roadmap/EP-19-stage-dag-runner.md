@@ -120,3 +120,42 @@ detached processes need `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO
 - The lock **refuses** a crafted concurrent build; a step failure leaves completed steps complete and the rerun resumes.
 - `%MWH_DATA_ROOT%\runs\benchmarks.jsonl` has step + build lines; `runs\jobs\ep19-smoke.json` shows `done` and `runs\jobs\ep19-smoke.log` exists; `lake\manifests\snapshots.json` has an entry.
 - `mwh build --tier full …` was only ever run with `--background`; no rows in any log or tool output.
+
+> **Completion note (2026-08-29).** Shipped as amended at EP-170: `dag/spec.py` (pydantic
+> `DagSpec`/`Step`, kinds `stage|sql|python|catalog` with a per-kind required/allowed field
+> contract, acyclic validation via `graphlib`, packaged `dag/specs/stage.yaml` — three hosp
+> steps + a `catalog` stub raising `NotImplementedError("EP-21")`), `dag/runner.py`
+> (`run(dag, tier, …)`, `STEP_HANDLERS[kind]` registry, build lock, per-tier free-space
+> guard [ARCH-9], `StepContext` with `lake_root = settings.lake_root(tier)` +
+> `assert_not_credentialed_lake` for fixture/demo [ARCH-3], 2 s RSS sampler), `dag/snapshot.py`
+> (the **logical** §11 snapshot id [ARCH-5]; dev id = dev-bucket lines + unpartitioned
+> tables; `snapshots.json` history), `dag/benchmarks.py` (`O_APPEND`+fsync JSONL, polars
+> `read()`), `dag/jobs.py` + `dag/cli.py` (`mwh build`, `mwh jobs`). **psutil joined the
+> core dependency group** (D-15 addendum, D-43 item 14); `test_ep01`'s every-package-has-a-
+> wheel check stays green (abi3 `win_amd64` wheel, psutil 7.2.2) [FC-9]. Deltas vs the brief
+> text: (1) the item-5 launcher is, per the EP-170 amendment, `[sys.executable, "-m",
+> "mimicwarehouse.dag.jobs", --job-file, …]` — a detached **supervisor** that runs
+> `[sys.executable, "-m", "mimicwarehouse.cli", …]` into the log, waits, and finalises
+> `state`/`exit_code`/`finished`; the brief's child-side rewrite alone could not mark a
+> trivial argv (its own fixture test) or a hard crash `done`/`failed`, so the supervisor is
+> authoritative and `mwh build --job` *additionally* merges its outcome into the same file.
+> (2) `run()` grew `break_lock=`/`settings=` kwargs (CLI/tests pass settings explicitly; the
+> EP-17/18 precedent). (3) The stage handler completes **dims** (`tier_complete: "full"`,
+> `dev_ready: true`) after `stage_unpartitioned` — EP-17 left them null and partitioned
+> stages already self-report. (4) `mimicwarehouse.dag.__init__` re-exports nothing: the
+> runner's import chain reaches the schema contract, which the `mwh --help` import budget
+> (test_ep09) excludes. Also restored the DESIGN.md `## 5` / `## 6` / `## 12` headings lost
+> in the EP-166 consolidation (the EP-18 `## 21` precedent). **Timings / run ids:** fixture
+> three-step build 2.4 s (patients 1.5 s / admissions 0.9 s / d_labitems 0.03 s, 100+100+1
+> files). Dev tier: `mwh build --tier dev --select stage.mimiciv_hosp.patients` (run by the
+> ep_19 dev-marked test in a fresh interpreter, 2026-08-29 ≈17:41 UTC; build id in
+> `lake\manifests\snapshots.json`) staged the real patients dev buckets into
+> `lake\core\mimiciv_hosp\patients\subject_bucket=0…4` within the test's ~10 s wall. Full tier: background job **ep19-smoke** (build
+> `20260829T174216-full-642f6ef`, pid 50076) restaged all 100 buckets — 364,627 rows,
+> 2,527,678 bytes, 100 files, **0.8 s** stage wall, rss 74 MB — `runs\jobs\ep19-smoke.json`
+> `state: done, exit_code: 0`; snapshot `core/full = b31fe2b0dd97…75c204` appended to
+> `lake\manifests\snapshots.json`; step + `kind: build` lines in `runs\benchmarks.jsonl`.
+> Windows detach (`DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`) proven
+> before the ⏱ briefs rely on it. Acceptance: `poe test -m ep_19` 8 passed; `--tier dev`
+> 9 passed; `mwh verify EP-19` green; `poe check` green (593 fixture tests); power mode
+> confirmed Best performance (AC overlay) before the dev/full runs. Nothing parked.

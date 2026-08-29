@@ -1,0 +1,33 @@
+# dag/specs/stage.yaml -- the P2 stage DAG (EP-19 item 1; ASCII only).
+# Three steps here prove the runner; EP-20 adds the remaining hosp/icu tables and
+# EP-23..EP-27 the large ones. Stage steps normally carry only schema/table/source:
+# size_class / partitioned / sort_by default to the contract's load_class /
+# partitioned / sort_keys (EP-9) and appear in this file only as deliberate overrides.
+# The catalog step's handler raises NotImplementedError("EP-21") until EP-21 lands.
+version: 1
+steps:
+  - name: stage.mimiciv_hosp.patients
+    kind: stage
+    schema: mimiciv_hosp
+    table: patients
+    source: mimic-iv-3.1/hosp/patients.csv
+    tags: [stage, mimiciv_hosp]
+  - name: stage.mimiciv_hosp.admissions
+    kind: stage
+    schema: mimiciv_hosp
+    table: admissions
+    source: mimic-iv-3.1/hosp/admissions.csv
+    tags: [stage, mimiciv_hosp]
+  - name: stage.mimiciv_hosp.d_labitems
+    kind: stage
+    schema: mimiciv_hosp
+    table: d_labitems
+    source: mimic-iv-3.1/hosp/d_labitems.csv
+    tags: [stage, mimiciv_hosp, dims]
+  - name: catalog
+    kind: catalog
+    tags: [catalog]
+    depends_on:
+      - stage.mimiciv_hosp.patients
+      - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.d_labitems

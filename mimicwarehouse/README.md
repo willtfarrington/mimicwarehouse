@@ -103,7 +103,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (`mwh` as of EP-171: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures` · `canary`; `build`/`sql`/`app` land in P2+)
+## Quick start (`mwh` as of EP-19: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures` · `canary` · `build` · `jobs`; `sql`/`app` land later in P2+)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -126,7 +126,10 @@ uv run --group dev mwh fixtures build        # regenerate tests/fixtures/ (synth
 uv run --group dev mwh canary write          # EP-171 write canary: rehearse the loader's write shapes under <data_root>\tmp\canary with synthetic bytes, verify every re-read (also: --small N, --large-mb N, --keep, --json)
 uv run poe test-dev                          # pytest --tier dev (dev-marked tests skip while dev.duckdb is absent) · poe test-full likewise
 uv run poe vendor-mimic-code                 # re-vendor mimic-code at the pinned sha (no-op at the same sha; EP-8)
-uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog
+uv run mwh build --tier fixture --dry-run    # EP-19 DAG runner: print the ordered plan (also: --select a,b · --tag t · --force · --break-lock)
+uv run mwh build --tier dev --select stage.mimiciv_hosp.patients   # stage into the lake (the only lake writer; catalogs land at EP-21)
+uv run mwh build --tier full --background --job <name>             # full tier is always a detached job; log under runs\jobs\<name>.log
+uv run mwh jobs --job <name> --tail 20       # job state (running|done|failed, pid, exit) + last log lines (counts only)
 uv run --group ui mwh app           # (EP-57+) Streamlit "Lab" app on 127.0.0.1
 uv run --group dev mwh verify EP-<n>         # one brief's acceptance tests (marker ep_<n>) in a fresh interpreter; `-- <pytest args>` pass through
 uv run --group dev mwh verify --list         # EP · title · tier · test module present

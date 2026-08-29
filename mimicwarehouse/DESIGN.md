@@ -227,6 +227,8 @@ Every brief states its tier using the vocabulary in the roadmap README (`fixture
 > empty/partial on the fixture is documented in `tests/fixtures/COVERAGE.md`
 > (hand-maintained; EP-41 extends the vocab and regenerates as 0.3.0).
 
+## 5. Lake physical layout
+
 Hive-partitioned Parquet: `lake/core/<schema>/<table>/subject_bucket=NN/part-*.parquet`,
 sorted by the contract `sort_keys` (`subject_id`, the time column, then a same-table
 id/sequence tie-break since EP-169), ZSTD level 3, ~1 M-row row groups, statistics on.
@@ -317,6 +319,8 @@ and applies column maps (demo 2.2 → 3.1).
 > are all sorted (logged `dev-ready <schema>.<table>` before `complete`);
 > `tier_complete` = `"full"` when all 100 buckets were requested, `"dev"` when the request
 > covers the dev buckets, otherwise left unchanged.
+
+## 6. DuckDB configuration & the single-writer rule
 
 Explicit in every build/analysis process (never rely on defaults): `memory_limit`
 (36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`
@@ -503,6 +507,8 @@ build from the catalog, not the external ETL.
 > - **`run_id` / `audit_id`** (EP-35/EP-30) and the **protocol hash** (EP-51). Every run
 >   and audit line cites `snapshot_ids` — a `{layer: id}` dict from the EP-19 helpers.
 
+## 12. Safe-query (D-31, D-32)
+
 `mimicwarehouse.safe` (EP-30) is the choke point for anything an agent or an export can
 see: `safe_query(sql, k=11)` opens the tier catalog read-only, refuses statements outside
 an allow-list (no `COPY TO`, no `ATTACH`, no note tables), applies a row cap, and refuses
@@ -535,7 +541,7 @@ n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59,
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary; planned: build sql demo runs protocol disclose backup app init
+│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs; planned: sql demo runs protocol disclose backup app init
 │   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
 │   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
 │   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
@@ -547,7 +553,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal)
 │   ├── paths.py                   EP-17 shipped  swap_dir (rename-aside directory publish)
 │   ├── loader/                    EP-17/18 shipped (engine, csv, stage, manifest — typed CSV→Parquet, unpartitioned; buckets — partitioned stage, per-bucket sort, resume; paths — reader glob/fragment)
-│   ├── dag/                       EP-19  `mwh build` runner, manifests, snapshot ids
+│   ├── dag/                       EP-19 shipped  (spec, runner, snapshot, benchmarks, jobs, cli — `mwh build` / `mwh jobs`)
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
 │   ├── demo.py                    EP-22
 │   ├── safe.py                    EP-30  safe_query, audit
@@ -1022,6 +1028,35 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > state between renames through it). Live baseline on this machine in the EP-171 completion
 > note: burst 191 MB/s, large sequential 239 MB/s (floors — DuckDB defaults, generation cost
 > included), 13.3 s total, both endpoint products live, nothing killed or quarantined.
+
+> **Note (2026-08-29, EP-19).** **`dag/`** landed: `spec.py` (pydantic `DagSpec`/`Step`,
+> kinds `stage|sql|python|catalog`, per-kind field contract, acyclic-graph validation,
+> packaged specs under `dag/specs/` — `stage.yaml` ships three hosp steps + a `catalog`
+> stub whose handler raises `NotImplementedError("EP-21")`), `runner.py` (`run(dag, tier,
+> …)`: build lock `warehouse/.build.lock` — live pid always refuses, a stale lock yields
+> only to `--break-lock`; per-tier free-space guard; raw-root/bucket resolution;
+> skip-when-complete via `status.json` + `--force`; per-step wall/peak-RSS sampling — and
+> the `STEP_HANDLERS[kind]` registry; the stage handler completes **dims** as
+> `tier_complete: "full"` / `dev_ready: true` after `stage_unpartitioned`, closing the gap
+> EP-17 left), `snapshot.py` (the §11 **logical** layer snapshot id + the
+> `lake/manifests/snapshots.json` history; the dev id hashes dev-bucket lines plus
+> unpartitioned tables only), `benchmarks.py` (`runs/benchmarks.jsonl`, `O_APPEND`+fsync,
+> one line per step + a `kind: build` summary; polars `read()`), `jobs.py` and two new
+> `mwh` commands: **`mwh build --tier {fixture,demo,dev,full} [--select a,b] [--tag t]
+> [--force] [--dry-run] [--background --job NAME] [--break-lock]`** (foreground runs print
+> a rich summary table — step, rows, bytes, wall — and the snapshot id) and **`mwh jobs
+> [--job NAME] [--tail N]`**, which lists background jobs or prints one job's state file
+> (`runs/jobs/<name>.json`: job, pid, argv, started, log, state, exit_code, finished) and
+> the last N lines of its log (INFO counts only — never rows). `jobs.launch` spawns a
+> detached supervisor `[sys.executable, -m, mimicwarehouse.dag.jobs, --job-file, …]`
+> (workspace-venv python per the EP-170 amendment, never a `uv` shim) which runs
+> `[sys.executable, -m, mimicwarehouse.cli, …]` into the log and finalises the state file
+> on exit — so `state`/`exit_code` are reliable for any argv, including crashes and lock
+> refusals; `mwh build --job NAME` additionally merges its own outcome into the same file
+> (the brief's child-side rewrite). `psutil` joined the **core** dependency group here
+> (D-15 addendum, D-43 item 14). `mimicwarehouse.dag.__init__` re-exports nothing: the
+> runner's import chain reaches the schema contract, which the `mwh --help` import budget
+> (test_ep09) excludes.
 
 ## 16. App structure (D-21)
 
