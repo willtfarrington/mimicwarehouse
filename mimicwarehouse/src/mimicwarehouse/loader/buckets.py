@@ -438,6 +438,8 @@ def stage_partitioned(
 
     manifest_lines: list[ManifestLine] = []
     rejects = 0
+    pass1_wall_s: float | None = None  # large path only; None when a resume skipped pass 1
+    pass2_wall_s: float | None = None
 
     if resume:
         assert progress is not None
@@ -445,6 +447,7 @@ def stage_partitioned(
         rejects = progress.rejects
     else:
         # -- pass 1 (both paths): partitioned COPY into <dest>.new -------------------------
+        t_pass1 = time.perf_counter()
         plan = plan_csv_read(source, table_spec, column_map)
         new_dir = paths.new_dir_for(dest_dir)
         if new_dir.exists():  # a stale .new from a crashed stage: partial output discarded
@@ -521,9 +524,12 @@ def stage_partitioned(
         # progress travels inside .new so the swap publishes data + progress together
         _write_progress(new_dir, progress)
         paths.swap_dir(new_dir, dest_dir)
+        if resolved_class == "large":
+            pass1_wall_s = time.perf_counter() - t_pass1
 
     # -- pass 2 (large path): per-bucket sort, dev buckets first ---------------------------
     if resolved_class == "large":
+        t_pass2 = time.perf_counter()
         already_sorted = set(progress.sorted_buckets)
         dirs = _partition_dirs(dest_dir)
         order = [b for b in requested if b in dev_buckets] + [
@@ -567,6 +573,7 @@ def stage_partitioned(
                 _write_progress(dest_dir, progress)
                 _LOG.info("dev-ready %s", qn)
                 update_status(lake_root, qn, dev_ready=True)
+        pass2_wall_s = time.perf_counter() - t_pass2
     else:
         # small path: everything was sorted in the one COPY — manifest per partition file
         for _n, bucket_dir in sorted(_partition_dirs(dest_dir).items()):
@@ -620,6 +627,8 @@ def stage_partitioned(
         rejects=rejects,
         wall_s=time.perf_counter() - t0,
         manifest_lines=tuple(manifest_lines),
+        pass1_wall_s=pass1_wall_s,
+        pass2_wall_s=pass2_wall_s,
     )
 
 

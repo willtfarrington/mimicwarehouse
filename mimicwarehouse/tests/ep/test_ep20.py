@@ -113,7 +113,12 @@ def test_every_hosp_icu_table_staged_exactly_once(contract: Contract) -> None:
     dag = load_dag()
     staged = [s.qualified_table for s in dag.steps if s.kind == "stage"]
     assert len(staged) == len(set(staged)), "a table appears in two stage steps"
-    assert set(staged) == set(EP20_TABLES), "the spec declares exactly the 20 EP-20 steps"
+    # the spec grows brief by brief (stage.yaml header; EP-23 added labevents, 2026-08-29):
+    # the 20 EP-20 steps are all present, and any step beyond them belongs to one of the
+    # later staging briefs — never an unassigned table
+    later = {qn for group in LATER_BRIEFS.values() for qn in group}
+    assert set(EP20_TABLES) <= set(staged), "an EP-20 step vanished from the spec"
+    assert set(staged) - set(EP20_TABLES) <= later, "a stage step no brief owns"
 
     assignments = [frozenset(EP20_TABLES), *LATER_BRIEFS.values()]
     assigned = [qn for group in assignments for qn in group]
@@ -143,7 +148,10 @@ def test_spec_steps_carry_contract_defaults(contract: Contract) -> None:
         assert step.tiers == ("fixture", "demo", "dev", "full"), (
             f"{step.name}: tiers {step.tiers!r}"
         )
-        assert {"stage", "small", table.schema_name} <= set(step.tags), f"{step.name}: tags"
+        # the load_class tag follows the contract (EP-23 added the first `large` step)
+        assert {"stage", table.load_class, table.schema_name} <= set(step.tags), (
+            f"{step.name}: tags"
+        )
         assert ("dims" in step.tags) == (not table.partitioned), f"{step.name}: dims tag"
         assert step.source == f"mimic-iv-3.1/{table.csv_path}", f"{step.name}: source"
         # size_class / partitioned / sort_by come from the contract, never the spec

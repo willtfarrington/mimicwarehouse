@@ -73,7 +73,13 @@ class RejectThresholdError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class StageResult:
-    """What one unpartitioned stage produced (counts and manifest lines only)."""
+    """What one stage produced (counts and manifest lines only).
+
+    ``pass1_wall_s`` / ``pass2_wall_s`` are set only by the **large** partitioned path
+    (EP-23): the streaming partitioned COPY and the per-bucket sort loop respectively —
+    the runner turns them into ``phase: pass1`` / ``pass2`` benchmark-ledger lines.
+    ``pass1_wall_s`` stays ``None`` on a resume that skipped pass 1.
+    """
 
     rows: int
     bytes: int
@@ -81,6 +87,8 @@ class StageResult:
     rejects: int
     wall_s: float
     manifest_lines: tuple[ManifestLine, ...]
+    pass1_wall_s: float | None = None
+    pass2_wall_s: float | None = None
 
 
 def rejects_parquet_path(lake_root: Path, table: Table, build_id: str) -> Path:

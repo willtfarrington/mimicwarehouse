@@ -3,7 +3,8 @@
 ``runs/benchmarks.jsonl``: one canonical JSON object per line, written with
 ``O_APPEND`` + flush so concurrent readers never see a torn line. **Nothing else
 writes to this file** — the EP-19 runner appends one :class:`BenchmarkLine` per
-executed step (``phase: total``; the large-table briefs may add ``pass1``/``pass2``)
+executed step (``phase: total``; a large partitioned stage adds a ``pass1`` line —
+absent when a resume skipped pass 1 — and a ``pass2`` line before it, EP-23)
 plus one ``kind: build`` summary line per run; EP-28/EP-32 read it. Distinct from the
 analysis run ledger (``runs/ledger.jsonl``, EP-30/EP-35).
 

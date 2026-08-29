@@ -87,6 +87,14 @@ steps:
     source: mimic-iv-3.1/hosp/poe_detail.csv
     tags: [stage, mimiciv_hosp, small]
     tiers: [fixture, demo, dev, full]
+  # -- mimiciv_hosp: large event tables (EP-23..EP-25; two-pass bucketed loader) -----------
+  - name: stage.mimiciv_hosp.labevents
+    kind: stage
+    schema: mimiciv_hosp
+    table: labevents
+    source: mimic-iv-3.1/hosp/labevents.csv
+    tags: [stage, mimiciv_hosp, large]
+    tiers: [fixture, demo, dev, full]
   # -- mimiciv_hosp: dimensions (unpartitioned) --------------------------------------------
   - name: stage.mimiciv_hosp.d_labitems
     kind: stage
@@ -175,6 +183,7 @@ steps:
       - stage.mimiciv_hosp.hcpcsevents
       - stage.mimiciv_hosp.omr
       - stage.mimiciv_hosp.poe_detail
+      - stage.mimiciv_hosp.labevents
       - stage.mimiciv_hosp.d_labitems
       - stage.mimiciv_hosp.d_hcpcs
       - stage.mimiciv_hosp.d_icd_diagnoses

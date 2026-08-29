@@ -498,6 +498,14 @@ build from the catalog, not the external ETL.
   to `runs/ledger.jsonl`.
 - Benchmark ledger `runs/benchmarks.jsonl` (EP-19/28): staging, concept and mart builds,
   page latencies.
+
+> **Note (2026-08-29, EP-23 — per-phase ledger lines for large stages).** A `load_class:
+> large` partitioned stage now reports its two passes to the runner
+> (`StageResult.pass1_wall_s` / `pass2_wall_s`; `pass1_wall_s` is `None` when a resume
+> skipped pass 1), and the runner appends `phase: pass1` (with `bytes_in`) and
+> `phase: pass2` (with `rows`) benchmark lines before the step's `phase: total` line —
+> the throughput numbers EP-26/EP-28 read. Small/unpartitioned stages keep a single
+> `total` line.
 - Audit `runs/audit.jsonl` (EP-30): every `safe_query`, every row-view toggle, every
   export attempt.
 - `runs.duckdb` (views over the JSONL, rebuilt by `mwh runs refresh`) is what the app and

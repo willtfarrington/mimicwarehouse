@@ -75,3 +75,38 @@ free rule, laptop thermals.
 - `uv run poe test -m ep_23` green on fixture; the `tier("dev")`-marked test green once `dev-ready` (or documented as pending for EP-28); `uv run --group dev mwh verify EP-23` green.
 - Launched `mwh build --tier full …` **in the background**; log at `%MWH_DATA_ROOT%\runs\jobs\stage-labevents-full.log`; job id and build id recorded in the launch note; timing verified by EP-28.
 - `mwh jobs --job stage-labevents-full` shows `running` or `done` — never a foreground scan; no rows in the log or tool output.
+
+> **Launch note (2026-08-29).** Job `stage-labevents-full` (pid 35356) launched first thing via
+> `uv run --group dev mwh build --tier full --select stage.mimiciv_hosp.labevents --background --job stage-labevents-full`;
+> log `%MWH_DATA_ROOT%\runs\jobs\stage-labevents-full.log`; started 2026-08-29T19:23:52Z;
+> build id `20260829T192353-full-b22528f`. `mwh doctor` confirmed AC power mode
+> *Best performance* and 400 GB free on C: before launch. Timing/RSS/disk recording and
+> count reconciliation land with EP-28 per the header.
+>
+> The job finished **inside the session**: exit 0 at 2026-08-29T19:26:12Z — total wall
+> 138.9 s against the brief's inside-the-hour budget. Chartevents planning inputs for
+> EP-26 (from the job log; EP-28 verifies against the benchmark ledger):
+>
+> - **Pass 1** (streaming partitioned COPY, `sweeps=1`): ≈ 62 s for the 17.5 GB CSV
+>   ≈ 285 MB/s; the 60 s heartbeat showed 1,265,790,536 raw bytes written and
+>   `tmp_duckdb=0` (no spill observed at the single sample).
+> - **dev-ready** at 2026-08-29T19:24:59Z — 66 s after step start (buckets 0–4 first).
+> - **Pass 2** (per-bucket sort): ≈ 76 s; 100 buckets at ~0.7–0.9 s each,
+>   ≈ 1.46 M–1.76 M rows per bucket.
+> - **Peak RSS** 9,827 MB (runner sampler) — far under the 36 GB `memory_limit`; scaled
+>   ×2.2 for chartevents ≈ 22 GB, so `sweeps=1` looks viable (EP-26 decides). FYI: the
+>   pass-1 heartbeat's own ctypes rss probe read 0 on this host; the runner's psutil
+>   sampler is the trustworthy number.
+> - **Output**: 158,374,764 rows, 1,786,549,301 bytes across 100 sorted
+>   `part-0.parquet` files (≈ 10× compression vs the CSV).
+>
+> Because the job completed, this session also refreshed the dev catalog
+> (`mwh build --tier dev --select catalog`, build `20260829T192732-dev-b22528f`, 21
+> cataloged) and ran `poe test -m ep_23 --tier dev`: all 5 tests green — the dev-marked
+> test executed for real (dev view count = manifest rows for buckets 0–4; outpatient
+> `hadm_id IS NULL` count positive; per-file row-group `subject_id` ranges monotonic).
+>
+> Earlier-test edits (README §"acceptance phrasing", CMP-6): `tests/ep/test_ep20.py` —
+> the exactly-20-steps and all-steps-tagged-`small` assertions were made growth-tolerant
+> (the spec grows brief by brief per the stage.yaml header; EP-23 added the first
+> `large` step), with dated comments. `mwh verify EP-20` still exits 0.

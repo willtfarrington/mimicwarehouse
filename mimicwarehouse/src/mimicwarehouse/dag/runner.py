@@ -103,12 +103,16 @@ class StepContext:
 
 @dataclass(frozen=True, slots=True)
 class StepOutcome:
-    """Counts a handler reports (never values)."""
+    """Counts a handler reports (never values). ``pass1_wall_s`` / ``pass2_wall_s`` come
+    from a large partitioned stage (EP-23) and become ``phase: pass1`` / ``pass2``
+    benchmark-ledger lines beside the step's ``phase: total`` line."""
 
     rows: int | None = None
     bytes_in: int | None = None
     bytes_out: int | None = None
     files: int | None = None
+    pass1_wall_s: float | None = None
+    pass2_wall_s: float | None = None
 
 
 @dataclass(slots=True)
@@ -208,6 +212,8 @@ def _run_stage(step: Step, ctx: StepContext) -> StepOutcome:
         bytes_in=source.stat().st_size,
         bytes_out=result.bytes,
         files=result.files,
+        pass1_wall_s=result.pass1_wall_s,
+        pass2_wall_s=result.pass2_wall_s,
     )
 
 
@@ -480,6 +486,33 @@ def run(
                 report.bytes_out = outcome.bytes_out
                 report.files = outcome.files
                 result.steps.append(report)
+                # per-phase lines first (chronological: pass1 < pass2 < total) — only a
+                # large partitioned stage reports them (EP-23; benchmarks module doc)
+                for phase, wall in (
+                    ("pass1", outcome.pass1_wall_s),
+                    ("pass2", outcome.pass2_wall_s),
+                ):
+                    if wall is None:
+                        continue
+                    benchmarks.append(
+                        benchmarks.BenchmarkLine(
+                            ts=utc_now_iso(),
+                            build_id=build_id,
+                            tier=str(tier),
+                            step=step.name,
+                            kind=step.kind,
+                            phase=phase,  # type: ignore[arg-type]
+                            wall_s=round(wall, 3),
+                            bytes_in=outcome.bytes_in if phase == "pass1" else None,
+                            rows=outcome.rows if phase == "pass2" else None,
+                            duckdb_version=duckdb.__version__,
+                            git_sha=git_sha,
+                            host=host,
+                            ok=report.status == "done",
+                            error=report.error,
+                        ),
+                        settings,
+                    )
                 benchmarks.append(
                     benchmarks.BenchmarkLine(
                         ts=utc_now_iso(),
