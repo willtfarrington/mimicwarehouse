@@ -79,8 +79,12 @@ def test_spec_refuses_cycle_unknown_dep_and_dupes() -> None:
 def test_shipped_spec_orders_and_selects() -> None:
     dag = load_dag()
     names = [s.name for s in dag.ordered()]
-    assert names == [*THREE_STEPS, "catalog"]  # catalog depends on the three stages
-    assert [s.name for s in dag.ordered(tags=["dims"])] == [f"stage.{HOSP}.d_labitems"]
+    # EP-20 grew the shipped spec from 3 stage steps to 20; the EP-19 mechanics still
+    # hold: spec order is preserved and catalog (depending on every stage step) is last
+    positions = [names.index(n) for n in THREE_STEPS]
+    assert positions == sorted(positions)
+    assert names[-1] == "catalog"
+    assert f"stage.{HOSP}.d_labitems" in [s.name for s in dag.ordered(tags=["dims"])]
     with pytest.raises(DagError, match="unknown step"):
         dag.ordered(select=["nope"])
     with pytest.raises(DagError, match="unknown tag"):

@@ -93,3 +93,68 @@ verification is by counts.
 - `uv run poe test -m ep_20` green on fixture; `tier("dev")`/`tier("full")`-marked reconciliation tests green; `uv run --group dev mwh verify EP-20` green.
 - `%MWH_DATA_ROOT%\lake\manifests\status.json` shows `tier_complete = "full"` for all 20 tables; partitioned tables have `subject_bucket=<n>` directories with one `part-0.parquet` each; dims have one file.
 - Job `stage-small-full` ran in the background; `runs\jobs\stage-small-full.log` exists; wall time and per-table numbers are in the completion note; the coverage test proves every contract table is assigned to exactly one staging brief.
+
+> **Completion note (2026-08-29).** Executed in one session (≈ 45 min against M ≈ 1 h). No contract
+> fix was needed: EP-9's YAML already said exactly what item 1 pins (load_class `small`,
+> partitioning, sort keys for all 20 tables — the amendment's EP-169 tie-breaks included), and the
+> full-tier load hit **zero** type/format quirks (item 2): 0 rejects on every table,
+> `loader_reject_max = 0` kept.
+>
+> **Item 1 (spec).** `dag/specs/stage.yaml` grew from 3 stage steps to the 20 (15 hosp + 5 icu),
+> each `tiers: [fixture, dev, full]` and only `schema/table/source` (contract stays the authority —
+> the shape test asserts no per-step overrides); `catalog` now depends on all 20. Tags: the brief's
+> `hosp`/`icu` shorthand landed as EP-19's shipped schema tags `mimiciv_hosp`/`mimiciv_icu` plus
+> `stage`, with `small` (the run selector) and `dims` (the 7 unpartitioned dimensions) added.
+> Option B of the EP-170 amendment: only these 20 steps are declared; EP-23…EP-27 add theirs.
+>
+> **Items 3/4 (runs + reconciliation).** Fixture: `mwh build --tier fixture --tag small` in
+> `tests/ep/test_ep20.py` (rows equal the committed fixture manifest's, rejects 0, EP-18 layout,
+> 20 ledger lines). Full: job **`stage-small-full`** (build id `20260829T180116-full-2a513e4`,
+> log `C:\mimicdata\runs\jobs\stage-small-full.log`), started 18:01:15Z, finished 18:01:33Z —
+> **17.0 s wall** for 19 tables; `stage.mimiciv_hosp.patients` was **skipped** as already
+> `tier_complete = "full"` from EP-19's smoke job (resume semantics working as designed; its row
+> below is EP-19's ledger line, wall 0.8 s). Snapshot `core/full =
+> cb54d4abf098f15ac8bf0d45907e244656ff1838bcadce25b9b166118b57ede5`. Dev needed no separate pass
+> (buckets 0–4 of the same lake). `uv run poe test -m ep_20 --tier full`: 6 passed — all 18
+> tables with a `validate.sql` expectation match it exactly and every table matches EP-10's
+> raw-manifest rows (`provider`/`caregiver` raw-manifest only, per the amendment); rejects 0;
+> `tier_complete = "full"` for all 20.
+>
+> **Item 5 (benchmark table, full tier — build telemetry only).**
+>
+> | table | rows | Parquet MB | files | wall s |
+> |---|---:|---:|---:|---:|
+> | mimiciv_hosp.patients | 364,627 | 2.5 | 100 | 0.8 |
+> | mimiciv_hosp.admissions | 546,028 | 17.9 | 100 | 1.1 |
+> | mimiciv_hosp.transfers | 2,413,581 | 43.3 | 100 | 1.5 |
+> | mimiciv_hosp.services | 593,071 | 7.2 | 100 | 0.7 |
+> | mimiciv_hosp.diagnoses_icd | 6,364,488 | 21.9 | 100 | 1.5 |
+> | mimiciv_hosp.procedures_icd | 859,655 | 6.3 | 100 | 0.8 |
+> | mimiciv_hosp.drgcodes | 761,856 | 6.0 | 100 | 0.9 |
+> | mimiciv_hosp.hcpcsevents | 186,074 | 1.7 | 100 | 0.7 |
+> | mimiciv_hosp.omr | 7,753,027 | 27.2 | 100 | 2.1 |
+> | mimiciv_hosp.poe_detail | 8,504,982 | 43.1 | 100 | 3.1 |
+> | mimiciv_hosp.d_labitems | 1,650 | 0.0 | 1 | 0.0 |
+> | mimiciv_hosp.d_hcpcs | 89,208 | 0.3 | 1 | 0.1 |
+> | mimiciv_hosp.d_icd_diagnoses | 112,107 | 0.9 | 1 | 0.1 |
+> | mimiciv_hosp.d_icd_procedures | 86,423 | 0.7 | 1 | 0.1 |
+> | mimiciv_hosp.provider | 42,244 | 0.1 | 1 | 0.0 |
+> | mimiciv_icu.icustays | 94,458 | 3.0 | 100 | 0.6 |
+> | mimiciv_icu.procedureevents | 808,706 | 24.8 | 100 | 1.3 |
+> | mimiciv_icu.outputevents | 5,359,395 | 49.4 | 100 | 2.0 |
+> | mimiciv_icu.d_items | 4,095 | 0.1 | 1 | 0.0 |
+> | mimiciv_icu.caregiver | 17,984 | 0.0 | 1 | 0.0 |
+> | **total** | 34,963,659 | 256.6 | 1,307 | 17.5 |
+>
+> CSV → Parquet: 2,013.5 MB → 256.6 MB = **7.85 : 1** (ZSTD-3, sorted, typed).
+>
+> **Item 6 (file-count observation, for EP-28 / DESIGN §21).** After the run `lake/core` holds
+> **1,320 files in 1,322 directories** (13 partitioned tables × 100 `subject_bucket=` dirs + 20
+> table dirs + 2 schema dirs; files = 1,307 Parquet + 13 `_progress.json`); one full `os.scandir`
+> sweep over the tree takes **0.046 s**.
+>
+> **Earlier tests touched** (README § acceptance phrasing rule): `tests/ep/test_ep19.py::`
+> `test_shipped_spec_orders_and_selects` pinned the shipped spec's exact step list (a shipped fact
+> this brief legitimately changes); it now asserts the EP-19 mechanics (spec order preserved,
+> `catalog` last, `dims` selection works) instead of the 3-step list. `mwh verify EP-19` still
+> exits 0 (all 8 tests), full suite 597 passed.

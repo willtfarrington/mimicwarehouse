@@ -1,33 +1,182 @@
-# dag/specs/stage.yaml -- the P2 stage DAG (EP-19 item 1; ASCII only).
-# Three steps here prove the runner; EP-20 adds the remaining hosp/icu tables and
-# EP-23..EP-27 the large ones. Stage steps normally carry only schema/table/source:
-# size_class / partitioned / sort_by default to the contract's load_class /
-# partitioned / sort_keys (EP-9) and appear in this file only as deliberate overrides.
-# The catalog step's handler raises NotImplementedError("EP-21") until EP-21 lands.
+# dag/specs/stage.yaml -- the P2 stage DAG (EP-19 item 1, EP-20 item 1; ASCII only).
+# EP-20 declares the 20 small hosp/icu steps (15 hosp + 5 icu); EP-23..EP-27 add the
+# large event tables (option B of the EP-20 amendment: the spec grows brief by brief and
+# EP-21's fixture-lake build follows it without a --tag filter). mimiciv_ed has no stage
+# step until EP-142, mimiciv_note none until EP-148 (DESIGN sec. 5 note, coverage test).
+# Stage steps carry only schema/table/source + selection metadata: size_class /
+# partitioned / sort_by default to the contract's load_class / partitioned / sort_keys
+# (EP-9) and appear in this file only as deliberate overrides.
+# Tags: stage + the schema name + the contract load_class (small here); dims marks the
+# unpartitioned dimension tables. The catalog step's handler raises
+# NotImplementedError("EP-21") until EP-21 lands.
 version: 1
 steps:
+  # -- mimiciv_hosp: subject-keyed small tables --------------------------------------------
   - name: stage.mimiciv_hosp.patients
     kind: stage
     schema: mimiciv_hosp
     table: patients
     source: mimic-iv-3.1/hosp/patients.csv
-    tags: [stage, mimiciv_hosp]
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
   - name: stage.mimiciv_hosp.admissions
     kind: stage
     schema: mimiciv_hosp
     table: admissions
     source: mimic-iv-3.1/hosp/admissions.csv
-    tags: [stage, mimiciv_hosp]
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.transfers
+    kind: stage
+    schema: mimiciv_hosp
+    table: transfers
+    source: mimic-iv-3.1/hosp/transfers.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.services
+    kind: stage
+    schema: mimiciv_hosp
+    table: services
+    source: mimic-iv-3.1/hosp/services.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.diagnoses_icd
+    kind: stage
+    schema: mimiciv_hosp
+    table: diagnoses_icd
+    source: mimic-iv-3.1/hosp/diagnoses_icd.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.procedures_icd
+    kind: stage
+    schema: mimiciv_hosp
+    table: procedures_icd
+    source: mimic-iv-3.1/hosp/procedures_icd.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.drgcodes
+    kind: stage
+    schema: mimiciv_hosp
+    table: drgcodes
+    source: mimic-iv-3.1/hosp/drgcodes.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.hcpcsevents
+    kind: stage
+    schema: mimiciv_hosp
+    table: hcpcsevents
+    source: mimic-iv-3.1/hosp/hcpcsevents.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.omr
+    kind: stage
+    schema: mimiciv_hosp
+    table: omr
+    source: mimic-iv-3.1/hosp/omr.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.poe_detail
+    kind: stage
+    schema: mimiciv_hosp
+    table: poe_detail
+    source: mimic-iv-3.1/hosp/poe_detail.csv
+    tags: [stage, mimiciv_hosp, small]
+    tiers: [fixture, dev, full]
+  # -- mimiciv_hosp: dimensions (unpartitioned) --------------------------------------------
   - name: stage.mimiciv_hosp.d_labitems
     kind: stage
     schema: mimiciv_hosp
     table: d_labitems
     source: mimic-iv-3.1/hosp/d_labitems.csv
-    tags: [stage, mimiciv_hosp, dims]
+    tags: [stage, mimiciv_hosp, small, dims]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.d_hcpcs
+    kind: stage
+    schema: mimiciv_hosp
+    table: d_hcpcs
+    source: mimic-iv-3.1/hosp/d_hcpcs.csv
+    tags: [stage, mimiciv_hosp, small, dims]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.d_icd_diagnoses
+    kind: stage
+    schema: mimiciv_hosp
+    table: d_icd_diagnoses
+    source: mimic-iv-3.1/hosp/d_icd_diagnoses.csv
+    tags: [stage, mimiciv_hosp, small, dims]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.d_icd_procedures
+    kind: stage
+    schema: mimiciv_hosp
+    table: d_icd_procedures
+    source: mimic-iv-3.1/hosp/d_icd_procedures.csv
+    tags: [stage, mimiciv_hosp, small, dims]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_hosp.provider
+    kind: stage
+    schema: mimiciv_hosp
+    table: provider
+    source: mimic-iv-3.1/hosp/provider.csv
+    tags: [stage, mimiciv_hosp, small, dims]
+    tiers: [fixture, dev, full]
+  # -- mimiciv_icu: subject-keyed small tables ---------------------------------------------
+  - name: stage.mimiciv_icu.icustays
+    kind: stage
+    schema: mimiciv_icu
+    table: icustays
+    source: mimic-iv-3.1/icu/icustays.csv
+    tags: [stage, mimiciv_icu, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_icu.procedureevents
+    kind: stage
+    schema: mimiciv_icu
+    table: procedureevents
+    source: mimic-iv-3.1/icu/procedureevents.csv
+    tags: [stage, mimiciv_icu, small]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_icu.outputevents
+    kind: stage
+    schema: mimiciv_icu
+    table: outputevents
+    source: mimic-iv-3.1/icu/outputevents.csv
+    tags: [stage, mimiciv_icu, small]
+    tiers: [fixture, dev, full]
+  # -- mimiciv_icu: dimensions (unpartitioned) ---------------------------------------------
+  - name: stage.mimiciv_icu.d_items
+    kind: stage
+    schema: mimiciv_icu
+    table: d_items
+    source: mimic-iv-3.1/icu/d_items.csv
+    tags: [stage, mimiciv_icu, small, dims]
+    tiers: [fixture, dev, full]
+  - name: stage.mimiciv_icu.caregiver
+    kind: stage
+    schema: mimiciv_icu
+    table: caregiver
+    source: mimic-iv-3.1/icu/caregiver.csv
+    tags: [stage, mimiciv_icu, small, dims]
+    tiers: [fixture, dev, full]
+  # -- catalog (EP-21) ---------------------------------------------------------------------
   - name: catalog
     kind: catalog
     tags: [catalog]
     depends_on:
       - stage.mimiciv_hosp.patients
       - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.transfers
+      - stage.mimiciv_hosp.services
+      - stage.mimiciv_hosp.diagnoses_icd
+      - stage.mimiciv_hosp.procedures_icd
+      - stage.mimiciv_hosp.drgcodes
+      - stage.mimiciv_hosp.hcpcsevents
+      - stage.mimiciv_hosp.omr
+      - stage.mimiciv_hosp.poe_detail
       - stage.mimiciv_hosp.d_labitems
+      - stage.mimiciv_hosp.d_hcpcs
+      - stage.mimiciv_hosp.d_icd_diagnoses
+      - stage.mimiciv_hosp.d_icd_procedures
+      - stage.mimiciv_hosp.provider
+      - stage.mimiciv_icu.icustays
+      - stage.mimiciv_icu.procedureevents
+      - stage.mimiciv_icu.outputevents
+      - stage.mimiciv_icu.d_items
+      - stage.mimiciv_icu.caregiver
