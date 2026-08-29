@@ -82,7 +82,7 @@ Standing decisions for phase P0: uv-managed CPython 3.13, one venv, groups core/
 | EP-167 | [Retro C: CLI, settings & inventory consolidation](EP-167-retro-cli-config-consolidation.md) | M | EP-3, EP-10 | core | ☑ `b08ef56` |
 | EP-168 | [Retro D: test-infrastructure consolidation (tier readiness, demo marker, churn)](EP-168-retro-test-infrastructure.md) | S | EP-12 | core | ☑ `a0356c0` |
 | EP-169 | [Retro E: contract tie-breaks, structural hash & fixture regeneration (0.2.0)](EP-169-retro-contract-fixture-regen.md) | M | EP-9, EP-12 | core | ☑ `35fd386` |
-| EP-13 | [Repos & awesome-lists inventory](EP-13-resources-repos.md) | M | — | core | ☐ |
+| EP-13 | [Repos & awesome-lists inventory](EP-13-resources-repos.md) | M | — | core | ☑ `d285522` |
 | EP-14 | [Ontologies & vocabularies inventory](EP-14-resources-vocabularies.md) | M | — | core | ☐ |
 | EP-15 | [Reading list + companion datasets + methods notes](EP-15-resources-reading-datasets.md) | M | — | core | ☐ |
 | EP-16 | [Re-plan P1](EP-16-replan-p1.md) | S | EP-8, EP-9, EP-10, EP-11, EP-12, EP-13, EP-14, EP-15 | core | ☐ |
