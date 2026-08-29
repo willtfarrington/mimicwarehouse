@@ -118,7 +118,7 @@ Standing decisions for phase P1: mimic-code vendored at a pinned commit with att
 | EP-21 | [Catalog builder (per-tier .duckdb)](EP-21-stage-catalog-builder.md) | M | EP-20 | core | ☑ `22ec559` |
 | EP-22 | [Demo tier (MIMIC-IV Demo 2.2 + ED Demo)](EP-22-stage-demo-tier.md) | M | EP-21 | core | ☑ `e095367` |
 | EP-23 | [Stage labevents ⏱](EP-23-stage-labevents.md) | M | EP-19 | core | ☑ `c1c2360` |
-| EP-24 | [Stage emar + emar_detail ⏱](EP-24-stage-emar.md) | M | EP-19 | core | ☐ |
+| EP-24 | [Stage emar + emar_detail ⏱](EP-24-stage-emar.md) | M | EP-19 | core | ☑ `64e4d1a` |
 | EP-25 | [Stage remaining hosp tables ⏱](EP-25-stage-hosp-rest.md) | M | EP-19 | core | ☐ |
 | EP-26 | [Stage chartevents ⏱](EP-26-stage-chartevents.md) | L | EP-19 | core | ☐ |
 | EP-27 | [Stage icu event tables ⏱](EP-27-stage-icu-events.md) | M | EP-19 | core | ☐ |
