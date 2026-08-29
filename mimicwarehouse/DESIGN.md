@@ -1027,7 +1027,21 @@ runs the EP's marker set. Never snapshot real rows into fixtures, cassettes or g
 > and the `.env.example` parity test — and `mwh doctor` gains an unknown-`MWH_*`-vars warn
 > at EP-167 (D-43 item 12).
 
-- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
+> **Note (2026-08-28, EP-168 — mechanics shipped).** The EP-166 note above is now code
+> (`tests/conftest.py`, documented in `tests/README.md`): readiness fixtures `dev_catalog` /
+> `full_catalog` / `raw_root` / `dev_ready(step)` (each skips the requesting test with a
+> reason naming the missing path) and `item_tier`; the marker form
+> `tier(name, needs="catalog"|"raw"|"lake")` resolved in the collection hook (default
+> `catalog` keeps EP-12 semantics); `@pytest.mark.demo` + `--with-demo` (env `PYTEST_DEMO`),
+> deselected unless opted in, skipped while `catalog_path("demo")` is missing — `TIERS` and
+> the maximum-tier deselection are unchanged. `dev_ready` reads
+> `lake/manifests/status.json` with shape `{"steps": {"<step>": {"dev_ready": true}}}` —
+> EP-23/24/25 write exactly that. Also shipped: `tests/helpers.py` (importable, not a
+> plugin: `cli_runner()`, `tmp_data_root()`, `fresh_interpreter()`), `poe test-fast =
+> pytest -n auto` (`poe test` stays serial, D-42), the tests/README churn rule ("a new EP
+> must not need to edit an earlier `test_ep*.py`"), and the de-coupling of the rolling
+> literals (test_ep06's verify probe now runs on a crafted roadmap; fixture-tree counts are
+> read from the contract/manifest, retro VT-2/VT-3). (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
   Malwarebytes/NTFS overhead (D-42; the ARW module judges write bursts) — measure in
   EP-18/28.
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —

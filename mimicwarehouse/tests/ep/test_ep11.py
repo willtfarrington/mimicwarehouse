@@ -747,17 +747,21 @@ def test_fixtures_is_a_diagnostic_command() -> None:
     assert "fixtures" in DIAGNOSTIC_COMMANDS
 
 
-def test_mwh_fixtures_build_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mwh_fixtures_build_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, contract: Contract
+) -> None:
+    # counts read from the contract, not pinned (EP-168, retro VT-3): hosp + icu since EP-12
+    n_hosp = len(contract.by_schema("mimiciv_hosp"))
+    n_all = n_hosp + len(contract.by_schema("mimiciv_icu"))
     monkeypatch.setenv("COLUMNS", "200")
     out = tmp_path / "fx"
     result = runner.invoke(
         app, ["fixtures", "build", "--out", str(out), "--subjects", "15", "--seed", "7"]
     )
     assert result.exit_code == 0, result.output
-    # 22 hosp + 9 icu files since EP-12 (the hosp count is asserted on the directory below)
-    assert "wrote 31 files" in result.output and "seed 7, 15 subjects" in result.output
+    assert f"wrote {n_all} files" in result.output and "seed 7, 15 subjects" in result.output
     assert (out / "manifest.json").is_file() and (out / "README.md").is_file()
-    assert len(list((out / "mimic-iv-3.1" / "hosp").glob("*.csv"))) == 22
+    assert len(list((out / "mimic-iv-3.1" / "hosp").glob("*.csv"))) == n_hosp
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["seed"] == 7 and manifest["spec"]["n_subjects"] == 15
     assert manifest["files"]["mimic-iv-3.1/hosp/patients.csv"]["rows"] == 15
@@ -768,8 +772,8 @@ def test_mwh_fixtures_build_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     )
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["total_bytes"] > 0 and len(payload["files"]) == 31
-    assert sum(1 for f in payload["files"] if f["path"].startswith("mimic-iv-3.1/hosp/")) == 22
+    assert payload["total_bytes"] > 0 and len(payload["files"]) == n_all
+    assert sum(1 for f in payload["files"] if f["path"].startswith("mimic-iv-3.1/hosp/")) == n_hosp
     after = {p.name: _sha256(p) for p in (out / "mimic-iv-3.1" / "hosp").glob("*.csv")}
     assert before == after
     assert not (out / "mimic-iv-3.1" / "hosp" / "chartevents.csv").exists()

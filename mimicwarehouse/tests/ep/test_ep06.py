@@ -335,15 +335,23 @@ def test_mwh_verify_ep0_docs_only(cli_env: None) -> None:
     assert "EP-0" in result.output and "tier n/a" in result.output
 
 
-def test_mwh_verify_usage_errors(cli_env: None) -> None:
+def test_mwh_verify_usage_errors(
+    cli_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     assert runner.invoke(app, ["verify", "EP-x"]).exit_code == 2
     assert runner.invoke(app, ["verify"]).exit_code == 2
     assert runner.invoke(app, ["verify", "EP-2", "--list"]).exit_code == 2
     assert runner.invoke(app, ["verify", "--list", "--roadmap"]).exit_code == 2
-    # a code brief with no test module yet (EP-12's landed with EP-12; EP-13..16 are docs-only
-    # `n/a` briefs that verify cleanly, so EP-17 — the loader — is next in line)
-    result = runner.invoke(app, ["verify", "EP-17"])
-    assert result.exit_code == 2 and "test_ep17.py" in result.output
+    # a code brief with no test module: probed on a crafted roadmap, never a real EP number
+    # (EP-168, retro VT-2 - the old rolling literal made every code EP re-point this test)
+    rm = _make_roadmap(tmp_path)  # EP-1 is a fixture-tier code brief
+    ws = tmp_path / "ws"
+    (ws / "tests" / "ep").mkdir(parents=True)
+    monkeypatch.setattr(verify, "roadmap_dir", lambda: rm)
+    monkeypatch.setattr(verify, "workspace_root", lambda: ws)
+    result = runner.invoke(app, ["verify", "EP-1"])
+    assert result.exit_code == 2, result.output
+    assert "test_ep01.py" in result.output and "code brief" in result.output
 
 
 def test_mwh_verify_passes_extra_pytest_args_through(

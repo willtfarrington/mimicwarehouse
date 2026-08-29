@@ -71,3 +71,23 @@ without a test module" literal; `test_ep11` file counts by EP-12) — fix the me
   `needs="raw"` and `--with-demo`; `uv run poe test -m ep_168` and `mwh verify EP-168` exit 0;
   `poe roadmap-check --strict` 0/0.
 - Commit pair: `feat(mimicwarehouse): tier readiness fixtures + needs=, demo opt-in marker, test_ep06 probe de-coupled, tests/helpers (EP-168)` then `docs(roadmap): record EP-168 commit hash`.
+
+> **Completion note (2026-08-28).** All items shipped as specified; `poe test` 504 passed
+> (fixture), `poe test-dev` 505 passed / 1 skipped, `poe test-full` 505 passed / 2 skipped —
+> EP-12's probes now skip with the fixture-based reasons (`dev tier: needs catalog; not found
+> (…dev.duckdb); EP-21 builds it`) and the new `needs="raw"` probe (`test_ep168::
+> test_raw_root_is_a_directory`) **passed** on this machine (directory existence only, nothing
+> read). `mwh verify EP-168` exit 0; `roadmap-check --strict` 0/0. `poe test-fast`
+> (`pytest -n auto`) verified: 504 passed in 18 s vs 48 s serial. **Cross-EP touch** (each the
+> de-coupling itself, per item 3): `test_ep01` (marker-signature pin `tier(name):` relaxed to
+> `tier(name` — the registration now documents `needs=`), `test_ep06` (the rolling `verify
+> EP-17` literal replaced by the crafted-roadmap probe), `test_ep11`/`test_ep12` (31/22/9
+> counts now read from the contract / committed manifest; the two EP-12 pinned skip-reason
+> fnmatches updated; the dev/full probes use the new `item_tier` fixture). `dev_ready` assumes
+> `status.json` shape `{"steps": {"<step>": {"dev_ready": true}}}` (recorded in DESIGN §20 for
+> EP-23/24/25; EP-170 reconciles). Opportunistic helper migration in `test_ep02/03/04/09/10/
+> 164` was **not** done (those modules were not otherwise touched — the brief's "only where a
+> test is touched anyway"); `tests/helpers.py` is exercised by `test_ep168` and is the target
+> for future edits. `pyright` `extraPaths` had to list `src` as well as `tests` (extraPaths
+> overrides pyright's automatic src-layout detection; without it the installed package's
+> py.typed privacy rules produced 38 spurious `reportPrivateImportUsage` errors).

@@ -532,14 +532,17 @@ def test_icu_frames_are_deterministic_and_independent_of_hosp(
 # ---------------------------------------------------------------------------
 
 
-def test_committed_layout(manifest: dict[str, Any]) -> None:
+def test_committed_layout(manifest: dict[str, Any], contract: Contract) -> None:
     files = sorted(p.name for p in ICU_DIR.glob("*.csv"))
     assert files == sorted(f"{t}.csv" for t in ICU_TABLES)
     keys = sorted(manifest["files"])
     assert [k for k in keys if k.startswith("mimic-iv-3.1/icu/")] == sorted(
         f"mimic-iv-3.1/icu/{t}.csv" for t in ICU_TABLES
     )
-    assert len(keys) == 31 and manifest["modules"] == ["hosp", "icu"]
+    # one fixture CSV per hosp/icu contract table (count read from the contract, not pinned:
+    # EP-168, retro VT-3 - a grown fixture tree must not force edits here)
+    n_tables = len(contract.by_schema("mimiciv_hosp")) + len(contract.by_schema("mimiciv_icu"))
+    assert len(keys) == n_tables and manifest["modules"] == ["hosp", "icu"]
     assert manifest["spec"]["n_caregivers"] == 15
     readme = (FIXTURE_DIR / "README.md").read_text(encoding="utf-8")
     assert "mimic-iv-3.1/icu/<table>.csv" in readme and "9 mimiciv_icu tables" in readme
@@ -554,7 +557,7 @@ def test_icu_fixture_drift(
     fresh = {e.rel_path: e for e in regenerated.entries}
     assert set(fresh) == set(manifest["files"])
     icu_keys = {k for k in fresh if k.startswith("mimic-iv-3.1/icu/")}
-    assert len(icu_keys) == 9
+    assert len(icu_keys) == len(contract.by_schema("mimiciv_icu"))
     for rel in sorted(icu_keys):
         entry = fresh[rel]
         committed = FIXTURE_DIR / Path(rel)
@@ -655,7 +658,7 @@ def test_size_budgets(manifest: dict[str, Any]) -> None:
     assert ce == (ICU_DIR / "chartevents.csv").stat().st_size <= CHARTEVENTS_BUDGET_BYTES
     on_disk = sum(p.stat().st_size for p in DATASET_DIR.rglob("*.csv"))
     assert manifest["total_bytes"] == on_disk <= FIXTURE_BUDGET_BYTES
-    assert len(list(DATASET_DIR.rglob("*.csv"))) == 31
+    assert len(list(DATASET_DIR.rglob("*.csv"))) == len(manifest["files"])
 
 
 def test_guard_accepts_fixture_tree() -> None:
@@ -687,13 +690,14 @@ def test_committed_csv_formats(contract: Contract) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_fixture_catalog_has_31_tables_fast(plan: FixturePlan, contract: Contract) -> None:
+def test_build_fixture_catalog_has_all_tables_fast(plan: FixturePlan, contract: Contract) -> None:
+    n_tables = len(contract.by_schema("mimiciv_hosp")) + len(contract.by_schema("mimiciv_icu"))
     t0 = time.perf_counter()
     con = build_fixture_catalog(FIXTURE_DIR, contract=contract)
     elapsed = time.perf_counter() - t0
     try:
         tables = catalog_mod.catalog_tables(con)
-        assert len(tables) == 31
+        assert len(tables) == n_tables
         assert {t.split(".")[0] for t in tables} == {"mimiciv_hosp", "mimiciv_icu"}
         assert _count(con, "SELECT count(*) FROM mimiciv_icu.icustays") == len(plan.icu_segments)
         assert _count(con, "SELECT count(*) FROM mimiciv_hosp.patients") == plan.spec.n_subjects
@@ -783,7 +787,7 @@ def test_tier_dev_selects_dev_and_skips_without_catalog(
 ) -> None:
     result = nested.runpytest("-p", "no:cacheprovider", "--tier", "dev")
     result.assert_outcomes(passed=2, skipped=1, deselected=1)
-    result.stdout.fnmatch_lines(["*SKIP*dev tier: catalog not found*dev.duckdb*"])
+    result.stdout.fnmatch_lines(["*SKIP*dev tier: needs catalog*dev.duckdb*"])
     # once the catalog exists (EP-21) the same test runs
     (isolated_root / "warehouse").mkdir()
     (isolated_root / "warehouse" / "dev.duckdb").write_bytes(b"")
@@ -795,7 +799,7 @@ def test_tier_dev_selects_dev_and_skips_without_catalog(
 def test_tier_full_selects_everything(nested: pytest.Pytester) -> None:
     result = nested.runpytest("-p", "no:cacheprovider", "--tier", "full")
     result.assert_outcomes(passed=2, skipped=2)
-    result.stdout.fnmatch_lines(["*full tier: catalog not found*full.duckdb*"])
+    result.stdout.fnmatch_lines(["*full tier: needs catalog*full.duckdb*"])
 
 
 def test_tier_env_fallback_and_bad_values(
@@ -833,7 +837,7 @@ def test_strict_markers_reject_unknown_marker_and_tier(nested: pytest.Pytester) 
 
 def test_conftest_registers_tier_semantics(request: pytest.FixtureRequest) -> None:
     markers = "\n".join(request.config.getini("markers"))
-    line = next(m for m in request.config.getini("markers") if m.startswith("tier(name):"))
+    line = next(m for m in request.config.getini("markers") if m.startswith("tier(name"))
     assert "--tier" in line and "PYTEST_TIER" in line and "deselected" in line
     assert "ep_12:" in markers
     assert request.config.getoption("--tier") in (None, "fixture", "dev", "full")
@@ -846,7 +850,9 @@ def test_poe_tasks_and_docs() -> None:
     assert tasks["test-dev"] == "pytest --tier dev" and tasks["test-full"] == "pytest --tier full"
     assert tasks["check"] == ["lint", "typecheck", "test"]  # fixture-only
     readme = (WORKSPACE / "tests" / "README.md").read_text(encoding="utf-8")
-    for needle in ("PYTEST_TIER", "--tier", "fixture < dev < full", "demo", "default_tier"):
+    needles = ("PYTEST_TIER", "--tier", "fixture < dev < full", "demo", "default_tier",
+               "--with-demo", "PYTEST_DEMO", "needs=")  # fmt: skip
+    for needle in needles:
         assert needle in readme, needle
     design = (WORKSPACE / "DESIGN.md").read_text(encoding="utf-8")
     assert "EP-12" in design and "PYTEST_TIER" in design
@@ -856,15 +862,16 @@ def test_poe_tasks_and_docs() -> None:
 
 
 @pytest.mark.tier("dev")
-def test_dev_tier_catalog_opens_read_only(tier: str) -> None:
+def test_dev_tier_catalog_opens_read_only(item_tier: str) -> None:
     """Marker mechanics in the real suite: deselected by default, skipped under ``--tier dev``
-    until EP-21 writes ``dev.duckdb``; then it only opens the file read-only (no rows)."""
+    until EP-21 writes ``dev.duckdb``; then it only opens the file read-only (no rows). The
+    tier name comes from the test's own marker (``item_tier``, EP-168) - never hard-coded."""
     import duckdb
 
     from mimicwarehouse.config import get_settings
 
-    assert tier in ("dev", "full")
-    path = get_settings().catalog_path("dev")
+    assert item_tier == "dev"
+    path = get_settings().catalog_path(item_tier)
     con = duckdb.connect(str(path), read_only=True)
     try:
         assert con.execute("SELECT 1").fetchone() == (1,)
@@ -873,13 +880,13 @@ def test_dev_tier_catalog_opens_read_only(tier: str) -> None:
 
 
 @pytest.mark.tier("full")
-def test_full_tier_catalog_opens_read_only(tier: str) -> None:
+def test_full_tier_catalog_opens_read_only(item_tier: str) -> None:
     import duckdb
 
     from mimicwarehouse.config import get_settings
 
-    assert tier == "full"
-    path = get_settings().catalog_path("full")
+    assert item_tier == "full"
+    path = get_settings().catalog_path(item_tier)
     con = duckdb.connect(str(path), read_only=True)
     try:
         assert con.execute("SELECT 1").fetchone() == (1,)
@@ -892,25 +899,26 @@ def test_full_tier_catalog_opens_read_only(tier: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_mwh_fixtures_build_writes_31_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_mwh_fixtures_build_writes_all_files(
+    tmp_path: Path, manifest: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    n_files = len(manifest["files"])  # one CSV per contract table, from the committed manifest
     monkeypatch.setenv("COLUMNS", "200")
     out = tmp_path / "fx"
     result = runner.invoke(
         app, ["fixtures", "build", "--out", str(out), "--subjects", "15", "--seed", "7"]
     )
     assert result.exit_code == 0, result.output
-    assert "wrote 31 files" in result.output
+    assert f"wrote {n_files} files" in result.output
     icu_files = sorted(p.name for p in (out / "mimic-iv-3.1" / "icu").glob("*.csv"))
     assert icu_files == sorted(f"{t}.csv" for t in ICU_TABLES)
-    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["modules"] == ["hosp", "icu"] and len(manifest["files"]) == 31
-    assert manifest["files"]["mimic-iv-3.1/icu/caregiver.csv"]["rows"] == 15
+    written = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert written["modules"] == ["hosp", "icu"] and len(written["files"]) == n_files
+    assert written["files"]["mimic-iv-3.1/icu/caregiver.csv"]["rows"] == 15
     # the small tree also loads into a catalog and validates
     con = build_fixture_catalog(out)
     try:
-        assert len(catalog_mod.catalog_tables(con)) == 31
+        assert len(catalog_mod.catalog_tables(con)) == n_files
         stays = _count(con, "SELECT count(*) FROM mimiciv_icu.icustays")
         assert stays == len(build_plan(FixtureSpec(seed=7, n_subjects=15)).icu_segments)
     finally:

@@ -263,7 +263,7 @@ def test_conftest_registers_markers_and_hypothesis_profile(request: pytest.Fixtu
 
     markers = "\n".join(request.config.getini("markers"))
     assert "ep_0:" in markers and "ep_1:" in markers and "ep_199:" in markers
-    assert "tier(name):" in markers
+    assert "tier(name" in markers  # signature un-pinned at EP-168 (needs= kwarg; churn rule)
     active = hs()  # a settings object inheriting the currently loaded profile
     assert active.max_examples in (50, 200)
     assert active.deadline is None
