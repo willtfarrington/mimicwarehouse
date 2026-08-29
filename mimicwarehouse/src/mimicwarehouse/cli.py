@@ -46,6 +46,7 @@ from mimicwarehouse.catalog.cli import catalog_app, sql_command
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.console import console, err_console
 from mimicwarehouse.dag.cli import build_command, jobs_command
+from mimicwarehouse.demo import demo_app
 from mimicwarehouse.doctor import doctor_command
 from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
@@ -174,6 +175,7 @@ def main(
 app.command("build")(build_command)
 app.add_typer(canary_app, name="canary")
 app.add_typer(catalog_app, name="catalog")
+app.add_typer(demo_app, name="demo")
 app.command("doctor")(doctor_command)
 app.add_typer(fixtures_app, name="fixtures")
 app.command("guard")(guard_command)

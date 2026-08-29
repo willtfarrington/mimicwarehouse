@@ -297,8 +297,15 @@ def test_units_and_column_map_name_existing_columns(contract: Contract) -> None:
     assert cm.covers("mimiciv_hosp.provider") and cm.covers("mimiciv_icu.caregiver")
     assert not cm.covers("mimiciv_note.discharge")
     assert cm.schemas_absent_in_source == ("mimiciv_note",)
-    assert cm.tables == {} and cm.tables_absent_in_2_2 == ()
-    assert len(cm.identity_tables) == 37
+    # identity everywhere except procedureevents: the real demo header ships uppercase
+    # ORIGINALAMOUNT / ORIGINALRATE (found by the first EP-22 demo build, 2026-08-29;
+    # dated note in demo_2_2_to_3_1.yaml)
+    assert set(cm.tables) == {"mimiciv_icu.procedureevents"} and cm.tables_absent_in_2_2 == ()
+    assert cm.tables["mimiciv_icu.procedureevents"].renamed == {
+        "ORIGINALAMOUNT": "originalamount",
+        "ORIGINALRATE": "originalrate",
+    }
+    assert len(cm.identity_tables) == 36
     with pytest.raises(KeyError):
         contract.column_map("nope")
 

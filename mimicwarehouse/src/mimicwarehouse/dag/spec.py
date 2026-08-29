@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from graphlib import CycleError, TopologicalSorter
 from importlib.resources import files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 import yaml
@@ -43,7 +43,7 @@ _STEP_NAME = re.compile(r"^[a-z][a-z0-9._-]*$")
 KIND_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "stage": (
         frozenset({"schema_name", "table", "source"}),
-        frozenset({"size_class", "partitioned", "sort_by"}),
+        frozenset({"size_class", "partitioned", "sort_by", "demo_source"}),
     ),
     "sql": (frozenset({"file", "target"}), frozenset()),
     "python": (frozenset({"callable_name"}), frozenset()),
@@ -82,6 +82,12 @@ class Step(_Frozen):
     source: str | None = Field(
         default=None, description="source CSV relative to the raw root, posix slashes"
     )
+    demo_source: str | None = Field(
+        default=None,
+        description="demo-tier override relative to the demo raw root (EP-22); present only "
+        "when the demo file name differs from the derived default (`source` minus its leading "
+        "dataset directory; the loader's .gz fallback covers the extension)",
+    )
     size_class: Literal["small", "large"] | None = None
     partitioned: bool | None = None
     sort_by: tuple[str, ...] | None = None
@@ -108,11 +114,26 @@ class Step(_Frozen):
             raise ValueError(
                 f"step {self.name} (kind {self.kind}): field(s) {extra} belong to another kind"
             )
-        if self.source is not None and ("\\" in self.source or self.source.startswith("/")):
-            raise ValueError(f"step {self.name}: source must be a relative posix path")
+        for field_name in ("source", "demo_source"):
+            value = getattr(self, field_name)
+            if value is not None and ("\\" in value or value.startswith("/")):
+                raise ValueError(f"step {self.name}: {field_name} must be a relative posix path")
         if self.callable_name is not None and not _CALLABLE.match(self.callable_name):
             raise ValueError(f"step {self.name}: callable must be 'module:function'")
         return self
+
+    @property
+    def demo_relative_source(self) -> str | None:
+        """The source path a **demo**-tier stage resolves under the demo raw root (EP-22):
+        the explicit ``demo_source`` when set, else ``source`` minus its leading dataset
+        directory (``mimic-iv-3.1/hosp/x.csv`` → ``hosp/x.csv``; the demo ships ``.csv.gz``,
+        which the runner's existing ``.gz`` fallback picks up)."""
+        if self.source is None:
+            return None
+        if self.demo_source is not None:
+            return self.demo_source
+        parts = PurePosixPath(self.source).parts
+        return str(PurePosixPath(*parts[1:])) if len(parts) > 1 else self.source
 
     @property
     def qualified_table(self) -> str | None:

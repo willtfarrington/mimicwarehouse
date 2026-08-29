@@ -108,6 +108,7 @@ class CatalogTableEntry:
     kind: str  # table | view | missing
     status: str | None  # status.json tier_complete (None = not staged at all)
     rows_hint: int | None  # status.json rows (staged rows, not the dev-filtered count)
+    map_notes: dict[str, list[str]] | None = None  # lossy column-map notes (EP-22; names only)
 
     @property
     def qualified_name(self) -> str:
@@ -366,15 +367,26 @@ def _populate(
                         kind=kind,
                         status=tier_complete,
                         rows_hint=rows_hint,
+                        map_notes=entry.get("map_notes") if entry else None,
                     )
                 )
         con.execute(
             'CREATE TABLE meta.catalog_tables ("schema" VARCHAR, "table" VARCHAR, '
-            "kind VARCHAR, status VARCHAR, rows_hint BIGINT)"
+            "kind VARCHAR, status VARCHAR, rows_hint BIGINT, map_notes VARCHAR)"
         )
         con.executemany(
-            "INSERT INTO meta.catalog_tables VALUES (?, ?, ?, ?, ?)",
-            [[t.schema_name, t.table, t.kind, t.status, t.rows_hint] for t in result.tables],
+            "INSERT INTO meta.catalog_tables VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                [
+                    t.schema_name,
+                    t.table,
+                    t.kind,
+                    t.status,
+                    t.rows_hint,
+                    None if t.map_notes is None else json.dumps(t.map_notes, sort_keys=True),
+                ]
+                for t in result.tables
+            ],
         )
         con.execute(
             "CREATE TABLE meta.catalog_info (build_id VARCHAR, tier VARCHAR, "

@@ -94,3 +94,28 @@ network-touching command in P2 (physionet.org only; not a text module, so the
 ## Parked → final-roadmap.md
 
 - Other demo datasets (MEDS demo, FHIR demo, OMOP demo) as extra tiers — trigger: an extension EP needs them; already listed under linkage in `final-roadmap.md`.
+
+> **Completion note (2026-08-29).** Fetch: `mwh demo fetch` verified **34** files for
+> mimic-iv-demo 2.2 (15.5 MB: 22 hosp + 9 icu `.csv.gz`, `demo_subject_id.csv`,
+> `LICENSE.txt`, `README.txt`-free listing per its `SHA256SUMS.txt`) and **7** for
+> mimic-iv-ed-demo 2.2 (0.1 MB); register at `%MWH_DATA_ROOT%\ext\demo\source.yaml`,
+> both datasets `verified: true`. Build: a clean forced run of all 20 EP-20 steps +
+> catalog completed in **6.4 s** wall (build `20260829T190358-demo-49ba3c2`;
+> `demo.duckdb` ≈ 10 MB, `meta.catalog_info.tier = "demo"`, lake under `lake\demo`);
+> `mwh sql --tier demo --count mimiciv_hosp.patients` = **100**.
+> **Lossy-map columns: none.** The first demo build falsified the EP-9 identity map for
+> exactly one table — the real `icu/procedureevents.csv.gz` 2.2 header ships uppercase
+> `ORIGINALAMOUNT`/`ORIGINALRATE` (v3.0 harmonised them to lowercase; the DDL-based
+> derivation could not see a CSV-header-only difference). Fixed as a **lossless rename**
+> in `demo_2_2_to_3_1.yaml` (dated note there; `tests/ep/test_ep09.py` pins the new
+> shape), so `map_notes` stays empty everywhere and EP-37's count-pinning has no
+> demo-differing concepts to allow for from this EP. Column-map mechanics are part of
+> `Contract.structural_hash()` (EP-169), so the fixture manifest was regenerated
+> (`mwh fixtures build`; CSVs byte-identical, only the two pinned hashes moved). The `map_notes` machinery itself
+> shipped dormant (manifest lines, `status.json`, `meta.catalog_tables` + `mwh catalog
+> info`; exercised by a synthetic non-identity map in `test_ep22.py`). Interpretation
+> note: with EP-23…EP-27 unshipped, the demo catalog holds the 20 currently-declared
+> demo steps (11 large event tables `missing`); the `@pytest.mark.demo` test asserts
+> "every table with a demo-tier stage step is present", so it strengthens automatically
+> as those EPs add their steps and rebuild the demo tier. Headers of the large event
+> tables are validated by the map on their own EPs' demo stages.

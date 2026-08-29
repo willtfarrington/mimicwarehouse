@@ -154,14 +154,20 @@ def _run_stage(step: Step, ctx: StepContext) -> StepOutcome:
     from mimicwarehouse.schema.contract import load_contract
 
     assert step.schema_name and step.table and step.source  # spec-validated
-    table = load_contract().table(step.schema_name, step.table)
-    source = ctx.raw_root / PurePosixPath(step.source)
+    contract = load_contract()
+    table = contract.table(step.schema_name, step.table)
+    # demo tier (EP-22): the source lives under the demo raw root with the dataset dir
+    # stripped, and the (identity) 2.2 -> 3.1 column map validates every header on load.
+    column_map = contract.column_map("demo_2_2") if ctx.tier == "demo" else None
+    rel_source = step.demo_relative_source if ctx.tier == "demo" else step.source
+    assert rel_source is not None  # step.source is set, so the demo derivation never Nones
+    source = ctx.raw_root / PurePosixPath(rel_source)
     if not source.is_file():
         gz = source.with_name(source.name + ".gz")
         if gz.is_file():
             source = gz
         else:
-            raise DagError(f"step {step.name}: source not found under the raw root: {step.source}")
+            raise DagError(f"step {step.name}: source not found under the raw root: {rel_source}")
     dest = loader_paths.table_dir(ctx.lake_root, table.schema_name, table.name)
     source_sha256, raw_snapshot_id = ctx.provenance_for(table)
     partitioned = step.partitioned if step.partitioned is not None else table.partitioned
@@ -179,6 +185,7 @@ def _run_stage(step: Step, ctx: StepContext) -> StepOutcome:
             sort_by=list(step.sort_by) if step.sort_by is not None else None,
             buckets=ctx.buckets,
             size_class=step.size_class,
+            column_map=column_map,
         )
     else:
         result = stage_unpartitioned(
@@ -191,6 +198,7 @@ def _run_stage(step: Step, ctx: StepContext) -> StepOutcome:
             settings=ctx.settings,
             source_sha256=source_sha256,
             raw_snapshot_id=raw_snapshot_id,
+            column_map=column_map,
         )
         # dims exist identically in every tier (DESIGN §4): one full stage completes them
         # everywhere (EP-17 left tier_complete/dev_ready to this orchestration).
@@ -334,15 +342,22 @@ class _RssSampler(threading.Thread):
 
 
 def resolve_raw_root(settings: Settings, tier: str) -> Path:
-    """The tier's raw-CSV root: ``fixture`` -> the committed synthetic tree,
-    ``dev``/``full`` -> ``source material/``; ``demo`` arrives with EP-22."""
+    """The tier's raw-CSV root: ``fixture`` -> the committed synthetic tree, ``demo`` ->
+    ``ext/demo/mimic-iv-demo-2.2`` (EP-22), ``dev``/``full`` -> ``source material/``."""
     if tier == "fixture":
         from mimicwarehouse.fixtures.write import default_out_dir
 
         return default_out_dir()
+    if tier == "demo":
+        from mimicwarehouse.demo import demo_raw_root
+
+        root = demo_raw_root(settings)
+        if not root.is_dir():
+            raise DagError(f"demo raw root not found: {root} — run `mwh demo fetch` first (EP-22)")
+        return root
     if tier in ("dev", "full"):
         return settings.source_root
-    raise DagError("the demo raw root and column-map wiring arrive with EP-22")
+    raise DagError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
 
 
 def run(

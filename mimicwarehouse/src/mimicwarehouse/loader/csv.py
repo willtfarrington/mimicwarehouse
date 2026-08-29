@@ -80,6 +80,7 @@ class CsvPlan:
     relation_sql: str  # read_csv('<path>', columns={...}, <dialect>, store_rejects, ...)
     select_exprs: tuple[str, ...]  # contract columns in order; absent ones as typed NULL
     supplied: tuple[str, ...]  # contract columns the source actually carries
+    dropped: tuple[str, ...]  # source columns with no contract target (excluded on load)
     rejects_table: str
     rejects_scan: str
 
@@ -164,9 +165,24 @@ def plan_csv_read(source: Path, table: Table, column_map: ColumnMap | None = Non
         relation_sql=relation_sql,
         select_exprs=select_exprs,
         supplied=tuple(c for c in table.column_names if c in supplied),
+        dropped=tuple(h for h, target in applied.items() if target is None),
         rejects_table=rejects_table_for(table),
         rejects_scan=scans_table_for(table),
     )
+
+
+def plan_map_notes(table: Table, plan: CsvPlan) -> dict[str, list[str]] | None:
+    """Columns a column map could not carry over losslessly (EP-22 item 3 — dormant while
+    the shipped demo map is the identity): contract columns loaded as typed NULL
+    (``filled_null``) and source columns excluded on load (``dropped``); ``None`` when the
+    map is lossless for this header. Column *names* only, never values."""
+    filled = [c for c in table.column_names if c not in plan.supplied]
+    notes: dict[str, list[str]] = {}
+    if filled:
+        notes["filled_null"] = filled
+    if plan.dropped:
+        notes["dropped"] = sorted(plan.dropped)
+    return notes or None
 
 
 def csv_relation_sql(source: Path, table_spec: Table, column_map: ColumnMap | None = None) -> str:
@@ -199,6 +215,7 @@ __all__ = [
     "csv_relation_sql",
     "max_length_probe",
     "plan_csv_read",
+    "plan_map_notes",
     "read_csv_header",
     "rejects_table_for",
     "scans_table_for",

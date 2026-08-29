@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from mimicwarehouse import paths
 from mimicwarehouse.config import Settings, dir_size_bytes, get_settings
-from mimicwarehouse.loader.csv import plan_csv_read
+from mimicwarehouse.loader.csv import plan_csv_read, plan_map_notes
 from mimicwarehouse.loader.manifest import (
     ManifestLine,
     append_manifest,
@@ -302,6 +302,7 @@ def _manifest_line_for(
     build_id: str,
     source_sha256: str | None,
     raw_snapshot_id: str | None,
+    map_notes: dict[str, list[str]] | None = None,
 ) -> ManifestLine:
     return ManifestLine(
         schema=table_spec.schema_name,
@@ -314,6 +315,7 @@ def _manifest_line_for(
         writer_version=writer_version(),
         source_sha256=source_sha256,
         raw_snapshot_id=raw_snapshot_id,
+        map_notes=map_notes,
         build_id=build_id,
         ts=utc_now_iso(),
     )
@@ -416,6 +418,13 @@ def stage_partitioned(
     dev_buckets = list(settings.dev_buckets)
     order_by_pass2 = (SUBJECT_KEY, *resolved_sort_by)
     qn = table_spec.qualified_name
+    # header-only read (EP-22): what the column map could not carry losslessly — computed
+    # up front so a resumed large stage records the same notes as a fresh one
+    map_notes = (
+        plan_map_notes(table_spec, plan_csv_read(source, table_spec, column_map))
+        if column_map is not None
+        else None
+    )
 
     # -- resume decision (large path only) -------------------------------------------------
     progress = read_progress(dest_dir)
@@ -542,6 +551,7 @@ def stage_partitioned(
                         build_id=build_id,
                         source_sha256=source_sha256,
                         raw_snapshot_id=raw_snapshot_id,
+                        map_notes=map_notes,
                     )
                     append_manifest(lake_root, build_id, [line])
                     manifest_lines.append(line)
@@ -573,6 +583,7 @@ def stage_partitioned(
                         build_id=build_id,
                         source_sha256=source_sha256,
                         raw_snapshot_id=raw_snapshot_id,
+                        map_notes=map_notes,
                     )
                 )
         if manifest_lines:
@@ -597,6 +608,8 @@ def stage_partitioned(
         "rejects": rejects,
         "finished_at": utc_now_iso(),
     }
+    if map_notes is not None:
+        status_fields["map_notes"] = map_notes
     if tier is not None:
         status_fields["tier_complete"] = tier
     update_status(lake_root, qn, **status_fields)

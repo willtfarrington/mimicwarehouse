@@ -98,8 +98,8 @@ def info_command(
         assert info_row is not None  # open_catalog verified the row exists
         info = dict(zip(info_cols, info_row, strict=True))
         tables = con.execute(
-            'SELECT "schema", "table", kind, status, rows_hint FROM meta.catalog_tables '
-            'ORDER BY "schema", "table"'
+            'SELECT "schema", "table", kind, status, rows_hint, map_notes '
+            'FROM meta.catalog_tables ORDER BY "schema", "table"'
         ).fetchall()
     finally:
         con.close()
@@ -108,8 +108,15 @@ def info_command(
         payload = {
             "catalog_info": info,
             "catalog_tables": [
-                {"schema": s, "table": t, "kind": k, "status": st, "rows_hint": r}
-                for s, t, k, st, r in tables
+                {
+                    "schema": s,
+                    "table": t,
+                    "kind": k,
+                    "status": st,
+                    "rows_hint": r,
+                    "map_notes": None if mn is None else json.loads(mn),
+                }
+                for s, t, k, st, r, mn in tables
             ],
         }
         sys.stdout.write(json.dumps(payload, indent=2, default=str) + "\n")
@@ -124,17 +131,26 @@ def info_command(
         kv.add_row(key, escape(str(info[key])))
     console.print(kv)
 
+    # map_notes (EP-22 lossy column maps) is shown only when some table carries any —
+    # expected never while the demo map stays the identity, so the table stays narrow.
+    any_notes = any(mn is not None for *_rest, mn in tables)
     listing = RichTable(title="meta.catalog_tables", pad_edge=False)
-    for col, justify in (
+    columns: list[tuple[str, str]] = [
         ("schema", "left"),
         ("table", "left"),
         ("kind", "left"),
         ("status", "left"),
         ("rows_hint", "right"),
-    ):
+    ]
+    if any_notes:
+        columns.append(("map_notes", "left"))
+    for col, justify in columns:
         listing.add_column(col, justify=justify)  # type: ignore[arg-type]
-    for s, t, k, st, r in tables:
-        listing.add_row(escape(s), escape(t), k, st or "", "" if r is None else f"{r:,}")
+    for s, t, k, st, r, mn in tables:
+        row = [escape(s), escape(t), k, st or "", "" if r is None else f"{r:,}"]
+        if any_notes:
+            row.append("" if mn is None else escape(str(mn)))
+        listing.add_row(*row)
     console.print(listing)
     present = sum(1 for row in tables if row[2] != "missing")
     console.print(

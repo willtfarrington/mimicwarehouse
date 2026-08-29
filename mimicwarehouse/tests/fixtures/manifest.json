@@ -44,8 +44,8 @@
     "vent_fraction": 0.4,
     "vasopressor_fraction": 0.25
   },
-  "contract_hash": "7221bce67b4042ff256cf3b2b0fbeb79d00051dc06dcc11b99808736a5cb5eef",
-  "contract_schema_hash": "10b39af3ab70e32d5dbef4f526963f3e6b8a6bafd203194c17e0eb2b2bfc76d1",
+  "contract_hash": "023640a16790cb8d75d535d0768c0700104eb41ba1e3127612d4af03a829f307",
+  "contract_schema_hash": "51f751191ca0eea8ea763313cc52fabd0c89635c1b19297cc6bc30321d878f2c",
   "regenerate": "uv run --group dev mwh fixtures build",
   "id_floor": 90000000,
   "modules": [

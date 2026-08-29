@@ -182,7 +182,8 @@ def test_open_catalog_refuses_writes(
 
     with pytest.raises(duckdb.Error, match="read-only"):
         fixture_lake_catalog.execute(
-            "INSERT INTO meta.catalog_tables VALUES ('meta', 'probe', 'table', NULL, NULL)"
+            # 6 values since EP-22 added the map_notes column
+            "INSERT INTO meta.catalog_tables VALUES ('meta', 'probe', 'table', NULL, NULL, NULL)"
         )
 
 

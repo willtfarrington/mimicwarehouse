@@ -54,3 +54,33 @@ its own DUA and is parked as v2 EXT-1).
 - **Licenses.** ODbL 1.0 = attribution + share-alike; redistribution is upstream-legal but
   repo-forbidden (G1/GOVERNANCE §3) — cite and fetch instead. The PhysioNet license text
   is linked from `reading.md` §36.
+
+## Demo tier (EP-22)
+
+The `demo` tier is built from the two open datasets below, fetched on demand by
+`mwh demo fetch` into `%MWH_DATA_ROOT%\ext\demo\` and recorded (name, version, license,
+URL, per-file sha256) in `ext\demo\source.yaml` — the licensing-register precursor
+(D-36). Both are distributed under the **Open Data Commons Open Database License (ODbL)
+v1.0**: attribution + share-alike. Attribution for anything shown or published from the
+demo tier (screenshots, demo mode, the cloner smoke test): *"Contains data from the
+MIMIC-IV Clinical Database Demo and MIMIC-IV-ED Demo (PhysioNet / MIT-LCP), used under
+ODbL 1.0."* The data itself never enters git (GOVERNANCE §3; demo `subject_id`s sit
+inside the real MIMIC id bands, so the guard treats demo rows as real).
+
+Citations (DOIs verified against doi.org and the PhysioNet pages, 2026-08-29):
+
+**MIMIC-IV Clinical Database Demo v2.2**
+Johnson, A., Bulgarelli, L., Pollard, T., Horng, S., Celi, L. A., & Mark, R. (2023).
+MIMIC-IV Clinical Database Demo (version 2.2). PhysioNet.
+<https://doi.org/10.13026/dp1f-ex47>
+
+**MIMIC-IV-ED Demo v2.2**
+Johnson, A., Bulgarelli, L., Pollard, T., Celi, L. A., Horng, S., & Mark, R. (2023).
+MIMIC-IV-ED Demo (version 2.2). PhysioNet.
+<https://doi.org/10.13026/jzz5-vs76>
+
+**PhysioNet**
+Goldberger, A., Amaral, L., Glass, L., Hausdorff, J., Ivanov, P. C., Mark, R.,
+Mietus, J. E., Moody, G. B., Peng, C. K., & Stanley, H. E. (2000). PhysioBank,
+PhysioToolkit, and PhysioNet: Components of a new research resource for complex
+physiologic signals. *Circulation*, 101(23), e215–e220.

@@ -59,6 +59,12 @@ class ManifestLine(BaseModel):
     raw_snapshot_id: str | None = Field(
         default=None, description="41-file raw snapshot id (EP-10); None until complete / fixture"
     )
+    map_notes: dict[str, list[str]] | None = Field(
+        default=None,
+        description="columns a column map could not carry losslessly (EP-22: filled_null / "
+        "dropped lists, names only); None without a map or when the map is the identity — "
+        "expected None on the demo tier while demo_2_2 stays the identity",
+    )
     build_id: str
     ts: str = Field(description="ISO 8601 UTC")
 

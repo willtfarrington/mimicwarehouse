@@ -6,6 +6,15 @@
 # columns; the evidence says otherwise, so those "expected differences" were verified and
 # rejected (see `derivation`). EP-22 still validates this map against the real demo headers in
 # code (ColumnMap.check) before loading - never by printing them.
+#
+# 2026-08-29 (EP-22): the first real demo load falsified the identity for ONE table -
+# icu/procedureevents.csv.gz ships UPPERCASE ORIGINALAMOUNT / ORIGINALRATE (the MetaVision
+# names; MIMIC-IV v3.0 harmonised them to lowercase, a rename the git-log derivation below
+# missed because the v2.2 DDL already used lowercase while the distributed 2.2 CSV header
+# did not). procedureevents moved from identity_tables to `tables` with the two renames -
+# lossless, so no map_notes. Every other staged 2.2 header validated as identity in the
+# EP-22 demo build; the large event tables are re-validated the same way when EP-23..EP-27
+# add their demo steps.
 name: demo_2_2
 description: "MIMIC-IV Clinical Database Demo v2.2 and MIMIC-IV-ED Demo v2.2 CSV headers mapped onto the MIMIC-IV 3.1 / MIMIC-IV-ED 2.2 contract."
 source_versions: {mimic-iv-demo: "2.2", mimic-iv-ed-demo: "2.2"}
@@ -57,14 +66,15 @@ identity_tables:
   - mimiciv_icu.ingredientevents
   - mimiciv_icu.inputevents
   - mimiciv_icu.outputevents
-  - mimiciv_icu.procedureevents
   - mimiciv_ed.diagnosis
   - mimiciv_ed.edstays
   - mimiciv_ed.medrecon
   - mimiciv_ed.pyxis
   - mimiciv_ed.triage
   - mimiciv_ed.vitalsign
-# Tables whose demo header differs from the contract: none. Shape when needed:
-#   mimiciv_hosp.<table>: {added_in_3_1: [col, ...], renamed: {old: new}, dropped_in_3_1: [col, ...]}
-tables: {}
+# Tables whose demo header differs from the contract (shape:
+#   mimiciv_hosp.<table>: {added_in_3_1: [col, ...], renamed: {old: new}, dropped_in_3_1: [col, ...]}):
+tables:
+  mimiciv_icu.procedureevents:
+    renamed: {ORIGINALAMOUNT: originalamount, ORIGINALRATE: originalrate}
 tables_absent_in_2_2: []

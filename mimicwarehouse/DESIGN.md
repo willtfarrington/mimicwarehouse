@@ -227,6 +227,30 @@ Every brief states its tier using the vocabulary in the roadmap README (`fixture
 > empty/partial on the fixture is documented in `tests/fixtures/COVERAGE.md`
 > (hand-maintained; EP-41 extends the vocab and regenerates as 0.3.0).
 
+> **Note (2026-08-29, EP-22 — demo tier shipped).** `mwh demo fetch [--force]`
+> (`mimicwarehouse.demo`) downloads the MIMIC-IV Clinical Database Demo 2.2 and the
+> MIMIC-IV-ED Demo 2.2 from physionet.org (open access, ODbL 1.0; the only
+> network-touching command in P2 — not a text module, so `MWH_ALLOW_REMOTE` does not
+> apply) into `ext\demo\mimic-iv-demo-2.2\{hosp,icu}\` and `ext\demo\mimic-iv-ed-demo-2.2\ed\`:
+> `SHA256SUMS.txt` + `LICENSE.txt` first, then every listed file, each sha256-verified
+> (mismatch = delete + refuse; verified files are skipped on rerun). The result is recorded
+> in `ext\demo\source.yaml` — the D-36 licensing-register precursor `mwh demo status`
+> prints. `mwh build --tier demo` resolves the raw root to `ext\demo\mimic-iv-demo-2.2`
+> and the lake root to `lake\demo` (never the credentialed `lake\core`;
+> `assert_not_credentialed_lake`), strips the leading dataset dir from each step's
+> `source` (`Step.demo_relative_source`; an explicit `demo_source` overrides where a file
+> name differs — currently nowhere) and applies the EP-9 `demo_2_2` column map — verified
+> **identity** for every staged table except `icu.procedureevents`, whose real 2.2 header
+> ships uppercase `ORIGINALAMOUNT`/`ORIGINALRATE` (a lossless rename found by the first
+> demo build; dated note in the map YAML). The lossy-map machinery (`map_notes` in
+> manifest lines / `status.json` / `meta.catalog_tables`, shown by `mwh catalog info`)
+> ships dormant and stays empty until a genuinely lossy 2.2→3.1 difference appears. The **ED demo is
+> fetched and verified but not staged** — `mimiciv_ed` enters through the Linkage Wizard
+> (EP-142, D-4). There is no note demo. Demo ids sit inside the real MIMIC bands, so the
+> guard treats demo rows as real: the data lives only under the data root, never in git
+> (screenshots in demo *mode* are the EP-159 feature). Attribution/citations:
+> `docs/resources/datasets.md` § Demo tier.
+
 ## 5. Lake physical layout
 
 Hive-partitioned Parquet: `lake/core/<schema>/<table>/subject_bucket=NN/part-*.parquet`,

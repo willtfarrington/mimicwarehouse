@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from mimicwarehouse import paths
 from mimicwarehouse.config import Settings, get_settings
-from mimicwarehouse.loader.csv import plan_csv_read
+from mimicwarehouse.loader.csv import plan_csv_read, plan_map_notes
 from mimicwarehouse.loader.manifest import (
     ManifestLine,
     append_manifest,
@@ -133,6 +133,7 @@ def stage_unpartitioned(
         )
 
     plan = plan_csv_read(source, table_spec, column_map)
+    map_notes = plan_map_notes(table_spec, plan) if column_map is not None else None
     new_dir = paths.new_dir_for(dest_dir)
     if new_dir.exists():  # a stale .new from a crashed stage
         shutil.rmtree(new_dir)
@@ -182,21 +183,23 @@ def stage_unpartitioned(
         writer_version=writer_version(),
         source_sha256=source_sha256,
         raw_snapshot_id=raw_snapshot_id,
+        map_notes=map_notes,
         build_id=build_id,
         ts=utc_now_iso(),
     )
     append_manifest(lake_root, build_id, [line])
     wall_s = time.perf_counter() - t0
-    update_status(
-        lake_root,
-        table_spec.qualified_name,
-        build_id=build_id,
-        rows=line.rows,
-        bytes=line.bytes,
-        files=1,
-        rejects=rejects,
-        finished_at=line.ts,
-    )
+    status_fields: dict[str, object] = {
+        "build_id": build_id,
+        "rows": line.rows,
+        "bytes": line.bytes,
+        "files": 1,
+        "rejects": rejects,
+        "finished_at": line.ts,
+    }
+    if map_notes is not None:
+        status_fields["map_notes"] = map_notes
+    update_status(lake_root, table_spec.qualified_name, **status_fields)
     return StageResult(
         rows=line.rows,
         bytes=line.bytes,

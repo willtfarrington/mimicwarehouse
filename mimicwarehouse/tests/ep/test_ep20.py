@@ -139,7 +139,10 @@ def test_spec_steps_carry_contract_defaults(contract: Contract) -> None:
         qn = step.qualified_table
         assert qn is not None
         table = contract.table(qn)
-        assert step.tiers == ("fixture", "dev", "full"), f"{step.name}: tiers {step.tiers!r}"
+        # demo joined every hosp/icu step's tiers at EP-22 (the ODbL demo ships them all)
+        assert step.tiers == ("fixture", "demo", "dev", "full"), (
+            f"{step.name}: tiers {step.tiers!r}"
+        )
         assert {"stage", "small", table.schema_name} <= set(step.tags), f"{step.name}: tags"
         assert ("dims" in step.tags) == (not table.partitioned), f"{step.name}: dims tag"
         assert step.source == f"mimic-iv-3.1/{table.csv_path}", f"{step.name}: source"
