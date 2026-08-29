@@ -29,6 +29,7 @@ the EP-16 completion note; next: EP-170, head of P2)*
 | `fixtures/` — deterministic **synthetic** hosp + icu generator behind `tests/fixtures/` (31 CSVs, ids ≥ 90 000 000) | EP-11/12 | `mwh fixtures build` | `test_ep11.py` · `test_ep12.py` |
 | `tests/conftest.py` — pytest tier markers and ladder (`--tier`, `PYTEST_TIER`; [tests/README.md](tests/README.md)) | EP-12 | `poe test-dev` / `poe test-full` | `test_ep12.py` |
 | `scripts/claude_pretool_guard.py` — PreToolUse session guard, registered in `.claude/settings.json` | EP-165 | `mwh guard --selfcheck` (`pretool-hook` row) | `test_ep165.py` |
+| `canary.py` — write canary: rehearses the loader's five write shapes (Parquet burst, large sequential, manifest churn, rename-aside swap, delete loop) with **synthetic bytes** under `<data_root>\tmp\canary`, sha256 re-read verification (a silent quarantine = hard error); write-side baseline for EP-17/18 | EP-171 | `mwh canary write [--small N] [--large-mb N] [--keep] [--json]` | `test_ep171.py` |
 
 Gates as of EP-16 (2026-08-28): **545 fixture-tier tests** green (`poe check` = ruff +
 pyright + pytest; 548 collected, the dev/full/demo probes deselect by default) · `mwh doctor`
@@ -102,7 +103,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (`mwh` as of EP-167: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures`; `build`/`sql`/`app` land in P2+)
+## Quick start (`mwh` as of EP-171: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures` · `canary`; `build`/`sql`/`app` land in P2+)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -122,6 +123,7 @@ uv run --group dev mwh schema list           # the EP-9 contract: 41 tables (als
 uv run --group dev mwh schema check          # re-parse the vendored DDL at the pin; any drift = findings + exit 1
 uv run --group dev mwh inventory show        # raw-inventory manifest + job lines (counts/hashes only; also: reconcile; `build` touches the real CSVs — background job, EP-10 recipe)
 uv run --group dev mwh fixtures build        # regenerate tests/fixtures/ (synthetic; byte-identical for the same spec/generator version)
+uv run --group dev mwh canary write          # EP-171 write canary: rehearse the loader's write shapes under <data_root>\tmp\canary with synthetic bytes, verify every re-read (also: --small N, --large-mb N, --keep, --json)
 uv run poe test-dev                          # pytest --tier dev (dev-marked tests skip while dev.duckdb is absent) · poe test-full likewise
 uv run poe vendor-mimic-code                 # re-vendor mimic-code at the pinned sha (no-op at the same sha; EP-8)
 uv run mwh build --tier dev         # (EP-19+) typed Parquet lake + dev catalog

@@ -498,7 +498,7 @@ n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59,
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures; planned: build sql demo runs protocol disclose backup app init
+│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary; planned: build sql demo runs protocol disclose backup app init
 │   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
 │   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
 │   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
@@ -507,6 +507,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── schema/                    EP-9 shipped   YAML contract loader; keys; column maps
 │   ├── inventory.py               EP-10 shipped  raw manifest
 │   ├── fixtures/                  EP-11/12 shipped synthetic generator
+│   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal)
 │   ├── loader/                    EP-17/18 CSV→Parquet, buckets, resume
 │   ├── dag/                       EP-19  `mwh build` runner, manifests, snapshot ids
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
@@ -959,6 +960,30 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > icustays ↔ transfers, event windows, planted signal across hosp + icu, catalog of 31 tables,
 > pytester tier-selection cases, guard / hooks / budgets, CLI) — the two EP-11 assertions that count
 > written files now read 31 (22 hosp + 9 icu) and the drift fixture regenerates the whole tree.
+
+> **Note (2026-08-29, EP-171).** **`canary.py`** landed: the P2 write canary
+> (`run_canary(settings, *, small_files, large_mb, keep, observer)` + `mwh canary write
+> [--small N] [--large-mb N] [--keep] [--json]`). It rehearses, in order and with synthetic
+> bytes only (ids from 90 000 000; DuckDB `COPY` of a delta-encoded id + three `random()`
+> doubles, ~40,000 rows/MB), the five write shapes P2's briefs plan against `C:\mimicdata`:
+> **burst small-file pass** (N ≈ 1 MB Parquet files into Hive `subject_bucket=<n>/` dirs, the
+> EP-18 staging shape), **large sequential pass** (one Parquet of `--large-mb`, default
+> 2,048 MB, cap 8,192 — the EP-23/26 event-table shape; wall time and MB/s recorded per
+> pass), **manifest churn** (append-per-line + `inventory._atomic_write_text` rewrites, the
+> EP-19 ledger shape), **rename-aside swap** (`x.duckdb.new` → rename live aside →
+> `os.replace` → remove `.old`, the §6 catalog protocol) and **cleanup** (the delete-loop
+> shape of the 2026-08-17 ARW kill, D-42). After every phase it re-reads what it wrote
+> (sha256 + size per file) so a silent quarantine is a hard `CanaryError`, and the tree is
+> then **left in place** for the Malwarebytes triage. The canary tree is
+> `layout["tmp"]/canary` (not a layout key — module-created, the EP-10 `raw` precedent);
+> `require_free_space(min_free_gb + projected)` runs first; `canary` is **not** in
+> `DIAGNOSTIC_COMMANDS` (it writes under the data root — the `mwh inventory` precedent) and
+> is deliberately **not a doctor check**: the doctor only reports, the canary writes. Output
+> is counts/bytes/seconds/MB-per-s only (G4 thousands separators; `--json` raw for machines).
+> An `observer(event, path)` seam fires at every step (the tests assert the swap's on-disk
+> state between renames through it). Live baseline on this machine in the EP-171 completion
+> note: burst 191 MB/s, large sequential 239 MB/s (floors — DuckDB defaults, generation cost
+> included), 13.3 s total, both endpoint products live, nothing killed or quarantined.
 
 ## 16. App structure (D-21)
 

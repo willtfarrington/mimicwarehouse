@@ -738,6 +738,13 @@ uv-managed CPython / MSYS2 binaries).
 > code) was exercised repeatedly against both endpoint products during EP-165 with no
 > Defender/Malwarebytes reaction; the interpreter is the allow-listed workspace-venv python.
 
+> **Addendum (2026-08-29, EP-171).** The write side of (2)/(3) is now measured, not assumed:
+> `mwh canary write` rehearsed the loader's five write shapes with synthetic bytes under
+> `C:\mimicdata\tmp\canary` — both products live, process survived, every sha256 re-read
+> matched — at 191 MB/s (burst: 200 × ~1 MB Parquet into bucket dirs) and 239 MB/s (one
+> 2.29 GB sequential Parquet, DuckDB defaults; floors, generation cost included), 13.3 s
+> total (EP-171 completion note; roadmap Risk 12).
+
 **D-43 Retrospective consolidation of P0 + P1a (2026-08-18) — owner decisions, to be
 distributed as addenda by EP-166.** After EP-12 the owner paused the roadmap for an adversarial
 retrospective review of EP-0 … EP-12 (ten lenses, one verifier per material finding, completeness

@@ -100,3 +100,79 @@ the preflight re-asserts the EP-1 lock invariants rather than resolving anything
 - Commit `feat(mimicwarehouse): write canary — Parquet burst/large/manifest/swap rehearsal +
   write baseline (EP-171)`, then tick ☑ EP-171 in `roadmap/README.md` and commit
   `docs(roadmap): record EP-171 commit hash`.
+
+> **Completion note (2026-08-29).** Executed as one session (≈ 45 min against S ≈ 30 min),
+> tier fixture + the one live run below; no real data read or written anywhere; power mode
+> confirmed before the live run (`mwh doctor` `power_scheme`: AC power mode **Best
+> performance**).
+>
+> **Item 1 — `canary.py` + `mwh canary write`.** `run_canary(settings, *, small_files,
+> large_mb, keep, observer)` runs the five shapes in order — burst small-file pass (~1 MB
+> Parquet files via DuckDB `COPY` of a delta-encoded id column starting at 90 000 000 plus
+> three `random()` doubles, ~40,000 rows/MB, into Hive `subject_bucket=<i % 100>/` dirs),
+> large sequential pass (one Parquet of `--large-mb`, wall time and MB/s per pass), manifest
+> churn (one append+flush per record, then 20 `inventory._atomic_write_text` rewrites),
+> rename-aside swap (`canary.duckdb.new` → `os.rename` live aside → `os.replace` → remove
+> `.old`) and cleanup (`rmtree` with a PermissionError retry loop, skipped under `--keep`) —
+> and re-reads every file after each phase (sha256 + size vs the record taken at write time).
+> A miss is a hard `CanaryError` whose message points at the Malwarebytes Quarantine /
+> `mbamservice.log` triage, and the tree is then **left in place** as evidence. Refusals:
+> `--large-mb` > 8,192 and non-positive parameters (`ValueError`, exit 2), free space below
+> `min_free_gb` + the projected canary size (`DiskGuardError`, exit 2), unsafe data root
+> (`canary` is not in `DIAGNOSTIC_COMMANDS`, so EP-167's lazy validation exits 2 before
+> anything is touched). An `observer(event, path)` seam fires at every step (CLI progress
+> lines and the tests' between-step assertions use it). Attached in `cli.py` with one
+> `add_typer` line; output is counts/bytes/seconds/MB-per-s with thousands separators (G4);
+> `--json` keeps raw integers (EP-10 pattern).
+>
+> **Item 2 — preflight.** `uv run poe test -m ep_1` green (10 passed: every package
+> wheel-backed for this interpreter, `autograd-gamma` allow-list unchanged — no new
+> dependencies were added, P2 codes against the existing lock). Versions as locked:
+>
+> | python | duckdb | pyarrow | polars | pandas |
+> |---|---|---|---|---|
+> | 3.13.15 | 1.5.5 | 24.0.0 | 1.43.2 | 3.0.5 |
+>
+> **Item 3 — tests.** `tests/ep/test_ep171.py` (marker `ep_171`, 14 tests, temp data root via
+> `helpers.tmp_data_root`, faked `disk_usage`): five phases in order and nothing left behind
+> by default; `--keep` keeps the tree; bucket layout `subject_bucket=0..4`, per-file sizes
+> 0.5–2.5 MB, one large file of ~`--large-mb`, manifest appends/rewrites counted and
+> re-parsed; the swap really is write-new → rename-aside → replace → remove-old (directory
+> contents asserted between steps through the seam); a file deleted at the seam →
+> `CanaryError` + tree left in place; an altered file → `CanaryError`; cap / free-space /
+> unsafe-root refusals (exit 2, nothing created); CLI human and `--json` output leak-free by
+> assertion (`guard.id_band_hits`, EP-10 pattern); `canary` not in `DIAGNOSTIC_COMMANDS`.
+> Results: `poe test -m ep_171` **14 passed** (3.7 s) · `poe test -m ep_1` 10 passed ·
+> `poe check` green (ruff clean, pyright 0, **559 passed** in 62 s) · `mwh verify EP-171`
+> exit 0 · `poe roadmap-check --strict` 0 errors / 0 warnings (172 rows, 172 briefs).
+>
+> **Item 4 — live run on this machine** (`uv run --group dev mwh canary write`, defaults,
+> 2026-08-29, data root `C:\mimicdata`, foreground):
+>
+> | pass | files | bytes | write s | MB/s | verify s |
+> |---|---:|---:|---:|---:|---:|
+> | burst small-file (200 × ~1 MB, 100 bucket dirs) | 200 | 224,152,379 | 1.2 | **191** | 0.1 |
+> | large sequential (one Parquet) | 1 | 2,294,382,300 | 9.6 | **239** | 1.0 |
+> | manifest churn (201 appends + 20 rewrites) | 1 | 30,122 | 0.0 | — | 0.0 |
+> | rename-aside swap | 1 | 16,000,000 | 0.0 | 1,333 | 0.0 |
+> | cleanup (delete loop) | 0 | 0 | 0.3 | — | — |
+>
+> Total **13.3 s**, 203 files, 2,534,564,801 bytes; **the process survived and every re-read
+> matched** — neither Defender nor Malwarebytes interfered with any of the five shapes, and
+> `C:\mimicdata\tmp\canary` is absent afterwards. The MB/s figures are **floors** for
+> EP-17/18 planning: DuckDB Parquet defaults, and the write clock includes generating the
+> synthetic rows in-process (the large pass is generation-bound; the burst pass includes
+> 200 per-file `COPY` round-trips). Actual bytes ran ~12 % over nominal (~28 B/row vs the
+> 25 B/row sizing estimate): the "~1 MB" small files are ~1.12 MB, the 2,048 MB large file
+> 2.29 GB — recorded as actuals, sizing constant left as is. Nine-path Malwarebytes allow
+> list: last confirmed by the owner **2026-08-28** (D-38 addendum) — treated as current
+> (one day old; this autonomous session could not re-ask, and the canary's clean pass is
+> consistent with it).
+>
+> **Item 5 — docs touched.** DESIGN §15 dated note (canary.py, the five shapes, why not a
+> doctor check — the doctor only reports, the canary writes) + module-map tree line + cli.py
+> shipped list; workspace README § State row + Quick start line (heading now "as of
+> EP-171"); roadmap Risk 12 "→ EP-171 write canary passed (2026-08-29)" with the baselines;
+> DECISIONS D-42 addendum citing the measured baseline; module/CLI docstrings.
+>
+> Nothing parked. Next: EP-17 (Loader core A — read its EP-170 amendment block first).
