@@ -226,3 +226,14 @@ facts most likely to need amending there are the names P1 actually shipped: the 
 > vendor tree and `tests/fixtures/` unmodified; `uv run mwh verify EP-16` green;
 > `poe roadmap-check --strict` 0 errors / 0 warnings. Nothing parked by this brief.
 > Next: **EP-170** (head of P2).
+
+> **Completion-note addendum (2026-08-29).** The owner reviewed the "EP-171 not needed"
+> recommendation above and directed allocation anyway: **EP-171 exists** —
+> `EP-171-toolchain-remediation-p2.md` (S, core; a synthetic write canary rehearsing the
+> loader's burst/large/manifest/swap/delete I/O shapes against the Malwarebytes ARW
+> heuristic, Risk 12, and measuring the write-side MB/s baseline of EP-16 lesson 1),
+> row inserted after EP-170 / before EP-17, `Blocks: EP-17` (EP-17's header untouched,
+> EP-164 convention) → 172 briefs, 24 S · 147 M · 1 L; committed as
+> `docs(roadmap): add EP-171 — toolchain remediation (P2)`. The recommendation paragraph
+> stands as written (history, not error); P2's execution order is now EP-170 → EP-171 →
+> EP-17.
