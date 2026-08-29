@@ -530,6 +530,12 @@ class Settings(BaseSettings):
     duckdb_max_temp_size: str = "150GB"
     min_free_gb: int = Field(default=100, ge=0)
     k_suppression: int = Field(default=11, ge=1)
+    loader_reject_max: int = Field(
+        default=0,
+        ge=0,
+        description="Max rejected rows per staged file before the loader refuses (EP-17). "
+        "0 = any reject on the credentialed datasets is a contract bug, never tolerated.",
+    )
     allow_remote: bool = False
     forbidden_drives: list[str] = Field(default_factory=lambda: list(DEFAULT_FORBIDDEN_DRIVES))
     dev_buckets: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])

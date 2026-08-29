@@ -81,6 +81,40 @@ uniqueness_hints:
   mimiciv_note.discharge_detail: [note_id, field_name, field_ordinal]
   mimiciv_note.radiology_detail: [note_id, field_name, field_ordinal]
 
+# identifiers / free_text (EP-17, retro FC-5): the loader stamps `identifier: true` /
+# `free_text: true` onto matching Column objects (like units.yaml stamps unit_of); EP-23..EP-30
+# only *verify* their per-table flags, and safe_query / disclose (EP-30/EP-43) refuse to return
+# these columns. Flag edits move Contract.content_hash() only, never structural_hash().
+#
+# identifiers.names: column names that are identifiers wherever they appear - the GOVERNANCE
+#   real-band ids, the row/order linkage ids, and the anonymised staff ids (provider, caregiver;
+#   every *_provider_id variant listed explicitly - no pattern semantics on a governance list).
+#   itemid & friends (spec_itemid, test_itemid, org_itemid, ab_itemid) are dimension codes, not
+#   identifiers: they resolve against d_items/d_labitems and appear in aggregates by design.
+identifiers:
+  names: [
+    subject_id, hadm_id, stay_id, transfer_id, note_id,
+    labevent_id, specimen_id, microevent_id, micro_specimen_id,
+    emar_id, pharmacy_id, poe_id, discontinue_of_poe_id, discontinued_by_poe_id,
+    orderid, linkorderid,
+    provider_id, order_provider_id, enter_provider_id, admit_provider_id,
+    caregiver_id,
+  ]
+
+# free_text: per-table free-text columns (note-like VARCHARs). The judgment calls (EP-29 asks
+# for the why): triage.chiefcomplaint is de-identified free text per the ED docs; the pain
+# columns (triage/vitalsign) are short semi-structured entries ("7", "unable"), left unflagged;
+# poe_detail.field_value / emar_detail dose fields are categorical/structured, left unflagged -
+# EP-23..EP-27 re-examine their tables and extend this map with a dated note if needed.
+free_text:
+  mimiciv_hosp.labevents: [comments]
+  mimiciv_hosp.microbiologyevents: [comments]
+  mimiciv_ed.triage: [chiefcomplaint]
+  mimiciv_note.discharge: [text]
+  mimiciv_note.radiology: [text]
+  mimiciv_note.discharge_detail: [field_value]
+  mimiciv_note.radiology_detail: [field_value]
+
 foreign_keys:
   # ---- hosp (constraint.sql, in file order) ----
   - {name: admissions_patients_fk, table: mimiciv_hosp.admissions, columns: [subject_id], ref_table: mimiciv_hosp.patients, ref_columns: [subject_id]}

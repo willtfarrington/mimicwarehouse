@@ -281,6 +281,24 @@ and applies column maps (demo 2.2 → 3.1).
 > tie-break (EP-169, ledger ARCH-4), so EP-18's per-bucket sort and its "sha256 stable
 > across two runs" determinism tests are well-defined under ties.
 
+> **Note (2026-08-29, EP-17 — shipped layout facts of the unpartitioned stage).** Three
+> specifics the section above left open, fixed by the EP-17 code: (1) an **unpartitioned**
+> (dim) table is one file, `<lake_root>/…/<schema>/<table>/part-0.parquet` — no
+> `subject_bucket=` level (the Hive pattern above applies to partitioned tables only), and
+> restages publish through `paths.swap_dir` exactly as the 2026-08-28 note prescribes;
+> (2) manifests and status are **per lake root**: `<lake_root(tier)>/manifests/<build_id>.jsonl`
+> and `…/manifests/status.json`, so a fixture/demo build's manifests live under
+> `lake/fixture/` / `lake/demo/` beside its Parquet, never in the credentialed
+> `lake/manifests/` (for dev/full, `lake_root` = `lake/`, i.e. exactly the path above);
+> rejects follow the same rule (`<lake_root>/rejects/<schema>/<table>/<build_id>.parquet` ≡
+> `Settings.rejects_root(tier)` for the standard roots). (3) `status.json` is
+> `{"steps": {"<schema>.<table>": {tier_complete, dev_ready, build_id, rows, bytes, files,
+> rejects, finished_at}}}` — the shape the EP-168 `dev_ready(step)` test fixture reads;
+> EP-17 writes the count fields and leaves `tier_complete: null` / `dev_ready: false` to
+> the EP-18/19 orchestration. Manifest lines carry the §11 provenance pair
+> (`source_sha256` + `raw_snapshot_id`) plus a per-table `schema_hash` (sha256 of the
+> ordered `(name, type)` list) and `writer_version` (package + DuckDB versions).
+
 Explicit in every build/analysis process (never rely on defaults): `memory_limit`
 (36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`
 (`C:\mimicdata\tmp\duckdb`), `max_temp_directory_size` (explicit, e.g. 150 GB),
@@ -508,7 +526,8 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── inventory.py               EP-10 shipped  raw manifest
 │   ├── fixtures/                  EP-11/12 shipped synthetic generator
 │   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal)
-│   ├── loader/                    EP-17/18 CSV→Parquet, buckets, resume
+│   ├── paths.py                   EP-17 shipped  swap_dir (rename-aside directory publish)
+│   ├── loader/                    EP-17 shipped (engine, csv, stage, manifest — typed CSV→Parquet, unpartitioned); EP-18 buckets, sort, resume
 │   ├── dag/                       EP-19  `mwh build` runner, manifests, snapshot ids
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
 │   ├── demo.py                    EP-22

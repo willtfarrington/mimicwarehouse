@@ -146,4 +146,34 @@ verification is by counts, schemas and hashes.
 
 ## Parked → final-roadmap.md
 
-- Alternative CSV engines (Polars/pyarrow readers) behind the same `stage_*` API — trigger: DuckDB's CSV reader misparses a MIMIC table that the contract cannot express.
+- Alternative CSV engines (Polars/pyarrow readers) behind the same `stage_*` API — trigger: DuckDB's CSV reader misparses a MIMIC table that the contract cannot express. *(Mirrored as v2 LOAD-1, 2026-08-29.)*
+
+> **Completion note (2026-08-29).** Shipped as amended: `mimicwarehouse/paths.py`
+> (`swap_dir` rename-aside two-step, crash recovery + PermissionError retries) and the
+> `loader/` package — `engine.open_build_connection` (wraps `inventory.open_connection`
+> [FC-7]; DuckDB-pin refusal via the package's own `duckdb==` requirement; tier-aware
+> free-space guard, so it gained a `tier` kwarg [FC-27]; per-connection `memory_limit`
+> override), `csv` (one-dialect `read_csv` fragment from `Table.read_csv_options()` — no
+> format strings [SCH-1]; gz-aware header validation; column-map rename/drop/NULL-fill;
+> `store_rejects` into `<t>_rejects`/`<t>_scans`), `stage.stage_unpartitioned` (ORDER BY the
+> contract `sort_keys` [SCH-3], zstd-3 / 1 M-row `part-0.parquet`, swap via `paths.swap_dir`
+> [FC-6]; rejects copied to `<lake_root>/rejects/<schema>/<table>/<build_id>.parquet`,
+> refusal above `settings.loader_reject_max` — a new Settings field with its `.env.example`
+> line [FC-14]), `manifest` (`ManifestLine` with the provenance **pair** `source_sha256` +
+> `raw_snapshot_id` [FC-8]; `append_manifest`; `update_status` → `{"steps": {...}}`,
+> atomic). Signature deltas vs the brief text: `stage_unpartitioned` takes `lake_root=` and
+> the pair instead of `source_manifest_id`, and itself appends the manifest line + status
+> entry. Column flags [FC-5]: `Column.identifier`/`free_text` stamped from keys.yaml's new
+> `identifiers.names` (21 names → 112 columns) and `free_text` (7 columns) sections;
+> `Table.identifier_columns()`/`free_text_columns()`; typos refuse at load;
+> `structural_hash()` unchanged (pinned `10b39af3…` stands — no fixture regeneration),
+> `content_hash()` moved as designed; D-17 addendum records the shape. Layout facts →
+> DESIGN §4/5 dated note (per-tier `manifests/`+`rejects/` under each lake root;
+> `status.json` shape). **Dev probe answer (SCH-1):** all nine upstream TIMESTAMP(3)
+> columns have `max(length) = 19` in the raw 3.1 CSVs — **no fractional seconds exist**
+> (pharmacy 1.6 s, prescriptions 1.4 s, outputevents 0.2 s scans; the ISO-cast dialect
+> stays correct either way). Acceptance: `poe test -m ep_17` 17 passed; `--tier dev`
+> 19 passed (real `d_labitems`/`patients` staged into `tmp\ep17`, rows == EP-10 manifest,
+> rejects 0, temp lake deleted); `mwh verify EP-17` green; full fixture suite 576 passed;
+> `poe check` (lint + pyright + tests) green. Determinism held: restage and `.csv.gz`
+> stagings byte-identical (sha256-pinned in tests).

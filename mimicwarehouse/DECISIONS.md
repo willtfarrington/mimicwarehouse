@@ -158,6 +158,25 @@ native only; pandas primary.
 > `timestampformat`); `upstream_type: TIMESTAMP(3)` recorded on the nine columns. Details
 > and evidence: ledger ARCH-4/SCH-2/FC-4.
 
+> **Addendum (2026-08-29, EP-17 — ledger FC-5).** Identifier / free-text column flags exist
+> from EP-17 on, in the shape the retro proposed: `Column.identifier` / `Column.free_text`
+> booleans **stamped by the loader** from two new `keys.yaml` sections — `identifiers.names`
+> (21 column names that are identifiers wherever they appear: the GOVERNANCE §3 real-band ids,
+> the row/order linkage ids, the anonymised staff ids with every `*_provider_id` variant listed
+> explicitly) and `free_text` (per-table map: `labevents.comments`,
+> `microbiologyevents.comments`, `triage.chiefcomplaint`, the four Note text/field_value
+> columns) — exactly the units.yaml → `unit_of` stamping pattern, so there is **one**
+> representation, in the YAML, surfaced as `Table.identifier_columns()` /
+> `free_text_columns()`. Typos refuse at load (a name matching no column, an unknown
+> free-text table/column, a non-VARCHAR free-text column). The flags are **excluded** from
+> `structural_hash()` (no fixture regeneration; `content_hash()` moved as designed);
+> EP-23…EP-30 verify their per-table flags rather than inventing them; itemid-family codes
+> (`itemid`, `spec_itemid`, `test_itemid`, `org_itemid`, `ab_itemid`) are deliberately *not*
+> identifiers (dimension codes that appear in aggregates by design). *Alternatives:* a bare
+> keys.yaml list without Column flags (two representations at query time); per-table YAML
+> flags without a central list (21 names duplicated across 31 tables); name patterns like
+> `*_provider_id` (pattern semantics on a governance list).
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;

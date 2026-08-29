@@ -109,6 +109,16 @@ class Column(_Frozen):
     duckdb_type: str = Field(alias="type")
     nullable: bool = True
     comment: str | None = None
+    identifier: bool = Field(
+        default=False,
+        description="identifier column (subject_id, hadm_id, …): never in safe_query results "
+        "or exports (GOVERNANCE §4; stamped from keys.yaml `identifiers:`, EP-17)",
+    )
+    free_text: bool = Field(
+        default=False,
+        description="free-text column (note text, lab comments): never in safe_query results "
+        "or exports (GOVERNANCE §4/§9; stamped from keys.yaml `free_text:`, EP-17)",
+    )
     unit_of: str | None = Field(
         default=None,
         description="for a unit column: the value column it qualifies (stamped from units.yaml)",
@@ -262,6 +272,14 @@ class Table(_Frozen):
 
     def has_column(self, name: str) -> bool:
         return any(c.name == name for c in self.columns)
+
+    def identifier_columns(self) -> tuple[str, ...]:
+        """Columns flagged ``identifier: true`` (keys.yaml ``identifiers:``; EP-17)."""
+        return tuple(c.name for c in self.columns if c.identifier)
+
+    def free_text_columns(self) -> tuple[str, ...]:
+        """Columns flagged ``free_text: true`` (keys.yaml ``free_text:``; EP-17)."""
+        return tuple(c.name for c in self.columns if c.free_text)
 
     # -- renderers -------------------------------------------------------------------------
 
@@ -743,6 +761,43 @@ def load_contract_from(root: Path) -> Contract:
             )
             stamped.append(t.model_copy(update={"columns": cols}) if cols != t.columns else t)
         tables = stamped
+
+    # Stamp identifier / free_text flags from keys.yaml (EP-17, retro FC-5 — the same
+    # single-source stamping pattern as units.yaml → unit_of above).
+    id_names_raw = (keys_doc.get("identifiers") or {}).get("names") or []
+    id_names: frozenset[str] = frozenset(str(n) for n in id_names_raw)
+    free_text_doc: dict[str, Any] = keys_doc.get("free_text") or {}
+    all_column_names = {c.name for t in tables for c in t.columns}
+    unknown_ids = sorted(id_names - all_column_names)
+    if unknown_ids:
+        raise SchemaError(f"{KEYS_FILENAME}: identifiers.names match no column: {unknown_ids}")
+    free_text_cols: set[tuple[str, str]] = set()
+    for qn, cols in free_text_doc.items():
+        t = next((t for t in tables if t.qualified_name == qn), None)
+        if t is None:
+            raise SchemaError(f"{KEYS_FILENAME}: free_text names unknown table {qn}")
+        for col in cols or ():
+            if not t.has_column(col):
+                raise SchemaError(f"{KEYS_FILENAME}: free_text: {qn} has no column {col!r}")
+            if t.column(col).duckdb_type != "VARCHAR":
+                raise SchemaError(f"{KEYS_FILENAME}: free_text: {qn}.{col} is not VARCHAR")
+            free_text_cols.add((qn, col))
+    if id_names or free_text_cols:
+        flagged: list[Table] = []
+        for t in tables:
+            cols = tuple(
+                c.model_copy(
+                    update={
+                        "identifier": c.identifier or c.name in id_names,
+                        "free_text": c.free_text or (t.qualified_name, c.name) in free_text_cols,
+                    }
+                )
+                if c.name in id_names or (t.qualified_name, c.name) in free_text_cols
+                else c
+                for c in t.columns
+            )
+            flagged.append(t.model_copy(update={"columns": cols}) if cols != t.columns else t)
+        tables = flagged
 
     column_maps: dict[str, ColumnMap] = {}
     maps_dir = root / COLUMN_MAPS_DIRNAME
