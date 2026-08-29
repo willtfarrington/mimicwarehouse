@@ -116,7 +116,7 @@ Standing decisions for phase P1: mimic-code vendored at a pinned commit with att
 | EP-19 | [DAG runner `mwh build`](EP-19-stage-dag-runner.md) | M | EP-18 | core | ☑ `5996bbd` |
 | EP-20 | [Stage dimensions + small hosp/icu tables](EP-20-stage-small-tables.md) | M | EP-19 | core | ☑ `e4c137b` |
 | EP-21 | [Catalog builder (per-tier .duckdb)](EP-21-stage-catalog-builder.md) | M | EP-20 | core | ☑ `22ec559` |
-| EP-22 | [Demo tier (MIMIC-IV Demo 2.2 + ED Demo)](EP-22-stage-demo-tier.md) | M | EP-21 | core | ☐ |
+| EP-22 | [Demo tier (MIMIC-IV Demo 2.2 + ED Demo)](EP-22-stage-demo-tier.md) | M | EP-21 | core | ☑ `e095367` |
 | EP-23 | [Stage labevents ⏱](EP-23-stage-labevents.md) | M | EP-19 | core | ☐ |
 | EP-24 | [Stage emar + emar_detail ⏱](EP-24-stage-emar.md) | M | EP-19 | core | ☐ |
 | EP-25 | [Stage remaining hosp tables ⏱](EP-25-stage-hosp-rest.md) | M | EP-19 | core | ☐ |
