@@ -8,9 +8,11 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 ``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``fixtures`` (EP-11,
 :mod:`mimicwarehouse.fixtures.cli`) · ``canary`` (EP-171, :mod:`mimicwarehouse.canary`) ·
 ``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``catalog``/``sql`` (EP-21,
-:mod:`mimicwarehouse.catalog.cli`; ``sql`` is metadata/count-only until EP-30 wires
-``safe_query``) · ``demo`` (EP-22) · ``runs`` (EP-35) · ``protocol`` (EP-51) ·
-``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
+:mod:`mimicwarehouse.catalog.cli`; since EP-30 ``sql`` routes everything through
+``safe_query`` — aggregate-only, audited, refusals exit 3) · ``demo`` (EP-22) ·
+``runs`` (EP-30 ``refresh``, :mod:`mimicwarehouse.runs_cli`; EP-35 adds list/show) ·
+``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) ·
+``init`` (EP-158).
 
 Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
 :class:`mimicwarehouse.config.Settings` once per invocation — ``--data-root`` > ``MWH_*`` env >
@@ -51,6 +53,7 @@ from mimicwarehouse.doctor import doctor_command
 from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
 from mimicwarehouse.inventory import inventory_app
+from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 
@@ -182,6 +185,7 @@ app.command("guard")(guard_command)
 app.add_typer(inventory_app, name="inventory")
 app.command("jobs")(jobs_command)
 app.command("paths")(paths_command)
+app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
 app.command("sql")(sql_command)
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)

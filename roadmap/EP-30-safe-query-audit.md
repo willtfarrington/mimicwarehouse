@@ -115,3 +115,36 @@ wrapper must **refuse** crafted violations in tests.
 - The wrapper **refuses** every crafted violation listed above in tests, and each refusal is audited (`allowed = false`, reason) — the governance acceptance for this brief.
 - `%MWH_DATA_ROOT%\runs\audit.jsonl` exists after the dev test; `warehouse\runs.duckdb` has the `audit` view; `mwh sql --tier dev` prints suppressed aggregates with the footer and exits 3 on refusal.
 - `CLAUDE.md` §2 and `DESIGN.md` §12 carry the wiring notes; the interim EP-21 `mwh sql` body is gone.
+
+## Parked → final-roadmap.md
+
+- Set-operation support (UNION/EXCEPT/INTERSECT of aggregate SELECTs) — safe_query refuses
+  them with a "run each aggregate separately" reason; supporting them needs the select-list
+  walk on both sides and left-side-only output-name handling for suppression.
+  *(mirrored into `final-roadmap.md` §36–38 on 2026-08-29 as v2 DIS-2)*
+- Arithmetic/CAST over aggregates in the select list (rates such as `count(*)::DOUBLE / n`) —
+  refused because arithmetic could launder small counts past the row-wise k rule; a loosening
+  needs count-family taint tracking, naturally alongside EP-43's complementary suppression.
+  *(mirrored into `final-roadmap.md` §36–38 on 2026-08-29 as v2 DIS-3)*
+
+> **Completion note (2026-08-29).** Executed in one session. `safe.py` (safe_query,
+> `SUPPRESSOR` hook, `AuditLine`, `build_runs_db`), `runs_cli.py` (`mwh runs refresh`),
+> final `mwh sql` body in `catalog/cli.py` (interim body gone; `--tables`/`--describe`/
+> `--count` routed through safe_query; refusals exit 3). Static analysis rides DuckDB's
+> `json_serialize_sql` (statement passed as a bound parameter, never executed); the full
+> rule set is the DESIGN §12 dated note. Deviations, all recorded there: set operations
+> and arithmetic-over-aggregates are refused (Parked above); `query`/`query_table` added
+> to the function blocklist (SQL-indirection would bypass the walk); the brief's
+> `range(10**9)` timeout probe is spelled `range(1000000000)` in tests — `10**9` binds as
+> DOUBLE in DuckDB 1.5.5 and fails for the wrong reason. One implementation gotcha: the
+> ATTACH of `runs.duckdb` is `IF NOT EXISTS` because DuckDB's in-process instance cache
+> (DESIGN §6 note b) keeps a prior call's attachment alive while any other connection
+> holds the catalog open (found via the session-scoped `fixture_lake_catalog`).
+> Verification: `poe test` 699 green (33 ep_30 fixture tests); `poe test-dev -m ep_30`
+> 34 green against the real dev catalog; `mwh verify EP-30` green; guard/ruff/pyright
+> clean. Dev acceptance run: `mwh sql --tier dev` on the CLAUDE.md §2 example printed
+> five suppressed-aggregate rows with the footer (audit
+> `a9f32c82eef84bd68ab0b47e6cba80d3`, snapshot `f830b941fc2d…`); the crafted
+> identifier-output violation exited 3; `mwh runs refresh` published
+> `C:\mimicdata\warehouse\runs.duckdb` with the `audit` view over
+> `C:\mimicdata\runs\audit.jsonl`.

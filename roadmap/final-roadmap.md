@@ -167,6 +167,8 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | Formal pre-registration exports (OSF-style) from frozen protocols | external sharing | — | v2 PRO-1 |
 | Differential-privacy noise for published aggregates | public aggregate site | utility loss | v2 DIS-1 |
 | Full re-computation checks (`mwh reproduce <run_id>`) | after ≥ 20 runs recorded | compute | v2 PROV-1 |
+| safe_query set-operation support (UNION/EXCEPT/INTERSECT of aggregate SELECTs) — parked by EP-30 (2026-08-29); refused with a "run each aggregate separately" reason | a real workflow needs a unioned aggregate a CTE cannot express | both sides need the full select-list walk; output column names come from the left side only, so suppression-column detection must recurse | v2 DIS-2 |
+| safe_query arithmetic/CAST over aggregates in the select list (rates, `count(*)::DOUBLE / n`) — parked by EP-30 (2026-08-29); refused because arithmetic could launder small counts past the row-wise k rule | EP-31+ analyses want ratios computed in-SQL rather than post-hoc | needs taint tracking (which sub-expressions are count-family) so suppression still sees the underlying counts; EP-43's complementary suppression is the natural home | v2 DIS-3 |
 
 ## Cross-cutting
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

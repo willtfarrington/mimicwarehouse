@@ -1,16 +1,21 @@
-"""``mwh catalog info``, ``mwh catalog dictionary`` and the interim ``mwh sql``
-(EP-21 item 3, EP-29 item 4; attached in :mod:`mimicwarehouse.cli`).
+"""``mwh catalog info``, ``mwh catalog dictionary`` and the final ``mwh sql``
+(EP-21 item 3, EP-29 item 4, EP-30 item 4; attached in :mod:`mimicwarehouse.cli`).
 
 ``catalog info`` prints ``meta.catalog_info`` and ``meta.catalog_tables`` — metadata
-only. ``sql`` is registered with its **final** option surface (``--tier``, ``--k``,
-``--format``) but, until EP-30 replaces its body with ``safe_query``, supports only
-``--tables``, ``--describe <schema.table>`` and ``--count <schema.table>``: any
-free-form statement exits 2 with "free-form SQL arrives with safe_query (EP-30)"
-(GOVERNANCE §4 — sessions see schemas, counts and metadata, never rows). A count below
-the small-cell threshold (0 < n < k) prints suppressed (GOVERNANCE §5; the shared
-``disclose`` module arrives with EP-43).
+only. ``sql`` routes **everything** — free-form statements and the ``--tables`` /
+``--describe`` / ``--count`` conveniences — through
+:func:`mimicwarehouse.safe.safe_query` (EP-30): read-only, allow-listed, aggregate-only,
+row-capped, k-suppressed, audited. A refusal prints the reason and exits 3
+(GOVERNANCE §4 — sessions see schemas, counts, dictionaries and statistics, never rows).
 
-Import budget: duckdb and the connect module are imported inside the command bodies
+Output discipline (EP-170 amendment 2, FC-16): ``table`` / ``csv`` output
+thousands-separates integers via :func:`mimicwarehouse.inventory.fmt_int` so pasted
+numbers never trip guard G4; ``--format json`` keeps raw ints and is never pasted into
+tracked files. Free-form output carries the audit footer
+``k=<k>: <rows> rows suppressed · audit <id> · tier <t> · snapshot <id>`` (on stderr for
+``csv`` so stdout stays parseable). Exports are EP-59's — there is no ``--out``.
+
+Import budget: duckdb, polars and the safe module are imported inside the command bodies
 (cli.py rule — ``mwh --help`` stays under ~0.5 s).
 """
 
@@ -19,25 +24,27 @@ from __future__ import annotations
 import json
 import re
 import sys
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.markup import escape
 
-from mimicwarehouse.console import console
+from mimicwarehouse.console import console, console_safe, err_console
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
 
     from mimicwarehouse.cli import CliState
     from mimicwarehouse.config import Settings
+    from mimicwarehouse.safe import SafeResult
 
 TIERS = ("fixture", "demo", "dev", "full")
 
 #: ``schema.table`` the metadata subcommands accept (contract identifiers only).
 QUALIFIED_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$")
 
-FREE_FORM_MESSAGE = "free-form SQL arrives with safe_query (EP-30)"
+#: Exit code of a safe_query refusal (brief EP-30 item 4).
+EXIT_REFUSED = 3
 
 catalog_app = typer.Typer(
     name="catalog",
@@ -203,19 +210,76 @@ def dictionary_command(
     )
 
 
-def _validated_table(con: duckdb.DuckDBPyConnection, qualified: str, prefix: str) -> str:
-    """``schema.table`` checked against the identifier grammar **and** the catalog's own
-    information_schema (parameterized) before it is ever interpolated into SQL."""
-    if not QUALIFIED_RE.match(qualified):
-        _fail(prefix, f"{qualified!r} is not a schema.table identifier")
-    schema, table = qualified.split(".", 1)
-    hit = con.execute(
-        "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
-        [schema, table],
-    ).fetchone()
-    if hit is None:
-        _fail(prefix, f"no table {qualified} in this catalog (mwh catalog info lists them)")
-    return f'{schema}."{table}"'
+# ---------------------------------------------------------------------------
+# mwh sql — the final body over safe_query (EP-30 item 4)
+# ---------------------------------------------------------------------------
+
+#: The statement behind ``--tables`` (information_schema only — metadata-exempt).
+_TABLES_SQL = (
+    "SELECT table_schema || '.' || table_name AS table_name "
+    "FROM information_schema.tables "
+    "WHERE table_schema LIKE 'mimiciv%' OR table_schema IN ('meta', 'marts') "
+    "ORDER BY 1"
+)
+
+
+def _cell(value: Any) -> str:
+    """One table/CSV cell: integers thousands-separated (FC-16 / guard G4)."""
+    from mimicwarehouse.inventory import fmt_int
+
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return fmt_int(value)
+    return str(value)
+
+
+def _footer(result: SafeResult) -> str:
+    from mimicwarehouse.inventory import fmt_int
+
+    return (
+        f"k={result.k}: {fmt_int(result.rows_suppressed)} rows suppressed"
+        f" · audit {result.audit_id}"
+        f" · tier {result.tier}"
+        f" · snapshot {result.snapshot_id or '-'}"
+    )
+
+
+def _print_free_form(result: SafeResult, output_format: str) -> None:
+    df = result.df
+    if output_format == "json":
+        payload = {
+            "tier": result.tier,
+            "k": result.k,
+            "n_rows": result.n_rows,
+            "rows_suppressed": result.rows_suppressed,
+            "audit_id": result.audit_id,
+            "snapshot_id": result.snapshot_id,
+            "columns": df.columns,
+            "rows": df.to_dicts(),
+        }
+        sys.stdout.write(json.dumps(payload, default=str) + "\n")
+        return
+    if output_format == "csv":
+        import csv
+
+        writer = csv.writer(sys.stdout, lineterminator="\n")
+        writer.writerow(df.columns)
+        for row in df.rows():
+            writer.writerow([_cell(v) for v in row])
+        err_console.print(console_safe(escape(_footer(result))), highlight=False)
+        return
+    from rich.table import Table as RichTable
+
+    listing = RichTable(pad_edge=False)
+    for name, dtype in df.schema.items():
+        listing.add_column(name, justify="right" if dtype.is_numeric() else "left")
+    for row in df.rows():
+        listing.add_row(*(escape(_cell(v)) for v in row))
+    console.print(listing)
+    console.print(console_safe(escape(_footer(result))), highlight=False)
 
 
 def sql_command(
@@ -224,7 +288,8 @@ def sql_command(
         str | None,
         typer.Argument(
             metavar="[STATEMENT]",
-            help="Free-form SQL — refused until EP-30 ships safe_query.",
+            help="One aggregate SELECT (or DESCRIBE schema.table / SHOW TABLES) — "
+            "runs through safe_query (EP-30): allow-listed, k-suppressed, audited.",
         ),
     ] = None,
     tier: Annotated[
@@ -235,12 +300,17 @@ def sql_command(
         int | None,
         typer.Option(
             "--k",
-            help="Small-cell threshold (default: settings.k_suppression = 11). Do not lower.",
+            help="Small-cell threshold (default: settings.k_suppression = 11); "
+            "k < 11 is refused on dev/full (D-31/D-33).",
         ),
     ] = None,
+    row_cap: Annotated[
+        int,
+        typer.Option("--row-cap", help="Maximum result rows after suppression."),
+    ] = 200,
     output_format: Annotated[
         str,
-        typer.Option("--format", help="Output format: table | json."),
+        typer.Option("--format", help="Output format: table | csv | json."),
     ] = "table",
     tables: Annotated[
         bool, typer.Option("--tables", help="List the catalog's schema.table names.")
@@ -254,91 +324,107 @@ def sql_command(
         typer.Option("--count", metavar="SCHEMA.TABLE", help="count(*) of a table."),
     ] = None,
 ) -> None:
-    """Query a tier catalog (EP-30 wires safe_query; until then: metadata and counts only)."""
+    """Query a tier catalog through safe_query (EP-30): aggregates, schemas and counts
+    only — refusals exit 3 with the reason; every call is audited."""
     prefix = "mwh sql"
     state: CliState = ctx.obj
-    if output_format not in ("table", "json"):
-        _fail(prefix, f"unknown --format {output_format!r}; expected table | json")
-    if statement is not None:
-        _fail(prefix, FREE_FORM_MESSAGE)
-    if sum([tables, describe is not None, count is not None]) != 1:
+    if output_format not in ("table", "csv", "json"):
+        _fail(prefix, f"unknown --format {output_format!r}; expected table | csv | json")
+    selectors = sum([statement is not None, tables, describe is not None, count is not None])
+    if selectors != 1:
         _fail(
             prefix,
-            "give exactly one of --tables, --describe SCHEMA.TABLE or --count SCHEMA.TABLE "
-            f"({FREE_FORM_MESSAGE})",
+            "give exactly one of a STATEMENT, --tables, --describe SCHEMA.TABLE or "
+            "--count SCHEMA.TABLE",
         )
     settings = state.settings
     resolved_tier = tier if tier is not None else settings.default_tier
     _require_tier(prefix, resolved_tier)
     threshold = k if k is not None else settings.k_suppression
+    for qualified in (describe, count):
+        if qualified is not None and not QUALIFIED_RE.match(qualified):
+            _fail(prefix, f"{qualified!r} is not a schema.table identifier")
 
-    con = _open(resolved_tier, settings, prefix)
-    try:
-        if tables:
-            rows = con.execute(
-                "SELECT table_schema || '.' || table_name FROM information_schema.tables "
-                "WHERE table_schema LIKE 'mimiciv%' OR table_schema IN ('meta', 'marts') "
-                "ORDER BY 1"
-            ).fetchall()
-            names = [r[0] for r in rows]
-            if output_format == "json":
-                sys.stdout.write(json.dumps({"tier": resolved_tier, "tables": names}) + "\n")
-            else:
-                for name in names:
-                    console.print(escape(name), highlight=False)
-            return
-        if describe is not None:
-            target = _validated_table(con, describe, prefix)
-            described = con.execute(f"DESCRIBE {target}").fetchall()
-            # contract descriptions from the catalog's COMMENT ONs (EP-29; DESCRIBE
-            # itself does not surface them)
-            schema, table = describe.split(".", 1)
-            comments = dict(
-                con.execute(
-                    "SELECT column_name, comment FROM duckdb_columns() "
-                    "WHERE schema_name = ? AND table_name = ?",
-                    [schema, table],
-                ).fetchall()
+    from mimicwarehouse.catalog.connect import CatalogOpenError
+    from mimicwarehouse.safe import SafeQueryRefused, safe_query
+
+    def run(sql: str) -> SafeResult:
+        try:
+            return safe_query(
+                sql,
+                tier=resolved_tier,
+                k=threshold,
+                row_cap=row_cap,
+                settings=settings,
             )
-            if output_format == "json":
-                payload = [
-                    {"column": d[0], "type": d[1], "null": d[2], "comment": comments.get(d[0])}
-                    for d in described
-                ]
-                sys.stdout.write(
-                    json.dumps({"tier": resolved_tier, "table": describe, "columns": payload})
-                    + "\n"
-                )
-                return
-            from rich.table import Table as RichTable
+        except SafeQueryRefused as exc:
+            console.print(f"[bold red]{prefix}: refused:[/] {escape(str(exc))}", highlight=False)
+            raise typer.Exit(code=EXIT_REFUSED) from None
+        except CatalogOpenError as exc:
+            _fail(prefix, str(exc))
+            raise AssertionError from exc  # unreachable; _fail always raises
 
-            listing = RichTable(title=f"{describe} ({resolved_tier})", pad_edge=False)
-            for col in ("column", "type", "null", "comment"):
-                listing.add_column(col)
-            for d in described:
-                listing.add_row(
-                    escape(str(d[0])),
-                    escape(str(d[1])),
-                    str(d[2]),
-                    escape(str(comments.get(d[0]) or "")),
-                )
-            console.print(listing)
+    if tables:
+        result = run(_TABLES_SQL)
+        names = [str(r[0]) for r in result.df.rows()]
+        if output_format == "json":
+            sys.stdout.write(json.dumps({"tier": resolved_tier, "tables": names}) + "\n")
+        else:
+            for name in names:
+                console.print(escape(name), highlight=False)
+        return
+
+    if describe is not None:
+        schema, table = describe.split(".", 1)
+        result = run(f'DESCRIBE {schema}."{table}"')
+        described = result.df
+        comments_result = run(
+            "SELECT column_name, comment FROM duckdb_columns() "
+            f"WHERE schema_name = '{schema}' AND table_name = '{table}'"
+        )
+        comments = {str(name): comment for name, comment in comments_result.df.rows()}
+        if output_format == "json":
+            payload = [
+                {
+                    "column": row["column_name"],
+                    "type": row["column_type"],
+                    "null": row["null"],
+                    "comment": comments.get(str(row["column_name"])),
+                }
+                for row in described.to_dicts()
+            ]
+            sys.stdout.write(
+                json.dumps({"tier": resolved_tier, "table": describe, "columns": payload}) + "\n"
+            )
             return
-        assert count is not None
-        target = _validated_table(con, count, prefix)
-        row = con.execute(f"SELECT count(*) FROM {target}").fetchone()
-        assert row is not None
-        n = int(row[0])
-        # GOVERNANCE §5: a count below the threshold is a small cell — suppressed on
-        # anything returned to a session (EP-43 centralises this in `disclose`).
-        suppressed = 0 < n < threshold
+        from rich.table import Table as RichTable
+
+        listing = RichTable(title=f"{describe} ({resolved_tier})", pad_edge=False)
+        for col in ("column", "type", "null", "comment"):
+            listing.add_column(col)
+        for row in described.to_dicts():
+            name = str(row["column_name"])
+            listing.add_row(
+                escape(name),
+                escape(str(row["column_type"])),
+                str(row["null"]),
+                escape(str(comments.get(name) or "")),
+            )
+        console.print(listing)
+        return
+
+    if count is not None:
+        schema, table = count.split(".", 1)
+        result = run(f'SELECT count(*) AS n FROM {schema}."{table}"')
+        suppressed = result.rows_suppressed > 0
+        n = None if suppressed or result.df.is_empty() else int(result.df["n"][0])
         if output_format == "json":
             sys.stdout.write(
                 json.dumps(
                     {
                         "tier": resolved_tier,
                         "table": count,
-                        "count": None if suppressed else n,
+                        "count": n,
                         "suppressed": suppressed,
                         "k": threshold,
                     }
@@ -351,13 +437,17 @@ def sql_command(
                 highlight=False,
             )
         else:
-            console.print(f"{escape(count)} count(*) = {n:,}", highlight=False)
-    finally:
-        con.close()
+            from mimicwarehouse.inventory import fmt_int
+
+            console.print(f"{escape(count)} count(*) = {fmt_int(n)}", highlight=False)
+        return
+
+    assert statement is not None
+    _print_free_form(run(statement), output_format)
 
 
 __all__ = [
-    "FREE_FORM_MESSAGE",
+    "EXIT_REFUSED",
     "catalog_app",
     "dictionary_command",
     "info_command",

@@ -8,8 +8,10 @@ recorded), the materialization decision (dims are tables, subject-keyed tables a
 views, unstaged tables are omitted and listed ``missing``), the read-only refusals
 (INSERT, ``.new`` path, version mismatch) and the rename-aside swap's documented
 failure with a non-sharing reader. A crafted mini lake proves a ``tier_complete =
-"dev"`` table appears in the ``dev`` catalog but not ``full``. The interim ``mwh sql``
-refuses a crafted free-form statement with exit 2 (the governance acceptance clause).
+"dev"`` table appears in the ``dev`` catalog but not ``full``. ``mwh sql`` (final body
+since EP-30, routed through ``safe_query``) refuses a crafted row-level statement with
+exit 3 (the governance acceptance clause) and keeps the EP-21 metadata surface
+(``--tables`` / ``--describe`` / ``--count``).
 
 ``tier("dev")``-marked: ``open_catalog("dev")`` sees exactly the tables
 ``mwh catalog info`` reports. Everything asserted or printed is counts, schemas, paths
@@ -33,7 +35,7 @@ from mimicwarehouse.catalog.build import (
     catalog_new_path,
     qualifies,
 )
-from mimicwarehouse.catalog.cli import FREE_FORM_MESSAGE
+from mimicwarehouse.catalog.cli import EXIT_REFUSED
 from mimicwarehouse.catalog.connect import CatalogOpenError, open_catalog
 from mimicwarehouse.cli import app
 from mimicwarehouse.dag.snapshot import read_snapshots
@@ -283,15 +285,15 @@ def test_dev_complete_table_only_in_the_dev_catalog(mini_lake: Settings) -> None
 
 
 # ---------------------------------------------------------------------------
-# 8. The interim mwh sql: metadata/counts only; free-form SQL exits 2 (governance clause)
+# 8. mwh sql (final body since EP-30): row-level SQL exits 3 (governance clause)
 # ---------------------------------------------------------------------------
 
 
-def test_sql_refuses_free_form(data_root: Path) -> None:
+def test_sql_refuses_row_level(data_root: Path) -> None:
     runner = helpers.cli_runner()
     result = runner.invoke(app, ["sql", "--tier", "fixture", f"SELECT * FROM {HOSP}.patients"])
-    assert result.exit_code == 2, result.output
-    assert FREE_FORM_MESSAGE in result.output
+    assert result.exit_code == EXIT_REFUSED, result.output
+    assert "refused" in result.output
 
 
 def test_sql_metadata_surface(fixture_lake_settings: Settings) -> None:
@@ -333,7 +335,7 @@ def test_sql_metadata_surface(fixture_lake_settings: Settings) -> None:
         assert columns[0] == "itemid"
 
         bad = runner.invoke(app, [*root, "sql", "--tier", "fixture", "--count", "no_such.table"])
-        assert bad.exit_code == 2 and "no table" in bad.output
+        assert bad.exit_code == EXIT_REFUSED and "not allowed" in bad.output
     finally:
         config.configure()
 

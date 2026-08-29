@@ -26,9 +26,15 @@ style preferences. Read them fully before doing anything.
   shells against those paths are equally forbidden. Never work around a denial; the shell
   rules match the *string*, so use the Read/Grep tools for docs that merely mention the
   tokens, and for `source material/README.md`.
-- All queries go through `mimicwarehouse.safe.safe_query(...)` or `uv run mwh sql`
-  (read-only, allow-listed, row-capped, k = 11 suppression, audit-logged; until EP-30
-  ships them, sessions query no real data at all). You may only see **aggregates, schemas,
+- From EP-30 on, `mwh sql`/`safe_query` is the only way a session queries data —
+  read-only, allow-listed, aggregate-only, row-capped, k = 11 suppression, every call
+  audited to `runs/audit.jsonl`. Usage:
+
+  ```
+  uv run --group dev mwh sql "SELECT anchor_year_group, count(*) AS n FROM mimiciv_hosp.patients GROUP BY 1" --tier dev
+  ```
+
+  Refusals exit 3 with the reason. You may only see **aggregates, schemas,
   dictionaries, counts and statistics** — never identifiers (`subject_id`, `hadm_id`,
   `stay_id`, `note_id`, …), never row samples, never note text.
 - claude.ai connectors and WebFetch/WebSearch are a second egress path: public-reference

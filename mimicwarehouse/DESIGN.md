@@ -562,6 +562,42 @@ audited `owner_rows()` path that is never reachable from the CLI used by Claude 
 Enforcement is layered: code (this module) + `CLAUDE.md` + repo `.claude/settings.json`
 deny rules (D-39).
 
+> **Note (2026-08-29, EP-30 — safe_query shipped; the final rule set).**
+> `safe_query(sql, *, tier="dev", k=11, row_cap=200, timeout_s=120, actor=None,
+> settings=None) -> SafeResult` pipelines: (1) **parse** via DuckDB
+> `json_serialize_sql` (the statement is a bound parameter, never executed) — exactly
+> one SELECT (CTEs allowed) or `DESCRIBE <schema.table>` / `SHOW TABLES` /
+> `SHOW ALL TABLES`; set operations (UNION/…) are refused (parked); (2) **allow-list**
+> — no file/env/SQL-indirection functions (`read_*`, `parquet_*`, `scan_*`, `sniff_*`,
+> `glob`, `getenv`, `current_setting`, `duckdb_settings`, plus `query`/`query_table`,
+> which would bypass the static walk); schemas limited to `mimiciv_hosp, mimiciv_icu,
+> mimiciv_derived, meta, marts, runs, information_schema` (+ `duckdb_tables()` /
+> `duckdb_columns()`); unqualified names must be CTEs; (3) **aggregate-only** on the
+> outermost select list — aggregates from a closed set with no value-collecting members
+> (no `string_agg`/`list`/`histogram`/`arg_min`…), GROUP BY keys (structural, positional,
+> by alias, or `GROUP BY ALL`) or constants; identifier columns only inside
+> count/count(DISTINCT)/approx_count_distinct; ≥ 1 count-family column unless the
+> statement reads only `meta.*`, dims (`Table.is_dim`) or `information_schema` (EP-170
+> amendment 1); (4) **execute** on `open_catalog(tier)` with `runs.duckdb` ATTACHed
+> READ_ONLY when present and a `threading.Timer → con.interrupt()` at `timeout_s`;
+> (5) **result checks** — output columns named like identifiers or contract `free_text`
+> columns are refused by name; the 64-char/newline VARCHAR heuristic applies only to
+> statements reading a subject-keyed table, with `description`/`short_description`
+> allow-listed as label columns (ARCH-10/FC-18); post-suppression rows ≤ `row_cap`;
+> (6) **suppression** via the module-level `safe.SUPPRESSOR` hook (default: drop rows
+> with any count-family value in 1…k−1; EP-43 swaps in `disclose.suppress`); `k < 11`
+> refused on dev/full, lowerable on fixture/demo. Every call appends one line to
+> `runs/audit.jsonl` (`O_APPEND`+fsync): `{audit_id, ts, actor, tier, statement_sha256,
+> sql_text, allowed, refusal_reason, n_rows, rows_suppressed, k, wall_ms,
+> duckdb_version, snapshot_ids ({layer: id}, here {"core": core_snapshot_id}; ARCH-6),
+> git_sha}` — never values. `safe.build_runs_db()` publishes `warehouse/runs.duckdb`
+> (view `audit` over the JSONL) by the §6 rename-aside swap; `mwh runs refresh` calls
+> it. `mwh sql` (final body) routes free-form statements and `--tables`/`--describe`/
+> `--count` through `safe_query`, prints the `k=… · audit … · tier … · snapshot …`
+> footer, thousands-separates table/CSV integers via `inventory.fmt_int` (FC-16; JSON
+> keeps raw ints) and exits 3 on refusal. `CatalogOpenError` (no catalog) propagates
+> unaudited — an environment error, not a statement verdict.
+
 ## 13. Protocol freeze (D-25)
 
 `mimicwarehouse.protocol` (EP-51): pydantic `Protocol` (cohort ref, exposure, outcome,
@@ -585,7 +621,7 @@ n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59,
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs; planned: sql demo runs protocol disclose backup app init
+│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs; planned: protocol disclose backup app init
 │   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
 │   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
 │   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
@@ -600,7 +636,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── dag/                       EP-19 shipped  (spec, runner, snapshot, benchmarks, jobs, cli — `mwh build` / `mwh jobs`)
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
 │   ├── demo.py                    EP-22
-│   ├── safe.py                    EP-30  safe_query, audit
+│   ├── safe.py                    EP-30 shipped  safe_query, audit JSONL, runs.duckdb (+ runs_cli.py: `mwh runs refresh`)
 │   ├── timesem.py                 EP-34  eras, relative time, dod rule, grains
 │   ├── run.py                     EP-35/36 run ledger, seeds, resource log
 │   ├── concepts/                  EP-8 shipped (vendor/ + pin); EP-37/38 runner + patches
