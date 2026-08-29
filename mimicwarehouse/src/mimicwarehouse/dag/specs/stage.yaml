@@ -214,6 +214,33 @@ steps:
     source: mimic-iv-3.1/icu/chartevents.csv
     tags: [stage, mimiciv_icu, large, chartevents]
     tiers: [fixture, demo, dev, full]
+  # icu-events (EP-27): the three remaining icu event tables in one background job. The
+  # runner is sequential on one connection (single writer), so no depends_on between them;
+  # spec order stages inputevents before ingredientevents (ingredientevents' orderid links
+  # back to the inputevents order), datetimeevents last. size_class / partitioned / sort_by
+  # come from the contract (all load_class large, partitioned, sort_keys tie-broken at
+  # EP-169) — no overrides here.
+  - name: stage.mimiciv_icu.inputevents
+    kind: stage
+    schema: mimiciv_icu
+    table: inputevents
+    source: mimic-iv-3.1/icu/inputevents.csv
+    tags: [stage, mimiciv_icu, large, icu-events]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_icu.ingredientevents
+    kind: stage
+    schema: mimiciv_icu
+    table: ingredientevents
+    source: mimic-iv-3.1/icu/ingredientevents.csv
+    tags: [stage, mimiciv_icu, large, icu-events]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_icu.datetimeevents
+    kind: stage
+    schema: mimiciv_icu
+    table: datetimeevents
+    source: mimic-iv-3.1/icu/datetimeevents.csv
+    tags: [stage, mimiciv_icu, large, icu-events]
+    tiers: [fixture, demo, dev, full]
   # -- mimiciv_icu: dimensions (unpartitioned) ---------------------------------------------
   - name: stage.mimiciv_icu.d_items
     kind: stage
@@ -260,5 +287,8 @@ steps:
       - stage.mimiciv_icu.procedureevents
       - stage.mimiciv_icu.outputevents
       - stage.mimiciv_icu.chartevents
+      - stage.mimiciv_icu.inputevents
+      - stage.mimiciv_icu.ingredientevents
+      - stage.mimiciv_icu.datetimeevents
       - stage.mimiciv_icu.d_items
       - stage.mimiciv_icu.caregiver

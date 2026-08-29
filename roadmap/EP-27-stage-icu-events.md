@@ -69,3 +69,42 @@ note.
 - `uv run poe test -m ep_27` green on fixture; `tier("dev")`-marked test green once `dev-ready` (or recorded as pending for EP-28); `uv run --group dev mwh verify EP-27` green.
 - Launched `mwh build --tier full …` **in the background**; log at `%MWH_DATA_ROOT%\runs\jobs\stage-icu-events-full.log`; job id and build id recorded here; timing verified by EP-28.
 - The coverage test proves all 31 hosp + icu contract tables are staged by exactly one brief; no rows in logs or tool output.
+
+> **Launch note (2026-08-29).** Job `stage-icu-events-full` (pid 49376) launched first thing
+> (right after the one spec edit adding the three `icu-events` steps) via
+> `uv run --group dev mwh build --tier full --tag icu-events --background --job stage-icu-events-full`;
+> log `%MWH_DATA_ROOT%\runs\jobs\stage-icu-events-full.log`; started 2026-08-29T20:45:45Z;
+> build id `20260829T204546-full-5c4c49c`; 3 sequential steps in spec order
+> (`inputevents` → `ingredientevents` → `datetimeevents`); **sweeps = 1** (loader default —
+> EP-24's VARCHAR-heavy high-water was emar_detail's 24,563 MB peak RSS on an ~8 GB, 33-column
+> CSV; these three are ~2.7 / ~2.4 / ~1.1 GB with far fewer VARCHAR columns, so no memory
+> pressure expected under the 36 GB `memory_limit`). Pre-flight answers: `mwh doctor` OK
+> (9 pass · 0 fail; the `antivirus` warn is the expected D-38\D-42 one) — **393.2 \ 951.5 GB
+> free on C:** at start, BitLocker on, Defender exclusion on the owner's word (not readable
+> non-elevated, D-42), **AC power mode Best performance**, DuckDB 1.5.5 == pin,
+> `memory_limit` 36 GB (build profile) / `threads` 12 / `temp_directory`
+> `C:\mimicdata\tmp\duckdb` with explicit `max_temp_directory_size` 150 GB; `mwh jobs`
+> showed all prior jobs `done` (EP-26's chartevents job included) and no running build.
+> EP-28 verifies timing/RSS/disk and appends the completion note.
+>
+> The job finished **inside the session**: exit 0 at 2026-08-29T20:46:46Z — total wall 61 s
+> against the brief's well-under-an-hour budget. Step summaries from the job table (counts
+> only; EP-28 reconciles against `validate.sql` and the benchmark ledger): `inputevents`
+> 10,953,713 rows / 28.9 s · `ingredientevents` 14,253,480 rows / 22.2 s · `datetimeevents`
+> 9,979,761 rows / 8.1 s — each into 100 sorted `part-0.parquet` buckets; snapshot
+> `core/full` `b1fc5313…`. With the job complete, the dev catalog was refreshed
+> (`mwh build --tier dev --select catalog`, build `20260829T204959-dev-5c4c49c`, 31 views)
+> and the item-6 dev-marked test ran **green for real** (8/8 at `--tier dev`): dev counts
+> equal the dev-bucket manifest sums, and all three reported counts are 0 — inputevents
+> rows without an icustays row, ingredientevents rows without an inputevents order, and
+> datetimeevents rows with NULL `value`.
+>
+> Verify-only outcome for items 1–2 (as the EP-170 amendment predicted): the contract
+> already carried the tie-broken sort keys, types and `load_class: large` for all three
+> tables, `ingredientevents.expected_rows_source: null` [FC-12], and `keys.yaml` already
+> listed `orderid`/`linkorderid`/`caregiver_id` as identifiers — zero contract/keys edits,
+> no dated notes needed. Touched earlier-EP module (README CMP-6 rule): the rolling probe
+> in `tests/ep/test_ep21.py::test_catalog_info_cli` pinned `datetimeevents` as the catalog's
+> `missing`-kind witness "until EP-27 stages it"; with all 31 hosp+icu tables now staged it
+> asserts `datetimeevents` is a view and that no `missing` entry remains. `mwh verify EP-21`
+> re-run green (12/12).
