@@ -92,3 +92,19 @@ Docs-only (tier n/a): research and write; download nothing (that is EP-40/EP-143
   account (v2 PHE-3, TXT-1).
 - Full RxNorm/ATC drug-class normalisation of `prescriptions`/`emar` (beyond drug-name regex sets); trigger: an
   exposure workflow (EP-86/144) needs class-level exposure.
+
+> **Completion note (2026-08-28).** Docs-only, no data touched; `0ed9516` feat + `5c92edb` tick. `poe test -m ep_14`
+> and `mwh verify EP-14` green (8 tests); full `poe check` 535 passed. Register shipped with **20 rows** (RxNorm split
+> into full-release vs Current Prescribable Content rows; HCPCS Level II vs CPT and MS-DRG vs APR-DRG each split, so
+> the licensing verdicts stay one-per-row). Every URL verified live 2026-08-28; method deviations worth reusing:
+> cms.gov, fda.gov and loinc.org refuse the harness web fetcher (HTTP 403/404) but serve `curl` with a browser
+> user-agent; `www.cdc.gov` refuses all automated fetch, so the ICD-10-CM row cites NCHS's file host
+> `ftp.cdc.gov/pub/Health_Statistics/NCHS/Publications/ICD10CM/` (directory listing verified, FY dirs through 2027);
+> the CMS GEMs live at the consolidated `icd-10-cm-icd-10-pcs-gem-archive` slug (the brief's `2018-icd-10-cm-gem`
+> URL is gone); Quan 2005 was verified via the PubMed connector and is cited **by DOI only** — its PMID is an
+> 8-digit token inside the real `subject_id` band and would trip guard G4. Facts pinned: LOINC 2.83 (2026-08-19,
+> login-gated, non-redistributable); RxNorm Current Prescribable Content is public-domain/no-login (the free v1 drug
+> path); ATC 2026 edition — bulk index purchased, RxNorm→ATC needs UMLS, EP-143 free fallbacks = Elixhauser/LOINC
+> map; CCSR + Elixhauser CSR both v2026.1; mimic-code `concept_map` = 4 CSVs (chartevents→loinc/omop,
+> procedureevents→omop/snomed; via `gh api`). Second Parked item mirrored into `final-roadmap.md` as v2 PHE-4 (the
+> first was already there as v2 PHE-3/TXT-1).
