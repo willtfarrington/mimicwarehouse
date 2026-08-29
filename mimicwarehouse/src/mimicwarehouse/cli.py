@@ -10,30 +10,37 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 ``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) ·
 ``disclose`` (EP-43/133) · ``init`` (EP-158).
 
-Settings (EP-3): the callback loads :class:`mimicwarehouse.config.Settings` once per
-invocation — ``--data-root`` > ``MWH_*`` env > ``.env`` > ``mwh.toml`` > defaults — installs
-the override process-wide (:func:`mimicwarehouse.config.configure`, so ``get_settings()``
-agrees with ``ctx.obj``) and hands the instance to the command as ``CliState.settings``.
-Every command gets **validated** settings (an unsafe data root exits 2 before the command
-runs) except the diagnostic commands in :data:`DIAGNOSTIC_COMMANDS`, which receive the
-unchecked instance so they can *report* the problem.
+Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
+:class:`mimicwarehouse.config.Settings` once per invocation — ``--data-root`` > ``MWH_*`` env >
+``.env`` > ``mwh.toml`` > defaults — installs the override process-wide
+(:func:`mimicwarehouse.config.configure`, so ``get_settings()`` agrees with ``ctx.obj``) and
+hands a :class:`CliState` to the command. A configuration error (broken ``.env``/``mwh.toml``)
+is stored as :attr:`CliState.pending_error` instead of raised, and the D-29 location refusals
+run on the **first access** of :attr:`CliState.settings` by a non-diagnostic command — so
+``--help``, ``--version`` and ``no_args_is_help`` always work, even over an unsafe or broken
+configuration (retro CFG-5), while ``mwh inventory build`` still exits 2 before touching
+anything. The diagnostic commands in :data:`DIAGNOSTIC_COMMANDS` receive the unchecked
+instance so they can *report* the problem. Whether the allow-list should give way to fully
+lazy validation everywhere is the EP-16 (re-plan P1) decision; until then the set below is
+authoritative.
 
 Import-time budget: ``mwh --help`` must stay under ~0.5 s, so this module never imports
 duckdb / pandas / polars / pyarrow — commands import what they need inside their bodies.
+The ``mwh`` script entry point is :func:`mimicwarehouse.console.run` (UTF-8 stdio, EP-167),
+which calls :data:`app`; ``python -m mimicwarehouse.cli`` still works.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 from rich.markup import escape
 
 from mimicwarehouse import __version__, config
 from mimicwarehouse.config import Settings, paths_command
+from mimicwarehouse.console import console, err_console
 from mimicwarehouse.doctor import doctor_command
 from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
@@ -48,11 +55,12 @@ from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 #: ``schema`` only reads the packaged YAML contract and the vendored DDL, so a bad root must not
 #: hide a schema-drift check (EP-9); ``fixtures`` reads the packaged vocab + contract and writes
 #: synthetic files under ``tests/fixtures/`` in the checkout - never the data root (EP-11).
+#: Since EP-167 validation is lazy (first ``CliState.settings`` access), so this allow-list only
+#: decides *whether* that access validates; replacing it with lazy validation everywhere is the
+#: EP-16 decision.
 DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset(
     {"doctor", "paths", "guard", "verify", "schema", "fixtures"}
 )
-
-console = Console()
 
 app = typer.Typer(
     name="mwh",
@@ -64,12 +72,42 @@ app = typer.Typer(
 )
 
 
-@dataclass(frozen=True, slots=True)
 class CliState:
-    """Per-invocation state handed to commands through ``ctx.obj``."""
+    """Per-invocation state handed to commands through ``ctx.obj`` (EP-167 lazy validation).
 
-    settings: Settings
-    data_root_override: Path | None = None
+    :attr:`settings` is a property: the callback stores the unchecked instance (or the
+    configuration error it failed with), and the first access by a non-diagnostic command
+    runs the D-29 location refusals — raising ``typer.Exit(2)`` with the message — so
+    ``--help`` on any subcommand never trips over a broken or unsafe configuration.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings: Settings | None,
+        pending_error: Exception | None = None,
+        diagnostic: bool = False,
+        data_root_override: Path | None = None,
+    ) -> None:
+        self._settings = settings
+        self._validated = False
+        self.pending_error = pending_error
+        self.diagnostic = diagnostic
+        self.data_root_override = data_root_override
+
+    @property
+    def settings(self) -> Settings:
+        if self._settings is None:
+            console.print(f"[bold red]mwh:[/] {escape(str(self.pending_error))}", highlight=False)
+            raise typer.Exit(code=2)
+        if not self.diagnostic and not self._validated:
+            try:
+                self._settings.require_safe()
+            except config.UnsafeLocationError as exc:
+                console.print(f"[bold red]mwh:[/] {escape(str(exc))}", highlight=False)
+                raise typer.Exit(code=2) from None
+            self._validated = True
+        return self._settings
 
     @property
     def data_root(self) -> Path:
@@ -106,15 +144,25 @@ def main(
 ) -> None:
     overrides = {"data_root": data_root} if data_root is not None else {}
     config.configure(**overrides)
-    checked = ctx.invoked_subcommand not in DIAGNOSTIC_COMMANDS
+    settings: Settings | None = None
+    pending: Exception | None = None
     try:
-        settings = (
-            config.get_settings() if checked else config.load_settings(checked=False, **overrides)
-        )
+        settings = config.load_settings(checked=False, **overrides)
     except (config.ConfigError, config.ValidationError) as exc:
-        console.print(f"[bold red]mwh:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
-    ctx.obj = CliState(settings=settings, data_root_override=data_root)
+        pending = exc
+    unknown = config.unknown_env_keys()
+    if unknown:
+        err_console.print(
+            f"[yellow]mwh:[/] ignoring unknown MWH_* environment variable(s): "
+            f"{escape(', '.join(unknown))} — not a Settings field (mwh doctor lists them)",
+            highlight=False,
+        )
+    ctx.obj = CliState(
+        settings=settings,
+        pending_error=pending,
+        diagnostic=ctx.invoked_subcommand in DIAGNOSTIC_COMMANDS,
+        data_root_override=data_root,
+    )
 
 
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------

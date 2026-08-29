@@ -16,8 +16,8 @@ the ground truth.
 
 | Module | EP | CLI | Tests |
 |---|---|---|---|
-| `config.py` — `Settings` (pydantic-settings), the 15-key data-root layout (18 from EP-167), D-29 location refusals, free-space guard | EP-3 | `mwh paths [--create] [--json]` | `tests/ep/test_ep03.py` |
-| `cli.py` + `doctor.py` — typer/rich entry point; 14 host checks incl. `antivirus` | EP-2, EP-164 | `mwh doctor [--json]` · `mwh --version` | `test_ep02.py` · `test_ep164.py` |
+| `config.py` — `Settings` (pydantic-settings), the 18-key data-root layout (per-tier lake roots `lake/fixture`·`lake/demo`·`lake/rejects`), D-29 location refusals, per-tier free-space guard, `unknown_env_keys` | EP-3, EP-167 | `mwh paths [--create] [--json]` | `tests/ep/test_ep03.py` · `test_ep167.py` |
+| `cli.py` + `doctor.py` + `console.py` — typer/rich entry point (UTF-8 `console:run` wrapper, shared consoles); lazy settings validation (`--help` works over a broken/unsafe config); 15 host checks incl. `antivirus`, `deny_coverage` | EP-2, EP-164, EP-167 | `mwh doctor [--json]` · `mwh --version` | `test_ep02.py` · `test_ep164.py` · `test_ep167.py` |
 | `guard.py` — pre-commit data-leak guard G1–G5 (G1/G4 hardened at EP-165) | EP-4, EP-165 | `mwh guard [PATHS…] [--staged \| --all-tracked \| --selfcheck]` | `test_ep04.py` · `test_ep165.py` |
 | `theme.py` — palette, Altair/Streamlit themes, wordmark + banner SVGs ([docs/brand/](docs/brand/README.md)) | EP-5 | — | `test_ep05.py` |
 | `verify.py` + `scripts/roadmap_check.py` — per-brief test runner, roadmap consistency check | EP-6 | `mwh verify EP-n \| --list \| --roadmap` · `poe roadmap-check` | `test_ep06.py` |
@@ -28,8 +28,8 @@ the ground truth.
 | `tests/conftest.py` — pytest tier markers and ladder (`--tier`, `PYTEST_TIER`; [tests/README.md](tests/README.md)) | EP-12 | `poe test-dev` / `poe test-full` | `test_ep12.py` |
 | `scripts/claude_pretool_guard.py` — PreToolUse session guard, registered in `.claude/settings.json` | EP-165 | `mwh guard --selfcheck` (`pretool-hook` row) | `test_ep165.py` |
 
-Gates as of EP-165 (2026-08-28): **452 fixture-tier tests** green (`poe check` = ruff +
-pyright + pytest) · `mwh doctor` **8 pass · 1 warn · 0 fail · 5 info**, exit 0 (the warn is
+Gates as of EP-167 (2026-08-28): **487 fixture-tier tests** green (`poe check` = ruff +
+pyright + pytest) · `mwh doctor` **9 pass · 1 warn · 0 fail · 5 info**, exit 0 (the warn is
 the `antivirus` row, by design — D-38/D-42) · `mwh guard --all-tracked` clean ·
 `poe roadmap-check --strict` 0 errors, 0 warnings.
 
@@ -99,7 +99,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `fmt`, `typecheck`, `check`. Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (`mwh` as of EP-165: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures`; `build`/`sql`/`app` land in P2+)
+## Quick start (`mwh` as of EP-167: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures`; `build`/`sql`/`app` land in P2+)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -107,10 +107,10 @@ cd mimicwarehouse
 uv sync --group dev                 # CPython 3.13 managed by uv; system Python untouched
 uv run --group dev mwh --version    # mwh 0.1.0
 copy .env.example .env              # optional: every MWH_* key with its default, commented; .env is gitignored
-uv run --group dev mwh doctor       # 14 host checks (below); exit 0 unless one fails
-uv run --group dev mwh paths        # the 15-directory data-root layout (18 from EP-167): path · exists · MB used, + which source set data_root
+uv run --group dev mwh doctor       # 15 host checks (below); exit 0 unless one fails
+uv run --group dev mwh paths        # the 18-directory data-root layout (incl. lake/fixture · lake/demo · lake/rejects, EP-167): path · exists · MB used, + which source set data_root
 uv run --group dev mwh paths --create   # safety validators + free-space guard, then creates C:\mimicdata\… (idempotent)
-uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[14], ok}
+uv run --group dev mwh doctor --json | ConvertFrom-Json   # {timestamp, host, checks[15], ok}
 uv run --group dev mwh --data-root G:\mimicdata paths --create   # refused: exit 2, nothing created (D-29)
 uv run --group dev mwh guard        # = --staged: what `git commit` would record, read from the index; exit 0 clean / 1 refused / 2 usage
 uv run --group dev mwh guard --all-tracked   # every tracked path (also `mwh guard <paths…>` for working-tree files/dirs, `--json`)
@@ -138,7 +138,10 @@ temp `<data_root>\tmp\duckdb` · `150GB` max temp, `min_free_gb=100`, `k_suppres
 are ignored by pydantic-settings and reported by `mwh doctor` (EP-167). Relative paths are
 anchored at this folder. Every command refuses to run when the
 data root is not a local fixed NTFS/ReFS volume (sync-client label, FAT32/cryptoFs, OneDrive,
-G:/D:); `doctor` and `paths` run anyway and *report* it.
+G:/D:); the six diagnostic commands — `doctor`, `paths`, `guard`, `verify`, `schema`,
+`fixtures` — run anyway and *report* it, and since EP-167 the refusal fires on the first
+settings access, so `--help`/`--version` work everywhere, even over a broken `.env` or an
+unsafe root (`mwh inventory build --help` exits 0; `mwh inventory build` still exits 2).
 
 `mwh doctor` exits 0 when no check **fails** (warn/info are allowed) and 1 otherwise:
 `python` · `uv` · `duckdb` (pin) · `settings` (sources in use, `.env`/`mwh.toml`/`source_root`
@@ -149,9 +152,13 @@ warns if the repo is on one) · `defender` (exclusion for the data root; info wh
 elevated, D-38) · `antivirus` (EP-164: every product Windows Security Center lists — names +
 real-time/up-to-date flags; **warns** when one besides Defender is present, because it keeps
 its own allow list — the seven D-38 paths — that the doctor cannot read; info when Defender is
-alone or the query fails) · `bitlocker` (fails when off, GOVERNANCE §2) · `power_scheme`
-(info) · `gpu` (info) · `longpaths`. The doctor never opens a data file; the `--json` object
-is what EP-35 embeds in run manifests.
+alone or the query fails) · `deny_coverage` (EP-167: warns when the data root is under no
+`.claude/settings.json` deny-rule prefix — a relocated `MWH_DATA_ROOT` silently loses its
+coverage, GOVERNANCE §2 / retro GOV-3; info when the file is missing) · `bitlocker` (fails
+when off, GOVERNANCE §2) · `power_scheme` (info) · `gpu` (info) · `longpaths` (+ the git
+version). The `settings` check also warns on unknown `MWH_*` environment variables (names
+only). The doctor never opens a data file; the `--json` object is what EP-35 embeds in run
+manifests.
 
 ## Contributing (EP-4: pre-commit + `mwh guard`)
 
@@ -198,8 +205,8 @@ benchmark ledger and verified by the next brief.
 mimicwarehouse/
 ├── pyproject.toml            ✓ uv project; groups core/dev/ui/gpu/gpl/text (EP-1)
 ├── .env.example              ✓ every MWH_* setting with its default (copy to .env; .env is gitignored)
-├── src/mimicwarehouse/       ✓ package: cli, config, doctor, guard, theme, verify, schema/, inventory,
-│                               fixtures/, concepts/vendor/ (see DESIGN §15 for the full module → EP map)
+├── src/mimicwarehouse/       ✓ package: cli, console, config, doctor, guard, theme, verify, schema/,
+│                               inventory, fixtures/, concepts/vendor/ (see DESIGN §15 for the full module → EP map)
 ├── scripts/                  ✓ roadmap_check.py (EP-6) · claude_pretool_guard.py (EP-165)
 ├── app/                      Streamlit multipage app (P4)
 ├── notebooks/                marimo scratch notebooks (zero-output .py)
@@ -209,7 +216,8 @@ mimicwarehouse/
 ```
 
 Data never lives here: raw CSVs stay in `../source material/` (gitignored), everything
-derived in `C:\mimicdata` (`MWH_DATA_ROOT`; the 15-directory tree (18 from EP-167) —
-`lake/{core,derived,marts,manifests}`, `warehouse`, `runs/jobs`, `models`, `notes`,
+derived in `C:\mimicdata` (`MWH_DATA_ROOT`; the 18-directory tree —
+`lake/{core,derived,marts,manifests}`, `lake/fixture`, `lake/demo`, `lake/rejects` (per-tier
+lake roots, EP-167), `warehouse`, `runs/jobs`, `models`, `notes`,
 `ext/demo`, `studies`, `tmp/duckdb` — is drawn in DESIGN §3 and created by
 `mwh paths --create`).

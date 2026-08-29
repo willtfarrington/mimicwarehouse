@@ -107,6 +107,9 @@ style preferences. Read them fully before doing anything.
   `roadmap/README.md` § Risks. Do not rewrite history in these files.
 - Aggregates, figures or screenshots may enter `docs/` or git only after
   `uv run mwh disclose check <path>` passes and writes a `.disclosure.json` sidecar.
+  Manifests of hashes/counts/schema (GOVERNANCE §3) may be committed without a sidecar; any
+  other aggregate, figure or screenshot needs `mwh disclose check` + `.disclosure.json`
+  (EP-43) — before EP-43 nothing else derived from real data enters `docs/` or git.
   Screenshots of row-level views only from the `demo`/`fixture` tiers.
 - Reports label their claim type (exploratory / confirmatory / predictive / associational
   / causal) and state that MIMIC-IV analyses are retrospective.

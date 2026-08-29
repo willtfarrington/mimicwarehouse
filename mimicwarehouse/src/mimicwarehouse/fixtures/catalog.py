@@ -11,8 +11,10 @@ tier (``tests/conftest.py`` ``fixture_catalog`` session fixture) until EP-21 bui
 ``fixture.duckdb`` from the same CSVs with the loader; the read-only cursor / safe-query
 discipline of the real catalogs does not apply here because every row is synthetic.
 
-Budget: < 5 s for the committed fixture (a few MB of CSV). Nothing here touches the data root:
-the settings are read only for the DuckDB configuration values.
+Budget: < 5 s for the committed fixture (a few MB of CSV). The settings are read for the
+DuckDB configuration values, and since EP-167 the connection site also ensures the configured
+``layout["tmp_duckdb"]`` directory exists (retro CFG-3) — the only path under the data root
+this module ever creates; no data is read or written there.
 """
 
 from __future__ import annotations
@@ -74,6 +76,9 @@ def build_fixture_catalog(
         raise FixtureCatalogError(
             f"fixture dataset directory {dataset} not found - run `uv run mwh fixtures build`"
         )
+    # DuckDB 1.5.5 creates a missing leaf temp dir but not a missing parent (IOException on
+    # first spill) — every connection site ensures it exists (EP-167, retro CFG-3).
+    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
     config: dict[str, Any] = dict(settings.duckdb_settings("app"))
     con = duckdb.connect(":memory:", config=config)
     try:

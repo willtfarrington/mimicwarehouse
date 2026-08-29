@@ -427,7 +427,8 @@ def test_build_writes_manifest_store_and_snapshot(settings, source_root: Path) -
     assert raw_snapshot_id(settings) == result.raw_snapshot_id
     contract = load_contract()
     for t in contract.tables:
-        rec = manifest.records[f"{DATASET_DIRS[t.dataset]}/{t.csv_path}"]
+        rec = manifest.for_table(t)  # EP-167: the table → record lookup
+        assert rec is not None and rec.rel_path == inventory.rel_path_for(t)
         assert rec.rows == expected_rows(t), t.qualified_name
         assert rec.header_matches_contract, t.qualified_name
         assert rec.rowcount_method == "duckdb"
@@ -644,7 +645,7 @@ def test_docs_page_is_a_manifest_only(settings, source_root: Path, tmp_path: Pat
     # every table and every file is listed
     for t in contract.tables:
         assert f"| {t.schema_name}.{t.name} |" in text
-        assert f"`{DATASET_DIRS[t.dataset]}/{t.csv_path}`" in text
+        assert f"`{inventory.rel_path_for(t)}`" in text
     # thousands separators only, no bare 8-digit band tokens, no ids, no cell values
     _no_leak(text)
     # hook-clean bytes: LF, single trailing newline, no trailing whitespace

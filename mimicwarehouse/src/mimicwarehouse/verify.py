@@ -31,16 +31,18 @@ Formats recognised (planning session, verbatim)::
     **Size:** … · **Tier:** … · **Core/Stretch:** … · **Depends on:** EP-a (name), … · **Blocks:** …
     > **Charter.** … upgraded to a full brief by EP-m (Re-plan Pk) before execution.
 
-Import cost: stdlib + typer (rich only inside the command bodies); nothing data-related.
+Import cost: stdlib + typer + the shared console module (EP-167; rich tables only inside the
+command bodies); nothing data-related.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -48,6 +50,7 @@ from typing import Annotated, Any, Literal
 import typer
 
 from mimicwarehouse import config
+from mimicwarehouse.console import console_safe
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -632,8 +635,16 @@ def verify(
     workspace: Path | None = None,
     roadmap: Path | None = None,
     echo: Any = print,
+    env: Mapping[str, str] | None = None,
 ) -> int:
-    """Run EP-``ep``'s marker set in a fresh interpreter; return the exit code (see module doc)."""
+    """Run EP-``ep``'s marker set in a fresh interpreter; return the exit code (see module doc).
+
+    ``env`` merges extra variables over ``os.environ`` for the pytest child — the CLI passes
+    ``MWH_DATA_ROOT=<resolved root>`` when it was invoked with ``--data-root``, because the
+    global option cannot reach a fresh interpreter any other way (EP-167, retro CFG-4;
+    ``os.environ`` itself is never mutated). Spawned/background jobs (EP-19) must pass the
+    same env to their children.
+    """
     n = resolve_ep(ep)
     workspace = workspace or workspace_root()
     roadmap = roadmap or roadmap_dir()
@@ -652,7 +663,8 @@ def verify(
             f"{module.relative_to(workspace).as_posix()} does not exist"
         )
         return EXIT_USAGE
-    proc = subprocess.run(pytest_argv(n, pytest_args), cwd=workspace, check=False)
+    child_env = {**os.environ, **env} if env else None
+    proc = subprocess.run(pytest_argv(n, pytest_args), cwd=workspace, check=False, env=child_env)
     if proc.returncode == PYTEST_NO_TESTS_COLLECTED:
         echo(
             f"mwh verify: pytest collected no tests for marker ep_{n} — is "
@@ -670,10 +682,8 @@ def verify(
 VERIFY_CONTEXT_SETTINGS: dict[str, Any] = {"allow_extra_args": True, "ignore_unknown_options": True}
 
 
-def _console_safe(text: str) -> str:
-    """Replace glyphs the current console cannot encode (⏱, ☑ on cp1252) instead of crashing."""
-    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text.encode(enc, errors="replace").decode(enc, errors="replace")
+#: Moved to :func:`mimicwarehouse.console.console_safe` at EP-167; alias kept for callers.
+_console_safe = console_safe
 
 
 def _print_list(console: Any, roadmap: Path, workspace: Path) -> None:
@@ -748,7 +758,7 @@ def verify_command(
     briefs (``--list``) or check the roadmap tables against the briefs (``--roadmap``)."""
     from rich.markup import escape
 
-    from mimicwarehouse.cli import console
+    from mimicwarehouse.console import console
 
     modes = [
         name
@@ -797,13 +807,18 @@ def verify_command(
             highlight=False,
         )
     extra = [a for a in ctx.args if a != "--"]
-    code = verify(n, extra, workspace=workspace, roadmap=roadmap, echo=typer.echo)
+    # --data-root cannot reach the fresh pytest interpreter as an option, so hand it over as
+    # MWH_DATA_ROOT in the child env only (retro CFG-4; never mutate os.environ here — the
+    # in-process CliRunner tests pass --data-root too).
+    override = getattr(ctx.obj, "data_root_override", None)
+    child = {"MWH_DATA_ROOT": str(config._abspath(override))} if override is not None else None
+    code = verify(n, extra, workspace=workspace, roadmap=roadmap, echo=typer.echo, env=child)
     raise typer.Exit(code=code)
 
 
 def roadmap_check_main(argv: Sequence[str] | None = None) -> int:
     """Entry point of ``scripts/roadmap_check.py``: ``[--strict] [--json] [--roadmap DIR]``."""
-    from rich.console import Console
+    from mimicwarehouse.console import console
 
     args = list(sys.argv[1:] if argv is None else argv)
     strict = "--strict" in args
@@ -819,7 +834,7 @@ def roadmap_check_main(argv: Sequence[str] | None = None) -> int:
     if as_json:
         print(json.dumps(report.as_dict(strict), indent=2))
     else:
-        _print_report(Console(), report, strict)
+        _print_report(console, report, strict)
     return report.exit_code(strict)
 
 

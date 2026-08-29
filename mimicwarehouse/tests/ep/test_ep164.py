@@ -124,9 +124,14 @@ def mocked_host(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Pat
     workspace.mkdir()
     monkeypatch.setattr(config, "workspace_root", lambda: workspace)
     monkeypatch.delenv("MWH_DATA_ROOT", raising=False)
+    # EP-167: keep the host deterministic under the new checks — a tmp repo without a
+    # .claude/settings.json (deny_coverage → info) and an existing temp-dir parent
+    # (temp_dir → pass), so warn counts below stay about the antivirus check.
+    monkeypatch.setattr(doctor, "repo_root", lambda: tmp_path)
     config.configure()
     data_root = tmp_path / "mimicdata"
     data_root.mkdir()
+    (data_root / "tmp").mkdir()
     yield data_root
     config.configure()
 
@@ -351,7 +356,8 @@ def test_check_never_fails(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# (f) mwh doctor --json: 14 check ids, antivirus after defender, warn never fails the run
+# (f) mwh doctor --json: antivirus after defender, warn never fails the run
+#     (14 checks at EP-164; 15 since EP-167's deny_coverage)
 # ---------------------------------------------------------------------------
 
 
@@ -361,11 +367,11 @@ def _doctor_json(args: list[str]) -> tuple[int, dict]:
     return result.exit_code, json.loads(result.stdout)
 
 
-def test_doctor_json_lists_14_checks_with_antivirus_after_defender(mocked_host: Path) -> None:
+def test_doctor_json_lists_the_checks_with_antivirus_after_defender(mocked_host: Path) -> None:
     code, report = _doctor_json(["--data-root", str(mocked_host), "doctor", "--json"])
     assert code == 0 and report["ok"] is True
     ids = [c["id"] for c in report["checks"]]
-    assert ids == list(doctor.CHECK_IDS) and len(ids) == 14
+    assert ids == list(doctor.CHECK_IDS) and len(ids) == 15  # 14 + deny_coverage (EP-167)
     assert ids.index("antivirus") == ids.index("defender") + 1
     for check in report["checks"]:
         assert set(check) == {"id", "status", "detail", "value"}

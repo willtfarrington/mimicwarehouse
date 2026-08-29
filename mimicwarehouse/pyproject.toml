@@ -33,7 +33,9 @@ dependencies = [
 ]
 
 [project.scripts]
-mwh = "mimicwarehouse.cli:app"
+# UTF-8 entry point (EP-167): reconfigures stdio, then runs the typer app (cli.main stays
+# the root callback; `python -m mimicwarehouse.cli` bypasses the reconfigure on purpose).
+mwh = "mimicwarehouse.console:run"
 
 [dependency-groups]
 dev = [

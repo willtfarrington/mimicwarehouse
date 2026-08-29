@@ -211,7 +211,8 @@ def test_pyproject_groups_and_conflicts() -> None:
     assert indexes["pytorch-cu130"]["url"] == "https://download.pytorch.org/whl/cu130"
     assert indexes["pytorch-cu130"]["explicit"] is True
 
-    assert py["project"]["scripts"]["mwh"] == "mimicwarehouse.cli:app"
+    # EP-167: the entry point became the UTF-8 wrapper (console.run → cli.app)
+    assert py["project"]["scripts"]["mwh"] == "mimicwarehouse.console:run"
     assert py["project"]["requires-python"] == ">=3.13,<3.14"
 
 

@@ -17,9 +17,10 @@ from typing import Annotated
 
 import typer
 from rich import box
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table as RichTable
+
+from mimicwarehouse.console import console, err_console
 
 schema_app = typer.Typer(
     name="schema",
@@ -28,9 +29,6 @@ schema_app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
-
-console = Console()
-err_console = Console(stderr=True)
 
 
 def _load():

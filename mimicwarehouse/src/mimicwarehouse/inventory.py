@@ -53,12 +53,12 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 import typer
 from pydantic import BaseModel, ConfigDict, Field
 from rich import box
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table as RichTable
 
 from mimicwarehouse import config
 from mimicwarehouse.config import Settings
+from mimicwarehouse.console import console, err_console
 
 if TYPE_CHECKING:  # pragma: no cover — typing only (import budget)
     import duckdb
@@ -187,6 +187,11 @@ class RawManifest:
             (r for r in self.records.values() if r.dataset == dataset), key=lambda r: r.rel_path
         )
 
+    def for_table(self, table: Table) -> FileRecord | None:
+        """The record for a contract table (via :func:`rel_path_for`), or None (EP-167 —
+        the table → record lookup EP-17/20 use instead of re-deriving the key)."""
+        return self.records.get(rel_path_for(table))
+
 
 @dataclass(frozen=True, slots=True)
 class ReconRow:
@@ -219,6 +224,9 @@ class BuildResult:
 
     processed: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    #: Skipped records whose stored header was re-evaluated against a *changed* contract and
+    #: rewritten (no file I/O; the snapshot id excludes header, so it stays stable — EP-167).
+    refreshed: list[str] = field(default_factory=list)
     filtered: list[str] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     errors: list[dict[str, str]] = field(default_factory=list)
@@ -262,6 +270,12 @@ def dataset_dir(dataset: str) -> str:
         return DATASET_DIRS[dataset]
     except KeyError:
         raise KeyError(f"unknown dataset {dataset!r}; known: {sorted(DATASET_DIRS)}") from None
+
+
+def rel_path_for(table: Table) -> str:
+    """The manifest key of a contract table: ``<dataset-dir>/<csv_path>`` (posix, relative to
+    the source root) — the one place this string is built (EP-167, retro INV-4)."""
+    return f"{dataset_dir(table.dataset)}/{table.csv_path}"
 
 
 def resolve_dataset(name: str) -> str:
@@ -322,6 +336,24 @@ def _contract() -> Contract:
 # ---------------------------------------------------------------------------
 
 
+def refresh_header_status(record: FileRecord, table: Table) -> FileRecord | None:
+    """Re-evaluate a stored record's ``header`` list against the *current* contract table —
+    no file I/O — and return the updated record, or None when nothing changed (EP-167, retro
+    INV-2: a contract edit used to leave skipped records' ``header_matches_contract`` stale
+    forever). The snapshot id excludes the header, so a refresh never changes it."""
+    matches, missing, extra = compare_header(record.header, table)
+    current = (record.header_matches_contract, record.missing_columns, record.extra_columns)
+    if (matches, missing, extra) == current:
+        return None
+    return record.model_copy(
+        update={
+            "header_matches_contract": matches,
+            "missing_columns": missing,
+            "extra_columns": extra,
+        }
+    )
+
+
 def sha256_file(path: Path) -> tuple[str, float]:
     """Streaming SHA-256 of ``path`` → ``(hex digest, seconds)``."""
     t0 = time.perf_counter()
@@ -352,10 +384,16 @@ def compare_header(header: Sequence[str], table: Table) -> tuple[bool, list[str]
 
 def open_connection(settings: Settings | None = None) -> duckdb.DuckDBPyConnection:
     """In-memory DuckDB configured with ``duckdb_settings("build")`` (DESIGN §6: explicit
-    memory_limit / threads / temp_directory / max_temp_directory_size / insertion order)."""
+    memory_limit / threads / temp_directory / max_temp_directory_size / insertion order).
+
+    Ensures ``layout["tmp_duckdb"]`` exists first: DuckDB 1.5.5 creates a missing leaf temp
+    dir but raises an IOException on first spill when the *parent* is missing (EP-167, retro
+    CFG-3; every connection site does this — EP-17's ``open_build_connection`` must too).
+    """
     import duckdb
 
     settings = settings or config.get_settings()
+    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
     cfg: dict[str, Any] = dict(settings.duckdb_settings("build"))
     return duckdb.connect(database=":memory:", config=cfg)
 
@@ -459,7 +497,7 @@ def inventory_file(
         module=PurePosixPath(table.csv_path).parts[0],
         schema_name=table.schema_name,
         table=table.name,
-        rel_path=rel_path or f"{ds_dir}/{table.csv_path}",
+        rel_path=rel_path or rel_path_for(table),
         bytes=st.st_size,
         mtime=_iso(st.st_mtime_ns),
         mtime_ns=st.st_mtime_ns,
@@ -660,7 +698,7 @@ def plan_files(
             continue
         ds_dir = dataset_dir(t.dataset)
         path = source_root / ds_dir / Path(*t.csv_path.split("/"))
-        rel = f"{ds_dir}/{t.csv_path}"
+        rel = rel_path_for(t)
         try:
             st = path.stat()
             exists, size, mtime_ns = True, st.st_size, st.st_mtime_ns
@@ -747,6 +785,7 @@ def build_inventory(
     }
     result.missing = [p.rel_path for p in planned if not p.exists]
     todo: list[tuple[PlannedFile, tuple[str, float] | None]] = []
+    refreshed_datasets: set[str] = set()
     for p in sorted(planned, key=lambda p: (p.bytes, p.rel_path)):
         if not p.exists:
             continue
@@ -756,19 +795,36 @@ def build_inventory(
         prev = manifest.records.get(p.rel_path)
         if prev is not None and not force and prev.matches_stat(p.bytes, p.mtime_ns):
             if prev.rows is not None or not rowcount:
+                # up to date — but the contract may have changed since the record was written
+                updated = refresh_header_status(prev, contract.table(p.table_qn))
+                if updated is not None:
+                    manifest.records[p.rel_path] = updated
+                    refreshed_datasets.add(p.dataset)
+                    result.refreshed.append(p.rel_path)
                 result.skipped.append(p.rel_path)
                 continue
             todo.append((p, (prev.sha256, prev.seconds_hash)))  # hash current; count rows only
         else:
             todo.append((p, None))
+    for ds in sorted(refreshed_datasets):
+        write_dataset_manifest(root, ds, manifest.by_dataset(ds))
 
-    versions = {
-        "duckdb_version": _duckdb_version(),
-        "python_version": sys.version.split()[0],
-        "git_sha": _git_sha(),
-        "mimic_code_sha": _mimic_code_sha(),
-        "contract_hash": contract.content_hash(),
-    }
+    # A no-op resume (nothing to process) must not overwrite the snapshot's job/version block
+    # with this invocation's pid/timestamps — EP-16's own recipe reads them (retro INV-1).
+    # write_snapshot falls back to `previous` for every key `job` omits, and versions=None
+    # re-uses the stored duckdb/python/git/mimic-code/contract versions.
+    noop = not todo
+    versions = (
+        None
+        if noop
+        else {
+            "duckdb_version": _duckdb_version(),
+            "python_version": sys.version.split()[0],
+            "git_sha": _git_sha(),
+            "mimic_code_sha": _mimic_code_sha(),
+            "contract_hash": contract.content_hash(),
+        }
+    )
     options = {
         "datasets": sorted(resolve_dataset(d) for d in datasets) if datasets else None,
         "max_bytes": max_bytes,
@@ -776,16 +832,17 @@ def build_inventory(
         "rowcount": rowcount,
         "log": str(log_path) if log_path else None,
     }
-    job: dict[str, Any] = {
-        "started": result.started,
-        "finished": None,
-        "last_file": None,
-        "errors": [],
-        "pid": os.getpid(),
-        "hostname": socket.gethostname(),
-        "options": options,
-        "runs": list(manifest.snapshot.get("runs", [])),
-    }
+    job: dict[str, Any] = {"runs": list(manifest.snapshot.get("runs", []))}
+    if not noop:
+        job.update(
+            started=result.started,
+            finished=None,
+            last_file=None,
+            errors=[],
+            pid=os.getpid(),
+            hostname=socket.gethostname(),
+            options=options,
+        )
     previous = dict(manifest.snapshot)
     previous["files_expected_per_dataset"] = expected_per_dataset
 
@@ -796,8 +853,9 @@ def build_inventory(
 
     log(
         f"inventory build: {len(todo)} to process, {len(result.skipped)} up to date, "
-        f"{len(result.filtered)} over --max-bytes, {len(result.missing)} missing; "
-        f"source root {source_root}; manifest {root}"
+        f"{len(result.filtered)} over --max-bytes, {len(result.missing)} missing"
+        + (f", {len(result.refreshed)} header status refreshed" if result.refreshed else "")
+        + f"; source root {source_root}; manifest {root}"
     )
     for rel in result.missing:
         log(f"missing: {rel}")
@@ -860,9 +918,10 @@ def build_inventory(
             con.close()
         result.finished = _now()
         result.seconds = round(time.perf_counter() - t_start, 3)
-        job["finished"] = result.finished
+        if not noop:
+            job["finished"] = result.finished
         runs = list(job["runs"])
-        runs.append(
+        runs.append(  # every invocation is recorded, a no-op resume included (retro INV-1)
             {
                 "started": result.started,
                 "finished": result.finished,
@@ -870,7 +929,7 @@ def build_inventory(
                 "processed": len(result.processed),
                 "skipped": len(result.skipped),
                 "errors": len(result.errors),
-                "pid": job["pid"],
+                "pid": os.getpid(),
                 "options": options,
             }
         )
@@ -934,7 +993,7 @@ def reconcile(manifest: RawManifest, contract: Contract | None = None) -> list[R
     rows: list[ReconRow] = []
     for t in contract.tables:
         expected = expected_by_dataset[t.dataset].get(t.name) if t.expected_rows_source else None
-        rec = manifest.records.get(f"{dataset_dir(t.dataset)}/{t.csv_path}")
+        rec = manifest.for_table(t)
         observed = rec.rows if rec is not None else None
         status: ReconStatus
         delta: int | None = None
@@ -999,7 +1058,8 @@ def render_docs(manifest: RawManifest, recon: Sequence[ReconRow], contract: Cont
     a(f"- **Status:** {status}")
     a(f"- **raw_snapshot_id:** `{sid}`" if sid else "- **raw_snapshot_id:** none (incomplete)")
     a(f"- **Files in manifest:** {done} / {FILES_EXPECTED}")
-    a(f"- **Generated:** {_now()}")
+    # the snapshot's own timestamp, not wall clock — a no-op reconcile leaves git clean (EP-167)
+    a(f"- **Generated:** {snap.get('finished') or snap.get('updated_at') or _now()}")
     duck, py = snap.get("duckdb_version") or "-", snap.get("python_version") or "-"
     git, mc = snap.get("git_sha") or "-", snap.get("mimic_code_sha") or "-"
     started, finished = snap.get("started") or "-", snap.get("finished") or "-"
@@ -1097,9 +1157,6 @@ inventory_app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-console = Console()
-err_console = Console(stderr=True)
-
 
 def _settings(ctx: typer.Context) -> Settings:
     state = ctx.obj
@@ -1132,9 +1189,9 @@ def build_command(
     resume: Annotated[
         bool,
         typer.Option(
-            "--resume/--force",
+            "--resume/--no-resume",
             help="--resume (default) skips files whose bytes+mtime already match a manifest "
-            "line; --force recomputes everything.",
+            "line; --no-resume recomputes everything.",
         ),
     ] = True,
     force: Annotated[
@@ -1391,6 +1448,8 @@ __all__ = [
     "read_dataset_manifest",
     "read_header",
     "reconcile",
+    "refresh_header_status",
+    "rel_path_for",
     "render_docs",
     "resolve_dataset",
     "sha256_file",

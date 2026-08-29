@@ -75,6 +75,11 @@ to leave this machine. All of these are catalogued in
 > CLI strings stay ASCII or pass through the console helper — EP-167 replaces the per-module
 > `_console_safe` with one shared `mimicwarehouse/console.py` and a UTF-8 entry point (D-43
 > item 12). Roadmap Risk 13 is now a two-line pointer to this note.
+>
+> *Shipped (2026-08-28, EP-167):* `mimicwarehouse/console.py` (`console`, `err_console`,
+> `console_safe`) and the `mwh = "mimicwarehouse.console:run"` entry point, which reconfigures
+> stdout/stderr to UTF-8 with `errors="replace"` before running the app; every command module
+> imports the shared consoles; JSON outputs end in plain `\n` (never `\r\r\n`).
 
 ## 3. Layers & disk budget
 
@@ -471,6 +476,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
 │   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures; planned: build sql demo runs protocol disclose backup app init
+│   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
 │   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
 │   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
 │   ├── theme.py                   EP-5 shipped   palette, Altair/Streamlit themes
@@ -658,7 +664,43 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > `_powershell`, tests fake `subprocess.run` keyed on argv[0] / the script text (an unmocked
 > tool is a test failure), Windows-only checks return `info` elsewhere.
 
-> **Note (2026-08-17, EP-8).** `src/mimicwarehouse/concepts/` is now a package: `__init__.py`
+> **Note (2026-08-28, EP-167 — Retro C: CLI, settings & inventory consolidation).** The new
+> API surface P2 briefs (EP-17/19/21) build on, all fixture-tier code, ledger ids in EP-167:
+> **console** — `mimicwarehouse/console.py`: shared `console` / `err_console`,
+> `console_safe` (moved from `verify._console_safe`; alias kept), `run()` = the UTF-8 `mwh`
+> entry point (§2 note). **config** — `Settings.layout` 15 → **18** keys (`lake_fixture`,
+> `lake_demo`, `lake_rejects`, §3 note); `Settings.lake_root(tier)` / `rejects_root(tier)`
+> (synthetic rejects live under the synthetic lake roots) / `min_free_gb_for(tier)` (1 GB for
+> `fixture`, `min_free_gb` otherwise); module-level `assert_not_credentialed_lake(tier,
+> lake_root, settings)` — EP-19 calls it before any fixture/demo write; `unknown_env_keys()`
+> (names of stray `MWH_*` env vars, never values — pydantic-settings ignores them silently);
+> `catalog_path(tier)` unchanged for all four tiers. **cli** — validation is now lazy:
+> the callback loads `load_settings(checked=False)`, stores any config error as
+> `CliState.pending_error`, and the first `CliState.settings` access by a non-diagnostic
+> command runs `require_safe()` / surfaces the error with exit 2 — so `--help`, `--version`
+> and `no_args_is_help` always work (retro CFG-5); `DIAGNOSTIC_COMMANDS` stays the authority
+> on who validates (fully lazy validation everywhere is the EP-16 decision); the callback
+> prints one stderr line when `unknown_env_keys()` is non-empty. **doctor** — 15 checks:
+> `deny_coverage` (after `antivirus`; warns when the data root is under no
+> `.claude/settings.json` drive-letter deny prefix, retro GOV-3), `settings` warns on unknown
+> `MWH_*` vars, `temp_dir` distinguishes exists / parent-exists (DuckDB creates the leaf) /
+> parent-missing → warn (DuckDB 1.5.5 IOException on first spill), `longpaths` carries the
+> git version. **DuckDB temp dir** — `Settings.duckdb_settings()` stays side-effect-free; the
+> connection sites (`inventory.open_connection`, `fixtures.catalog.build_fixture_catalog`,
+> and EP-17's `open_build_connection` when it lands) mkdir `layout["tmp_duckdb"]` first
+> (retro CFG-3). **verify** — `verify(ep, …, env=…)` merges extra variables over
+> `os.environ` for the pytest child; the CLI passes `MWH_DATA_ROOT=<resolved --data-root>`
+> (never mutating `os.environ`); spawn/background jobs (EP-19) must pass the same env to
+> their children (retro CFG-4, addendum to the EP-6 note). **inventory** —
+> `rel_path_for(table)` / `RawManifest.for_table(table)` (the one manifest-key builder,
+> retro INV-4); a no-op resume (`todo == []`) keeps the snapshot's job + version block
+> (`versions=None` re-uses `duckdb_version`/`python_version`/`git_sha`/`mimic_code_sha`/
+> `contract_hash`) while still appending a `runs` entry (retro INV-1);
+> `refresh_header_status` re-evaluates stored headers against a changed contract with no
+> file I/O, counted in `BuildResult.refreshed` (snapshot id unchanged — it excludes the
+> header; retro INV-2); `--no-resume` is accepted (alias of the hidden `--force`);
+> `render_docs`' `Generated:` line uses the snapshot's `finished` timestamp so a no-op
+> `reconcile` leaves git clean. `src/mimicwarehouse/concepts/` is now a package: `__init__.py`
 > exposes `vendor_info() -> VendorInfo` (pydantic, frozen: `sha`, `upstream_url`, `commit_date`,
 > `vendored_on`, `mimic_iv_version`, `file_count`, `local_edits`, `root`; `.tree`, `.short_sha`),
 > `vendor_manifest()` (parsed `VENDOR.json`, cached) and `vendored_path(rel)` (upstream-relative

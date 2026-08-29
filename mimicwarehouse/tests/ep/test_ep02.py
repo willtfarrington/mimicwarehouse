@@ -177,8 +177,8 @@ def test_doctor_json_shape(mocked_probes: Path) -> None:
     ids = [c["id"] for c in report["checks"]]
     assert ids == list(doctor.CHECK_IDS)
     # EP-2's 8 + settings · temp_dir · cloud_mounts · defender · power_scheme (EP-3) + antivirus
-    # (EP-164)
-    assert len(ids) == 14
+    # (EP-164) + deny_coverage (EP-167)
+    assert len(ids) == 15
     assert {
         "python",
         "uv",

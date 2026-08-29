@@ -187,14 +187,15 @@ def test_relative_paths_anchor_at_workspace_and_empty_env_means_default(
     assert s.duckdb_temp_dir is None
 
 
-def test_layout_has_exactly_the_15_keys_under_the_root(data_root: Path) -> None:
+def test_layout_has_exactly_the_18_keys_under_the_root(data_root: Path) -> None:
     s = config.get_settings()
     assert s.data_root == data_root
     layout = s.layout
-    assert tuple(layout) == LAYOUT_KEYS and len(layout) == 15
+    assert tuple(layout) == LAYOUT_KEYS and len(layout) == 18  # 15 + the EP-167 lake roots
     for key, path in layout.items():
         assert path.is_relative_to(data_root), (key, path)
     assert layout["lake_core"] == data_root / "lake" / "core"
+    assert layout["lake_fixture"] == data_root / "lake" / "fixture"
     assert layout["tmp_duckdb"] == data_root / "tmp" / "duckdb"
     assert layout["ext_demo"] == data_root / "ext" / "demo"
     assert layout["runs_jobs"] == data_root / "runs" / "jobs"
@@ -383,18 +384,21 @@ def test_paths_json_shape(data_root: Path) -> None:
     assert report["free_space"] == {"free_gb": 500.0, "total_gb": 950.0, "ok": True, "min_gb": 100}
 
 
-def test_paths_create_makes_exactly_15_dirs_and_readme_and_is_idempotent(data_root: Path) -> None:
+def test_paths_create_makes_exactly_18_dirs_and_readme_and_is_idempotent(data_root: Path) -> None:
     result = runner.invoke(app, ["paths", "--create"])
     assert result.exit_code == 0, result.output
     dirs = sorted(p for p in data_root.rglob("*") if p.is_dir())
     files = sorted(p for p in data_root.rglob("*") if p.is_file())
-    assert len(dirs) == 15
+    assert len(dirs) == 18  # 15 + lake/fixture · lake/demo · lake/rejects (EP-167)
     assert {p.relative_to(data_root).as_posix() for p in dirs} == {
         "lake",
         "lake/core",
         "lake/derived",
         "lake/marts",
         "lake/manifests",
+        "lake/fixture",
+        "lake/demo",
+        "lake/rejects",
         "warehouse",
         "runs",
         "runs/jobs",
@@ -457,7 +461,8 @@ def test_paths_create_refuses_forbidden_drive_and_creates_nothing(
 def test_non_diagnostic_commands_refuse_unsafe_root_in_the_callback(
     workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every future command gets validated settings: the callback exits 2 before running."""
+    """Every future command gets validated settings: since EP-167 the refusal is lazy —
+    the first ``CliState.settings`` access exits 2 (so ``--help`` works over a bad root)."""
 
     monkeypatch.setattr(
         config, "drive_info", lambda path: DriveInfo("G", "DRIVE_FIXED", "", "NTFS")
@@ -465,8 +470,9 @@ def test_non_diagnostic_commands_refuse_unsafe_root_in_the_callback(
     calls: list[str] = []
 
     @app.command("ep3-probe", hidden=True)
-    def _probe(ctx: typer.Context) -> None:  # pragma: no cover - must not run
-        calls.append("ran")
+    def _probe(ctx: typer.Context) -> None:
+        _ = ctx.obj.settings  # first access runs the D-29 refusals and exits 2
+        calls.append("ran")  # pragma: no cover - must not run
 
     try:
         result = runner.invoke(app, ["--data-root", r"G:\mimicdata", "ep3-probe"])
@@ -492,7 +498,9 @@ def test_doctor_json_includes_new_check_ids(mocked_doctor: Path) -> None:
     by_id = {c["id"]: c for c in report["checks"]}
     assert by_id["data_root"]["status"] == "pass"
     assert by_id["data_root"]["value"]["volume"] == FIXED_NTFS.to_dict()
-    assert by_id["temp_dir"]["status"] == "pass" and "creatable" in by_id["temp_dir"]["detail"]
+    # EP-167 (retro CFG-3): the parent (`<root>/tmp`) is missing too → warn, not "creatable"
+    assert by_id["temp_dir"]["status"] == "warn" and "parent" in by_id["temp_dir"]["detail"]
+    assert by_id["deny_coverage"]["status"] == "info"  # no .claude/settings.json in tmp repo
     assert by_id["cloud_mounts"]["status"] == "info"
     assert (
         by_id["defender"]["status"] == "info" and "Add-MpPreference" in by_id["defender"]["detail"]

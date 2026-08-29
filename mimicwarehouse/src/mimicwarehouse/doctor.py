@@ -7,12 +7,16 @@ serialised by :func:`doctor_report` into the object EP-35 embeds in every run ma
 D-38/D-42 and DESIGN §2-3/§6: managed CPython 3.13 in the workspace ``.venv``, uv, the DuckDB
 pin, the settings sources in use, free disk on the data-root and repository drives (the
 ≥ 100 GB rule), the data root (**fails** on an unsafe location — synced/virtual/network
-volume, FAT32/cryptoFs, OneDrive, forbidden drive letter), the DuckDB temp dir (same volume),
-mounted cloud/virtual volumes (letters + labels only), the Defender exclusion, every
+volume, FAT32/cryptoFs, OneDrive, forbidden drive letter), the DuckDB temp dir (same volume;
+DuckDB creates a missing leaf but not a missing parent — EP-167, retro CFG-3), mounted
+cloud/virtual volumes (letters + labels only), the Defender exclusion, every
 real-time endpoint-security product Windows Security Center lists (names + states only;
 EP-164 — warns when one besides Defender is present, because it keeps its own allow list),
+whether the ``.claude/settings.json`` deny rules cover the configured data root (EP-167,
+retro GOV-3 — a relocated ``MWH_DATA_ROOT`` has no prefix coverage until they are updated),
 BitLocker, the power scheme, GPU/driver (informational until EP-121, D-16) and
-``LongPathsEnabled``.
+``LongPathsEnabled`` (+ the git version, merged into that row). The ``settings`` check also
+warns on unknown ``MWH_*`` environment variables (names only; EP-167, retro CFG-1).
 
 Nothing here opens a data file. Every external probe (``uv``, ``git``, ``nvidia-smi``,
 ``powercfg``, PowerShell, the registry, Win32 volume APIs via :mod:`mimicwarehouse.config`)
@@ -62,6 +66,7 @@ CHECK_IDS: tuple[str, ...] = (
     "cloud_mounts",
     "defender",
     "antivirus",
+    "deny_coverage",
     "bitlocker",
     "power_scheme",
     "gpu",
@@ -328,6 +333,11 @@ def _git_longpaths(repo: Path | None) -> str | None:
     return proc.stdout.strip() or None
 
 
+def _git_version() -> str | None:
+    proc = _run(["git", "--version"])
+    return proc.stdout.strip().splitlines()[0] if proc.stdout.strip() else None
+
+
 def _drive_of(path: Path) -> str:
     """``"C:"`` on Windows, the anchor (``"/"``) elsewhere — labels only, never opened."""
     if IS_WINDOWS:
@@ -392,13 +402,16 @@ def check_duckdb() -> CheckResult:
 
 def check_settings(settings: Settings) -> CheckResult:
     """Which sources are in use, whether ``.env`` / ``mwh.toml`` / ``source_root`` exist
-    (existence only — never a listing or the raw path), and the ``allow_remote`` gate."""
+    (existence only — never a listing or the raw path), the ``allow_remote`` gate, and any
+    unknown ``MWH_*`` environment variables (names only — pydantic-settings silently ignores
+    them, so a typo would otherwise use the default without a trace; EP-167, retro CFG-1)."""
     workspace = config.workspace_root()
     dotenv_present = (workspace / ".env").is_file()
     toml_present = (workspace / "mwh.toml").is_file()
     sources = settings.sources()
     used = [f"{name}: {', '.join(fields)}" for name, fields in sources.items() if fields]
     source_root_present = settings.source_root.is_dir()
+    unknown_env = config.unknown_env_keys()
     value: dict[str, Any] = {
         "sources": sources,
         "dotenv_present": dotenv_present,
@@ -407,6 +420,7 @@ def check_settings(settings: Settings) -> CheckResult:
         "default_tier": settings.default_tier,
         "allow_remote": settings.allow_remote,
         "k_suppression": settings.k_suppression,
+        "unknown_env": unknown_env,
     }
     parts = [
         "sources: " + ("; ".join(used) if used else "defaults only"),
@@ -417,10 +431,17 @@ def check_settings(settings: Settings) -> CheckResult:
         f"k={settings.k_suppression}",
         f"allow_remote={str(settings.allow_remote).lower()}",
     ]
+    status: Status = "info"
+    if unknown_env:
+        parts.append(
+            f"— unknown MWH_* environment variable(s) ignored: {', '.join(unknown_env)} "
+            "(not a Settings field; fix or unset them)"
+        )
+        status = "warn"
     if settings.allow_remote:
         parts.append("— remote calls from text modules are enabled; GOVERNANCE §9 wants false")
-        return CheckResult("settings", "warn", " · ".join(parts), value)
-    return CheckResult("settings", "info", " · ".join(parts), value)
+        status = "warn"
+    return CheckResult("settings", status, " · ".join(parts), value)
 
 
 def check_disk_free(
@@ -494,12 +515,16 @@ def check_data_root(
 
 
 def check_temp_dir(settings: Settings) -> CheckResult:
-    """DuckDB temp dir: same volume as the data root (else **fail**); exists or creatable."""
+    """DuckDB temp dir: same volume as the data root (else **fail**); exists, or its parent
+    exists (DuckDB creates the missing *leaf* itself), or the parent is missing too → warn —
+    DuckDB 1.5.5 raises an IOException on first spill when the parent does not exist, which
+    is why the connection sites mkdir ``layout["tmp_duckdb"]`` first (EP-167, retro CFG-3)."""
     temp_dir = settings.layout["tmp_duckdb"]
     value: dict[str, Any] = {
         "path": str(temp_dir),
         "explicit": settings.duckdb_temp_dir is not None,
         "exists": temp_dir.is_dir(),
+        "parent_exists": temp_dir.parent.is_dir(),
         "max_temp_directory_size": settings.duckdb_max_temp_size,
     }
     try:
@@ -513,18 +538,20 @@ def check_temp_dir(settings: Settings) -> CheckResult:
             f"{temp_dir} exists on the data-root volume (max {settings.duckdb_max_temp_size})",
             value,
         )
-    anchor = config.nearest_existing(temp_dir)
-    creatable = anchor.is_dir() and os.access(anchor, os.W_OK)
-    value["creatable"] = creatable
-    if creatable:
+    if temp_dir.parent.is_dir():
         return CheckResult(
             "temp_dir",
             "pass",
-            f"{temp_dir} missing but creatable — `mwh paths --create` makes it",
+            f"{temp_dir} missing but its parent exists — DuckDB creates the leaf "
+            "(connection sites mkdir it anyway)",
             value,
         )
     return CheckResult(
-        "temp_dir", "warn", f"{temp_dir} missing and its nearest ancestor is not writable", value
+        "temp_dir",
+        "warn",
+        f"{temp_dir} missing and so is its parent — DuckDB 1.5.5 errors on first spill; "
+        "run `mwh paths --create`",
+        value,
     )
 
 
@@ -660,6 +687,82 @@ def check_antivirus() -> CheckResult:
     return CheckResult("antivirus", "warn", detail, value)
 
 
+#: A drive-letter deny-rule prefix inside a permission pattern: ``Read(//C:/mimicdata/**)``
+#: or ``Grep(C:/mimicdata/**)`` → ``C:/mimicdata``. Relative and extension-glob rules are
+#: not prefixes and are ignored.
+_DENY_PREFIX_RE = re.compile(r"\(\s*(?://)?([A-Za-z]:/[^)*]*?)/?\*\*\s*\)")
+
+
+def claude_deny_prefixes(settings_json: Path) -> list[str] | None:
+    """The absolute drive-letter prefixes covered by the ``.claude/settings.json`` deny rules,
+    or None when the file is missing/unreadable. Only rule *patterns* are read — never data."""
+    if not settings_json.is_file():
+        return None
+    try:
+        data = json.loads(settings_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    rules = data.get("permissions", {}).get("deny", [])
+    prefixes: set[str] = set()
+    for rule in rules:
+        if not isinstance(rule, str):
+            continue
+        m = _DENY_PREFIX_RE.search(rule)
+        if m:
+            prefixes.add(m.group(1))
+    return sorted(prefixes)
+
+
+def check_deny_coverage(data_root: Path, repo: Path | None = None) -> CheckResult:
+    """Whether the repo's ``.claude/settings.json`` deny rules cover ``data_root`` (EP-167,
+    retro GOV-3). The deny rules, both antivirus exclusion lists and ``.env``/``mwh.toml``
+    hard-code the data root, so a relocated ``MWH_DATA_ROOT`` silently loses its prefix
+    coverage — **warn** then; **info** when the file is missing or unreadable (a wheel
+    install, a stripped checkout); never fail (the rules are one layer of five,
+    GOVERNANCE §4)."""
+    settings_json = (repo if repo is not None else repo_root() or Path.cwd()) / (
+        ".claude/settings.json"
+    )
+    prefixes = claude_deny_prefixes(settings_json)
+    value: dict[str, Any] = {
+        "settings_json": str(settings_json),
+        "prefixes": prefixes,
+        "covered": None,
+    }
+    if prefixes is None:
+        return CheckResult(
+            "deny_coverage",
+            "info",
+            f"{settings_json} missing or unreadable — deny-rule coverage of the data root "
+            "unknown (GOVERNANCE §4)",
+            value,
+        )
+    norm_root = os.path.normcase(os.path.normpath(str(data_root)))
+    covered = False
+    for prefix in prefixes:
+        norm_prefix = os.path.normcase(os.path.normpath(prefix))
+        if norm_root == norm_prefix or norm_root.startswith(norm_prefix.rstrip("\\/") + os.sep):
+            covered = True
+            break
+    value["covered"] = covered
+    if covered:
+        return CheckResult(
+            "deny_coverage",
+            "pass",
+            f"{data_root} is under a .claude/settings.json deny-rule prefix",
+            value,
+        )
+    return CheckResult(
+        "deny_coverage",
+        "warn",
+        f"{data_root} is under no .claude/settings.json deny-rule prefix "
+        f"({', '.join(prefixes) or 'none found'}) — update the deny rules, both antivirus "
+        "exclusion lists and .env/mwh.toml **before** relocating the data root "
+        "(GOVERNANCE §2, retro GOV-3)",
+        value,
+    )
+
+
 def check_bitlocker(drives: Iterable[str]) -> CheckResult:
     """BitLocker protection on each drive (GOVERNANCE §2 requires it on C:)."""
     if not IS_WINDOWS:
@@ -730,7 +833,8 @@ def check_gpu() -> CheckResult:
 
 
 def check_longpaths(repo: Path | None = None) -> CheckResult:
-    """``LongPathsEnabled`` in the registry and ``core.longpaths=true`` in git (D-38)."""
+    """``LongPathsEnabled`` in the registry and ``core.longpaths=true`` in git (D-38); the
+    git version rides along as informational detail (EP-167 — cheaper than its own row)."""
     if not IS_WINDOWS:
         return CheckResult("longpaths", "info", "not a Windows host — MAX_PATH does not apply")
     reg = _longpaths_registry()
@@ -738,11 +842,18 @@ def check_longpaths(repo: Path | None = None) -> CheckResult:
         git = _git_longpaths(repo if repo is not None else repo_root())
     except ProbeError:
         git = None
-    value = {"registry": reg, "git_core_longpaths": git}
+    try:
+        git_version = _git_version()
+    except ProbeError:
+        git_version = None
+    value = {"registry": reg, "git_core_longpaths": git, "git_version": git_version}
     reg_ok = reg == 1
     git_ok = (git or "").lower() == "true"
     if reg_ok and git_ok:
-        return CheckResult("longpaths", "pass", "LongPathsEnabled=1 · core.longpaths=true", value)
+        detail = "LongPathsEnabled=1 · core.longpaths=true"
+        if git_version:
+            detail += f" · {git_version}"
+        return CheckResult("longpaths", "pass", detail, value)
     problems: list[str] = []
     if not reg_ok:
         problems.append(
@@ -778,6 +889,7 @@ def run_checks(settings: Settings) -> list[CheckResult]:
         lambda: check_cloud_mounts(repo, settings.forbidden_drives),
         lambda: check_defender(data_root),
         check_antivirus,
+        lambda: check_deny_coverage(data_root, repo),
         lambda: check_bitlocker(drives),
         check_power_scheme,
         check_gpu,
@@ -837,14 +949,15 @@ def doctor_command(
     ] = False,
 ) -> None:
     """Host health: python · uv · duckdb · settings · disk_free · data_root · temp_dir ·
-    cloud_mounts · defender · antivirus · bitlocker · power_scheme · gpu · longpaths."""
+    cloud_mounts · defender · antivirus · deny_coverage · bitlocker · power_scheme · gpu ·
+    longpaths."""
     state: CliState = ctx.obj
     results = run_checks(state.settings)
     report = doctor_report(results)
     if json_output:
-        sys.stdout.write(json.dumps(report, indent=2) + os.linesep)
+        sys.stdout.write(json.dumps(report, indent=2) + "\n")
     else:
-        from mimicwarehouse.cli import console
+        from mimicwarehouse.console import console
 
         utf = (console.encoding or "").lower().replace("-", "").startswith("utf")
         console.print(render_table(results, utf=utf))

@@ -7,12 +7,20 @@ machine safe to build on":
   (``MWH_*``) > ``.env`` > ``mwh.toml`` ``[settings]`` > defaults**. Both files are looked up
   in the workspace root (``mimicwarehouse/``, resolved from the package location, so it does
   not matter whether ``mwh`` runs from the workspace or via ``uv run --project``); relative
-  paths in either file are resolved against the same root. Unknown keys are rejected
-  (``extra="forbid"``) so a typo in ``.env`` fails loudly instead of silently using a default.
-* :attr:`Settings.layout` — the 15 data-root directories (:data:`LAYOUT_KEYS`);
+  paths in either file are resolved against the same root. Unknown keys **in the files** are
+  rejected (``extra="forbid"``) so a typo in ``.env`` fails loudly; an unknown ``MWH_*``
+  *environment variable* is silently ignored by pydantic-settings, so :func:`unknown_env_keys`
+  names them (never their values) for the doctor's warn row and the CLI's stderr line (EP-167,
+  retro CFG-1).
+* :attr:`Settings.layout` — the 18 data-root directories (:data:`LAYOUT_KEYS`; per-tier lake
+  roots ``lake_fixture`` / ``lake_demo`` and ``lake_rejects`` since EP-167);
+  :meth:`Settings.lake_root` / :meth:`Settings.rejects_root` / :meth:`Settings.min_free_gb_for`
+  per tier (synthetic tiers never resolve the credentialed lake —
+  :func:`assert_not_credentialed_lake` is the EP-19 refusal);
   :meth:`Settings.catalog_path`; :meth:`Settings.duckdb_settings` (the explicit DuckDB
   ``memory_limit`` / ``threads`` / ``temp_directory`` / ``max_temp_directory_size`` DESIGN §6
-  demands in every process; EP-17/EP-21 apply it — nothing here opens a connection).
+  demands in every process; EP-17/EP-21 apply it — nothing here opens a connection; the
+  callers that do connect mkdir ``layout["tmp_duckdb"]`` first, retro CFG-3).
 * Safety validators, run as model validators **and** callable on their own:
   :func:`check_local_fixed` refuses a data root that is not a local fixed NTFS/ReFS volume,
   carries a sync-client volume label, lies under OneDrive, or sits on a forbidden drive
@@ -74,13 +82,17 @@ GB = 2**30  # GiB, labelled "GB" to match DESIGN §2-3 / Explorer (EP-2 judgment
 DEFAULT_DATA_ROOT = Path(r"C:\mimicdata")
 DEFAULT_FORBIDDEN_DRIVES: tuple[str, ...] = ("G", "D")
 
-#: The 15 data-root directories, in creation / display order (DESIGN §3 tree).
+#: The 18 data-root directories, in creation / display order (DESIGN §3 tree; the per-tier
+#: lake roots ``lake_fixture`` / ``lake_demo`` and ``lake_rejects`` joined at EP-167).
 LAYOUT_KEYS: tuple[str, ...] = (
     "lake",
     "lake_core",
     "lake_derived",
     "lake_marts",
     "lake_manifests",
+    "lake_fixture",
+    "lake_demo",
+    "lake_rejects",
     "warehouse",
     "runs",
     "runs_jobs",
@@ -598,7 +610,7 @@ class Settings(BaseSettings):
 
     @property
     def layout(self) -> dict[str, Path]:
-        """The 15 data-root directories keyed by :data:`LAYOUT_KEYS` (DESIGN §3)."""
+        """The 18 data-root directories keyed by :data:`LAYOUT_KEYS` (DESIGN §3)."""
         r = self.data_root
         lake, runs, ext, tmp = r / "lake", r / "runs", r / "ext", r / "tmp"
         return {
@@ -607,6 +619,9 @@ class Settings(BaseSettings):
             "lake_derived": lake / "derived",
             "lake_marts": lake / "marts",
             "lake_manifests": lake / "manifests",
+            "lake_fixture": lake / "fixture",
+            "lake_demo": lake / "demo",
+            "lake_rejects": lake / "rejects",
             "warehouse": r / "warehouse",
             "runs": runs,
             "runs_jobs": runs / "jobs",
@@ -619,8 +634,38 @@ class Settings(BaseSettings):
             "tmp_duckdb": self.duckdb_temp_dir or tmp / "duckdb",
         }
 
+    def lake_root(self, tier: Tier | str) -> Path:
+        """The lake root a tier's Parquet is written under (EP-167, retro ARCH-3/FXT-10):
+        ``layout["lake"]`` for ``dev``/``full`` (credentialed), ``layout["lake_fixture"]`` /
+        ``layout["lake_demo"]`` for the synthetic/ODbL tiers — so a fixture or demo build can
+        never resolve into the credentialed lake (:func:`assert_not_credentialed_lake`)."""
+        _require_tier(tier)
+        if tier == "fixture":
+            return self.layout["lake_fixture"]
+        if tier == "demo":
+            return self.layout["lake_demo"]
+        return self.layout["lake"]
+
+    def rejects_root(self, tier: Tier | str) -> Path:
+        """Where a tier's reject Parquet lands (EP-17): ``<lake_root(tier)>/rejects`` for
+        ``fixture``/``demo`` (synthetic rejects never mix with credentialed ones) and
+        ``layout["lake_rejects"]`` for ``dev``/``full``."""
+        _require_tier(tier)
+        if tier in ("fixture", "demo"):
+            return self.lake_root(tier) / "rejects"
+        return self.layout["lake_rejects"]
+
+    def min_free_gb_for(self, tier: Tier | str) -> float:
+        """The free-space guard per tier (EP-167, retro ARCH-9): the full ``min_free_gb``
+        (default 100 GB, DESIGN §3) for the ``demo``/``dev``/``full`` lake roots, 1 GB for
+        ``fixture`` (a few MB of synthetic CSV must not be blocked by the big-build guard)."""
+        _require_tier(tier)
+        return 1.0 if tier == "fixture" else float(self.min_free_gb)
+
     def catalog_path(self, tier: Tier | str) -> Path:
-        """``<data_root>/warehouse/<tier>.duckdb`` (EP-21 builds it; opened READ_ONLY elsewhere)."""
+        """``<data_root>/warehouse/<tier>.duckdb`` for **all four** tiers (EP-21 builds it;
+        opened READ_ONLY elsewhere) — the fixture catalog "built for keeps" lives beside the
+        others; tests point ``--data-root`` at a temp directory instead."""
         return self.layout["warehouse"] / f"{tier}.duckdb"
 
     def duckdb_settings(self, profile: DuckDBProfile = "build") -> dict[str, str]:
@@ -640,6 +685,47 @@ class Settings(BaseSettings):
         if profile == "build":
             settings["preserve_insertion_order"] = "false"
         return settings
+
+
+def _require_tier(tier: Tier | str) -> None:
+    if tier not in ("fixture", "demo", "dev", "full"):
+        raise ValueError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
+
+
+def assert_not_credentialed_lake(
+    tier: Tier | str, lake_root: Path | str, settings: Settings
+) -> None:
+    """Refuse a ``fixture``/``demo`` build whose lake root resolves to the credentialed lake
+    (``layout["lake"]``) — the EP-19 runner calls this before writing (EP-167, retro FXT-10).
+
+    Raises :class:`UnsafeLocationError`; a no-op for ``dev``/``full`` and for roots elsewhere.
+    """
+    _require_tier(tier)
+    if tier not in ("fixture", "demo"):
+        return
+    resolved = os.path.normcase(os.path.normpath(str(_abspath(lake_root))))
+    credentialed = os.path.normcase(os.path.normpath(str(settings.layout["lake"])))
+    if resolved == credentialed:
+        raise UnsafeLocationError(
+            f"a {tier}-tier build may never write into the credentialed lake "
+            f"({settings.layout['lake']}) — use Settings.lake_root({tier!r}) "
+            "(GOVERNANCE §2, retro FXT-10)"
+        )
+
+
+def unknown_env_keys() -> list[str]:
+    """Names of ``MWH_*`` environment variables that match no :class:`Settings` field —
+    **names only, never values** (EP-167, retro CFG-1).
+
+    pydantic-settings silently ignores such variables (only unknown keys in ``.env`` /
+    ``mwh.toml`` are rejected by ``extra="forbid"``), so a typo like ``MWH_DATA_ROOTT``
+    would otherwise fall back to the default without a trace; ``mwh doctor`` warns and the
+    CLI callback prints one stderr line. Comparison is case-insensitive (Windows env vars
+    are)."""
+    known = {f"MWH_{name}".upper() for name in Settings.model_fields}
+    return sorted(
+        key for key in os.environ if key.upper().startswith("MWH_") and key.upper() not in known
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -717,7 +803,7 @@ def layout_rows(settings: Settings) -> list[dict[str, Any]]:
 
 
 def create_layout(settings: Settings) -> list[Path]:
-    """Create the 15 directories (idempotent) and ``README.txt``; returns what was new.
+    """Create the 18 directories (idempotent) and ``README.txt``; returns what was new.
 
     Callers run :meth:`Settings.require_safe` and :func:`require_free_space` **first** —
     this function only creates.
@@ -778,10 +864,11 @@ def paths_command(
         bool, typer.Option("--json", help="Print the layout report as JSON.")
     ] = False,
 ) -> None:
-    """Data-root layout (15 keys): path · exists · MB used; --create makes it after the checks."""
+    """Data-root layout (18 keys, incl. the per-tier lake roots lake/fixture · lake/demo ·
+    lake/rejects): path · exists · MB used; --create makes it after the checks."""
     state: CliState = ctx.obj
     settings = state.settings
-    from mimicwarehouse.cli import console
+    from mimicwarehouse.console import console
 
     unsafe: str | None = None
     try:
@@ -805,7 +892,7 @@ def paths_command(
 
     report = paths_report(settings, unsafe=unsafe, created=created)
     if json_output:
-        sys.stdout.write(json.dumps(report, indent=2) + os.linesep)
+        sys.stdout.write(json.dumps(report, indent=2) + "\n")
     else:
         source = report["data_root_source"]
         console.print(
@@ -841,6 +928,7 @@ __all__ = [
     "SettingsFileError",
     "UnsafeLocationError",
     "ValidationError",
+    "assert_not_credentialed_lake",
     "check_free_space",
     "check_local_fixed",
     "check_same_volume",
@@ -855,6 +943,7 @@ __all__ = [
     "repo_root",
     "require_free_space",
     "safety_checks_disabled",
+    "unknown_env_keys",
     "volume_of",
     "workspace_root",
 ]

@@ -819,7 +819,7 @@ def guard_command(
     and oversize blobs before they reach git (GOVERNANCE §3). Exit 0 clean, 1 refused, 2 usage."""
     from rich.markup import escape
 
-    from mimicwarehouse.cli import console
+    from mimicwarehouse.console import console
 
     modes = [
         name
