@@ -152,12 +152,14 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 ## 34–35 Model-ready datasets · Additional-data linkage
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |
 |---|---|---|---|
-| MEDS export of the spine + meds-tab baselines + MEDS-DEV tasks | after EP-50 | Python < 3.14 (fine on 3.13); disk | v2 MEDS-1 |
-| OMOP CDM conversion (CogStack dbt_mimic_omop, DuckDB + dbt, MIMIC-IV 3.1) | OHDSI tooling wanted | ~200 GB disk; immature; dbt | v2 OMOP-1 |
+| MEDS export of the spine + meds-tab baselines + MEDS-DEV tasks — re-affirmed by EP-13 (2026-08-28): tasks = Medical-Event-Data-Standard/MEDS-DEV (MIT), baselines = mmcdermott/MEDS_Tabular_AutoML (MIT; also an external baseline comparator for EP-110/111); MEDS 0.4.1 confirms the column set EP-50 borrows | after EP-50 | Python < 3.14 (fine on 3.13); disk | v2 MEDS-1 |
+| OMOP CDM conversion (DuckDB + dbt, MIMIC-IV 3.1) — reference implementation re-pointed by EP-13 (2026-08-28): saywurdson/mimic-iv-dbt (Apache-2.0, dbt-duckdb → CDM 5.4) is the strongest local-OMOP reference; the originally named CogStack dbt_mimic_omop has **no license file** (D-34 blocks adoption) and the OHDSI ETL is BigQuery-only | OHDSI tooling wanted | ~200 GB disk; immature; dbt | v2 OMOP-1 |
 | MIMIC-IV-FHIR (2.1) via kind-lab/mimic-fhir | FHIR interop demo | separate DUA; lags at 2.2 | v2 FHIR-1 |
 | OMOP/FHIR-style semantic annotations on the schema contract (concept ids per column in `schema/tables/*.yaml`) — parked by EP-9 (2026-08-17); v1's contract carries names, DuckDB types, nullability, keys, units and free-text comments only | OMOP conversion (v2 OMOP-1) or FHIR demo (v2 FHIR-1) | Athena vocabulary licences (D-35); the drift oracle (`mwh schema check`) must ignore annotation-only columns | v2 OMOP-1 / FHIR-1 |
 | More PhysioNet sources via the wizard (MIMIC-IV-ECG, MIMIC-CXR metadata, MIMIC-IV waveform indices, eICU-CRD) | after EP-145 | separate DUAs; keys | v2 LINK-* |
 | dbt-duckdb as an alternative transform runner (resume keyword) | if the custom runner needs docs/lineage features | vendored SQL → Jinja models | v2 DAG-1 |
+| MEDS_transforms reusable stage catalog (mmcdermott/MEDS_transforms, MIT) as a transform-stage library for the D-20 custom runner — parked by EP-13 (2026-08-28); v1 hand-rolls its stages in `mwh build` | the custom runner ever needs a reusable transform-stage library | MEDS-shaped inputs (needs the EP-50 spine or an export, v2 MEDS-1); its stage configs vs our YAML specs | v2 DAG-2 |
+| healthylaife MIMIC-IV feature pipeline, full port (MIT) — parked by EP-13 (2026-08-28); v1 borrows only its cohort/feature step ordering (see `docs/resources/repos.md` borrow map) | EP-102 needs more than the step ordering the borrow map cites | pandas-era code; written against MIMIC-IV 2.x — re-verify every table/column assumption against 3.1 | v2 MRD-1 |
 
 ## 36–38 Disclosure · Prospective inquiry · Provenance
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

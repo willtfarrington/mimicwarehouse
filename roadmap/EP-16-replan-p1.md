@@ -116,3 +116,113 @@ facts most likely to need amending there are the names P1 actually shipped: the 
   (amended EP-7).
 - Commit `docs(roadmap): re-plan P1 — EP-10 verified, retro, addenda (EP-16)`, then tick ☑ EP-16 with that hash
   in `roadmap/README.md` (`docs(roadmap): record EP-16 commit hash`).
+
+> **Completion note (2026-08-28).** Executed as one autonomous session, tier n/a (docs-only;
+> the only commands touching real-data state were the read-only `mwh inventory show |
+> reconcile` and a `--resume` no-op `build` — outputs were counts, hashes and job status
+> only, GOVERNANCE §4). Power mode confirmed **Best performance** on AC (`mwh doctor`
+> `power_scheme`) before any test run. All Depends-on rows were ☑ at pickup, plus
+> EP-164/EP-165 … EP-169 per the retro amendment.
+>
+> **Items 1–2 — EP-10 verified (per the 2026-08-18 amendment: verify only; the run and the
+> docs page shipped with EP-10 itself).** The EP-10 verification recipe passed exactly:
+> `mwh inventory show --timing` → 41/41 files (0 pending, 0 header mismatch), job finished
+> 2026-08-18T03:50:04Z, errors 0, `raw_snapshot_id 8209301d8a06…`, totals 104,641,868,093
+> bytes / 902,815,672 rows; `mwh inventory reconcile` → exit 0, **match=34 · mismatch=0 ·
+> no-expectation=7 · pending=0** against the pinned `validate.sql` (MIMIC-IV 3.1 + ED 2.2);
+> `mwh inventory build` (run *after* show/reconcile) → "0 to process, 41 up to date", and
+> the snapshot job block was untouched afterwards — the EP-167 INV-1 fix confirmed live, so
+> the amendment's do-not-build caution is obsolete. EP-10's completion note already carries
+> everything item 1 asks for (timing, MB/s, zero fallbacks, shas, reconciliation summary),
+> so nothing was appended there; `docs/resources/raw-inventory.md` was already committed and
+> indexed in `docs/resources/README.md`, and README Risk 1 was already struck (all by
+> EP-10's session). One file changed in this commit: `reconcile` now stamps the page's
+> `Generated` line with the job's `finished` timestamp (deterministic since EP-167), so the
+> page's one wall-clock line moved `03:50:27` → `03:50:04`; future reconciles rewrite it
+> byte-identically. D-26 addendum records this verification.
+>
+> **Item 3 — retro.** Actuals from completion notes where stated ("note"), else the
+> previous-commit → feat-commit gap ("gap" — understates sessions whose research preceded
+> the prior tick; EP-13/14/15 ran back-to-back on 2026-08-28 evening):
+>
+> | EP | size planned | actual | what bit |
+> |---|---|---|---|
+> | EP-164 | S ≈ 30 min | ≈ 40 min (note) | SecurityCenter `productState` semantics — the WSC bit reads "off" for a deliberately unregistered product; warn rule rewritten to presence-based |
+> | EP-8 | S ≈ 30 min | ≈ 50 min (note) | upstream debugging comments carrying real-band ids → redaction policy designed mid-session |
+> | EP-9 | M ≈ 1 h | ≈ 55 min (note) | demo-2.2 column-map research (proving the identity map); upstream PK facts differed from the brief |
+> | EP-10 | M ≈ 1 h | ≈ 1 h (note) | nothing — the ⏱ full job finished in 88 s against the 10–30 min planned |
+> | EP-11 | M ≈ 1 h | ≈ 1¼ h (note) | hand-typing vocab seeds; byte-discipline plumbing so fixer hooks are provably no-ops |
+> | EP-12 | M ≈ 1 h | ≈ 1½ h (note) | `d_items` breadth + cross-module planted signal; one `python -` stdin hang (D-42) |
+> | EP-165 | M ≈ 1 h | ≈ 1 h (note) | live-fire probing of the PreToolUse hook and settings hot-reload |
+> | EP-166 | M ≈ 1 h | ≈ 40 min (gap) | — |
+> | EP-167 | M ≈ 1 h | ≈ 35 min (gap) | — |
+> | EP-168 | S ≈ 30 min | ≈ 25 min (gap) | — |
+> | EP-169 | M ≈ 1 h | ≈ 25 min (gap) | the single bundled fixture regeneration went as planned |
+> | EP-13 | M ≈ 1 h | ≈ 45 min (gap) | live re-verification of every repo row (`gh api`); the "jaanli" viz repo had moved accounts |
+> | EP-14 | M ≈ 1 h | ≈ 15 min (gap; understates the research) | cms/fda/loinc 403 the harness fetcher → curl + browser UA; cdc.gov refuses all automation; Quan 2005 cited by DOI because its PMID is an in-band 8-digit token (G4) |
+> | EP-15 | M ≈ 1 h | ≈ 25 min (gap) | FPP3 sits behind a bot-check → citations swapped; doi.org handle API as the link-check tactic |
+>
+> Phase total ≈ 10½–11 h against ≈ 12½ h planned (3 S + 11 M) — P1 came in *under* budget
+> even with five unplanned retro briefs absorbed into it. **Three lessons:** (1)
+> planning-era I/O estimates for this NVMe are ~15× conservative (2.0–2.4 GB/s sustained
+> with both endpoint-security engines live) — EP-17/18 loader budgets should assume reads
+> are nearly free and Parquet *writes* into the data root are the bottleneck; (2) the cost
+> of docs/inventory briefs is external verification, not writing — the reusable tactics
+> (`gh api` per repo row, doi.org handle API for DOIs, curl + browser UA for
+> government/vendor sites, DOIs never PMIDs) are recorded in the EP-13/14/15 notes and
+> should be the starting point for every later citation pass; (3) mid-phase consolidation
+> paid for itself — EP-165 … EP-169 cost ≈ 3 h total and every later P1 session started
+> from true status docs and hardened session tooling; the real overruns (EP-11/12) came
+> from underestimating hand-typed vocabulary breadth, not tooling fights.
+>
+> **P2 toolchain-remediation slot (would be EP-171, the next free number): not needed** —
+> recommendation recorded for owner review, no row inserted. Rationale: no wheel/version
+> fight is open (Risk 3's remnants — pygam, scikit-survival/`gpl`, econml, pytensor — are
+> settled pins for P5+ phases, not P2 blockers; the one sdist allow-list entry
+> `autograd-gamma` was accepted at EP-7); both endpoint-security products are allow-listed
+> with `mwh doctor` naming them; and P2 already opens with a dedicated reconciliation brief
+> (EP-170). If a fight surfaces mid-P2, allocate `EP-171-toolchain-remediation-p2.md` then
+> (EP-164 precedent; `EP-16a`-style names do not parse in `roadmap_check`/`mwh verify`).
+>
+> **Item 4 — DECISIONS addenda.** D-19 needed nothing (EP-8's addendum + the `db38a30`
+> owner verdict already record the pin). Added this session: **D-26** (EP-10 verification
+> results + the deterministic `Generated` timestamp), **D-27** (the shipped fixture as P2
+> codes against it: seed 2026, 120 subjects, 31 CSVs, 50,974 rows, 5,370,674 bytes,
+> layout, `GENERATOR_VERSION 0.2.0`), **D-35** (which free vocabulary paths EP-14
+> confirmed; owner actions = UTS/UMLS account, ATC bulk purchase, Athena account — all
+> parked). Appended only; nothing rewritten.
+>
+> **Item 5 — reconciliation + mirrors.** `uv run poe roadmap-check --strict` → **OK — 171
+> rows, 171 briefs, 23 done, 0 errors, 0 warnings** (22 before this EP's tick); every P1
+> row — EP-164, EP-8 … EP-12, EP-165 … EP-169, EP-13 … EP-15 — ☑ with its hash; table ↔
+> file parity ok. Parked-item audit: EP-8 (CONC-1), EP-9 (OMOP-1/FHIR-1 row), EP-10
+> (RAW-1), EP-11 (FIX-1/2), EP-12 (FIX-3), EP-14 (PHE-3/PHE-4), EP-164 (DOC-1) and EP-15's
+> pointers (EXT-1, LINK-*, FHIR-1, OMOP-1, MEDS-1, FIX-2) were all already mirrored by
+> their own sessions — re-audited present. Newly mirrored this session (EP-13's five "port
+> later" items): **v2 DAG-2** (MEDS_transforms stage catalog) and **v2 MRD-1** (healthylaife
+> full port) as new §34–35 rows; MEDS-DEV + meds-tab folded into the existing **MEDS-1**
+> row (dated re-affirmation); the **OMOP-1** row's reference implementation re-pointed to
+> saywurdson/mimic-iv-dbt (Apache-2.0) with the CogStack no-license finding recorded.
+> Capability-coverage re-audit: category 1 unchanged and its EP-10 leg is done (this EP
+> verified it); category 35 unchanged — the EP-14 → EP-143 dependency is intact in the P9
+> table and EP-14's register hands EP-143 its free fallbacks. No coverage row re-titled
+> (so `reading.md`/`test_ep15` untouched).
+>
+> **Item 6 — handed to EP-170** (per the retro amendment), which runs next with the shipped
+> names of EP-167 … EP-169. **P2 readiness confirmed:** `mwh doctor` exit 0 — 9 pass ·
+> 1 warn · 0 fail · 5 info over **15 checks** (EP-167 added `deny_coverage` and
+> `power_scheme` to EP-164's 14; the `antivirus` warn is the expected state on this host,
+> notation table); disk 406.3 / 951.5 GB free (≥ 100 GB with ~300 GB headroom over the
+> staging temp peak); Defender exclusion on `C:\mimicdata` and `LongPathsEnabled=1` +
+> `core.longpaths=true` (doctor `longpaths` pass; Defender on the owner's word, EP-0
+> follow-up — the doctor cannot read exclusions non-elevated); the Malwarebytes allow list
+> — now **nine** paths, superseding this brief's "seven" — re-confirmed by the owner on
+> 2026-08-28 (D-38 addendum, `cc40326`); data root on C: (`mwh paths`: `data_root
+> C:\mimicdata (from default)`; no `MWH_DATA_ROOT` env var). Per-tier lake roots
+> (`lake_fixture`, `lake_demo`, 18 layout keys) exist as settings since EP-167; the
+> directories are created on demand by EP-17/19.
+>
+> **Gates.** `uv run --group dev pre-commit run --all-files` all hooks passed with the
+> vendor tree and `tests/fixtures/` unmodified; `uv run mwh verify EP-16` green;
+> `poe roadmap-check --strict` 0 errors / 0 warnings. Nothing parked by this brief.
+> Next: **EP-170** (head of P2).

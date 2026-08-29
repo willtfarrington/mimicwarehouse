@@ -266,6 +266,20 @@ skip.
 > writer_version)` — with per-file Parquet sha256 kept for integrity only; the dev id
 > hashes only `dev_buckets` paths + unpartitioned tables. Full glossary: DESIGN §11 note.
 
+> **Addendum (2026-08-28, EP-16 — P1 re-plan verification).** EP-10's manifest re-verified
+> with no data-root read: `mwh inventory show --timing` prints 41/41 files (0 pending,
+> 0 header mismatch), job finished 2026-08-18T03:50:04Z with 0 errors, and the same
+> `raw_snapshot_id 8209301d8a06…`; `mwh inventory reconcile` exits 0 with
+> match=34 · mismatch=0 · no-expectation=7 · pending=0; a `--resume` no-op build reports
+> "0 to process, 41 up to date" and leaves the snapshot job block untouched (the EP-167
+> INV-1 fix, confirmed live). Wall time of the original run stays as recorded: ≈ 93 s
+> across the two passes (hash 45.0 s + rowcount 47.3 s of engine time, 2.0–2.4 GB/s on
+> the large files) against the 10–30 min planned. One committed-file consequence:
+> `reconcile` now stamps the docs page's `Generated` line with the job's `finished`
+> timestamp (deterministic since EP-167), so `docs/resources/raw-inventory.md` changed
+> once from `03:50:27` (wall clock at first write) to `03:50:04`; future reconciles
+> rewrite the page byte-identically.
+
 **D-27 Fixtures = synthetic mini-MIMIC generator (ids ≥ 90 000 000) committed +
 on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synthetic only.
 
@@ -295,6 +309,17 @@ on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synth
 > one commit — is written once in `tests/README.md` § "Changing the synthetic fixture"
 > (this EP) and supersedes the EP-11/12 hand-off phrasing "bump only when a hosp byte
 > changes" (which was scoped to EP-12, ledger FXT-3).
+
+> **Addendum (2026-08-28, EP-16 — P1 re-plan record).** The shipped fixture, as P2 codes
+> against it: seed **2026**, 120 subjects (`subject_id % 100 < 5` keeps 10 in the dev
+> buckets), **31 CSVs** (22 hosp + 9 icu) under `tests/fixtures/mimic-iv-3.1/{hosp,icu}/`
+> in raw PhysioNet layout with contract column order, plus `tests/fixtures/manifest.json`
+> (per-file sha256/bytes/rows; pins `contract_schema_hash`), `README.md` and
+> `COVERAGE.md`; **50,974 rows, 5,370,674 bytes = 5.12 MiB** (≤ 10 MB budget);
+> `GENERATOR_VERSION 0.2.0` (the one EP-169 regeneration — disjoint id floors 90/91/92/93/
+> 93.9 M per the EP-166 addendum above — same totals as 0.1.0); rebuild is byte-identical
+> via `uv run --group dev mwh fixtures build` (≈ 1.6 s). Change protocol:
+> `tests/README.md` § "Changing the synthetic fixture".
 
 **D-28 Latency ≤ 5 s typical on full data via marts; interactive pages default to
 dev.** *Alternatives:* ≤ 2 s always; whatever DuckDB gives.
@@ -361,6 +386,20 @@ no exceptions.
 **D-35 Vocabularies: free first** (ICD-9/10 dims, LOINC, RxNorm, ATC, AHRQ CCSR/
 Elixhauser/Charlson code sets, CMS GEMs); UMLS/SNOMED/OMOP Athena as later optional EPs
 (owner has no UTS account yet). *Alternatives:* Athena early; MIMIC dims only.
+
+> **Addendum (2026-08-28, EP-16 — what EP-14 confirmed; register:
+> `docs/resources/vocabularies.md`).** Every **use**-verdict vocabulary a v1 brief needs
+> has a confirmed free path: ICD-9-CM (frozen v32), ICD-10-CM/PCS, CMS GEMs (2018,
+> final), AHRQ CCSR + Elixhauser CSR (both v2026.1), NDC Directory, HCPCS Level II and
+> MS-DRG are US public domain (or public-with-citation); the free drug path is **RxNorm
+> Current Prescribable Content** (public domain, no login); LOINC is free-registration
+> but non-redistributable (only the `source.yaml` hash record may be committed). Owner
+> action remains for the **later**-verdict rows only: a UTS/UMLS account unlocks RxNorm
+> full, SNOMED CT and the RxNorm→ATC relationship path (parked, v2 PHE-3/TXT-1); ATC bulk
+> index files are a WHO CC purchase (owner decision, parked); OMOP Athena needs a free
+> account (parked, v2 OMOP-1). The only *partial* coverage is EP-143's preferred ATC
+> ingestion target — it picks its free fallback (Elixhauser or the vendored LOINC
+> `concept_map`) at execution, as its brief already provides.
 
 **D-36 Future data = reference/knowledge tables + other PhysioNet datasets.** Wizard =
 profile → map concepts/units → validate keys/cardinality → measure linkage coverage →

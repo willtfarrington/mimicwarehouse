@@ -5,7 +5,7 @@ Locally computed provenance of the raw PhysioNet CSVs under `source material/`: 
 - **Status:** complete
 - **raw_snapshot_id:** `8209301d8a06431081584e795684829b0bddeeedd49542ecf862cde712652d7a`
 - **Files in manifest:** 41 / 41
-- **Generated:** 2026-08-18T03:50:27+00:00
+- **Generated:** 2026-08-18T03:50:04+00:00
 - **DuckDB:** 1.5.5 · **Python:** 3.13.15
 - **git sha:** `5e27a154435e22f4d1bba1f304ec76ee113bc86c` · **mimic-code sha:** `8bcbd190ca75670cd5281f9ead3611ae1cefb73e`
 - **contract hash:** `e4cd5aa908d1df1caeb3a737308e7ad9f08b6548478a907a24779e0bbc6dd02b`
