@@ -2,6 +2,12 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-41 (Phenotype engine + T2DM phenotype), EP-46 (Cohort spec + registry), EP-54 (Re-plan P3)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 4's GEM landing path follows EP-14's convention:
+> `ext/vocab/gem/<version>/` (e.g. `ext\vocab\gem\2018\` with `source.yaml` beside it), not a
+> flat `ext\vocab\gem\` [FC-24]. (2) `mwh codeset gem fetch` (public CMS zip) needs no
+> `MWH_ALLOW_REMOTE` gate — that gate covers text modules only (GOVERNANCE §9) [FC-22].
+
 ## Context
 
 Phenotypes (EP-41/42) and cohort specs (EP-46) reference diagnosis, procedure, itemid, drug and

@@ -2,6 +2,15 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + itemid rollups ⏱) · **Blocks:** EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. Item 4's env names do not exist: the shipped Settings field is
+> `duckdb_app_memory_limit` (env `MWH_DUCKDB_APP_MEMORY_LIMIT`, default 12GB), and threads are
+> the shared `duckdb_threads` — there is no `MWH_APP_MEMORY_LIMIT`/`MWH_APP_THREADS`. Use the
+> shipped names, or add new fields with `.env.example` parity if the app truly needs its own
+> (the retro recommended a smaller `duckdb_app_threads`, ledger ARCH-11) [FC-14]. Any new
+> `MWH_MARTS_*` knob (item 2) is likewise a Settings field with parity, not a bare env read
+> [ARCH-13].
+
 ## Context
 
 EP-55 built the stay-grain `marts.icustay_first_day`, the itemid rollups and the mart registry,

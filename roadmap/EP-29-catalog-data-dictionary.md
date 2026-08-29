@@ -2,6 +2,17 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-33 (Re-plan P2), EP-39 (Itemid dictionary curation + unit harmonization), EP-44 (Data-quality profiling)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 1 is smaller than written: all 41 tables and 421 columns **already carry a
+> `comment`** in the shipped contract (EP-9), and the field is `comment`, not `description` —
+> item 1 becomes *expose* (into `meta.*` and `COMMENT ON`) plus improving only genuinely weak
+> comments; the "count of undescribed columns" clause is moot. The `identifier`/`free_text`
+> flags ship with EP-17 (EP-23 … EP-27 verified them per table); item 1 verifies the full set,
+> never re-adds the machinery [FC-17, FC-5]. (2) Integers in the generated Markdown
+> (`DATA-DICTIONARY.md`) are thousands-separated via `inventory.fmt_int` — guard G4 refuses bare
+> 8-digit tokens starting 1–3; raw-int `--json` output is never pasted into tracked files
+> [FC-16].
+
 ## Context
 
 Capability category 1 (data inventory & quality profiling) starts here: the `meta` schema

@@ -2,6 +2,17 @@
 
 **Size:** S · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-20 (Stage dimensions + small hosp/icu tables), EP-21 (Catalog builder (per-tier .duckdb)), EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)), EP-23 (Stage labevents ⏱), EP-24 (Stage emar + emar_detail ⏱), EP-25 (Stage remaining hosp tables ⏱), EP-26 (Stage chartevents ⏱), EP-27 (Stage icu event tables ⏱) · **Blocks:** EP-32 (Capstone #0: staging benchmark note + docs/analyses convention), EP-33 (Re-plan P2), EP-158 (Bootstrap `mwh init` + cloner smoke test on demo tier)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 3 reconciles via `inventory.reconcile()` / `expected_counts()` semantics: an
+> upstream expectation exists only where the contract's `expected_rows_source` is set —
+> `provider`, `caregiver` and `ingredientevents` have none and reconcile against EP-10's
+> raw-manifest rows only. Strike the "recorded 3.1 delta" clause: EP-10 found every upstream
+> count matches (34 match · 0 mismatch · 7 without expectation) [FC-12]. (2) No re-run of the
+> EP-17 … EP-20 suites at `--tier full` is needed here: since EP-168 the tier ladder is gone —
+> those tests key on requestable readiness fixtures (`raw_root`, `dev_ready(step)`,
+> `full_catalog`) and were exercised when their EPs ran; this brief's own `tier("full")` checks
+> subsume the staging-state assertions.
+
 ## Context
 
 The verifying brief for every ⏱ staging job in P2 (**D-18**: long full jobs are resumable

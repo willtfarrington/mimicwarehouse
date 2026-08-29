@@ -2,6 +2,10 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)), EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-32 (Capstone #0: staging benchmark note + docs/analyses convention), EP-33 (Re-plan P2)
 
+> **Amended at EP-170 (2026-08-29).** Integers pasted into the completion note or any tracked
+> Markdown are thousands-separated via `inventory.fmt_int` (guard G4); raw-int JSON stays under
+> `runs/` [FC-16]. Shorthand per the README notation table; header facts unchanged.
+
 ## Context
 
 The first end-to-end proof (**D-8**: foundation → early tracer bullet → breadth) and the

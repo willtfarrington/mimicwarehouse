@@ -26,6 +26,14 @@ Data root: `MWH_DATA_ROOT` (default `C:\mimicdata`) — outside the repository, 
 | test naming | file `tests/ep/test_ep<NN>.py` (zero-padded), marker `ep_<n>` (unpadded — `poe test -m ep_08` selects nothing). |
 | integers in tracked Markdown / completion notes | thousands-separated via `mimicwarehouse.inventory.fmt_int` (guard G4 refuses bare 8-digit tokens starting 1–3); `--json` output keeps raw ints and is **never pasted into tracked files** (EP-10 rule, ledger FC-16). Never `mwh-guard: allow` on data-derived numbers. |
 
+Pickup notes and `> **Amended at EP-n**` blocks never repeat what this table says — they cite it
+(EP-170, ledger CMP-5). **Re-plan briefs** (EP-33, EP-54, EP-74, EP-90, EP-101, EP-127, EP-136,
+EP-147, EP-156) share one standing rule instead of per-brief pickup notes (EP-170, ledger
+FC-20/DOC-11): reconcile with `uv run poe roadmap-check --strict`, refresh
+[`../mimicwarehouse/README.md`](../mimicwarehouse/README.md) § "State of the workspace",
+distribute new decisions as `DECISIONS.md` addenda, and mirror every Parked item into
+[`final-roadmap.md`](final-roadmap.md).
+
 **Sizes** (D-2): S ≈ 30 min, M ≈ 1 h, L ≈ 2 h of one Claude session with the owner supervising; anything larger is split at pickup. Current mix: 21 S · 142 M · 1 L ≈ 155 h total, ≈ 145 h core (the 11 stretch briefs are the P10 text track, EP-123 and EP-145) — roughly three months at 12 h/week, four at 9 h/week. *(EP-7, 2026-08-17: EP-164 (S, core) allocated into P1 → 165 briefs, 22 S; P0's seven briefs actually took ≈ 3 h 20 min against ≈ 4 h 30 min planned — see the EP-7 retro table.)* *(Retro, 2026-08-18: six retro briefs EP-165 … EP-170 (5 M + 1 S, core) allocated — five into P1 after EP-12, one at the head of P2 — from the owner-directed retrospective review of EP-0 … EP-12 → 171 briefs, 23 S · 147 M · 1 L; the review's findings ledger is [`retro-2026-08-18-findings.md`](retro-2026-08-18-findings.md), the decisions are D-43.)* *(P1 re-plan follow-up, 2026-08-29: the owner allocated EP-171 (S, core, write canary) into P2 before EP-17 → 172 briefs, 24 S · 147 M · 1 L.)*
 
 **Tiers** (D-18, DESIGN §4). Every brief states its tier in its header using this vocabulary: `fixture` (synthetic, committed) · `fixture+dev` · `fixture+dev+full` · `fixture+dev (full ⏱ → verified by EP-n)` (the brief launches a resumable background full-tier job and the named later brief records its timing) · `demo` (ODbL demo data) · `n/a` (docs-only). ⏱ in a title marks a brief that launches a long full-tier job; foreground shell commands are capped at ~10 min, so full-tier work is always a logged background job.
@@ -41,6 +49,12 @@ Data root: `MWH_DATA_ROOT` (default `C:\mimicdata`) — outside the repository, 
 - governance briefs (EP-4, EP-30, EP-43, EP-133) → the hook/wrapper/tool **refuses** a crafted violation in a test;
 - method briefs (P5–P7) → the representative workflow's full-tier run id is recorded in the completion note and its report artifact passes `mwh disclose check`;
 - docs / resource / capstone / re-plan briefs → the named artifacts exist, numbers reproduce from recorded run ids, links resolve.
+
+The planning-era acceptance clause "EP-0 … EP-n tests unchanged" is rewritten once here rather
+than per brief (EP-170, ledger CMP-6): a new EP must not *need* to edit an earlier
+`tests/ep/test_ep*.py` to pass; where a shipped fact legitimately changed (a count pin, a rolling
+probe), the EP lists the touched modules and the reason in its completion note, and every earlier
+`mwh verify EP-k` still exits 0.
 
 **Definition of done for a capability category's representative workflow** (six parts): (1) a spec/YAML or documented parameters; (2) code in the package (never only in a notebook); (3) tests on fixture + dev; (4) a recorded full-tier run id; (5) a report artifact with a claim-type label (exploratory / confirmatory / predictive / associational / causal) that passed disclosure review; (6) an app page only where the category mandates a UI (visualization, cohort/phenotype/timeline, protocol freezer, runs, linkage, reports).
 

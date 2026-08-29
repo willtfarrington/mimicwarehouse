@@ -5,6 +5,14 @@
 > **Charter.** This is a charter brief (D-9): scope sketch and acceptance sketch to be upgraded to a
 > full brief by EP-136 (Re-plan P8) before execution.
 
+> **Amended at EP-170 (2026-08-29).** The synthetic fixture package is hosp + icu only (EP-11/12:
+> `validate()`/`write_fixture()`/`build_frames()` are wired to those two schemas) — the ED-like
+> fixture item 6 assumes does not exist. The first brief that needs it adds `fixtures/ed.py` and
+> runs **one bundled regeneration** with a `GENERATOR_VERSION` bump (0.3.0+), following
+> `tests/README.md` § "Changing the synthetic fixture" (EP-169); which vendored concepts the
+> fixture can and cannot support is recorded in `tests/fixtures/COVERAGE.md`. Shorthand per the
+> README notation table; header facts unchanged.
+
 ## Context
 
 Second wizard step (D-36, "map"): an external table's columns must be mapped onto the warehouse's

@@ -2,6 +2,16 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-36 (Seed/determinism policy + resource logger), EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-52 (Backup of non-reproducible state (`mwh backup`)), EP-54 (Re-plan P3), EP-59 (Export primitives), EP-106 (Model registry + model cards), EP-124 (Simulation / ablation / benchmark harness), EP-134 (Runs & Provenance browser + Reports page / export gallery)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) `psutil` is a **core** dependency since EP-19 (D-15 addendum) — no dependency
+> change here [FC-9]. (2) `snapshot_ids` follows the DESIGN §11 identifier glossary (D-43
+> item 11): layer snapshot ids use the logical definition; `raw_snapshot_id` and per-file
+> `source_sha256` are distinct fields — cite the glossary, don't re-define. (3) Environment
+> capture: the run manifest embeds `mwh doctor --json` as shipped — **15 checks** since EP-16,
+> with the `antivirus` warn expected on this host; a doctor invocation costs seconds (three
+> PowerShell probes, ledger CFG-16), so capture it once per run, never per step. (4)
+> `runs.duckdb` rebuilds use the rename-aside two-step (DESIGN §6 note, D-43 item 6).
+
 ## Context
 
 Every analysis from here on must be reproducible from a run id (GOVERNANCE §12, D-24). P2 left

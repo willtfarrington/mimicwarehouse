@@ -7,6 +7,14 @@
 > EP-136 re-charters this phase; on a *no* at EP-127 this brief and the rest of P10 stay unexecuted
 > and their content is mirrored into `final-roadmap.md` (category 27).
 
+> **Amended at EP-170 (2026-08-29).** The synthetic fixture package is hosp + icu only (EP-11/12:
+> `validate()`/`write_fixture()`/`build_frames()` are wired to those two schemas) — item 4's
+> `fixtures/notes.py` is a **new module plus a signature change** in the shared fixture plumbing,
+> and lands as **one bundled regeneration** with a `GENERATOR_VERSION` bump (0.3.0+), following
+> `tests/README.md` § "Changing the synthetic fixture" (EP-169); coverage of the planted
+> vocabulary goes into `tests/fixtures/COVERAGE.md`. Shorthand per the README notation table;
+> header facts unchanged.
+
 ## Context
 
 MIMIC-IV-Note 2.2 (≈ 0.33 M discharge summaries + ≈ 2.32 M radiology reports, ≈ 6 GB of CSV under

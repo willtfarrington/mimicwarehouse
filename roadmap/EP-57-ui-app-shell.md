@@ -2,6 +2,19 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-5 (Visual identity), EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-58 (App shell B: row-view gate + app-side small-cell enforcement), EP-60 (Screenshot tooling), EP-61 (Catalog & QC browser page), EP-62 (Cohort Builder page), EP-63 (Phenotype Studio page), EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-69 (Prevalence/incidence page), EP-73 (Capstone #2: EDA case study + screenshots), EP-88 (Analysis pages wave 1), EP-99 (Survival / causal app pages), EP-125 (ML pages in app), EP-128 (Protocol Freezer page + amendments UI), EP-134 (Runs & Provenance browser + Reports page / export gallery), EP-140 (Linkage Wizard A (profile → map)), EP-154 (Text pages in app (search only)), EP-159 (Demo mode for the app)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 1's env/Settings names do not exist as written: memory limit is the shipped
+> `duckdb_app_memory_limit` (`MWH_DUCKDB_APP_MEMORY_LIMIT`); threads are the shared
+> `duckdb_threads`; `MWH_ROLE` arrives with EP-21; `MWH_APP_TIER`, `MWH_APP_RECORD_LATENCY` and
+> `settings.app_dir` are **new** Settings fields — `extra="forbid"` and the `.env.example`
+> parity test apply (drop `MWH_APP_ROLE`/`MWH_APP_MEMORY_LIMIT`/`MWH_APP_THREADS` or map them
+> onto the shipped/EP-21 fields) [FC-14, ARCH-13]. (2) The tier switcher includes `fixture`
+> (offered when `warehouse/fixture.duckdb` exists — a real per-tier catalog since EP-167, not
+> test-only), and the app **caches results, not connections** (DESIGN §6 note, D-43 item 6): a
+> connection cached for the app's lifetime blocks every catalog swap, so `get_conn` drops and
+> reopens when `meta.catalog_info.build_id`/file mtime changes; `@st.cache_data` on results is
+> the pattern, `@st.cache_resource` on connections is not [ARCH-1].
+
 ## Context
 
 The Lab app is a single Streamlit 1.61 multipage process bound to `127.0.0.1`, with a READ_ONLY

@@ -2,6 +2,16 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-41 (Phenotype engine + T2DM phenotype), EP-38 (Concept fixes/ports for DuckDB 1.5.x) · **Blocks:** EP-54 (Re-plan P3), EP-63 (Phenotype Studio page), EP-68 (Prevalence/incidence/event-rate module), EP-153 (Linkage to structured events)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. Item 4 and the acceptance use EP-43's `mwh disclose check`, which does not exist yet in
+> the linear order (EP-42 precedes EP-43) [FC-13]. Default resolution (D-43 item 14 — a wording
+> fix, no table change): write `phenotype_prevalence.md` through EP-30's `safe.SUPPRESSOR` hook
+> (row-wise k = 11), keep it under `runs/` with a "disclosure sidecar pending EP-43" header
+> line, and EP-43 checks it retroactively (that acceptance line is added to EP-43 by this
+> amendment); read the acceptance's "passes `mwh disclose check`" as that retroactive check.
+> Alternatively the owner may move EP-43 before EP-42 — an owner call recorded at EP-33
+> (Re-plan P2), which amends the P3 briefs anyway.
+
 ## Context
 
 The two phenotypes most of the later representative workflows lean on (D-5 themes: sepsis-3 for

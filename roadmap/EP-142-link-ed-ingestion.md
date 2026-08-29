@@ -5,6 +5,13 @@
 > **Charter.** This is a charter brief (D-9): scope sketch and acceptance sketch to be upgraded to a
 > full brief by EP-136 (Re-plan P8) before execution.
 
+> **Amended at EP-170 (2026-08-29).** The synthetic fixture package is hosp + icu only (EP-11/12) —
+> the "ED-like fixture" item 5 flows through does not exist yet: this brief (or EP-138, whichever
+> executes first needing it) adds `fixtures/ed.py` and runs **one bundled regeneration** with a
+> `GENERATOR_VERSION` bump (0.3.0+), following `tests/README.md` § "Changing the synthetic
+> fixture" (EP-169); ED concept coverage on the fixture is recorded in
+> `tests/fixtures/COVERAGE.md`. Shorthand per the README notation table; header facts unchanged.
+
 ## Context
 
 The real-data test of the wizard (D-4: ED enters the warehouse only here, through the Linkage

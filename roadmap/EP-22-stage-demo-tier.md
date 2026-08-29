@@ -2,6 +2,20 @@
 
 **Size:** M · **Tier:** demo · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-28 (Verify full staging), EP-33 (Re-plan P2), EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱), EP-158 (Bootstrap `mwh init` + cloner smoke test on demo tier)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 5's tier-vocabulary extension is superseded by EP-168: demo tests are an
+> orthogonal opt-in — `@pytest.mark.demo`, selected with `--with-demo` (env `PYTEST_DEMO=1`),
+> skipped with a reason while `warehouse/demo.duckdb` is missing; `--tier demo` stays a usage
+> error and demo is never a ladder step [ARCH-7, FC-2]. (2) The shipped demo 2.2 → 3.1 map is the
+> **identity**, and the `TableMap` vocabulary is `added_in_3_1` / `renamed` / `dropped_in_3_1` —
+> there are no `add_null`/`drop` verbs and no shipped `map_notes`; item 3's lossy-map machinery
+> stays dormant until a real difference appears (keep the manifest field if useful, expect it
+> empty), and the column-map unit test in item 5 uses a **synthetic non-identity map** built in
+> the test (fixture-band ids) [SCH-3, FC-19]. (3) `MWH_ALLOW_REMOTE` gates **text modules only**
+> (GOVERNANCE §9): the context's wording stands — `mwh demo fetch` (physionet.org) needs no gate
+> [FC-22]. (4) The demo lake root is `settings.lake_root("demo")` = `lake/demo` (EP-167); demo
+> builds refuse the credentialed lake via `config.assert_not_credentialed_lake` [ARCH-3].
+
 ## Context
 
 **D-27**: besides the synthetic fixtures, the warehouse has an on-demand `demo` tier built

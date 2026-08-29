@@ -2,6 +2,25 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-19 (DAG runner `mwh build`) · **Blocks:** EP-21 (Catalog builder (per-tier .duckdb)), EP-28 (Verify full staging), EP-33 (Re-plan P2)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) The item 1/items 4 coverage assertion is scoped to **hosp + icu**: the contract holds
+> 41 tables, but P2 stages exactly the 31 `mimiciv_hosp` (22) + `mimiciv_icu` (9) tables —
+> `mimiciv_ed` (6) has no stage step until EP-142, `mimiciv_note` (4) none until EP-148
+> (segregated lake); assert the negative too (DESIGN §5 note) [ARCH-14]. (2) Item 4 reconciles
+> against `validate.sql` only where the contract's `expected_rows_source` is set — `provider` and
+> `caregiver` have no upstream count (nor does EP-27's `ingredientevents`); those reconcile
+> against EP-10's raw-manifest rows only, via `inventory.expected_counts()`/`reconcile()`
+> semantics. The "if validate.sql predates 3.1" clause is moot: EP-10 found every upstream count
+> matches (34 match · 0 mismatch · 7 without expectation) [FC-12]. (3) Step declaration: **option
+> B** — declare only these 20 steps here, and EP-21's fixture-lake build drops its `--tag small`
+> filter so the fixture lake (and `fixture_lake_catalog`) grows automatically as EP-23 … EP-27
+> add their fixture-tier steps; EP-12's in-memory 31-table `fixture_catalog` is untouched.
+> (Option A — declaring all 31 steps now with event tables `tiers: [fixture]` — only if EP-17/18
+> made it trivial.) [FC-11, FXT-11]. (4) DATE-grain time columns (`patients.dod`,
+> `procedures_icd`/`hcpcsevents`/`omr.chartdate`) load as the contract's DATE type; the
+> DATE-grain *semantics* rule belongs to EP-34/49/50 — do not add contract markers here
+> [ARCH-15].
+
 ## Context
 
 The first tables that live in `lake/core` for keeps: the four hosp dimensions and `d_items`,

@@ -68,3 +68,28 @@ it (FC-21).
   any brief in EP-17 … EP-33 not in the table.
 - Commit `docs(roadmap): reconcile P2/P3 briefs with shipped P1 + retro decisions (EP-170)`, then
   `docs(roadmap): record EP-170 commit hash`.
+
+> **Completion note (2026-08-29).** All landed as `> **Amended at EP-170 (2026-08-29).**` blocks
+> at the top of each brief (EP-7 precedent; in charter briefs, directly under the charter note);
+> no header fact, table row or in-scope text was edited in place — every correction lives in the
+> block. **Briefs amended (27):** EP-17, EP-18, EP-19, EP-20, EP-21, EP-22, EP-23, EP-24, EP-25,
+> EP-26, EP-27, EP-28, EP-29, EP-30, EP-31, EP-32, EP-33, EP-35, EP-36, EP-40, EP-42, EP-43,
+> EP-56, EP-57, EP-138, EP-142, EP-148 — every brief in EP-17 … EP-33 appears in the mismatch
+> table, so there is no "no amendment needed" residue in that range; EP-34, EP-37 … EP-39, EP-41,
+> EP-44 … EP-55 and the remaining P4+ briefs are outside the table and were not touched (their
+> P2-interface reconciliation is EP-33's item 4, as planned). **Rows consumed without an edit:**
+> the EP-16 row — its retro amendment was added 2026-08-18, EP-16 executed 2026-08-28
+> (`483c99d`), and the owner allocated EP-171 on 2026-08-29 (`f7b2199`), so items 1–2/3/6 and the
+> remediation-slot naming are all settled; and note (d) (EP-13 / `docs/resources/README.md`) —
+> overtaken by the EP-166 pickup note on EP-13 and shipped at EP-13's execution (`d285522`).
+> Note (c): the EP-16 Depends row was left as is (owner deferral stands). **Re-plan briefs**
+> (EP-54, EP-74, EP-90, EP-101, EP-127, EP-136, EP-147, EP-156) carry no per-brief blocks: their
+> pickup note is the one shared sentence added under the notation table in `README.md` § How to
+> use, per the table's own instruction; EP-33's block points at it. README also gained items (a)
+> ("pickup notes never repeat what the table says") and (b) (the rewritten "EP-0 … EP-n tests
+> unchanged" acceptance clause, ledger CMP-6). **Checks:** `uv run poe roadmap-check --strict` —
+> parity/header/hashes/charters ok, **172 rows, 172 briefs, 23 done, 0 errors, 0 warnings** (the
+> acceptance above says "165 → 171 rows": written before the owner allocated EP-171 on
+> 2026-08-29, the count is now 172 — no rows were added or removed by this EP);
+> `uv run mwh guard --all-tracked` — clean, 449 files. Docs-only: no code, no tests, no data
+> touched.

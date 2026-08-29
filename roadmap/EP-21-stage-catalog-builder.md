@@ -2,6 +2,26 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-20 (Stage dimensions + small hosp/icu tables) · **Blocks:** EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)), EP-28 (Verify full staging), EP-29 (Catalog & data dictionary (meta.*)), EP-30 (Safe-query wrapper + audit log), EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality), EP-33 (Re-plan P2), EP-34 (Time semantics + unit-of-analysis registry), EP-40 (Code-set registry + ICD-9→10 GEM utility)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 1's swap is the **rename-aside two-step** of the DESIGN §6 note (D-43 item 6):
+> `os.rename(<tier>.duckdb → .old)` *succeeds* with READ_ONLY readers open, then
+> `os.replace(.new → <tier>.duckdb)`, then remove `.old`; `open_catalog` retries the
+> sub-millisecond `FileNotFoundError` window; the "close the app and rerun" message applies only
+> when even the rename fails [ARCH-1]. (2) `catalog_path("fixture")` is a real per-tier path
+> under the data root (`warehouse/fixture.duckdb`) and the fixture lake root is `lake/fixture`
+> (EP-167, D-43 item 7) — not a "temp root"; `Settings.catalog_path` already exists, do not
+> re-specify it; tests wanting isolation pass a `tmp_path`-rooted Settings [ARCH-3, FC-7].
+> (3) Record `dev_buckets` in `meta.catalog_info` and warn on open/build when the current
+> `settings.dev_buckets` drifts from the recorded ones [ARCH-8]. (4) Item 4 does **not** re-point
+> EP-12's in-memory `fixture_catalog` (31 tables; `test_ep12` and later suites depend on it): add
+> a **separate** session fixture `fixture_lake_catalog` over the runner-built fixture-tier
+> catalog, and build it without `--tag small` so it grows as EP-23 … EP-27 add fixture steps
+> (see the EP-20 amendment, option B) [FC-11, FXT-11]. (5) Catalogs embed absolute lake paths and
+> assert the DuckDB version on open — they are derived and disposable: after a data-root move or
+> a pin bump the fix is `mwh build --tier <t> --select catalog`, never surgery (DESIGN §6 note)
+> [ARCH-16]. (6) Item 2's `MWH_ROLE` is a **new** Settings field — `extra="forbid"` and the
+> `.env.example` parity test apply [ARCH-13].
+
 ## Context
 
 The catalog layer (DESIGN §3, §6): one `.duckdb` file per tier under

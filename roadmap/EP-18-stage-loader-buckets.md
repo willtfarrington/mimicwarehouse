@@ -2,6 +2,18 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-17 (Loader core A: typed CSV → Parquet) · **Blocks:** EP-19 (DAG runner `mwh build`), EP-33 (Re-plan P2)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 3's `DEV_BUCKETS = (0, 1, 2, 3, 4)` constant is **not** created:
+> `settings.dev_buckets` (EP-3; validated, default `[0..4]`) is the only bucket source (D-43
+> item 14) — the loader, the runner and EP-21 all read it from Settings; item 5's
+> `buckets=DEV_BUCKETS` reads `buckets=settings.dev_buckets` [FC-15, ARCH-8]. (2) The per-bucket
+> sort uses the contract's tie-broken `sort_keys` (EP-169 added same-table id/sequence
+> tie-breaks), which makes the "sha256 stable across two runs" determinism tests well-defined
+> under ties; `sort_by` defaulting stays as written [ARCH-4]. (3) Every `.new → dest` directory
+> swap in items 1–2 goes through EP-17's `paths.swap_dir` rename-aside two-step (DESIGN §5 note)
+> — the context's "`os.replace` for atomic renames" is wrong on Windows when `dest` exists
+> [ARCH-2].
+
 ## Context
 
 EP-17 stages a table into a single sorted Parquet file. This brief adds the physical

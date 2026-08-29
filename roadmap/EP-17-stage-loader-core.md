@@ -2,6 +2,50 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-3 (Config & data root + safety checks), EP-9 (Schema registry (YAML contract)) · **Blocks:** EP-18 (Loader core B: subject buckets, sort, resume), EP-33 (Re-plan P2), EP-137 (Importer profiler + provenance/licensing register)
 
+> **Amended at EP-170 (2026-08-29).** Reconciled with the shipped P0/P1 code and the retro
+> decisions (D-43; ledger ids in brackets). Header facts unchanged; brief shorthand reads per the
+> "Notation used in briefs" table in `README.md` (this folder) § How to use.
+> (1) Item 1's "if EP-3 already ships a connection factory" — it does not, but
+> `inventory.open_connection()` (EP-10/EP-167) is the de-facto opener: wrap or supersede it, one
+> implementation only [FC-7]. The free-space guard is tier-aware since EP-167 — use
+> `settings.min_free_gb_for(tier)` (0 for `fixture`), so fixture builds under `tmp_path` pass [FC-27].
+> (2) `settings.loader_reject_max` is a **new** Settings field: `extra="forbid"` and the
+> `.env.example` parity test apply — add both together [FC-14, ARCH-13].
+> (3) Item 4's manifest line carries **two** provenance fields, not one: the per-file
+> `source_sha256` **and** the 41-file `raw_snapshot_id` (DESIGN §11 glossary; D-43 item 11) —
+> the brief's single `source_manifest_id` is superseded [FC-8, ARCH-6].
+> (4) Item 3's `os.replace(dest.new → dest)` fails on Windows whenever `dest` exists — ship
+> `paths.swap_dir(new, dest)` implementing the rename-aside two-step of the DESIGN §5 note
+> (crash-safe, **not** atomic; readers must be closed first) [FC-6, ARCH-2].
+> (5) Item 3's `ORDER BY <primary key from keys.yaml>` → `ORDER BY` the contract's
+> `Table.sort_keys` (`provider`/`caregiver` have no primary key to sort by; sort keys carry
+> same-table tie-breaks since EP-169, so the determinism tests are well-defined) [SCH-3].
+> (6) Item 2's hard-coded dialect is superseded: read options come from
+> `Table.read_csv_options()` / `mimicwarehouse/schema/csv_dialect.py` (EP-169) —
+> `allow_quoted_nulls=true`, **no** `timestampformat` (DuckDB's ISO cast accepts optional
+> fractional seconds; the nine upstream TIMESTAMP(3) columns are recorded as `upstream_type`).
+> Add a one-line dev-tier probe (`SELECT max(length(<col>)) FROM read_csv(…, all_varchar=true)`
+> on pharmacy/prescriptions/outputevents timestamp columns) so the fractional-seconds question
+> is answered by counts before any full-tier run under `loader_reject_max = 0` [SCH-1].
+> (7) Path facts: the contract's `csv_path` is dataset-relative, the EP-19 DAG `source` is
+> raw-root-relative, and the note dataset directory is PhysioNet's long name — use
+> `inventory.rel_path_for(table)` / `inventory.DATASET_DIRS` and the manifest's `for_table()`
+> lookup instead of re-deriving the key [FC-29].
+> (8) Create the DuckDB `temp_directory` **parent** before connecting — DuckDB 1.5.5 does not
+> create a missing parent and errors on first spill [CFG-3].
+> (9) Column flags: **this brief owns** adding `identifier: true` / `free_text: true` flags to
+> `Column` and an `identifiers:` section to `keys.yaml`; EP-23 … EP-30 only *verify* their
+> per-table flags. Flag edits move `content_hash()` only — the fixture manifest pins
+> `structural_hash()` (EP-169), so no fixture regeneration [FC-5].
+> (10) Dev tests request EP-168's `raw_root` conftest fixture (skip-with-reason while the raw
+> dataset is unreachable), so the `--tier dev` acceptance is not vacuous [FC-1].
+> (11) Timing inputs, not gates: EP-10 measured 2.0–2.4 GB/s sequential raw-CSV reads on this
+> machine [FC-26].
+> Shipped names to code against (EP-167/168/169): `Settings.lake_root(tier)` /
+> `rejects_root(tier)` / `min_free_gb_for(tier)`, the shared `mimicwarehouse/console.py` for CLI
+> output, `inventory.rel_path_for` / `open_connection`, `Table.read_csv_options()`,
+> `Contract.structural_hash()`, conftest `raw_root`.
+
 ## Context
 
 This is the first code that reads raw CSVs from `source material/`. It builds the typed

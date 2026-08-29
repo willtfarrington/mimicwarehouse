@@ -2,6 +2,17 @@
 
 **Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-28) · **Core/Stretch:** core · **Depends on:** EP-19 (DAG runner `mwh build`) · **Blocks:** EP-28 (Verify full staging), EP-33 (Re-plan P2)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) The contract already carries the tie-broken `sort_keys` item 1 expects (EP-169) —
+> item 1 is a *verify*, not a contract edit [FC-3]. (2) The `identifier`/`free_text` flag
+> machinery ships with EP-17; item 2 only *verifies* these tables' flags (`orderid`,
+> `linkorderid`, `caregiver_id` identifiers) — a missing flag is fixed with a dated note; flag
+> edits move `content_hash()` only (the fixture manifest pins `structural_hash()`, EP-169)
+> [FC-5]. (3) The dev-marked test requests EP-168's `dev_ready("<step>")` readiness fixture per
+> step (skip-with-reason until the status entry exists), so "green once dev-ready" is real, not
+> vacuous [VT-1]. (Note `ingredientevents` has no `validate.sql` expectation — see the EP-20/
+> EP-28 amendments [FC-12].)
+
 ## Context
 
 Completes `mimiciv_icu`: `inputevents.csv` (~2.7 GB; infusions/boluses with `starttime`,

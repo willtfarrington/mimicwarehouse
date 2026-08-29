@@ -2,6 +2,10 @@
 
 **Size:** S · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-35 (Provenance run ledger) · **Blocks:** EP-54 (Re-plan P3), EP-78 (Cluster bootstrap `boot` module)
 
+> **Amended at EP-170 (2026-08-29).** `psutil` is a **core** dependency since EP-19 (D-15
+> addendum) — item 3 imports it, no dependency change [FC-9]; `pynvml` stays optional as
+> written. Shorthand per the README notation table; header facts unchanged.
+
 ## Context
 
 EP-35 gave every run a manifest with `seeds` and `resources` slots left optional. This brief

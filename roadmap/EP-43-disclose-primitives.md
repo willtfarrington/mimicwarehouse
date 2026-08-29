@@ -2,6 +2,19 @@
 
 **Size:** M · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-44 (Data-quality profiling), EP-48 (Attrition diagram renderer), EP-54 (Re-plan P3), EP-58 (App shell B: row-view gate + app-side small-cell enforcement), EP-59 (Export primitives), EP-130 (Report engine A: Jinja2 → MD/HTML), EP-133 (Disclosure-review tool)
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) The committed `tests/fixtures/disclose/bad_ids.csv` must not itself carry
+> real-band ids — guard **G4 scans `.csv` content** and would refuse the commit: craft it with
+> `9x`-band ids (≥ 90 000 000) under an identifier-named column so the *checker's* `ID_COL` rule
+> fires while the guard stays clean, pragma-free (never `mwh-guard: allow` on data-shaped
+> content) [FC-25]. (2) The checker's id-band scanner (item 2b) must skip count-like cells: a
+> large row count that happens to fall inside a band is not an id — scope band matching to
+> identifier-named columns and inline text, not to every 8-digit integer (mirror the guard's
+> count-column exemption) [FC-16]. (3) Acceptance line added at EP-170: after the module ships,
+> `mwh disclose check` retroactively passes on EP-42's `runs/<run_id>/phenotype_prevalence.md`
+> (see the EP-42 amendment); the EP-29/EP-32 retroactive checks arrive via the EP-33 re-plan as
+> already planned.
+
 ## Context
 
 GOVERNANCE §5 and §7 (D-33, D-40) require that any count below 11 is warned in-app and

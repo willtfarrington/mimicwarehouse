@@ -2,6 +2,11 @@
 
 **Size:** S · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** EP-28 (Verify full staging), EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality) · **Blocks:** EP-33 (Re-plan P2)
 
+> **Amended at EP-170 (2026-08-29).** Integers in `00-staging-benchmark.md` and the completion
+> note are thousands-separated via `inventory.fmt_int` (guard G4 refuses bare 8-digit tokens
+> starting 1–3) — build the renderer that way [FC-16]. Shorthand per the README notation table;
+> header facts unchanged.
+
 ## Context
 
 Every phase ends with a capstone (**D-8**) and the whole portfolio is read by two audiences

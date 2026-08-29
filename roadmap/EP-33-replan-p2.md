@@ -2,6 +2,16 @@
 
 **Size:** S · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** EP-17 (Loader core A: typed CSV → Parquet), EP-18 (Loader core B: subject buckets, sort, resume), EP-19 (DAG runner `mwh build`), EP-20 (Stage dimensions + small hosp/icu tables), EP-21 (Catalog builder (per-tier .duckdb)), EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)), EP-23 (Stage labevents ⏱), EP-24 (Stage emar + emar_detail ⏱), EP-25 (Stage remaining hosp tables ⏱), EP-26 (Stage chartevents ⏱), EP-27 (Stage icu event tables ⏱), EP-28 (Verify full staging), EP-29 (Catalog & data dictionary (meta.*)), EP-30 (Safe-query wrapper + audit log), EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality), EP-32 (Capstone #0: staging benchmark note + docs/analyses convention) · **Blocks:** —
 
+> **Amended at EP-170 (2026-08-29).** Item 1's `uv run --group dev python roadmap_check.py` reads
+> `uv run poe roadmap-check --strict` per the README notation table (the script lives under
+> `scripts/`; `--strict` is green since EP-164) [FC-20]; retro-table integers via
+> `inventory.fmt_int` [FC-16]. Re-plan mechanics follow the shared re-plan sentence in
+> `README.md` (this folder) § How to use (roadmap-check --strict · refresh the workspace README
+> § State of the workspace · DECISIONS addenda · mirror Parked items). Two owner calls land
+> here: EP-42's disclosure ordering (see the EP-42/EP-43 amendments — default is the wording
+> fix, no table change) and, per standing convention, whether P3 needs a toolchain-remediation
+> slot. Header facts unchanged.
+
 ## Context
 
 Every phase closes with a re-plan (**D-8**): retro, timings, DECISIONS addenda, ☑

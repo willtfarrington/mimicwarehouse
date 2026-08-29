@@ -2,6 +2,18 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality), EP-33 (Re-plan P2), EP-35 (Provenance run ledger), EP-43 (Disclosure primitives (`disclose` module)), EP-57 (App shell A (Streamlit multipage))
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 1(e)'s free-text heuristic is **scoped to subject-keyed tables**:
+> dictionary/dim tables (`Table.is_dim`) and `meta.*` are exempt — GOVERNANCE §4 explicitly
+> allows dictionary tables, and the 64-char rule would otherwise refuse legitimate dim labels
+> (EP-29's dictionary included); `drgcodes.description` and `hcpcsevents.short_description` are
+> allow-listed label columns; contract `free_text` columns stay refused by name [ARCH-10,
+> FC-18]. (2) `mwh sql` output must never trip the guard/deny layer: table/CSV output
+> thousands-separates counts via `inventory.fmt_int` (G4 refuses bare 8-digit tokens starting
+> 1–3); `--format json` keeps raw ints and is never pasted into tracked files [FC-16]. (3) The
+> audit line carries a `snapshot_ids` **dict** (layer → id, per the DESIGN §11 glossary), not a
+> single `snapshot_id` [ARCH-6].
+
 ## Context
 
 The governance choke point (**D-31**, **D-32**, **D-33**, **D-39**; GOVERNANCE §4, §8;

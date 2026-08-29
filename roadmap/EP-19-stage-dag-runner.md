@@ -2,6 +2,27 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-18 (Loader core B: subject buckets, sort, resume) · **Blocks:** EP-20 (Stage dimensions + small hosp/icu tables), EP-23 (Stage labevents ⏱), EP-24 (Stage emar + emar_detail ⏱), EP-25 (Stage remaining hosp tables ⏱), EP-26 (Stage chartevents ⏱), EP-27 (Stage icu event tables ⏱), EP-33 (Re-plan P2), EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱), EP-50 (Events spine (MEDS-compatible) ⏱), EP-141 (Linkage Wizard B (validate → coverage → commit)), EP-148 (Notes staging ⏱ (segregated lake + notes.duckdb FTS))
 
+> **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
+> table. (1) Item 5's launcher spawns `[sys.executable, "-m", "mimicwarehouse.cli", …]` — the
+> allow-listed workspace-venv python, which gives a real child pid — never bare `uv run` (not on
+> the tool-shell PATH; the shim's pid is useless to psutil). `--data-root` is already the
+> **global** CLI option (EP-167) — do not duplicate it per-command. Item 5's fallback recipe
+> resolves the log path via `mwh paths --json` (key `runs_jobs`), never `$env:MWH_DATA_ROOT`
+> (unset on this machine → expands to the drive root) [FC-10, CMP-5]. (2) `psutil` joins the
+> **core** dependency group here (D-15 addendum, D-43 item 14): say so in the completion note and
+> keep `test_ep01`'s every-package-has-a-wheel check green [FC-9]. (3) `StepContext.lake_root =
+> settings.lake_root(tier)` (EP-167: `lake/` for dev/full, `lake/fixture`, `lake/demo`), and
+> fixture/demo builds call `config.assert_not_credentialed_lake` — the fixture raw-root
+> resolution in item 2 stands, but the fixture lake is `lake/fixture` under the active data root,
+> not an ad-hoc temp path [ARCH-3]. (4) The free-space guard is per tier:
+> `settings.min_free_gb_for(tier)` (fixture-tier test builds must not demand 100 GB) [ARCH-9].
+> (5) Item 3's layer snapshot uses the **logical** definition (DESIGN §11, D-43 item 11): sha256
+> over sorted `(schema, table, path, rows, schema_hash, source_sha256/raw_snapshot_id, sort_keys,
+> writer_version)` — not a hash of raw manifest lines whose Parquet sha256 varies across rebuilds
+> [ARCH-5]. (6) Concurrency budget: **one** build-profile (36 GB / 12-thread) connection per
+> machine at a time — the build lock covers `mwh build`; tests and ad-hoc readers use the app
+> profile (DESIGN §6 note) [ARCH-11].
+
 ## Context
 
 **D-20**: a custom, lightweight transform runner (~600 LOC we control) instead of
