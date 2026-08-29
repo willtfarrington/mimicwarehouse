@@ -68,3 +68,45 @@ labels, not notes; `safe_query`'s long-string heuristic covers them.
 - `uv run poe test -m ep_24` green on fixture; `tier("dev")`-marked test green once `dev-ready` (or recorded as pending for EP-28); `uv run --group dev mwh verify EP-24` green.
 - Launched `mwh build --tier full …` **in the background**; log at `%MWH_DATA_ROOT%\runs\jobs\stage-emar-full.log`; job id and build id recorded here; timing verified by EP-28.
 - `keys.yaml` lists `emar_id` as an identifier (checked by a test); no rows in logs or tool output.
+
+> **Launch note (2026-08-29).** Job `stage-emar-full` (pid 11592) launched first thing via
+> `uv run --group dev mwh build --tier full --tag emar --background --job stage-emar-full`;
+> log `%MWH_DATA_ROOT%\runs\jobs\stage-emar-full.log`; started 2026-08-29T19:38:53Z;
+> build id `20260829T193854-full-182dcff` (2 steps: emar, then emar_detail — sequential,
+> single writer). `mwh doctor` confirmed AC power mode *Best performance* before launch.
+> Timing/RSS/disk recording and count reconciliation land with EP-28 per the header.
+>
+> The job finished **inside the session**: exit 0 at 2026-08-29T19:50:31Z — total wall
+> 698 s against the brief's about-an-hour budget. VARCHAR-heavy planning inputs for EP-28
+> (item 6; from the job log — EP-28 verifies against the benchmark ledger):
+>
+> - **emar** (~6 GB CSV, 12 columns): step wall 64.7 s; dev-ready 31 s after step start
+>   (2026-08-29T19:39:25Z); 42,808,593 rows → 643,479,589 bytes across 100 sorted
+>   `part-0.parquet` (pass-2 buckets ~0.3–0.4 s each); peak RSS 6,853 MB (runner sampler).
+> - **emar_detail** (~8 GB CSV, 33 columns, VARCHAR-heavy): step wall **630.1 s** —
+>   pass 1 ≈ 439 s (≈ 19 MB/s, roughly 15× slower than labevents' 285 MB/s pass 1: the
+>   wide all-VARCHAR row dominates), dev-ready at 2026-08-29T19:47:28Z, pass 2 ≈ 191 s
+>   (100 buckets at ~1.8–2.2 s, ≈ 0.8–0.97 M rows each); 87,371,064 rows →
+>   670,346,169 bytes across 100 sorted buckets; **peak RSS 24,563 MB** (runner sampler —
+>   under the 36 GB `memory_limit` but the high-water so far; EP-26/EP-27 should budget
+>   for VARCHAR-heavy sorts accordingly). `tmp_duckdb=0` at every 60 s heartbeat sample
+>   (no spill observed). FYI (as in EP-23): the pass-1 heartbeat's own rss/written probes
+>   read 0 for the first minutes on this host; the runner's psutil sampler is the
+>   trustworthy number.
+>
+> Because the job completed, this session also refreshed the dev catalog
+> (`mwh build --tier dev --select catalog`, build `20260829T195232-dev-182dcff`,
+> 23 cataloged, snapshot `73ba7d48…`) and ran `poe test -m ep_24 --tier dev`: all
+> 6 tests green — the dev-marked test executed for real (dev view counts = manifest rows
+> for buckets 0–4 for both tables; per-file row-group `subject_id` ranges monotonic;
+> **dev-tier `emar_detail` rows without an `(emar_id, emar_seq)` parent: 0** — recorded
+> per item 5, not failed on). Full-suite regression: 631 passed on fixture.
+>
+> Brief-vs-shipped deviation (dated note per item 2): the brief's expectation
+> `emar_detail.parent_field_ordinal` **DOUBLE was rejected** — the vendored mimic-code
+> `postgres/create.sql` declares `VARCHAR(10)` and the EP-9 contract already says VARCHAR
+> (as DOUBLE, ordinals like '1.1' and '1.10' would collide); no contract edit was needed,
+> `test_ep24` pins VARCHAR. `keys.yaml` already carried all four identifier names
+> (`emar_id`, `poe_id`, `pharmacy_id`, `enter_provider_id`) — verify only, no dated
+> keys.yaml note needed. No new free-text flags: the dose/product/barcode varchars are
+> administration labels (brief Context; safe_query's long-string heuristic covers them).

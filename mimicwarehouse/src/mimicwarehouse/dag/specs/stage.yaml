@@ -95,6 +95,23 @@ steps:
     source: mimic-iv-3.1/hosp/labevents.csv
     tags: [stage, mimiciv_hosp, large]
     tiers: [fixture, demo, dev, full]
+  # emar_detail depends on emar (EP-24): one background job, sequential steps - the
+  # single-writer rule, and emar_detail's rows join emar on (emar_id, emar_seq).
+  - name: stage.mimiciv_hosp.emar
+    kind: stage
+    schema: mimiciv_hosp
+    table: emar
+    source: mimic-iv-3.1/hosp/emar.csv
+    tags: [stage, mimiciv_hosp, large, emar]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_hosp.emar_detail
+    kind: stage
+    schema: mimiciv_hosp
+    table: emar_detail
+    source: mimic-iv-3.1/hosp/emar_detail.csv
+    depends_on: [stage.mimiciv_hosp.emar]
+    tags: [stage, mimiciv_hosp, large, emar]
+    tiers: [fixture, demo, dev, full]
   # -- mimiciv_hosp: dimensions (unpartitioned) --------------------------------------------
   - name: stage.mimiciv_hosp.d_labitems
     kind: stage
@@ -184,6 +201,8 @@ steps:
       - stage.mimiciv_hosp.omr
       - stage.mimiciv_hosp.poe_detail
       - stage.mimiciv_hosp.labevents
+      - stage.mimiciv_hosp.emar
+      - stage.mimiciv_hosp.emar_detail
       - stage.mimiciv_hosp.d_labitems
       - stage.mimiciv_hosp.d_hcpcs
       - stage.mimiciv_hosp.d_icd_diagnoses
