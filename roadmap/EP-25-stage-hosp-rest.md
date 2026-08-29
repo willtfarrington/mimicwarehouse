@@ -85,6 +85,22 @@ timings and appends the completion note.
 > poe_detail→poe on `poe_id`). With this job every one of the 22 hosp contract tables
 > is staged.
 
+> **Completion note (2026-08-29, EP-28 verification).** Ledger-verified from
+> `runs/benchmarks.jsonl` via `dag.benchmarks.summarize()` — job `stage-hosp-rest-full`,
+> build `20260829T200147-full-691fa6c`:
+>
+> | table | pass 1 s | pass 2 s | total s | peak RSS MB | CSV bytes in | Parquet bytes out | MB/s | rows |
+> |---|---:|---:|---:|---:|---:|---:|---:|---:|
+> | pharmacy | 25.9 | 25.6 | 51.6 | 7,347 | 3,975,712,702 | 401,928,666 | 77.0 | 17,847,567 |
+> | prescriptions | 33.9 | 28.1 | 62.1 | 7,236 | 3,488,170,135 | 452,500,456 | 56.2 | 20,292,611 |
+> | poe | 29.3 | 40.3 | 69.7 | 9,796 | 5,101,087,153 | 369,141,228 | 73.2 | 52,212,109 |
+> | microbiologyevents | 8.0 | 7.0 | 15.0 | 1,582 | 909,240,343 | 82,363,623 | 60.5 | 3,988,224 |
+>
+> 100 sorted `part-0.parquet` files each; all four row counts == the vendored
+> `validate.sql` expectations == the EP-10 raw counts; rejects 0; dev ⊂ full confirmed
+> (dev-catalog `count(*)` = manifest rows for buckets 0–4). FYI for EP-33: poe joins
+> the pass 2 > pass 1 set (40.3 vs 29.3 s).
+
 ## Verification / acceptance
 
 - `uv run poe test -m ep_25` green on fixture; `tier("dev")`-marked test green once `dev-ready` (or recorded as pending for EP-28); `uv run --group dev mwh verify EP-25` green.

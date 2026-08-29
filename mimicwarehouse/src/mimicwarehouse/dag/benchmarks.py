@@ -102,6 +102,83 @@ def read(settings: Settings | None = None) -> polars.DataFrame:
     return polars.read_ndjson(path)
 
 
+def summarize(
+    settings: Settings | None = None,
+    *,
+    tier: str | None = None,
+    kind: str | None = "stage",
+) -> polars.DataFrame:
+    """Per-step telemetry pivoted by phase — what the EP-28 completion notes and the
+    EP-32 benchmark case study read (EP-28 item 5).
+
+    One row per ``(tier, step)``: the **latest** ``phase: total`` line (newest ``ts``)
+    joined with the *same build's* ``pass1`` / ``pass2`` walls (null when the step has
+    no phase lines, or when a resume skipped pass 1). Columns: ``tier``, ``step``,
+    ``build_id``, ``ts``, ``pass1_wall_s``, ``pass2_wall_s``, ``wall_s``,
+    ``peak_rss_mb``, ``rows``, ``bytes_in``, ``bytes_out``, ``files``, ``mb_in_per_s``
+    (``bytes_in / 1e6 / wall_s``), ``mb_out_per_s``, ``ok``. ``kind`` filters the step
+    lines (default ``"stage"``; ``None`` keeps every kind); the per-run ``kind: build``
+    summary lines (``step`` null) are always excluded. Everything here is timings and
+    counts — never a row of data.
+    """
+    import polars
+
+    df = read(settings)
+    if df.is_empty() or "step" not in df.columns:
+        return polars.DataFrame()
+    df = df.filter(polars.col("step").is_not_null())
+    if kind is not None:
+        df = df.filter(polars.col("kind") == kind)
+    if tier is not None:
+        df = df.filter(polars.col("tier") == tier)
+    if df.is_empty():
+        return polars.DataFrame()
+    df = df.sort("ts")
+    keys = ["tier", "step", "build_id"]
+    totals = df.filter(polars.col("phase") == "total").group_by(keys, maintain_order=True).last()
+    out = totals
+    for phase in ("pass1", "pass2"):
+        walls = (
+            df.filter(polars.col("phase") == phase)
+            .group_by(keys, maintain_order=True)
+            .last()
+            .select(*keys, polars.col("wall_s").alias(f"{phase}_wall_s"))
+        )
+        out = out.join(walls, on=keys, how="left")
+    # latest total per (tier, step): the group_by above kept ts order within each build
+    out = out.sort("ts").group_by(["tier", "step"], maintain_order=True).last()
+    wall = polars.col("wall_s")
+    out = out.with_columns(
+        polars.when(wall > 0)
+        .then(polars.col("bytes_in") / 1_000_000 / wall)
+        .otherwise(None)
+        .round(1)
+        .alias("mb_in_per_s"),
+        polars.when(wall > 0)
+        .then(polars.col("bytes_out") / 1_000_000 / wall)
+        .otherwise(None)
+        .round(1)
+        .alias("mb_out_per_s"),
+    )
+    return out.select(
+        "tier",
+        "step",
+        "build_id",
+        "ts",
+        "pass1_wall_s",
+        "pass2_wall_s",
+        "wall_s",
+        "peak_rss_mb",
+        "rows",
+        "bytes_in",
+        "bytes_out",
+        "files",
+        "mb_in_per_s",
+        "mb_out_per_s",
+        "ok",
+    ).sort(["tier", "step"])
+
+
 __all__ = [
     "BENCHMARKS_FILENAME",
     "BenchmarkLine",
@@ -110,4 +187,5 @@ __all__ = [
     "benchmarks_path",
     "host_info",
     "read",
+    "summarize",
 ]

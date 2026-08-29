@@ -108,3 +108,19 @@ note.
 > `missing`-kind witness "until EP-27 stages it"; with all 31 hosp+icu tables now staged it
 > asserts `datetimeevents` is a view and that no `missing` entry remains. `mwh verify EP-21`
 > re-run green (12/12).
+
+> **Completion note (2026-08-29, EP-28 verification).** Ledger-verified from
+> `runs/benchmarks.jsonl` via `dag.benchmarks.summarize()` — job `stage-icu-events-full`,
+> build `20260829T204546-full-5c4c49c`:
+>
+> | table | pass 1 s | pass 2 s | total s | peak RSS MB | CSV bytes in | Parquet bytes out | MB/s | rows |
+> |---|---:|---:|---:|---:|---:|---:|---:|---:|
+> | inputevents | 13.9 | 14.9 | 28.9 | 3,539 | 2,868,896,449 | 287,752,892 | 99.1 | 10,953,713 |
+> | ingredientevents | 10.3 | 11.8 | 22.2 | 2,821 | 2,472,156,247 | 214,569,172 | 111.3 | 14,253,480 |
+> | datetimeevents | 3.1 | 4.9 | 8.1 | 626 | 1,092,342,579 | 48,664,346 | 134.7 | 9,979,761 |
+>
+> 100 sorted `part-0.parquet` files each; inputevents and datetimeevents row counts ==
+> the vendored `validate.sql` expectations == the EP-10 raw counts; ingredientevents has
+> no `validate.sql` row [FC-12] and reconciles against the EP-10 raw count alone (match);
+> rejects 0; dev ⊂ full confirmed. All three show pass 2 > pass 1 (the EP-26 parallel-sort
+> trigger pattern; EP-33 decides).

@@ -130,6 +130,20 @@ and contingencies — not new machinery.
 > 100 GB floor (the whole staged output is 1,832,286,645 bytes and no pass-1 spill was
 > observed).
 
+> **Completion note (2026-08-29, EP-28 verification).** Ledger-verified from
+> `runs/benchmarks.jsonl` via `dag.benchmarks.summarize()` — job `stage-chartevents-full`,
+> build `20260829T202417-full-e431ca2`: **pass 1 44.6 s · pass 2 93.0 s · total 137.8 s ·
+> peak RSS 4,729 MB**; ledger `bytes_in` = 41,935,806,083 (the plain CSV — the source
+> really was the 41.9 GB file), so pass 1 streamed at ≈ 940 MB/s (vs labevents' ≈ 296
+> MB/s pass 1: chartevents' narrow row parses far faster per byte); 304.4 MB/s over the
+> whole step → 1,832,286,645 Parquet bytes across 100 sorted `part-0.parquet` files
+> (22.9× compression, the best of the lake). **432,997,491 rows == the vendored
+> `validate.sql` expectation == the EP-10 raw count**; rejects 0; dev ⊂ full confirmed.
+> **Pass 2 > pass 1 confirmed from the ledger (93.0 vs 44.6 s)** — the parked
+> parallel-per-bucket-sorting trigger below is fired (and not chartevents-specific:
+> labevents, emar, poe and all three EP-27 tables show pass 2 ≥ pass 1 too); EP-33
+> decides.
+
 ## Parked → final-roadmap.md
 
 - Parallel per-bucket sorting on multiple cursors — trigger: EP-28 shows pass 2 wall time ≥ pass 1 for chartevents.

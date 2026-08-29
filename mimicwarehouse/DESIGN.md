@@ -150,6 +150,18 @@ notes lake + FTS + embeddings 5–15 GB (P10 only) · models ≤ 10 GB · build 
 > the `test_ep03` pin once and updates `mwh paths`; briefs reference the layout keys, not
 > literal paths.
 
+> **Note (2026-08-29, EP-28 — core lake measured; P2 staging complete).** With all 31
+> hosp + icu tables staged full-tier, `lake\core` measures **7,046,156,578 bytes ≈ 7.0 GB**
+> — 2.6–3.6× under the 18–25 GB estimate above — from 97,190,431,138 bytes of raw CSV
+> (**13.8× overall compression**; per table 2.1× on the tiny dims up to 22.9× on
+> chartevents; the ledger's `kind: verify` lines carry the per-table numbers). Build-temp
+> peak: **no spill observed** across the five ⏱ jobs (`tmp_duckdb` = 0 at every 60 s
+> heartbeat sample); staging peak RSS high-water 24,563 MB (emar_detail, EP-24) against
+> the 36 GB build `memory_limit`. Free space after P2 staging: **392.8 GB** — the 100 GB
+> floor was never approached. The derived/spine/marts/notes budget lines above remain
+> estimates for the later phases; the P3 re-plan (EP-33) inherits these measurements via
+> `dag.benchmarks.summarize()` and the EP-32 capstone note.
+
 ## 4. Tiers & sampler spec (D-18, D-27)
 
 | Tier | What | Where | Used for |
@@ -1249,6 +1261,19 @@ amended since.)*
   > Per-bucket ~1 MB files at the dev scale are comfortably below NTFS overhead territory;
   > the 3 000-file / 40 GB-table regime (chartevents, EP-26) and the file-count vs
   > Defender measurement stay with EP-28.
+
+  > **Note (2026-08-29, EP-28 — full-scale measurement; question settled for P2).**
+  > The complete core lake holds **2,407 `part-0.parquet` files + 24 `_progress.json`
+  > markers = 2,431 files in 2,433 directories** (24 partitioned tables × 100 buckets
+  > each + 7 single-file dims) — under the ≈ 3,000-file planning estimate because the
+  > dims and the ed/note schemas stay out of the bucket scheme. One `os.scandir` sweep
+  > of the whole tree: **0.091 s**. No AV stall or quarantine was observed across the
+  > five ⏱ staging jobs (Defender excludes `C:\mimicdata` per D-38 — recorded done by
+  > the owner, not readable non-elevated; Malwarebytes runs its own nine-path allow
+  > list, D-38 addenda). At ~2.4 k files the 100-bucket trade-off costs nothing
+  > measurable on this host: **keep 100 buckets**; EP-33 revisits only alongside the
+  > parallel-per-bucket-sort decision (its pass 2 ≥ pass 1 trigger fired broadly —
+  > EP-26/EP-28 completion notes).
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —
   EP-21/55.
 

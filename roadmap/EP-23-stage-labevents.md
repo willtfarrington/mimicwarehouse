@@ -110,3 +110,14 @@ free rule, laptop thermals.
 > the exactly-20-steps and all-steps-tagged-`small` assertions were made growth-tolerant
 > (the spec grows brief by brief per the stage.yaml header; EP-23 added the first
 > `large` step), with dated comments. `mwh verify EP-20` still exits 0.
+
+> **Completion note (2026-08-29, EP-28 verification).** Ledger-verified from
+> `runs/benchmarks.jsonl` via the new `dag.benchmarks.summarize()` — job
+> `stage-labevents-full`, build `20260829T192353-full-b22528f`: **pass 1 62.1 s ·
+> pass 2 76.4 s · total 138.7 s · peak RSS 9,827 MB** (runner sampler); 18,402,851,720
+> CSV bytes in (132.7 MB/s over the whole step) → 1,786,549,301 Parquet bytes across
+> 100 sorted `part-0.parquet` files (10.3× compression). **158,374,764 rows == the
+> vendored `validate.sql` expectation == the EP-10 raw count**; rejects 0; dev ⊂ full
+> confirmed (dev-catalog `count(*)` = manifest rows for buckets 0–4). FYI for EP-33:
+> pass 2 > pass 1 here too (76.4 vs 62.1 s) — the parallel-sort trigger EP-26 parked is
+> not chartevents-specific.

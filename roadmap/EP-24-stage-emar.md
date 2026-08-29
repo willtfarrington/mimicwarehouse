@@ -110,3 +110,18 @@ labels, not notes; `safe_query`'s long-string heuristic covers them.
 > (`emar_id`, `poe_id`, `pharmacy_id`, `enter_provider_id`) — verify only, no dated
 > keys.yaml note needed. No new free-text flags: the dose/product/barcode varchars are
 > administration labels (brief Context; safe_query's long-string heuristic covers them).
+
+> **Completion note (2026-08-29, EP-28 verification).** Ledger-verified from
+> `runs/benchmarks.jsonl` via `dag.benchmarks.summarize()` — job `stage-emar-full`,
+> build `20260829T193854-full-182dcff`:
+>
+> | table | pass 1 s | pass 2 s | total s | peak RSS MB | CSV bytes in | Parquet bytes out | MB/s | rows |
+> |---|---:|---:|---:|---:|---:|---:|---:|---:|
+> | emar | 29.1 | 35.4 | 64.7 | 6,853 | 6,248,519,427 | 643,479,589 | 96.6 | 42,808,593 |
+> | emar_detail | 438.4 | 191.6 | 630.1 | 24,563 | 8,682,184,356 | 670,346,169 | 13.8 | 87,371,064 |
+>
+> 100 sorted `part-0.parquet` files each; both row counts == the vendored `validate.sql`
+> expectations == the EP-10 raw counts; rejects 0; dev ⊂ full confirmed. The 24,563 MB
+> peak RSS stands as the P2 staging high-water mark (the wide all-VARCHAR emar_detail
+> sort), still well under the 36 GB `memory_limit`; emar_detail is also the one ⏱ table
+> where pass 1 dominates pass 2 (438.4 vs 191.6 s — CSV parse bound, not sort bound).

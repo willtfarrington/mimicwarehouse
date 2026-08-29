@@ -71,3 +71,41 @@ partition-pruned `count(*)` calls on the dev catalog.
 - `uv run poe test -m ep_28` green with the full tier enabled (`tier("dev")`-marked pieces green too); `uv run --group dev mwh verify EP-28` green.
 - Every table shows `ok` in the reconciliation table; `mwh catalog info --tier full` lists 31 tables with none `missing`; job `catalog-full-p2` log at `%MWH_DATA_ROOT%\runs\jobs\catalog-full-p2.log`.
 - Completion notes with timings exist on EP-23…EP-27; `runs\benchmarks.jsonl` has `verify` lines; DESIGN §3/§21 notes appended; free space ≥ 100 GB recorded.
+
+> **Completion note (2026-08-29).** Executed in one session (well under the S budget).
+> Item 1 was a no-op: `mwh jobs` showed all five ⏱ jobs (`stage-labevents-full`,
+> `stage-emar-full`, `stage-hosp-rest-full`, `stage-chartevents-full`,
+> `stage-icu-events-full`) already `done` with exit 0 — no reruns. Start-of-session
+> `mwh doctor`: AC power mode *Best performance*, 392.7 GB free.
+>
+> Catalog rebuilds (item 3 lead-in): dev foreground (`20260829T210723-dev-d9a5a5c`, 31
+> cataloged, snapshot `f830b941…`) and full as background job **`catalog-full-p2`**
+> (pid 28748, exit 0 in ≈ 2 s; log `%MWH_DATA_ROOT%\runs\jobs\catalog-full-p2.log`; 31
+> cataloged, snapshot `b1fc5313…` — the same core/full id EP-27 recorded, i.e. the lake
+> did not move). `mwh catalog info --tier full`: **31 cataloged (7 tables, 24 views),
+> 0 missing**.
+>
+> Shipped: `dag.benchmarks.summarize()` (per-step ledger pivot: pass1/pass2/total walls,
+> RSS, bytes, MB/s, latest build per step) and `tests/ep/test_ep28.py` — 3 fixture tests
+> (summarize on the session fixture lake + empty ledger; the structural checker proven on
+> synthetic data) and 7 `tier("dev"/"full")` tests covering items 1–5. `poe test -m ep_28
+> --tier full`: **10 passed** — all structural checks clean (no `raw_*`/`_sorting.tmp`/
+> `.new` leftovers anywhere; every latest manifest line's path exists with matching
+> bytes; `snapshots.json` core/full entry newer than the last ⏱ job), reconciliation
+> **31/31 ok** (28 tables == the vendored `validate.sql` expectation; provider/caregiver/
+> ingredientevents reconcile against the EP-10 raw counts alone [FC-12]; rejects 0
+> everywhere; manifest-line sums == `status.json` rows), **dev ⊂ full** (24 partitioned
+> tables: dev-catalog `count(*)` == manifest rows for buckets 0–4; 7 dims identical in
+> both catalogs). `mwh verify EP-28` green; full `poe check` green (653 fixture tests).
+>
+> Measured (item 4; `kind: verify` ledger lines appended under a `-verify-` build id, one
+> per table + one `verify.lake_core` sweep line, re-appended per full-tier run): core lake
+> **7,046,156,578 bytes** vs 97,190,431,138 CSV bytes = **13.8×** compression; **2,407
+> part files + 24 `_progress.json` = 2,431 files / 2,433 dirs**, one `os.scandir` sweep
+> **0.091 s**; free space **392.8 GB** (≥ 100 GB floor). Item 5: EP-28-verification
+> completion notes appended to EP-23 … EP-27 (EP-20 already had one); **EP-26's pass 2 >
+> pass 1 trigger confirmed from the ledger (93.0 vs 44.6 s)** — and the pattern holds for
+> labevents, emar, poe and all three EP-27 tables; EP-33 decides the parked parallel-sort
+> item. Item 6: DESIGN §3 (lake size vs estimate; no temp spill; RSS high-water 24,563 MB)
+> and §21 (bucket count settled for P2: keep 100) notes appended; roadmap Risk 6's staging
+> portion struck with the measured numbers.
