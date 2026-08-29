@@ -86,6 +86,50 @@ and contingencies — not new machinery.
 - Launched `mwh build --tier full …` **in the background** after the pre-flight checklist; log at `%MWH_DATA_ROOT%\runs\jobs\stage-chartevents-full.log`; job id, build id, sweeps and free-space-at-start recorded in the launch note; timing verified by EP-28.
 - Free space never dropped below 100 GB during the session (checked with `mwh doctor` at the end and noted); no foreground scan; no rows in logs or tool output.
 
+> **Launch note (2026-08-29).** Job `stage-chartevents-full` (pid 47936) launched first thing
+> (right after the one spec edit adding `stage.mimiciv_icu.chartevents`) via
+> `uv run --group dev mwh build --tier full --select stage.mimiciv_icu.chartevents --background --job stage-chartevents-full`;
+> log `%MWH_DATA_ROOT%\runs\jobs\stage-chartevents-full.log`; started 2026-08-29T20:24:16Z;
+> build id `20260829T202417-full-e431ca2`; **sweeps = 1** (EP-23 planning inputs: peak RSS
+> 9,827 MB × 2.2 ≈ 22 GB, under the 36 GB `memory_limit` — no memory pressure expected, none
+> observed). Pre-flight answers (item 2): `mwh doctor` OK (9 pass · 0 fail; the `antivirus`
+> warn is the expected D-38/D-42 one) — **395.4 / 951.5 GB free on C:** at start (≥ the
+> 200 GB target), BitLocker on, Defender exclusion on the owner's word (not readable
+> non-elevated, D-42), **AC power mode Best performance**, DuckDB 1.5.5 == pin,
+> `memory_limit` 36 GB (build profile) / `threads` 12 / `temp_directory`
+> `C:\mimicdata\tmp\duckdb` with explicit `max_temp_directory_size` 150 GB; `mwh jobs`
+> showed no running build and no app/notebook/duckdb reader processes were open.
+>
+> The job finished **inside the session**: exit 0 at 2026-08-29T20:26:36Z — total wall
+> 137.9 s against the brief's roughly-an-hour planning envelope. Observed (from the job log
+> via `mwh jobs --tail`; EP-28 verifies against the benchmark ledger):
+>
+> - **Pass 1** (streaming partitioned COPY, `sweeps=1`): ≈ 46 s (step start
+>   20:24:17.975Z → first sorted bucket 20:25:03.8Z); shorter than the 60 s heartbeat
+>   interval, so no `pass1` rss/tmp/bytes line fired. That implies a far higher effective
+>   source throughput than EP-23's 285 MB/s if the source was the plain 40 GB CSV — EP-28
+>   reconciles `bytes_in` from the ledger before reusing either number for planning.
+> - **dev-ready** at 20:25:07.7Z — 50 s after step start (buckets 0–4 first).
+> - **Pass 2** (per-bucket sort): ≈ 92 s; 100 buckets at 0.7–1.1 s each,
+>   3,863,802–4,881,976 rows per bucket. **Pass 2 wall > pass 1 wall** — the trigger of the
+>   parked "parallel per-bucket sorting" item (final-roadmap.md, parked by EP-18) reads as
+>   fired; EP-28 confirms from the ledger and EP-33 decides.
+> - **Peak RSS** 4,729 MB (runner sampler) — well under the 36 GB `memory_limit` and under
+>   the ×2.2-scaled 22 GB estimate; `sweeps=1` was the right call.
+> - **Output**: 432,997,491 rows — exactly the validate.sql expected count —
+>   1,832,286,645 bytes across **100 partition files** (`part-0.parquet` × 100; the
+>   DESIGN §21 file-count measurement input for EP-28); free-space guard never tripped.
+>
+> Because the job completed, this session also refreshed the dev catalog
+> (`mwh build --tier dev --select catalog`, build `20260829T202927-dev-e431ca2`, 28
+> cataloged, 3 missing = EP-27's remaining icu event tables) and ran
+> `poe test -m ep_26 --tier dev`: all 6 tests green — the dev-marked test executed for real
+> (dev view count = manifest rows for buckets 0–4; `stay_id IS NULL` count = 0, matching the
+> contract NOT NULL; per-file row-group `subject_id` ranges monotonic).
+> End-of-session `mwh doctor`: 393.2 / 951.5 GB free — free space never approached the
+> 100 GB floor (the whole staged output is 1,832,286,645 bytes and no pass-1 spill was
+> observed).
+
 ## Parked → final-roadmap.md
 
 - Parallel per-bucket sorting on multiple cursors — trigger: EP-28 shows pass 2 wall time ≥ pass 1 for chartevents.

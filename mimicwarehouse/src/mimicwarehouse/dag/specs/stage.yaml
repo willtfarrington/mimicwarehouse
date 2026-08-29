@@ -203,6 +203,17 @@ steps:
     source: mimic-iv-3.1/icu/outputevents.csv
     tags: [stage, mimiciv_icu, small]
     tiers: [fixture, demo, dev, full]
+  # -- mimiciv_icu: large event tables (EP-26; two-pass bucketed loader) -------------------
+  # chartevents (EP-26): the largest single file (40 GB CSV). One background job, one step;
+  # size_class / partitioned / sort_by come from the contract (load_class large, partitioned,
+  # sort_keys [subject_id, charttime, itemid] tie-broken at EP-169) — no overrides here.
+  - name: stage.mimiciv_icu.chartevents
+    kind: stage
+    schema: mimiciv_icu
+    table: chartevents
+    source: mimic-iv-3.1/icu/chartevents.csv
+    tags: [stage, mimiciv_icu, large, chartevents]
+    tiers: [fixture, demo, dev, full]
   # -- mimiciv_icu: dimensions (unpartitioned) ---------------------------------------------
   - name: stage.mimiciv_icu.d_items
     kind: stage
@@ -248,5 +259,6 @@ steps:
       - stage.mimiciv_icu.icustays
       - stage.mimiciv_icu.procedureevents
       - stage.mimiciv_icu.outputevents
+      - stage.mimiciv_icu.chartevents
       - stage.mimiciv_icu.d_items
       - stage.mimiciv_icu.caregiver

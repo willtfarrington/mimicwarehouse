@@ -360,7 +360,10 @@ def test_catalog_info_cli(fixture_lake_settings: Settings) -> None:
         assert len(kinds) == 31
         assert kinds[f"{HOSP}.admissions"] == "view"
         assert kinds[f"{HOSP}.d_labitems"] == "table"
-        assert kinds[f"{ICU}.chartevents"] == "missing"  # EP-26 stages it
+        # EP-26 (2026-08-29) staged chartevents, so the fixture lake now carries it as a
+        # view; datetimeevents stays the "missing" witness until EP-27 stages it (CMP-6)
+        assert kinds[f"{ICU}.chartevents"] == "view"
+        assert kinds[f"{ICU}.datetimeevents"] == "missing"  # EP-27 stages it
     finally:
         config.configure()
 
