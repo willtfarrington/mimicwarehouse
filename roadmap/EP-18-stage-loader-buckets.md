@@ -103,6 +103,40 @@ to be *measured* by this brief and EP-28.
 
 ## Parked → final-roadmap.md
 
-- Alternative bucket schemes (256 hash buckets, or fewer buckets for small tables) — trigger: EP-28's file-count/Defender measurement shows NTFS overhead dominating.
-- Incremental partition appends (`COPY … APPEND`) for refreshed raw releases — trigger: a MIMIC-IV point release lands.
-- Parallel per-bucket sorting on several cursors — trigger: pass 2 wall time exceeds pass 1 in EP-26.
+- Alternative bucket schemes (256 hash buckets, or fewer buckets for small tables) — trigger: EP-28's file-count/Defender measurement shows NTFS overhead dominating. *(Mirrored as v2 LOAD-2, 2026-08-29.)*
+- Incremental partition appends (`COPY … APPEND`) for refreshed raw releases — trigger: a MIMIC-IV point release lands. *(Mirrored as v2 LOAD-3, 2026-08-29.)*
+- Parallel per-bucket sorting on several cursors — trigger: pass 2 wall time exceeds pass 1 in EP-26. *(Mirrored as v2 LOAD-4, 2026-08-29.)*
+
+> **Completion note (2026-08-29).** Shipped as amended at EP-170: `loader/buckets.py`
+> (`stage_partitioned` — small one-`COPY` path and two-pass large path, both publishing
+> through `paths.swap_dir` [ARCH-2]; `settings.dev_buckets` is the only bucket source, no
+> `DEV_BUCKETS` constant [D-43 item 14]) and `loader/paths.py` (`partition_glob` pinned to
+> `subject_bucket=*/part-*.parquet`, `read_parquet_sql` with explicit
+> `hive_partitioning`/`hive_types` and the optional bucket filter — the one reader-side
+> encoding of the layout). Signature deltas vs the brief text (the EP-17 precedent):
+> `stage_partitioned` takes `lake_root=`, `settings=` and the provenance pair
+> `source_sha256`/`raw_snapshot_id` instead of `source_manifest_id`, plus a `heartbeat_s`
+> knob for the pass-1 rss/tmp/bytes log line. Two behaviour details fixed by
+> implementation and recorded in the DESIGN §5 note of this date: the per-bucket sort is
+> **publish-before-delete** (`os.replace(_sorting.tmp → part-0.parquet)` → progress write →
+> delete `raw_*`; the brief's literal "delete the raws and replace" order would let a
+> crash between the two lose a bucket's only complete copy), and the pass-2 read uses
+> `hive_partitioning=false` (DuckDB's auto-detection would otherwise write the synthesised
+> `subject_bucket` column into the sorted file — caught by the small≡large sha256 test).
+> Pass-1 `sweeps` use `OVERWRITE_OR_IGNORE` over disjoint bucket ranges (DuckDB's `APPEND`
+> demands `{uuid}` filenames — probed on 1.5.5). Resume: `_progress.json`
+> (`build_id, pass1_done, buckets_requested, sorted_buckets, dev_ready, complete, started,
+> updated` + a `rejects` carry-over) written into `.new` during pass 1 so the swap
+> publishes data and progress together; resume only when `buckets_requested` match and
+> `complete` is false — a full request over a dev-complete table restages wholesale.
+> **Measurements (item 6, DESIGN §21 note):** fixture `admissions` (186 rows, 100
+> buckets/files): small 0.8 s, large 1.3 s (sweeps=2 identical, ~5 ms/file — in line with
+> the EP-171 canary burst; no scanner stall). Real `mimiciv_hosp.admissions` (94 MB CSV,
+> `buckets=dev` → 5 partitions, 27,263 rows): small 0.21 s, large 0.29 s. Full-scale
+> file-count measurement stays with EP-28. Also restored the `## 21` heading DESIGN.md
+> lost in the EP-166 consolidation (the open-questions list had fused into the EP-168
+> note). Acceptance: `poe test -m ep_18` 9 passed; `--tier dev` 10 passed (real
+> `admissions` staged into `tmp\ep18`, rows == the bucket-filtered typed count, five
+> partitions, temp lake deleted); `mwh verify EP-18` green on both tiers; `poe check`
+> green (585 fixture tests). Determinism held: per-bucket sha256 sets identical across
+> small path, large path, `sweeps=2` and a repeat run.

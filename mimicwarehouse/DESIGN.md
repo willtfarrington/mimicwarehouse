@@ -299,6 +299,25 @@ and applies column maps (demo 2.2 → 3.1).
 > (`source_sha256` + `raw_snapshot_id`) plus a per-table `schema_hash` (sha256 of the
 > ordered `(name, type)` list) and `writer_version` (package + DuckDB versions).
 
+> **Note (2026-08-29, EP-18 — shipped facts of the partitioned stage).** Four specifics
+> fixed by the code (`loader/buckets.py`, `loader/paths.py`): (1) the per-bucket sort's
+> order of operations is **publish-before-delete** — `os.replace(_sorting.tmp →
+> part-0.parquet)`, record the bucket in `_progress.json`, *then* delete the `raw_*` files
+> (the brief's "delete the raws and replace" read literally would let a crash between the
+> two lose a bucket's only complete copy; a stale `_sorting.tmp` is deletable precisely
+> because the raws still exist). (2) Pass 2 reads the raws with `hive_partitioning=false`:
+> DuckDB's auto-detection on a `subject_bucket=<n>/` path would otherwise synthesise the
+> partition column **into** the sorted file (caught by the small≡large sha256 test).
+> (3) Resume applies only when the recorded `buckets_requested` equal the new request and
+> `complete` is false; any other progress state — including a **full** request over a
+> `tier_complete: "dev"` table — restages the whole table. Pass-1 sweeps write disjoint
+> bucket ranges into the same `.new` root under `OVERWRITE_OR_IGNORE` (DuckDB's `APPEND`
+> demands a `{uuid}` filename pattern, which would break the deterministic `raw_{i}`
+> names). (4) `status.json` semantics: `dev_ready: true` as soon as `settings.dev_buckets`
+> are all sorted (logged `dev-ready <schema>.<table>` before `complete`);
+> `tier_complete` = `"full"` when all 100 buckets were requested, `"dev"` when the request
+> covers the dev buckets, otherwise left unchanged.
+
 Explicit in every build/analysis process (never rely on defaults): `memory_limit`
 (36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`
 (`C:\mimicdata\tmp\duckdb`), `max_temp_directory_size` (explicit, e.g. 150 GB),
@@ -527,7 +546,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── fixtures/                  EP-11/12 shipped synthetic generator
 │   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal)
 │   ├── paths.py                   EP-17 shipped  swap_dir (rename-aside directory publish)
-│   ├── loader/                    EP-17 shipped (engine, csv, stage, manifest — typed CSV→Parquet, unpartitioned); EP-18 buckets, sort, resume
+│   ├── loader/                    EP-17/18 shipped (engine, csv, stage, manifest — typed CSV→Parquet, unpartitioned; buckets — partitioned stage, per-bucket sort, resume; paths — reader glob/fragment)
 │   ├── dag/                       EP-19  `mwh build` runner, manifests, snapshot ids
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
 │   ├── demo.py                    EP-22
@@ -1108,9 +1127,30 @@ runs the EP's marker set. Never snapshot real rows into fixtures, cassettes or g
 > pytest -n auto` (`poe test` stays serial, D-42), the tests/README churn rule ("a new EP
 > must not need to edit an earlier `test_ep*.py`"), and the de-coupling of the rolling
 > literals (test_ep06's verify probe now runs on a crafted roadmap; fixture-tree counts are
-> read from the contract/manifest, retro VT-2/VT-3). (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
+> read from the contract/manifest, retro VT-2/VT-3).
+
+## 21. Open design questions (to be resolved by the named EP)
+
+*(Heading restored 2026-08-29, EP-18: the EP-166 doc consolidation accidentally deleted
+this section's heading and the first bullet's lead-in, fusing the list into the EP-168
+note above; text below is the original bullet, with the endpoint-security wording as
+amended since.)*
+
+- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
   Malwarebytes/NTFS overhead (D-42; the ARW module judges write bursts) — measure in
   EP-18/28.
+
+  > **Note (2026-08-29, EP-18 — first fixture/dev observations; full-scale measurement is
+  > EP-28's).** The partitioned stage exists (loader/buckets.py) and was measured on the
+  > fixture and one small real table; nothing here settles the bucket-count question yet.
+  > Fixture `admissions` (186 rows, all 100 buckets): 100 partition dirs / 100 files in
+  > 0.8 s via the small path, 1.3 s via the two-pass large path (sweeps=2 identical), i.e.
+  > ~5 ms per file-create at burst — consistent with the EP-171 canary's 200-file burst,
+  > no Defender/Malwarebytes stall observed. Real `mimiciv_hosp.admissions` (94 MB CSV,
+  > `buckets=dev` → 5 partitions, 27,263 rows): 0.21 s small path, 0.29 s large path.
+  > Per-bucket ~1 MB files at the dev scale are comfortably below NTFS overhead territory;
+  > the 3 000-file / 40 GB-table regime (chartevents, EP-26) and the file-count vs
+  > Defender measurement stay with EP-28.
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —
   EP-21/55.
 - FTS engine for notes if DuckDB FTS build exceeds memory — SQLite FTS5 fallback (EP-148).
