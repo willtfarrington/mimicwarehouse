@@ -204,10 +204,16 @@ def _run_stage(step: Step, ctx: StepContext) -> StepOutcome:
 
 
 def _run_catalog(step: Step, ctx: StepContext) -> StepOutcome:
-    raise NotImplementedError("EP-21")
+    """Build and publish the tier's catalog from the staged lake (EP-21;
+    :func:`mimicwarehouse.catalog.build.build_catalog`). ``rows`` reports the number of
+    cataloged tables/views — the step never touches a data row."""
+    from mimicwarehouse.catalog.build import build_catalog
+
+    result = build_catalog(ctx.tier, ctx.settings, lake_root=ctx.lake_root, build_id=ctx.build_id)
+    return StepOutcome(rows=result.cataloged, bytes_out=result.bytes, files=1)
 
 
-#: kind -> handler. EP-21 replaces ``catalog``; EP-37 adds ``sql``; EP-50 ``python``.
+#: kind -> handler. EP-37 adds ``sql``; EP-50 ``python``.
 STEP_HANDLERS: dict[str, Callable[[Step, StepContext], StepOutcome]] = {
     "stage": _run_stage,
     "catalog": _run_catalog,

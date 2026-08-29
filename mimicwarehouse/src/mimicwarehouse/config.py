@@ -74,6 +74,9 @@ if TYPE_CHECKING:  # avoid a runtime import cycle (cli.py imports this module)
 
 Tier = Literal["fixture", "demo", "dev", "full"]
 DuckDBProfile = Literal["build", "app"]
+#: Who is driving a catalog connection (EP-21; GOVERNANCE §4 item 4): ``agent`` is the
+#: default for every session; only the owner sets ``MWH_ROLE=owner`` in their own shell.
+Role = Literal["agent", "owner"]
 
 IS_WINDOWS: bool = sys.platform == "win32"
 GB = 2**30  # GiB, labelled "GB" to match DESIGN §2-3 / Explorer (EP-2 judgment call)
@@ -539,6 +542,12 @@ class Settings(BaseSettings):
     allow_remote: bool = False
     forbidden_drives: list[str] = Field(default_factory=lambda: list(DEFAULT_FORBIDDEN_DRIVES))
     dev_buckets: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
+    role: Role = Field(
+        default="agent",
+        description="Session role for catalog/app access paths (EP-21): 'agent' unless the "
+        "owner sets 'owner' in their own shell; Claude sessions never set MWH_ROLE "
+        "(GOVERNANCE §4/§6).",
+    )
 
     _init_fields: frozenset[str] = PrivateAttr(default=frozenset())
 

@@ -1058,6 +1058,37 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > runner's import chain reaches the schema contract, which the `mwh --help` import budget
 > (test_ep09) excludes.
 
+> **Note (2026-08-29, EP-21).** **`catalog/`** landed: `build.py` (`build_catalog(tier,
+> settings, *, lake_root=None, build_id=None)`, registered as the real `catalog` handler in
+> `STEP_HANDLERS` — asserts the EP-1 DuckDB pin, creates schemas `mimiciv_hosp ·
+> mimiciv_icu · mimiciv_derived · meta · marts`, admits tables by `status.json`
+> qualification (`full` needs `tier_complete = "full"`, `dev` accepts `dev_ready` /
+> `tier_complete in ("dev","full")`, `fixture`/`demo` need completeness on their own lake
+> roots), materialises dims as `CREATE TABLE` over `part-0.parquet` and subject-keyed
+> tables as `CREATE VIEW` with the contract columns in order over the EP-18
+> `read_parquet_sql` fragment — `WHERE subject_bucket IN (settings.dev_buckets)` on `dev` —
+> omits unstaged tables (never empty views) and lists all 31 hosp/icu tables in
+> `meta.catalog_tables (schema, table, kind: table|view|missing, status, rows_hint)`;
+> `meta.catalog_info` is one row: `build_id, tier, duckdb_version, package_version,
+> git_sha, core_snapshot_id, lake_root, built_at, k_default, dev_buckets` (the recorded
+> buckets warn on drift at open/build, retro ARCH-8); `CHECKPOINT`, close, then the §6
+> **rename-aside two-step** for a single file — only when even the rename fails does it
+> raise the "close the app/notebooks and rerun `mwh build --tier <t> --select catalog`"
+> message, old catalog intact), `connect.py` (`open_catalog(tier, *, settings=None,
+> role=None, path=None)`: `read_only=True`, app-profile config, `SET
+> autoinstall/autoload_known_extensions = false` + `disabled_filesystems =
+> 'HTTPFileSystem'`, asserts the recorded DuckDB version, refuses `.new` paths, retries the
+> swap's sub-millisecond no-file window; `role` defaults to the **new** `Settings.role` /
+> `MWH_ROLE` — `agent` everywhere, `owner` only in the owner's own shell), and `cli.py`:
+> **`mwh catalog info --tier <t> [--json]`** (both meta tables, metadata only) and **`mwh
+> sql`** registered with its final surface (`--tier`, `--k`, `--format`) but interim-bodied
+> — only `--tables`, `--describe schema.table`, `--count schema.table` (counts `0 < n < k`
+> print suppressed per GOVERNANCE §5); any free-form statement exits 2 with "free-form SQL
+> arrives with safe_query (EP-30)". The test suite gained the session-scoped
+> `fixture_lake_catalog` (a runner-built fixture lake + `fixture.duckdb` in a temp root,
+> built **without** a tag filter so it grows as EP-23…EP-27 add fixture steps); EP-12's
+> in-memory `fixture_catalog` is untouched (EP-170 amendment 4).
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,
@@ -1188,6 +1219,12 @@ amended since.)*
   > Defender measurement stay with EP-28.
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —
   EP-21/55.
+
+  > **Note (2026-08-29, EP-21 — decided for P2).** **Dims are materialized as tables in
+  > every tier; subject-keyed tables are views** over the partitioned lake (Hive pruning
+  > already makes the dev views fast — the dev catalog builds in ~1 s and its views carry
+  > the `subject_bucket IN (0,1,2,3,4)` filter). EP-55 revisits materialization for marts;
+  > until then no per-tier special-casing.
 - FTS engine for notes if DuckDB FTS build exceeds memory — SQLite FTS5 fallback (EP-148).
 - Whether the events spine should include a chartevents subset (vitals only) — EP-50/re-plan.
 - Streamlit vs marimo-app for the Freezer/Wizard pages if the rerun model bites — re-plan P4.

@@ -112,3 +112,57 @@ this brief's `mwh sql` is a metadata/count-only interim.
 - `%MWH_DATA_ROOT%\warehouse\dev.duckdb` and `full.duckdb` exist; `meta.catalog_info.duckdb_version` equals the pinned version; no `.new` left behind; job `catalog-full` log at `runs\jobs\catalog-full.log`.
 - The READ_ONLY opener **refuses** a write and the interim `mwh sql` **refuses** free-form SQL in tests (crafted violations).
 - `mwh sql --tier full --count mimiciv_hosp.admissions` matches `validate.sql`; the number is recorded in the completion note.
+
+> **Completion note (2026-08-29).** Executed in one session (≈ 55 min against M ≈ 1 h), all
+> amendments applied.
+>
+> **Items 1/2 (package).** `src/mimicwarehouse/catalog/` landed — `build.py`
+> (`build_catalog`, the real `catalog` handler in `STEP_HANDLERS`; single-file rename-aside
+> swap per the amendment, with the "close the app/notebooks and rerun" message only when even
+> the rename fails), `connect.py` (`open_catalog` READ_ONLY + hardening SETs + version
+> assert + `.new` refusal + the sub-millisecond `FileNotFoundError` retry; `catalog_path`)
+> and `cli.py`. `meta.catalog_info` records `dev_buckets` and both build and open warn on
+> drift (amendment 3). `MWH_ROLE` shipped as the new `Settings.role` field (`agent` default,
+> `.env.example` parity kept) and CLAUDE.md §2 gained the one line. Materialization decided
+> per the Context: dims = tables, subject-keyed = views (DESIGN §21 note; §15 module note
+> added).
+>
+> **Item 3 (CLI).** `mwh catalog info --tier <t> [--json]` prints both meta tables.
+> `mwh sql` is registered with its final surface (`--tier`, `--k`, `--format`) and the
+> interim body: `--tables` / `--describe` / `--count` only (identifier-validated against
+> information_schema; counts `0 < n < k` print suppressed per GOVERNANCE §5); any free-form
+> statement exits 2 with "free-form SQL arrives with safe_query (EP-30)" — verified against
+> the real full catalog and in a test.
+>
+> **Item 4 (test fixture).** Per amendment 4 the in-memory `fixture_catalog` is untouched;
+> the new session fixtures `fixture_lake_settings` / `fixture_lake_catalog` build the
+> fixture tier through the runner **without** a tag filter (20 stages + catalog, ≈ 10 s once
+> per session) into a temp root and open `fixture.duckdb` read-only.
+>
+> **Item 5 (runs).** `mwh build --tier dev --select catalog`: build
+> `20260829T183223-dev-3e01f24`, **1.0 s**, `dev.duckdb` 10,235,904 bytes. Full: job
+> **`catalog-full`** (build `20260829T183231-full-3e01f24`, log
+> `C:\mimicdata\runs\jobs\catalog-full.log`), started 18:32:30Z, finished 18:32:32Z —
+> catalog step **0.9 s**, `full.duckdb` 10,498,048 bytes; its `core_snapshot_id` equals
+> EP-20's recorded `core/full` snapshot (`cb54d4ab…`). `mwh catalog info --tier full` lists
+> the 20 EP-20 tables as 7 `table` + 13 `view` and the 11 later-brief tables as `missing`.
+> **`mwh sql --tier full --count mimiciv_hosp.admissions` = 546,028** — equal to the
+> `validate.sql` expectation reconciled at EP-20.
+>
+> **Item 6 (tests).** `tests/ep/test_ep21.py` (12 fixture + 1 dev-marked): published file
+> with no `.new`; `meta.catalog_info` row + pinned-version match; tables/views/missing equal
+> the staged set with dims as tables; INSERT through `open_catalog` raises; a `.new` path
+> and a crafted version-mismatch catalog are refused; the swap under a plain (non-sharing)
+> file handle raises the documented message and leaves the old catalog valid; a crafted
+> `tier_complete = "dev"` table appears in the dev catalog (with the `subject_bucket IN
+> (0, 1, 2, 3, 4)` view filter) but not full; `mwh sql` refuses the crafted free-form
+> statement with exit 2; `open_catalog("dev")` sees exactly what `mwh catalog info` reports.
+> `poe test -m ep_21` 12 passed · `--tier dev` 13 passed · full suite **609 passed** (`poe
+> check` green) · `--tier full -m "ep_12 or ep_20 or ep_21"` 53 passed (EP-12's dev/full
+> catalog probes now run against the real catalogs) · `mwh verify EP-21` green.
+>
+> **Earlier tests touched** (README § acceptance phrasing rule):
+> `tests/ep/test_ep19.py::test_failure_stops_run_and_rerun_resumes` pinned the
+> `NotImplementedError("EP-21")` stub as its failing step — a shipped fact this brief
+> changes; it now crafts its own failing handler and its rerun leg exercises the real
+> catalog build. `mwh verify EP-19` still exits 0 (8 passed).

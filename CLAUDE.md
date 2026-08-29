@@ -40,6 +40,8 @@ style preferences. Read them fully before doing anything.
 - Never write real rows into fixtures, golden files, tests, docs, screenshots, or commits.
   Synthetic fixtures use ids ≥ 90 000 000. Real MIMIC bands are 10 000 000–19 999 999
   (`subject_id`), 20 000 000–29 999 999 (`hadm_id`), 30 000 000–39 999 999 (`stay_id`).
+- `MWH_ROLE` stays unset in Claude sessions — `open_catalog`'s role defaults to `agent`;
+  only the owner sets `owner`, in their own shell, for row-view features (EP-21).
 - Suspected PHI → the owner reports it to PhysioNet. Do not paste it anywhere.
 
 ## 3. Environment & commands

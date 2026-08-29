@@ -195,26 +195,31 @@ def test_failure_stops_run_and_rerun_resumes(
     settings: config.Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     dag = load_dag()
-    result = runner_mod.run(dag, "fixture", settings=settings)  # catalog raises EP-21
+
+    def crafted_failure(step, ctx):  # EP-21 registered the real catalog handler, so the
+        raise RuntimeError("crafted step failure")  # failing step is crafted since then
+
+    monkeypatch.setitem(runner_mod.STEP_HANDLERS, "catalog", crafted_failure)
+    result = runner_mod.run(dag, "fixture", settings=settings)
     assert not result.ok
     by_name = {s.name: s for s in result.steps}
     assert [by_name[n].status for n in THREE_STEPS] == ["done"] * 3
     assert by_name["catalog"].status == "failed"
-    assert "EP-21" in (by_name["catalog"].error or "")
+    assert "crafted step failure" in (by_name["catalog"].error or "")
     assert result.snapshot_id is None  # no snapshot for a failed run
     ledger = benchmarks_mod.read(settings)
     failed = ledger.filter(~ledger["ok"])
     assert set(failed["kind"].to_list()) == {"catalog", "build"}
 
-    # completed steps stayed complete: the rerun skips them and resumes at catalog
-    monkeypatch.setitem(
-        runner_mod.STEP_HANDLERS, "catalog", lambda step, ctx: runner_mod.StepOutcome()
-    )
+    # completed steps stayed complete: the rerun (real handler back) skips them and
+    # resumes at catalog, which now really builds fixture.duckdb (EP-21)
+    monkeypatch.setitem(runner_mod.STEP_HANDLERS, "catalog", runner_mod._run_catalog)
     again = runner_mod.run(dag, "fixture", settings=settings)
     assert again.ok
     by_name = {s.name: s for s in again.steps}
     assert [by_name[n].status for n in THREE_STEPS] == ["skipped"] * 3
     assert by_name["catalog"].status == "done"
+    assert settings.catalog_path("fixture").is_file()
 
 
 # ---------------------------------------------------------------------------

@@ -7,9 +7,10 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 (EP-6, :mod:`mimicwarehouse.verify`) · ``schema`` (EP-9, :mod:`mimicwarehouse.schema.cli`) ·
 ``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``fixtures`` (EP-11,
 :mod:`mimicwarehouse.fixtures.cli`) · ``canary`` (EP-171, :mod:`mimicwarehouse.canary`) ·
-``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``demo`` (EP-22) ·
-``sql`` (EP-30) · ``runs`` (EP-35) · ``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) ·
-``disclose`` (EP-43/133) · ``init`` (EP-158).
+``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``catalog``/``sql`` (EP-21,
+:mod:`mimicwarehouse.catalog.cli`; ``sql`` is metadata/count-only until EP-30 wires
+``safe_query``) · ``demo`` (EP-22) · ``runs`` (EP-35) · ``protocol`` (EP-51) ·
+``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
 
 Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
 :class:`mimicwarehouse.config.Settings` once per invocation — ``--data-root`` > ``MWH_*`` env >
@@ -41,6 +42,7 @@ from rich.markup import escape
 
 from mimicwarehouse import __version__, config
 from mimicwarehouse.canary import canary_app
+from mimicwarehouse.catalog.cli import catalog_app, sql_command
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.console import console, err_console
 from mimicwarehouse.dag.cli import build_command, jobs_command
@@ -171,6 +173,7 @@ def main(
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
 app.command("build")(build_command)
 app.add_typer(canary_app, name="canary")
+app.add_typer(catalog_app, name="catalog")
 app.command("doctor")(doctor_command)
 app.add_typer(fixtures_app, name="fixtures")
 app.command("guard")(guard_command)
@@ -178,6 +181,7 @@ app.add_typer(inventory_app, name="inventory")
 app.command("jobs")(jobs_command)
 app.command("paths")(paths_command)
 app.add_typer(schema_app, name="schema")
+app.command("sql")(sql_command)
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)
 
 

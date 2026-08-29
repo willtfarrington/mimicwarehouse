@@ -25,7 +25,12 @@
 * Session fixtures: ``tier`` (the selected maximum tier), ``contract`` (the EP-9 schema
   contract), ``fixture_root`` (``tests/fixtures``), ``fixture_catalog`` (in-memory DuckDB over
   the committed fixture CSVs - one per contract table -
-  :func:`mimicwarehouse.fixtures.catalog.build_fixture_catalog`).
+  :func:`mimicwarehouse.fixtures.catalog.build_fixture_catalog`), and — separate on purpose
+  (EP-21, EP-170 amendment 4) — ``fixture_lake_settings`` / ``fixture_lake_catalog``: a real
+  fixture-tier lake + ``fixture.duckdb`` built once per session into a temp data root through
+  the EP-19 runner **without** a ``--tag small`` filter, so it grows as EP-23 … EP-27 add
+  fixture-tier stage steps; opened READ_ONLY via
+  :func:`mimicwarehouse.catalog.connect.open_catalog`.
 * Shared helpers live in ``tests/helpers.py`` (importable module, not a plugin; EP-168).
 * ``pytester`` is enabled (``pytest_plugins``) so marker-selection tests can run nested pytest
   sessions; the Hypothesis profiles are registered here too.
@@ -340,6 +345,38 @@ def fixture_catalog(fixture_root: Path, contract: Contract) -> Iterator[duckdb.D
     from mimicwarehouse.fixtures.catalog import build_fixture_catalog
 
     con = build_fixture_catalog(fixture_root, contract=contract)
+    try:
+        yield con
+    finally:
+        con.close()
+
+
+@pytest.fixture(scope="session")
+def fixture_lake_settings(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Settings over a session temp data root holding a **runner-built** fixture tier:
+    the full stage DAG (no ``--tag small`` filter, EP-170 amendment 4) plus the EP-21
+    ``catalog`` step, so ``warehouse/fixture.duckdb`` exists beside ``lake/fixture``.
+    Init-kwarg construction on purpose — immune to any ``MWH_*`` monkeypatching in the
+    first requesting test."""
+    from mimicwarehouse.config import Settings
+    from mimicwarehouse.dag import runner
+    from mimicwarehouse.dag.spec import load_dag
+
+    root = tmp_path_factory.mktemp("fixture-lake")
+    settings = Settings(data_root=root)
+    result = runner.run(load_dag(), "fixture", settings=settings)
+    failed = [f"{s.name}: {s.error}" for s in result.steps if s.status == "failed"]
+    if failed:  # a broken session lake would fail every EP-21+ test with a worse message
+        raise RuntimeError(f"fixture-lake session build failed: {failed}")
+    return settings
+
+
+@pytest.fixture(scope="session")
+def fixture_lake_catalog(fixture_lake_settings: Any) -> Iterator[duckdb.DuckDBPyConnection]:
+    """READ_ONLY connection to the session's runner-built ``fixture.duckdb`` (EP-21)."""
+    from mimicwarehouse.catalog.connect import open_catalog
+
+    con = open_catalog("fixture", settings=fixture_lake_settings)
     try:
         yield con
     finally:
