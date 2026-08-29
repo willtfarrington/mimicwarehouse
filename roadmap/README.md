@@ -113,7 +113,7 @@ Standing decisions for phase P1: mimic-code vendored at a pinned commit with att
 | EP-171 | [Toolchain remediation (P2)](EP-171-toolchain-remediation-p2.md) | S | EP-3, EP-167 | core | ☑ `4cb0daa` |
 | EP-17 | [Loader core A: typed CSV → Parquet](EP-17-stage-loader-core.md) | M | EP-3, EP-9 | core | ☑ `2e31777` |
 | EP-18 | [Loader core B: subject buckets, sort, resume](EP-18-stage-loader-buckets.md) | M | EP-17 | core | ☑ `f1d9ce6` |
-| EP-19 | [DAG runner `mwh build`](EP-19-stage-dag-runner.md) | M | EP-18 | core | ☐ |
+| EP-19 | [DAG runner `mwh build`](EP-19-stage-dag-runner.md) | M | EP-18 | core | ☑ `5996bbd` |
 | EP-20 | [Stage dimensions + small hosp/icu tables](EP-20-stage-small-tables.md) | M | EP-19 | core | ☐ |
 | EP-21 | [Catalog builder (per-tier .duckdb)](EP-21-stage-catalog-builder.md) | M | EP-20 | core | ☐ |
 | EP-22 | [Demo tier (MIMIC-IV Demo 2.2 + ED Demo)](EP-22-stage-demo-tier.md) | M | EP-21 | core | ☐ |
