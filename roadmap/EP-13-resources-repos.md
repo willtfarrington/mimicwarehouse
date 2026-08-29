@@ -95,3 +95,36 @@ code from any repo; link and summarise.
 
 - Any repo judged "port later" (e.g. meds-tab baselines, MEDS-DEV tasks, healthylaife feature pipeline) — list each
   with its trigger; EP-16 mirrors them into the matching category tables.
+
+> **Parked at execution (2026-08-28).** Five "port later" items for EP-16 to mirror (all
+> carry an ignore verdict in `repos.md` today):
+> 1. **MEDS_transforms stage catalog** (mmcdermott/MEDS_transforms, MIT) — trigger: the D-20
+>    custom runner ever needing a reusable transform-stage library.
+> 2. **MEDS-DEV task definitions** (Medical-Event-Data-Standard/MEDS-DEV, MIT) — trigger: a
+>    MEDS validation lane over the EP-50 spine (the lane itself is already parked, D-20/D-25).
+> 3. **meds-tab tabularized baselines** (mmcdermott/MEDS_Tabular_AutoML, MIT) — trigger:
+>    EP-110/111 wanting an external baseline comparator.
+> 4. **healthylaife feature pipeline, full port** (MIT) — trigger: EP-102 needing more than
+>    the cohort/feature step ordering the borrow map already cites.
+> 5. **saywurdson/mimic-iv-dbt** (Apache-2.0, dbt-duckdb → OMOP CDM 5.4) — trigger: v2
+>    OMOP-1; the strongest local-OMOP reference found (the OHDSI ETL is BigQuery-only).
+
+> **Completion note (2026-08-28).** Shipped `docs/resources/repos.md` (27 main-table rows —
+> all minimum rows plus five discovered during the awesome-list sweep; 4 awesome lists; a
+> 10-row borrow map naming EP-10/17/22/28/37/38/46/50/58/64/102/110/111/138/143),
+> `docs/resources/README.md` (index with EP-14/15 placeholders), and `tests/ep/test_ep13.py`
+> (7 tests; `poe test -m ep_13` and `mwh verify EP-13` green, 0.9 s). Every GitHub row was
+> verified live via the GitHub REST API (`gh api repos/<owner>/<name>`, HTTP 200; license,
+> last-push date and description recorded as returned); the two PhysioNet demo pages were
+> fetched directly (HTTP 200). Findings a later session should know: (1) the "jaanli"
+> MIMIC-IV visualization named in the planning research lives at
+> `altosaar/mimic-iv-visualization` — the `jaanli` account no longer exists; (2) **no
+> `awesome-mimic*` curated list exists** on GitHub, and none of the four awesome lists
+> checked carries a MIMIC-tooling section (the research's open question — answered no);
+> (3) `philipdarke/mimic4` is confirmed as a small dormant personal MIMIC-IV → DuckDB
+> loader (ignore); (4) CogStack `dbt_mimic_omop` has **no license file**, so D-34 would
+> block adoption regardless of the OMOP park; (5) PyHealth is at 2.0.1
+> (`>= 3.12, < 3.14`, adds MEDS-based tasks) and its MIMIC-IV loader has no explicit 3.1
+> pin — re-check at EP-110; (6) `MIMIC_IV_MEDS` confirms the brief's `>= 3.11.4, < 3.14`
+> cap and `.csv.gz` inputs; (7) pyicu resolved to `aidh-ms/pyICU` (MIT, dormant 2024).
+> MEDS release 0.4.1 (2025-11-05) confirms the 0.4 column set EP-50 borrows.
