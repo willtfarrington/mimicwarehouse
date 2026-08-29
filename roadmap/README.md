@@ -109,7 +109,7 @@ Standing decisions for phase P1: mimic-code vendored at a pinned commit with att
 
 | # | Brief | Size | Depends on | Core | Done |
 |---|-------|------|-----------|------|------|
-| EP-170 | [Retro F: P2/P3 brief reconciliation (pickup notes from the retro + P1)](EP-170-retro-p2-p3-brief-reconciliation.md) | M | EP-16, EP-166, EP-167, EP-168, EP-169 | core | ☐ |
+| EP-170 | [Retro F: P2/P3 brief reconciliation (pickup notes from the retro + P1)](EP-170-retro-p2-p3-brief-reconciliation.md) | M | EP-16, EP-166, EP-167, EP-168, EP-169 | core | ☑ `45f1c84` |
 | EP-171 | [Toolchain remediation (P2)](EP-171-toolchain-remediation-p2.md) | S | EP-3, EP-167 | core | ☐ |
 | EP-17 | [Loader core A: typed CSV → Parquet](EP-17-stage-loader-core.md) | M | EP-3, EP-9 | core | ☐ |
 | EP-18 | [Loader core B: subject buckets, sort, resume](EP-18-stage-loader-buckets.md) | M | EP-17 | core | ☐ |
