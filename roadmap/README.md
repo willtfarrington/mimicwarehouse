@@ -122,7 +122,7 @@ Standing decisions for phase P1: mimic-code vendored at a pinned commit with att
 | EP-25 | [Stage remaining hosp tables ⏱](EP-25-stage-hosp-rest.md) | M | EP-19 | core | ☑ `b1d56fb` |
 | EP-26 | [Stage chartevents ⏱](EP-26-stage-chartevents.md) | L | EP-19 | core | ☑ `23077a0` |
 | EP-27 | [Stage icu event tables ⏱](EP-27-stage-icu-events.md) | M | EP-19 | core | ☑ `9400e8c` |
-| EP-28 | [Verify full staging](EP-28-stage-verify-full.md) | S | EP-20, EP-21, EP-22, EP-23, EP-24, EP-25, EP-26, EP-27 | core | ☐ |
+| EP-28 | [Verify full staging](EP-28-stage-verify-full.md) | S | EP-20, EP-21, EP-22, EP-23, EP-24, EP-25, EP-26, EP-27 | core | ☑ `e306d05` |
 | EP-29 | [Catalog & data dictionary (meta.*)](EP-29-catalog-data-dictionary.md) | M | EP-21 | core | ☐ |
 | EP-30 | [Safe-query wrapper + audit log](EP-30-safe-query-audit.md) | M | EP-21 | core | ☐ |
 | EP-31 | [Tracer bullet: first-ICU-stay adults → in-hospital mortality](EP-31-tracer-bullet.md) | M | EP-21, EP-30 | core | ☐ |
