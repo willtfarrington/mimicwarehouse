@@ -244,7 +244,7 @@ tables:
       - {name: test_seq, type: INTEGER, nullable: false, comment: "Sequence of the test within the specimen."}
       - {name: storedate, type: TIMESTAMP, comment: "Date the result was stored."}
       - {name: storetime, type: TIMESTAMP, comment: "Time the result was stored."}
-      - {name: test_itemid, type: INTEGER, comment: "Test item."}
+      - {name: test_itemid, type: INTEGER, comment: "Itemid of the microbiology test performed; test_name carries its label (no separate dimension table in MIMIC-IV 3.1)."}
       - {name: test_name, type: VARCHAR, comment: "Test name (e.g. BLOOD CULTURE)."}
       - {name: org_itemid, type: INTEGER, comment: "Organism item; NULL when no growth."}
       - {name: org_name, type: VARCHAR, comment: "Organism name; NULL when no growth."}

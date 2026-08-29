@@ -70,7 +70,7 @@ tables:
     load_class: small
     columns:
       - {name: itemid, type: INTEGER, nullable: false, comment: "Item identifier; primary key."}
-      - {name: label, type: VARCHAR, nullable: false, comment: "Item label."}
+      - {name: label, type: VARCHAR, nullable: false, comment: "Human-readable label of the concept as shown in the ICU charting application (MetaVision)."}
       - {name: abbreviation, type: VARCHAR, nullable: false, comment: "Short label used on the ICU flowsheet."}
       - {name: linksto, type: VARCHAR, nullable: false, comment: "Event table the item appears in (chartevents, datetimeevents, inputevents, ingredientevents, outputevents, procedureevents)."}
       - {name: category, type: VARCHAR, nullable: false, comment: "Item category (Routine Vital Signs, Labs, Respiratory, ...)."}

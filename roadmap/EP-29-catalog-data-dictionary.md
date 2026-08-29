@@ -95,3 +95,39 @@ the generated file is committed with a header line saying its sidecar is pending
 - `mimicwarehouse/DATA-DICTIONARY.md` exists, is generated from the full tier, passes the guard hook, and its header names the build id and the pending-sidecar note; job `meta-full` log at `%MWH_DATA_ROOT%\runs\jobs\meta-full.log` with wall time in the completion note.
 - `DESCRIBE mimiciv_hosp.admissions` via `mwh sql --describe` shows comments; `meta.itemids` row count equals `d_items` + `d_labitems`.
 - The number of undescribed columns is recorded in the completion note as a follow-up for EP-33.
+
+> **Completion note (2026-08-29).** Shipped as amended at EP-170: `catalog/profile.py`
+> (`profile_lake` + `run_profile`; DAG `python` step `meta.profile` — the runner gained the
+> generic `python` handler, `callable` called with `(step, ctx)`, which EP-50 reuses),
+> `dag.snapshot.table_file_stats` (scan-free manifest row counts, dev bucket-filtered),
+> the `meta.tables` / `meta.columns` / `meta.row_counts` / `meta.itemids` + `COMMENT ON`
+> extension of `catalog/build.py`, `catalog/dictionary.py` + `mwh catalog dictionary`
+> (`mwh sql --describe` now also prints the comment column), and `tests/ep/test_ep29.py`
+> (13 fixture + 3 dev/full tests).
+>
+> - **Undescribed columns: 0** (all 31 staged tables / 342 columns — indeed all 41 / 421 —
+>   already carried contract comments from EP-9; the EP-33 follow-up is moot). Judgment
+>   calls: two genuinely weak comments rewritten (`microbiologyevents.test_itemid` "Test
+>   item.", `d_items.label` "Item label."); the remaining terse ones ("9 or 10.",
+>   "Y/N flag.") are adequate in context and kept. No new free-text flags: the EP-17
+>   `keys.yaml` set (labevents/microbiologyevents `comments` + the ED/Note columns) was
+>   re-reviewed and stands — the EP-23..27 per-table verifications already examined the
+>   candidate VARCHARs (dose/`field_value` columns are structured/categorical).
+> - **Runs.** dev (foreground): build `20260829T215120-dev-691c974` — `meta.profile`
+>   43,860,757 rows wall 2.0 s, `catalog` 1.7 s, build 3.7 s. full (background job
+>   `meta-full`, log `runs\jobs\meta-full.log` under the data root): build
+>   `20260829T215141-full-691c974` — `meta.profile` **886,043,036 rows, wall 14.1 s**
+>   (peak RSS ~0.2 GB in-process; the scan runs inside DuckDB), `catalog` 1.7 s, job wall
+>   15.9 s. The brief's 10-30 min estimate assumed sort-shaped cost; a pure aggregate scan
+>   over ZSTD Parquet on NVMe with 12 threads sustains ~60 M rows/s, so full-tier
+>   re-profiling is cheap enough to fold into every full build (it is part of the standard
+>   DAG: `catalog` now depends on `meta.profile`).
+> - **Dictionary.** `mwh catalog dictionary --tier full` wrote
+>   `mimicwarehouse/DATA-DICTIONARY.md` (31 tables / 342 columns, header build id
+>   `20260829T215141-full-691c974`, pending-EP-43 sidecar line); `mwh guard` clean;
+>   regeneration byte-stable (timestamps come from `meta.catalog_info`).
+> - **CMP-6 (earlier tests touched).** `test_ep20.py` (the catalog step's `depends_on`
+>   pin now includes `meta.profile`) and `test_ep22.py` (the demo-tier DAG kind set gained
+>   `python`) — both are spec pins over the DAG that the new step legitimately extends.
+>   Full ladder green after the change: `poe test --tier full` 691 passed; `poe check`
+>   (ruff + pyright + pytest) green; `mwh verify EP-29` green.

@@ -24,10 +24,11 @@ in topological order, one tier at a time, as the **only writer** of the lake
   (:mod:`~mimicwarehouse.dag.snapshot`).
 
 Step handlers live in :data:`STEP_HANDLERS` (kind -> handler) so later EPs add kinds
-without touching this module: ``stage`` is implemented here; ``catalog`` raises
-``NotImplementedError("EP-21")`` until EP-21 registers the real one; ``sql``/``python``
-arrive with EP-37/EP-50. Everything returned or logged is counts, schemas, hashes and
-timings — never a row.
+without touching this module: ``stage`` is implemented here; ``catalog`` is EP-21's
+:func:`~mimicwarehouse.catalog.build.build_catalog`; ``python`` (EP-29) resolves the
+step's ``module:function`` and calls it with ``(step, ctx)`` (EP-29's ``meta.profile``
+is the first, EP-50 adds the spine); ``sql`` arrives with EP-37. Everything returned or
+logged is counts, schemas, hashes and timings — never a row.
 """
 
 from __future__ import annotations
@@ -227,10 +228,25 @@ def _run_catalog(step: Step, ctx: StepContext) -> StepOutcome:
     return StepOutcome(rows=result.cataloged, bytes_out=result.bytes, files=1)
 
 
-#: kind -> handler. EP-37 adds ``sql``; EP-50 ``python``.
+def _run_python(step: Step, ctx: StepContext) -> StepOutcome:
+    """Resolve the step's ``callable`` (``module:function``, spec-validated) and call it
+    with ``(step, ctx)`` — the generic ``python`` kind (EP-29; EP-50's spine steps use
+    the same contract). The callable returns a :class:`StepOutcome`, or None for one
+    with no counts."""
+    import importlib
+
+    assert step.callable_name  # spec-validated for kind "python"
+    module_name, _, func_name = step.callable_name.partition(":")
+    fn = getattr(importlib.import_module(module_name), func_name)
+    outcome = fn(step, ctx)
+    return outcome if isinstance(outcome, StepOutcome) else StepOutcome()
+
+
+#: kind -> handler. EP-37 adds ``sql``.
 STEP_HANDLERS: dict[str, Callable[[Step, StepContext], StepOutcome]] = {
     "stage": _run_stage,
     "catalog": _run_catalog,
+    "python": _run_python,
 }
 
 

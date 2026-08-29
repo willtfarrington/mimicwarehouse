@@ -1133,6 +1133,37 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > built **without** a tag filter so it grows as EP-23…EP-27 add fixture steps); EP-12's
 > in-memory `fixture_catalog` is untouched (EP-170 amendment 4).
 
+> **Note (2026-08-29, EP-29).** The `meta.*` dictionary layer shipped. `catalog/profile.py`
+> (`profile_lake`; DAG `python` step **`meta.profile`** — the runner gained the generic
+> `python` handler, which resolves the step's `callable: module:function` and calls it with
+> `(step, ctx)`; EP-50's spine steps reuse the same contract) scans every status-qualified
+> table once per tier (`dev` = the bucket-filtered lake, so its numbers describe what the
+> dev catalog exposes) and writes `lake/meta/<tier>/profile_tables.parquet` +
+> `profile_columns.parquet`: per table `row_count`; per column `null_pct` (fraction in
+> [0, 1]), `approx_count_distinct`, and VARCHAR-cast min/max for **non-identifier
+> numeric/timestamp columns only** (identifier columns stay NULL; VARCHAR/BOOLEAN are never
+> profiled for extrema; no per-value frequency is ever computed — that is EP-44's suppressed
+> QC territory), plus the provenance triple `build_id, snapshot_id, profiled_at`.
+> `catalog/build.py` now also creates `meta.tables (schema, table, description, kind,
+> partitioned, row_count, bytes, files, build_id, snapshot_id)` and `meta.columns (schema,
+> table, column, ordinal, duckdb_type, nullable, description, is_identifier, is_free_text,
+> unit_hint, null_pct, approx_distinct)` — descriptions transcribed from the EP-9 contract's
+> `comment` fields (add them in the YAML, never in code), `unit_hint` from the units seed —
+> `meta.row_counts (schema, table, tier, rows, source: manifest|profile)` (manifest counts
+> are scan-free via the new `dag.snapshot.table_file_stats`: latest manifest line per
+> published path, dev bucket-filtered, same scope rules as the snapshot id), the
+> **`meta.itemids`** view (`d_items` as `source='icu'` UNION ALL `d_labitems` as
+> `source='hosp'` under one 9-column shape — the base EP-39 curates) and `COMMENT ON
+> TABLE/VIEW/COLUMN` for every cataloged object, so `duckdb_columns()` / `DESCRIBE`
+> tooling and the app surface descriptions (`mwh sql --describe` prints the comment
+> column). `catalog/dictionary.py` + **`mwh catalog dictionary --tier <t> [--out PATH]`**
+> render one catalog's `meta.*` as `mimicwarehouse/DATA-DICTIONARY.md`: header (build id,
+> tier, core snapshot id, DuckDB version, catalog `built_at`, the D-33 caveats paragraph,
+> "disclosure sidecar pending EP-43"), then per table the description, manifest row count,
+> Parquet MB and a column table. Integers go through `inventory.fmt_int`, distinct counts
+> below k = 11 render `<11`, ordering is deterministic and every timestamp comes from
+> `meta.catalog_info` — regeneration from an unchanged catalog is byte-identical.
+
 ## 16. App structure (D-21)
 
 One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,

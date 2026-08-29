@@ -226,7 +226,7 @@ def test_every_stage_step_carries_demo_tier() -> None:
             assert "demo" in step.tiers, f"{step.name}: hosp/icu stage steps run on demo (EP-22)"
     ordered = dag.ordered(tier="demo")
     kinds = {s.kind for s in ordered}
-    assert kinds == {"stage", "catalog"}
+    assert kinds == {"stage", "python", "catalog"}  # python = meta.profile (EP-29)
     assert len([s for s in ordered if s.kind == "stage"]) == len(
         [s for s in dag.steps if s.kind == "stage"]
     )

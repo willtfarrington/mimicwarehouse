@@ -1,5 +1,5 @@
-"""``mwh catalog info`` and the interim ``mwh sql`` (EP-21 item 3; attached in
-:mod:`mimicwarehouse.cli`).
+"""``mwh catalog info``, ``mwh catalog dictionary`` and the interim ``mwh sql``
+(EP-21 item 3, EP-29 item 4; attached in :mod:`mimicwarehouse.cli`).
 
 ``catalog info`` prints ``meta.catalog_info`` and ``meta.catalog_tables`` — metadata
 only. ``sql`` is registered with its **final** option surface (``--tier``, ``--k``,
@@ -41,7 +41,10 @@ FREE_FORM_MESSAGE = "free-form SQL arrives with safe_query (EP-30)"
 
 catalog_app = typer.Typer(
     name="catalog",
-    help="Per-tier catalog metadata (EP-21): mwh catalog info --tier <t>.",
+    help=(
+        "Per-tier catalog metadata (EP-21/EP-29): mwh catalog info --tier <t>, "
+        "mwh catalog dictionary --tier <t> [--out PATH]."
+    ),
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
@@ -161,6 +164,45 @@ def info_command(
     )
 
 
+@catalog_app.command("dictionary")
+def dictionary_command(
+    ctx: typer.Context,
+    tier: Annotated[
+        str,
+        typer.Option("--tier", help="Tier catalog to render: fixture | demo | dev | full."),
+    ] = "full",
+    out: Annotated[
+        str | None,
+        typer.Option(
+            "--out",
+            metavar="PATH",
+            help="Output path (default: mimicwarehouse/DATA-DICTIONARY.md).",
+        ),
+    ] = None,
+) -> None:
+    """Generate DATA-DICTIONARY.md from one tier catalog's meta.* schema (EP-29)."""
+    from pathlib import Path
+
+    from mimicwarehouse.catalog.connect import CatalogOpenError
+    from mimicwarehouse.catalog.dictionary import generate_dictionary
+
+    state: CliState = ctx.obj
+    prefix = "mwh catalog dictionary"
+    _require_tier(prefix, tier)
+    try:
+        result = generate_dictionary(
+            tier, state.settings, out=Path(out) if out is not None else None
+        )
+    except CatalogOpenError as exc:
+        _fail(prefix, str(exc))
+        raise AssertionError from exc  # unreachable; _fail always raises
+    console.print(
+        f"wrote {result.path} ({result.tables} table(s), {result.columns} column(s), "
+        f"tier {result.tier}, build {result.build_id})",
+        highlight=False,
+    )
+
+
 def _validated_table(con: duckdb.DuckDBPyConnection, qualified: str, prefix: str) -> str:
     """``schema.table`` checked against the identifier grammar **and** the catalog's own
     information_schema (parameterized) before it is ever interpolated into SQL."""
@@ -248,8 +290,21 @@ def sql_command(
         if describe is not None:
             target = _validated_table(con, describe, prefix)
             described = con.execute(f"DESCRIBE {target}").fetchall()
+            # contract descriptions from the catalog's COMMENT ONs (EP-29; DESCRIBE
+            # itself does not surface them)
+            schema, table = describe.split(".", 1)
+            comments = dict(
+                con.execute(
+                    "SELECT column_name, comment FROM duckdb_columns() "
+                    "WHERE schema_name = ? AND table_name = ?",
+                    [schema, table],
+                ).fetchall()
+            )
             if output_format == "json":
-                payload = [{"column": d[0], "type": d[1], "null": d[2]} for d in described]
+                payload = [
+                    {"column": d[0], "type": d[1], "null": d[2], "comment": comments.get(d[0])}
+                    for d in described
+                ]
                 sys.stdout.write(
                     json.dumps({"tier": resolved_tier, "table": describe, "columns": payload})
                     + "\n"
@@ -258,10 +313,15 @@ def sql_command(
             from rich.table import Table as RichTable
 
             listing = RichTable(title=f"{describe} ({resolved_tier})", pad_edge=False)
-            for col in ("column", "type", "null"):
+            for col in ("column", "type", "null", "comment"):
                 listing.add_column(col)
             for d in described:
-                listing.add_row(escape(str(d[0])), escape(str(d[1])), str(d[2]))
+                listing.add_row(
+                    escape(str(d[0])),
+                    escape(str(d[1])),
+                    str(d[2]),
+                    escape(str(comments.get(d[0]) or "")),
+                )
             console.print(listing)
             return
         assert count is not None
@@ -296,4 +356,10 @@ def sql_command(
         con.close()
 
 
-__all__ = ["FREE_FORM_MESSAGE", "catalog_app", "info_command", "sql_command"]
+__all__ = [
+    "FREE_FORM_MESSAGE",
+    "catalog_app",
+    "dictionary_command",
+    "info_command",
+    "sql_command",
+]

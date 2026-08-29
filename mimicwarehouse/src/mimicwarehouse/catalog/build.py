@@ -339,7 +339,8 @@ def _populate(
     buckets: list[int] | None,
     settings: Settings,
 ) -> None:
-    """Schemas, tables/views and the two ``meta`` tables, then ``CHECKPOINT`` + close."""
+    """Schemas, tables/views, the ``meta`` dictionary tables (EP-21 + EP-29), then
+    ``CHECKPOINT`` + close."""
     import duckdb
 
     tier = result.tier
@@ -370,6 +371,7 @@ def _populate(
                         map_notes=entry.get("map_notes") if entry else None,
                     )
                 )
+        _populate_meta(con, result, contract, lake_root, settings)
         con.execute(
             'CREATE TABLE meta.catalog_tables ("schema" VARCHAR, "table" VARCHAR, '
             "kind VARCHAR, status VARCHAR, rows_hint BIGINT, map_notes VARCHAR)"
@@ -416,6 +418,203 @@ def _populate(
         con.close()
 
 
+# ---------------------------------------------------------------------------
+# The meta.* dictionary tables (EP-29 item 3)
+# ---------------------------------------------------------------------------
+
+
+def unit_hint(contract: Any, table: Table, column: Any) -> str | None:
+    """The short unit note ``meta.columns.unit_hint`` carries, from the EP-9 units seed:
+    a fixed unit is the unit string itself (``kg``); a unit column says which value
+    column it qualifies (``unit of valuenum``); a value column names its unit/implied-by
+    column (``unit in valueuom`` / ``implied by result_name``). None otherwise —
+    itemid-level expectations are EP-39's."""
+    if column.unit_of:
+        return f"unit of {column.unit_of}"
+    qn = table.qualified_name
+    for pair in contract.units.value_unit_pairs:
+        if pair.table == qn and pair.value == column.name:
+            return f"unit in {pair.unit}"
+    for fixed in contract.units.fixed_units:
+        if fixed.table == qn and fixed.column == column.name:
+            return fixed.unit
+    for implied in contract.units.implied_units:
+        if implied.table == qn and implied.value == column.name:
+            return f"implied by {implied.implied_by}"
+    return None
+
+
+def _read_profiles(
+    con: duckdb.DuckDBPyConnection, lake_root: Path, tier: str
+) -> tuple[dict[str, int], dict[tuple[str, str], tuple[float | None, int | None]]]:
+    """The tier's ``lake/meta`` profile Parquet, if present: ``{schema.table: row_count}``
+    and ``{(schema.table, column): (null_pct, approx_distinct)}`` — empty dicts (never an
+    error) while ``meta.profile`` has not run for this tier."""
+    from mimicwarehouse.catalog.profile import profile_paths
+
+    tables_path, columns_path = profile_paths(lake_root, tier)
+    if not tables_path.is_file() or not columns_path.is_file():
+        return {}, {}
+    tables_sql = _sql_str(tables_path.resolve().as_posix())
+    columns_sql = _sql_str(columns_path.resolve().as_posix())
+    table_counts = {
+        f"{s}.{t}": int(rows)
+        for s, t, rows in con.execute(
+            f'SELECT "schema", "table", row_count FROM read_parquet({tables_sql})'
+        ).fetchall()
+    }
+    column_profiles = {
+        (f"{s}.{t}", c): (p, None if d is None else int(d))
+        for s, t, c, p, d in con.execute(
+            f'SELECT "schema", "table", "column", null_pct, approx_distinct '
+            f"FROM read_parquet({columns_sql})"
+        ).fetchall()
+    }
+    return table_counts, column_profiles
+
+
+def _comment_on(
+    con: duckdb.DuckDBPyConnection, kind: str, qualified: str, comment: str | None
+) -> None:
+    if comment:
+        keyword = "VIEW" if kind == "view" else "TABLE"
+        con.execute(f"COMMENT ON {keyword} {qualified} IS {_sql_str(comment)}")
+
+
+def _populate_meta(
+    con: duckdb.DuckDBPyConnection,
+    result: CatalogBuildResult,
+    contract: Any,
+    lake_root: Path,
+    settings: Settings,
+) -> None:
+    """``meta.tables`` / ``meta.columns`` / ``meta.row_counts`` / the ``meta.itemids``
+    view, plus ``COMMENT ON`` for every cataloged table and column (EP-29 item 3).
+    Row counts and bytes come from the manifests (no scan; dev = bucket-filtered lines);
+    ``null_pct`` / ``approx_distinct`` come from the ``meta.profile`` Parquet when it
+    exists. Everything written is contract text and aggregate counts — never a value."""
+    from mimicwarehouse.dag.snapshot import table_file_stats
+
+    tier = result.tier
+    kinds = {t.qualified_name: t.kind for t in result.tables}
+    stats = table_file_stats(lake_root, tier, settings=settings)
+    table_counts, column_profiles = _read_profiles(con, lake_root, tier)
+
+    con.execute(
+        'CREATE TABLE meta.tables ("schema" VARCHAR, "table" VARCHAR, description VARCHAR, '
+        "kind VARCHAR, partitioned BOOLEAN, row_count BIGINT, bytes BIGINT, files INTEGER, "
+        "build_id VARCHAR, snapshot_id VARCHAR)"
+    )
+    con.execute(
+        'CREATE TABLE meta.columns ("schema" VARCHAR, "table" VARCHAR, "column" VARCHAR, '
+        "ordinal INTEGER, duckdb_type VARCHAR, nullable BOOLEAN, description VARCHAR, "
+        "is_identifier BOOLEAN, is_free_text BOOLEAN, unit_hint VARCHAR, null_pct DOUBLE, "
+        "approx_distinct BIGINT)"
+    )
+    con.execute(
+        'CREATE TABLE meta.row_counts ("schema" VARCHAR, "table" VARCHAR, tier VARCHAR, '
+        "rows BIGINT, source VARCHAR)"
+    )
+
+    table_rows: list[list[Any]] = []
+    column_rows: list[list[Any]] = []
+    count_rows: list[list[Any]] = []
+    for schema in STAGED_SCHEMAS:
+        for table in contract.by_schema(schema):
+            qn = table.qualified_name
+            rows, size, files = stats.get(qn, (None, None, None))
+            table_rows.append(
+                [
+                    schema,
+                    table.name,
+                    table.comment,
+                    kinds.get(qn, "missing"),
+                    table.partitioned,
+                    rows,
+                    size,
+                    files,
+                    result.build_id,
+                    result.core_snapshot_id,
+                ]
+            )
+            if rows is not None:
+                count_rows.append([schema, table.name, tier, rows, "manifest"])
+            if qn in table_counts:
+                count_rows.append([schema, table.name, tier, table_counts[qn], "profile"])
+            for ordinal, column in enumerate(table.columns, start=1):
+                null_pct, approx_distinct = column_profiles.get((qn, column.name), (None, None))
+                column_rows.append(
+                    [
+                        schema,
+                        table.name,
+                        column.name,
+                        ordinal,
+                        column.duckdb_type,
+                        column.nullable,
+                        column.comment,
+                        column.identifier,
+                        column.free_text,
+                        unit_hint(contract, table, column),
+                        null_pct,
+                        approx_distinct,
+                    ]
+                )
+    con.executemany("INSERT INTO meta.tables VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", table_rows)
+    con.executemany(
+        "INSERT INTO meta.columns VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", column_rows
+    )
+    if count_rows:
+        con.executemany("INSERT INTO meta.row_counts VALUES (?, ?, ?, ?, ?)", count_rows)
+
+    # COMMENT ON so DESCRIBE / duckdb_columns() / the app show the contract descriptions.
+    for table in (t for s in STAGED_SCHEMAS for t in contract.by_schema(s)):
+        kind = kinds.get(table.qualified_name, "missing")
+        if kind == "missing":
+            continue
+        qualified = f'{table.schema_name}."{table.name}"'
+        _comment_on(con, kind, qualified, table.comment)
+        for column in table.columns:
+            if column.comment:
+                con.execute(
+                    f'COMMENT ON COLUMN {qualified}."{column.name}" IS {_sql_str(column.comment)}'
+                )
+
+    # meta.itemids — the EP-39 curation base: both item dimensions under one shape.
+    if kinds.get("mimiciv_icu.d_items") != "missing" and (
+        kinds.get("mimiciv_hosp.d_labitems") != "missing"
+    ):
+        con.execute(
+            "CREATE VIEW meta.itemids AS "
+            "SELECT 'icu' AS source, itemid, label, abbreviation, linksto, category, "
+            "CAST(NULL AS VARCHAR) AS fluid, unitname, param_type "
+            "FROM mimiciv_icu.d_items "
+            "UNION ALL "
+            "SELECT 'hosp', itemid, label, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), "
+            "category, fluid, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR) "
+            "FROM mimiciv_hosp.d_labitems"
+        )
+        _comment_on(
+            con,
+            "view",
+            "meta.itemids",
+            "Union of d_items (source = 'icu') and d_labitems (source = 'hosp') — the "
+            "itemid dictionary base EP-39 curates.",
+        )
+    _comment_on(con, "table", "meta.tables", "Table dictionary from the EP-9 contract (EP-29).")
+    _comment_on(
+        con,
+        "table",
+        "meta.columns",
+        "Column dictionary from the EP-9 contract + meta.profile aggregates (EP-29).",
+    )
+    _comment_on(
+        con,
+        "table",
+        "meta.row_counts",
+        "Per-table row counts: manifest-derived (no scan) and profile-derived (EP-29).",
+    )
+
+
 __all__ = [
     "CATALOG_SCHEMAS",
     "NEW_SUFFIX",
@@ -430,4 +629,5 @@ __all__ = [
     "catalog_old_path",
     "qualifies",
     "swap_catalog",
+    "unit_hint",
 ]

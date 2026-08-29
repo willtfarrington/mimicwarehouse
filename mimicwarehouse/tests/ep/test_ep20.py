@@ -157,7 +157,10 @@ def test_spec_steps_carry_contract_defaults(contract: Contract) -> None:
         # size_class / partitioned / sort_by come from the contract, never the spec
         assert step.size_class is None and step.partitioned is None and step.sort_by is None
     catalog = dag.step("catalog")
-    assert set(catalog.depends_on) == {s.name for s in dag.steps if s.kind == "stage"}
+    # EP-29 added the meta.profile python step between the stages and the catalog
+    assert set(catalog.depends_on) == {s.name for s in dag.steps if s.kind == "stage"} | {
+        "meta.profile"
+    }
 
 
 # ---------------------------------------------------------------------------

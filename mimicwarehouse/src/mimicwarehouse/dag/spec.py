@@ -96,7 +96,9 @@ class Step(_Frozen):
     target: str | None = None
     # python
     callable_name: str | None = Field(
-        default=None, alias="callable", description="module:function (EP-50)"
+        default=None,
+        alias="callable",
+        description="module:function called with (step, ctx) (EP-29's meta.profile; EP-50)",
     )
 
     @model_validator(mode="after")

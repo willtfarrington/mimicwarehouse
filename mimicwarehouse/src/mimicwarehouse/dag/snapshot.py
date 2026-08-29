@@ -126,6 +126,39 @@ def layer_snapshot(
     return hashlib.sha256(blob).hexdigest()
 
 
+def table_file_stats(
+    lake_root: Path,
+    tier: str = "full",
+    *,
+    layer: str = "core",
+    settings: Settings | None = None,
+) -> dict[str, tuple[int, int, int]]:
+    """``{schema.table: (rows, bytes, files)}`` summed from the latest manifest line per
+    published path — the no-scan row-count source of ``meta.tables`` / ``meta.row_counts``
+    (EP-29 item 3). Scope rules are exactly :func:`layer_snapshot`'s: only tables complete
+    for ``tier`` count, and the ``dev`` numbers keep dev-bucket lines plus unpartitioned
+    files, so they describe what the dev catalog exposes."""
+    settings = settings or get_settings()
+    lake_root = Path(lake_root)
+    status = read_status(lake_root)["steps"]
+    complete = {qn for qn, entry in status.items() if complete_for_tier(entry, tier)}
+    dev_buckets = set(settings.dev_buckets)
+    stats: dict[str, tuple[int, int, int]] = {}
+    for line in _latest_lines(lake_root).values():
+        if not line.path.startswith(f"{layer}/"):
+            continue
+        qn = f"{line.schema_name}.{line.table}"
+        if qn not in complete:
+            continue
+        if tier == "dev":
+            bucket = _bucket_of(line.path)
+            if bucket is not None and bucket not in dev_buckets:
+                continue
+        rows, size, files = stats.get(qn, (0, 0, 0))
+        stats[qn] = (rows + line.rows, size + line.bytes, files + 1)
+    return stats
+
+
 # ---------------------------------------------------------------------------
 # History (lake/manifests/snapshots.json)
 # ---------------------------------------------------------------------------
@@ -171,4 +204,5 @@ __all__ = [
     "read_snapshots",
     "record_snapshot",
     "snapshots_path",
+    "table_file_stats",
 ]

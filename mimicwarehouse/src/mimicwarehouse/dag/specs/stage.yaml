@@ -256,11 +256,50 @@ steps:
     source: mimic-iv-3.1/icu/caregiver.csv
     tags: [stage, mimiciv_icu, small, dims]
     tiers: [fixture, demo, dev, full]
-  # -- catalog (EP-21) ---------------------------------------------------------------------
+  # -- meta profile (EP-29): aggregate row/null/distinct profiles into lake/meta/<tier>/ --
+  - name: meta.profile
+    kind: python
+    callable: mimicwarehouse.catalog.profile:run_profile
+    tags: [meta]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_hosp.patients
+      - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.transfers
+      - stage.mimiciv_hosp.services
+      - stage.mimiciv_hosp.diagnoses_icd
+      - stage.mimiciv_hosp.procedures_icd
+      - stage.mimiciv_hosp.drgcodes
+      - stage.mimiciv_hosp.hcpcsevents
+      - stage.mimiciv_hosp.omr
+      - stage.mimiciv_hosp.poe_detail
+      - stage.mimiciv_hosp.labevents
+      - stage.mimiciv_hosp.emar
+      - stage.mimiciv_hosp.emar_detail
+      - stage.mimiciv_hosp.pharmacy
+      - stage.mimiciv_hosp.prescriptions
+      - stage.mimiciv_hosp.poe
+      - stage.mimiciv_hosp.microbiologyevents
+      - stage.mimiciv_hosp.d_labitems
+      - stage.mimiciv_hosp.d_hcpcs
+      - stage.mimiciv_hosp.d_icd_diagnoses
+      - stage.mimiciv_hosp.d_icd_procedures
+      - stage.mimiciv_hosp.provider
+      - stage.mimiciv_icu.icustays
+      - stage.mimiciv_icu.procedureevents
+      - stage.mimiciv_icu.outputevents
+      - stage.mimiciv_icu.chartevents
+      - stage.mimiciv_icu.inputevents
+      - stage.mimiciv_icu.ingredientevents
+      - stage.mimiciv_icu.datetimeevents
+      - stage.mimiciv_icu.d_items
+      - stage.mimiciv_icu.caregiver
+  # -- catalog (EP-21; EP-29 loads the meta.profile output, hence the dependency) ---------
   - name: catalog
     kind: catalog
     tags: [catalog]
     depends_on:
+      - meta.profile
       - stage.mimiciv_hosp.patients
       - stage.mimiciv_hosp.admissions
       - stage.mimiciv_hosp.transfers
