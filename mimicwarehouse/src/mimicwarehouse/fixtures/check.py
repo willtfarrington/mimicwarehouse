@@ -4,6 +4,8 @@
 raises :class:`FixtureError` with them. Checked, per the briefs: every frame has exactly the
 contract columns (order and castable dtypes); every id column is >= 90 000 000 (D-27) and no
 integer column ever holds a value inside the real MIMIC bands (guard G4, whatever the column);
+the subject / hadm / stay / caregiver id sets are pairwise disjoint (disjoint floors since
+EP-169, retro FXT-1 / D-27 addendum - a wrong-key join must never match);
 foreign keys (``hadm_id`` -> admissions, ``subject_id`` -> patients, ``itemid`` -> d_labitems,
 ICD codes -> ``d_icd_*``, ``hcpcs_cd`` -> d_hcpcs, ``emar_id`` -> emar, ``poe_id`` -> poe,
 ``pharmacy_id`` -> pharmacy, provider ids -> provider, ``(subject_id, hadm_id)`` consistency);
@@ -170,6 +172,34 @@ def _fk_problems(
     if missing.height:
         return [f"{child}({cols}) -> {parent}({ref_cols}): {missing.height} orphan value(s)"]
     return []
+
+
+def _disjoint_id_problems(
+    hosp: Mapping[str, pl.DataFrame], icu: Mapping[str, pl.DataFrame] | None
+) -> list[str]:
+    """The subject/hadm/stay/caregiver id sets must be pairwise disjoint (EP-169, retro FXT-1:
+    disjoint floors in ``FixtureSpec``, so a wrong-key join can never match by accident)."""
+    sources: list[tuple[str, Mapping[str, pl.DataFrame] | None, str]] = [
+        ("subject_id", hosp, "patients"),
+        ("hadm_id", hosp, "admissions"),
+        ("stay_id", icu, "icustays"),
+        ("caregiver_id", icu, "caregiver"),
+    ]
+    sets: dict[str, set[int]] = {}
+    for col, frames, table in sources:
+        if frames is not None and table in frames and col in frames[table].columns:
+            sets[col] = set(frames[table].get_column(col).to_list())
+    problems: list[str] = []
+    names = list(sets)
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            shared = len(sets[a] & sets[b])
+            if shared:
+                problems.append(
+                    f"id spaces: {shared} value(s) shared between {a} and {b} "
+                    "(floors must keep them pairwise disjoint, D-27 addendum)"
+                )
+    return problems
 
 
 def _pk_problems(schema: str, name: str, frame: pl.DataFrame, contract: Contract) -> list[str]:
@@ -522,6 +552,7 @@ def validate(
         problems += _fk_problems(frames, child, cols, parent, ref)
     problems += _pair_problems(frames, frames["admissions"], skip="admissions")
     problems += _admission_problems(frames)
+    problems += _disjoint_id_problems(frames, icu)
     if plan is not None:
         problems += _plan_problems(frames, plan)
     if icu is not None:

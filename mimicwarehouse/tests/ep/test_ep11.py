@@ -21,6 +21,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import polars as pl
 import pytest
 from pydantic import ValidationError
@@ -131,7 +132,11 @@ def regenerated(
     out = tmp_path_factory.mktemp("fixture-regen")
     result = write_mod.build_and_write(out, spec=spec)
     again = write_fixture(
-        frames, out / "hosp-only", spec=spec, contract_hash=contract.content_hash()
+        frames,
+        out / "hosp-only",
+        spec=spec,
+        contract_hash=contract.content_hash(),
+        contract_schema_hash=contract.structural_hash(),
     )
     hosp_entries = {e.rel_path: e.sha256 for e in again.entries}
     assert {
@@ -170,8 +175,23 @@ def _sha256(path: Path) -> str:
 
 def test_spec_defaults(spec: FixtureSpec) -> None:
     assert spec.seed == 2026 and spec.n_subjects == 120
-    assert spec.first_subject_id == spec.first_hadm_id == spec.first_stay_id == FIXTURE_ID_FLOOR
-    assert spec.first_event_id == FIXTURE_ID_FLOOR == guard.FIXTURE_ID_FLOOR
+    # disjoint id floors per key space (EP-169, retro FXT-1; D-27 addendum)
+    floors = {
+        "subject": spec.first_subject_id,
+        "hadm": spec.first_hadm_id,
+        "stay": spec.first_stay_id,
+        "event": spec.first_event_id,
+        "caregiver": spec.first_caregiver_id,
+    }
+    assert floors == {
+        "subject": 90_000_000,
+        "hadm": 91_000_000,
+        "stay": 92_000_000,
+        "event": 93_000_000,
+        "caregiver": 93_900_000,
+    }
+    assert len(set(floors.values())) == len(floors)
+    assert min(floors.values()) == FIXTURE_ID_FLOOR == guard.FIXTURE_ID_FLOOR
     assert spec.admissions_per_subject_mean == 1.5 and spec.icu_fraction == 0.4
     assert spec.mortality_rate == 0.08 and spec.labs_per_admission == 40
     assert spec.canonical()["seed"] == 2026
@@ -615,15 +635,31 @@ def test_fixture_drift(
     hosp_keys = {k for k in manifest["files"] if k.startswith("mimic-iv-3.1/hosp/")}
     assert {k for k in fresh if k.startswith("mimic-iv-3.1/hosp/")} == hosp_keys
     assert set(fresh) == set(manifest["files"])  # EP-12: icu entries too
+    # sha-drift messages name the environment: byte identity is asserted against the locked,
+    # deliberately unpinned numpy/polars versions (EP-169, retro FXT-2)
+    env = (
+        f"committed numpy {manifest['numpy_version']} / polars {manifest['polars_version']}, "
+        f"running numpy {np.__version__} / polars {pl.__version__}"
+    )
     for rel, entry in fresh.items():
         committed = FIXTURE_DIR / Path(rel)
-        assert entry.sha256 == manifest["files"][rel]["sha256"], f"{rel}: manifest sha drift"
-        assert entry.sha256 == _sha256(committed), f"{rel}: committed file drift"
+        assert entry.sha256 == manifest["files"][rel]["sha256"], (
+            f"{rel}: manifest sha drift ({env})"
+        )
+        assert entry.sha256 == _sha256(committed), f"{rel}: committed file drift ({env})"
         assert entry.bytes == committed.stat().st_size == manifest["files"][rel]["bytes"]
         assert entry.rows == manifest["files"][rel]["rows"]
-    assert manifest["contract_hash"] == contract.content_hash()
-    # manifest + README themselves are reproducible too (EP-12 extends both)
-    assert regenerated.manifest_path.read_bytes() == (FIXTURE_DIR / "manifest.json").read_bytes()
+    # the manifest pins the structural hash; the full content_hash and the versions are
+    # provenance only (EP-169, retro SCH-2/FC-4: a comment-only contract edit needs no regen)
+    assert manifest["contract_schema_hash"] == contract.structural_hash()
+    assert set(write_mod.MANIFEST_PROVENANCE_KEYS) <= set(manifest)
+    fresh_manifest = json.loads(regenerated.manifest_path.read_text(encoding="utf-8"))
+    committed_manifest = json.loads((FIXTURE_DIR / "manifest.json").read_text(encoding="utf-8"))
+    for key in write_mod.MANIFEST_PROVENANCE_KEYS:
+        fresh_manifest.pop(key)
+        committed_manifest.pop(key)
+    assert fresh_manifest == committed_manifest
+    # the README is byte-reproducible (EP-12 extends it)
     assert regenerated.readme_path.read_bytes() == (FIXTURE_DIR / "README.md").read_bytes()
 
 

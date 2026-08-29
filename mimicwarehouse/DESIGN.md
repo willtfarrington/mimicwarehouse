@@ -212,8 +212,24 @@ Every brief states its tier using the vocabulary in the roadmap README (`fixture
 > (`lake_root(tier)`, layout keys, runner refusal); EP-12's in-memory
 > `build_fixture_catalog()` remains the test-time path until EP-21.
 
+> **Note (2026-08-28, EP-169 — disjoint fixture id floors + regeneration 0.2.0; decided at
+> the 2026-08-18 retro, D-27 addendum, ledger FXT-1/FXT-2/FXT-4).** `FixtureSpec` now
+> defaults to **one floor per id space**: `first_subject_id 90_000_000`, `first_hadm_id
+> 91_000_000`, `first_stay_id 92_000_000`, `first_event_id 93_000_000` (labevent/specimen/
+> microevent/micro_specimen/transfer/pharmacy/order ids) and `first_caregiver_id
+> 93_900_000` — pairwise disjoint (enforced by `fixtures.check`), all ≥ the guard floor,
+> none an 8-digit 1/2/3 token, so a wrong-key join can never match by accident. The
+> regeneration is `GENERATOR_VERSION` **0.2.0** (same totals: 50,974 rows / 5.12 MiB); the
+> manifest now records numpy/polars/python versions (provenance, deliberately unpinned)
+> and pins the contract by `contract_schema_hash` = `Contract.structural_hash()`
+> (load-relevant facts only; the full `content_hash()` stays informational, so a
+> comment-only contract edit no longer forces a regeneration). Which vendored concepts are
+> empty/partial on the fixture is documented in `tests/fixtures/COVERAGE.md`
+> (hand-maintained; EP-41 extends the vocab and regenerates as 0.3.0).
+
 Hive-partitioned Parquet: `lake/core/<schema>/<table>/subject_bucket=NN/part-*.parquet`,
-sorted `(subject_id, <time column>)`, ZSTD level 3, ~1 M-row row groups, statistics on.
+sorted by the contract `sort_keys` (`subject_id`, the time column, then a same-table
+id/sequence tie-break since EP-169), ZSTD level 3, ~1 M-row row groups, statistics on.
 Schema names mirror mimic-code: `mimiciv_hosp`, `mimiciv_icu`, `mimiciv_ed` (from EP-142),
 `mimiciv_derived`; plus `meta` (catalog/profiles/dictionaries), `marts`, `runs`
 (views only — see §11). Every Parquet file has a manifest line
@@ -257,6 +273,13 @@ and applies column maps (demo 2.2 → 3.1).
 > The manifest-line field "source manifest id" above is two fields since the retro:
 > per-file `source_sha256` **plus** the 41-file `raw_snapshot_id` — see the §11 glossary
 > note (D-43 item 11).
+
+> **Note (2026-08-28, EP-169).** Correction to item 2 of the note above: the owner kept
+> `microbiologyevents` at `load_class: large` (D-17 addendum — a deliberate exception to
+> the "> 1 GB" rule of thumb; its raw CSV is 909 MB), so two-pass = the contract's **13**
+> `large` tables, unchanged. The contract `sort_keys` now end in a same-table id/sequence
+> tie-break (EP-169, ledger ARCH-4), so EP-18's per-bucket sort and its "sha256 stable
+> across two runs" determinism tests are well-defined under ties.
 
 Explicit in every build/analysis process (never rely on defaults): `memory_limit`
 (36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`

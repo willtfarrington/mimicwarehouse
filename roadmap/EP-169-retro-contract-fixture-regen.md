@@ -99,3 +99,29 @@ on it) is undocumented; the fixture-change protocol is unwritten (EP-166 writes 
   build --json` reproduces the committed manifest byte-for-byte on a second run; `mwh guard
   --all-tracked` clean; `mwh verify EP-169` exit 0; `poe roadmap-check --strict` 0/0.
 - Commit pair: `feat(mimicwarehouse): contract sort-key tie-breaks + structural_hash + csv dialect; fixture id floors, provenance keys, coverage note — regenerated fixture 0.2.0 (EP-169)` then `docs(roadmap): record EP-169 commit hash`. The CSV regeneration ships in the same feat commit (one manifest diff to review).
+
+> **Completion note (2026-08-28).** All seven items shipped; fixture tier only (no full-tier
+> run). `poe check` green (520 passed; lint/typecheck clean), `mwh schema check` exit 0
+> (the nine `upstream_type: TIMESTAMP(3)` records verified against the DDL), second
+> `mwh fixtures build` byte-identical, `mwh guard --all-tracked` clean, `mwh verify EP-169`
+> exit 0, `poe roadmap-check --strict` 0/0. Regeneration 0.2.0: same totals as 0.1.0
+> (50,974 rows / 5,370,674 bytes); dims byte-identical, subject-keyed tables re-sorted
+> under the new tie-breaks + re-numbered under the new floors. Pinned-fact test edits,
+> as the brief allows: `test_ep11.py` (`test_spec_defaults` → disjoint floors;
+> `test_fixture_drift` → pins `contract_schema_hash`, manifest compared minus
+> `write.MANIFEST_PROVENANCE_KEYS`, sha-drift messages name numpy/polars versions;
+> `regenerated` fixture passes `contract_schema_hash`) and `test_ep12.py`
+> (`test_icu_fixture_drift`, same three changes); `test_ep09.py` / `test_ep10.py`
+> needed no edit. Decisions honoured: `microbiologyevents` stays `large` (D-17 addendum;
+> DESIGN §5 got a dated correction of EP-166's "moves to small" prediction); caregiver ids
+> branch off the event space as `first_caregiver_id 93_900_000` (D-27 addendum's
+> "event/caregiver ids from 93 000 000"). ED/Note uniformity was applied as the brief's
+> token list: `edstays +stay_id`, `discharge`/`radiology` `+note_id` (`diagnosis` and the
+> detail tables already conform); `medrecon`/`pyxis`/`vitalsign` keep
+> `[subject_id, stay_id, charttime]` — a non-total order within ties, like `chartevents`
+> (noted in the mimiciv_ed.yaml header). Item 7's optional gap-seeding (52033, HbA1c,
+> metformin) was **not** taken — nothing was added to the vocab; `COVERAGE.md` records the
+> gaps and names EP-41's 0.3.0 regeneration as the norm (its partial-coverage denominators
+> were re-measured from the vendored SQL and differ slightly from this brief's estimates:
+> vitalsign 12/20, bg 8/30, blood_differential 3/29, oxygen_delivery 1/13). EP-17's import
+> of the dialect constant and the EP-20/EP-25 pickup notes stay with EP-170 as scoped.

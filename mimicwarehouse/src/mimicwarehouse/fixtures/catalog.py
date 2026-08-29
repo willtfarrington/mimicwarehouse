@@ -22,7 +22,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mimicwarehouse.fixtures.write import DATASET_DIR, DATE_FORMAT, MODULE_SCHEMAS, TIMESTAMP_FORMAT
+from mimicwarehouse.fixtures.write import DATASET_DIR, MODULE_SCHEMAS
+
+# The ``read_csv`` clause every table is loaded through (typed, strict) - the one CSV dialect
+# (EP-169, retro SCH-1): no timestampformat/dateformat, DuckDB's ISO cast handles both.
+from mimicwarehouse.schema.csv_dialect import READ_CSV_SQL
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -32,11 +36,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 #: Schemas the fixture catalog holds, in creation order (module dir -> schema).
 FIXTURE_SCHEMAS: tuple[str, ...] = tuple(MODULE_SCHEMAS.values())
-#: The ``read_csv`` clause every table is loaded through (typed, strict).
-READ_CSV_SQL = (
-    "SELECT * FROM read_csv(?, header=true, columns=?, delim=',', quote='\"', escape='\"', "
-    f"timestampformat='{TIMESTAMP_FORMAT}', dateformat='{DATE_FORMAT}', ignore_errors=false)"
-)
 
 
 class FixtureCatalogError(RuntimeError):

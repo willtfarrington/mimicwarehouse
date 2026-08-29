@@ -195,3 +195,14 @@ enough for the loader, concepts and phenotypes", not clinical fidelity.
 > twin), extend `write.write_fixture` calls with `module="icu"` (the writer already takes `module` /
 > `dataset_dir`) and rewrite `manifest.json` from both frame sets in one `build`; keep
 > `write.GENERATOR_VERSION` at `0.1.0` unless a hosp byte changes.
+
+> **Completion-note addendum (2026-08-28, EP-169).** The `FixtureSpec` id floors described
+> above changed once, at EP-169 (retro FXT-1; D-27 addendum): the four `first_*_id` knobs
+> no longer share the 90 000 000 floor — `first_subject_id 90_000_000`, `first_hadm_id
+> 91_000_000`, `first_stay_id 92_000_000`, `first_event_id 93_000_000`, plus a new
+> `first_caregiver_id 93_900_000` — pairwise disjoint (a `fixtures.check` rule enforces
+> it), so a wrong-key join can no longer match by accident. The fixture was regenerated
+> once as `GENERATOR_VERSION` 0.2.0 (bundled with the sort-key tie-breaks, same totals);
+> the EP-12 hand-off sentence "keep `GENERATOR_VERSION` at `0.1.0` unless a hosp byte
+> changes" is superseded by the protocol in `tests/README.md` § "Changing the synthetic
+> fixture".

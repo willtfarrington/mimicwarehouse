@@ -94,8 +94,10 @@ or the EP-9 schema contract changes fixture bytes. The protocol:
    `.gitattributes`, so CSV diffs don't render).
 3. Bump `write.GENERATOR_VERSION` when any manifest sha256 changes for the default spec:
    **patch** = bytes of existing tables moved; **minor** = new tables/modules/spec keys
-   (a README-/manifest-only change needs no bump). The next regeneration is **0.2.0**
-   (EP-169: disjoint id floors — D-27 addendum).
+   (a README-/manifest-only change needs no bump). Shipped: **0.2.0** (EP-169: disjoint id
+   floors + sort-key tie-breaks — D-27/D-17 addenda); next is **0.3.0** (EP-41 extends the
+   vocab for its T2DM inputs — see `tests/fixtures/COVERAGE.md` for what the fixture does
+   and does not cover).
 4. Commit CSVs + `manifest.json` + `tests/fixtures/README.md` + the version bump in **one**
    commit; bundle generator tweaks so regenerations stay rare (a full regen adds < 1 MiB
    compressed to `.git`).
@@ -103,7 +105,11 @@ or the EP-9 schema contract changes fixture bytes. The protocol:
 Downstream tests read counts from `manifest.json` / `fixtures.spec.build_plan()` / the schema
 contract, never hard-coded literals (the churn rule above); byte identity is asserted against
 the *locked* numpy/polars versions (deliberately unpinned — a lock bump that moves bytes is
-handled as a regeneration, ledger FXT-2).
+handled as a regeneration, ledger FXT-2; the manifest records the versions that produced the
+committed bytes, and the drift tests name them in their failure messages). The manifest pins
+the contract by `contract_schema_hash` (`Contract.structural_hash()`, load-relevant facts
+only); `contract_hash` and the version keys are provenance, ignored by the drift comparison —
+a comment-only contract edit needs **no** regeneration (EP-169, ledger SCH-2/FC-4).
 
 ## Session fixtures (`tests/conftest.py`)
 

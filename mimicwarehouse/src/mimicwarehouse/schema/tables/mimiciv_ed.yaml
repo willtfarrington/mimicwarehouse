@@ -15,6 +15,12 @@
 # DECIMAL(10,4) among DOUBLE vitals would leak Decimal objects into every downstream frame.
 # Units are fixed by the ED data dictionary (units.yaml): temperature degF, heartrate and
 # resprate per minute, o2sat %, sbp/dbp mmHg.
+#
+# 2026-08-28 (EP-169; D-17 addendum, ledger ARCH-4/FC-3): edstays gained the +stay_id
+# tie-break so the four schemas follow one sort-key rule (event tables end in an id/sequence
+# tie-break; detail tables sort [subject_id, <parent>, <ordinal>]). medrecon / pyxis /
+# vitalsign already carry stay_id and keep a non-total order within (stay_id, charttime)
+# ties, like chartevents (the logical snapshot id covers reproducibility there).
 schema: mimiciv_ed
 dataset: mimic-iv-ed-2.2
 csv_dir: ed
@@ -39,7 +45,7 @@ tables:
   - name: edstays
     comment: "One row per ED stay (stay_id): intime/outtime bound the visit; hadm_id is set when the visit led to a hospital admission; disposition says where the patient went (HOME, ADMITTED, TRANSFER, LEFT WITHOUT BEING SEEN, ...)."
     time_column: intime
-    sort_keys: [subject_id, intime]
+    sort_keys: [subject_id, intime, stay_id]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}

@@ -5,6 +5,12 @@
 # facts. ICU data come from the MetaVision clinical information system: every event carries a
 # stay_id (icustays) and an itemid (-> d_items, whose `linksto` names the event table).
 # `caregiver_id` columns and the caregiver dimension exist since v2.2.
+#
+# 2026-08-28 (EP-169; D-17 addendum, ledger ARCH-4/FC-3/SCH-1): sort_keys gained tie-break
+# keys in one edit (chartevents / datetimeevents / outputevents +itemid, inputevents /
+# ingredientevents / procedureevents +orderid) so the EP-18 per-bucket sort and its
+# determinism tests are well-defined under ties. outputevents' two upstream TIMESTAMP(3)
+# columns are recorded as `upstream_type` (see mimiciv_hosp.yaml's 2026-08-28 note).
 schema: mimiciv_icu
 dataset: mimic-iv-3.1
 csv_dir: icu
@@ -25,7 +31,7 @@ tables:
   - name: chartevents
     comment: "Charted ICU observations (~433 M rows, 40 GB CSV): vital signs, ventilator settings, scores, labs re-charted at the bedside ... one row per itemid per charttime per stay. valuenum/valueuom hold the numeric value and unit, value the raw text; warning = 1 flags a MetaVision warning. Known upstream duplicates: no primary key (see keys.yaml)."
     time_column: charttime
-    sort_keys: [subject_id, charttime]
+    sort_keys: [subject_id, charttime, itemid]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -43,7 +49,7 @@ tables:
   - name: datetimeevents
     comment: "Charted date/time observations (e.g. last dialysis, line insertion dates): the observation itself is a shifted TIMESTAMP in `value`."
     time_column: charttime
-    sort_keys: [subject_id, charttime]
+    sort_keys: [subject_id, charttime, itemid]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -91,7 +97,7 @@ tables:
   - name: ingredientevents
     comment: "Ingredients of inputevents orders (e.g. water, dextrose, sodium per solution) with the same start/end/amount/rate shape; orderid links back to the inputevents order. No upstream primary key (candidate: orderid, itemid)."
     time_column: starttime
-    sort_keys: [subject_id, starttime]
+    sort_keys: [subject_id, starttime, orderid]
     load_class: large
     expected_rows_source: null
     columns:
@@ -116,7 +122,7 @@ tables:
   - name: inputevents
     comment: "Fluid and medication inputs delivered via the ICU infusion / order system: one row per (order, item) segment with start/end, amount and rate; patientweight is the weight used for weight-based dosing. Rate changes create new rows linked by linkorderid."
     time_column: starttime
-    sort_keys: [subject_id, starttime]
+    sort_keys: [subject_id, starttime, orderid]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -149,15 +155,15 @@ tables:
   - name: outputevents
     comment: "Fluid outputs (urine, drains, stool ...): one row per measurement with value/valueuom (usually mL) at charttime."
     time_column: charttime
-    sort_keys: [subject_id, charttime]
+    sort_keys: [subject_id, charttime, itemid]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
       - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
       - {name: stay_id, type: INTEGER, nullable: false, comment: "ICU stay identifier."}
       - {name: caregiver_id, type: INTEGER, comment: "Anonymised caregiver (-> caregiver). Present since v2.2."}
-      - {name: charttime, type: TIMESTAMP, nullable: false, comment: "Time of the output measurement."}
-      - {name: storetime, type: TIMESTAMP, nullable: false, comment: "Time the row was stored."}
+      - {name: charttime, type: TIMESTAMP, nullable: false, upstream_type: "TIMESTAMP(3)", comment: "Time of the output measurement. Upstream TIMESTAMP(3): fractional seconds may appear in the raw CSV (read via the ISO cast, csv_dialect.py)."}
+      - {name: storetime, type: TIMESTAMP, nullable: false, upstream_type: "TIMESTAMP(3)", comment: "Time the row was stored. Upstream TIMESTAMP(3)."}
       - {name: itemid, type: INTEGER, nullable: false, comment: "Output item (-> d_items, linksto = outputevents)."}
       - {name: value, type: DOUBLE, nullable: false, comment: "Output amount (in valueuom)."}
       - {name: valueuom, type: VARCHAR, comment: "Unit of value (mL)."}
@@ -165,7 +171,7 @@ tables:
   - name: procedureevents
     comment: "ICU procedures with a duration (ventilation, lines, dialysis, imaging ...): start/end times, value = duration or amount in valueuom, location of the device where relevant."
     time_column: starttime
-    sort_keys: [subject_id, starttime]
+    sort_keys: [subject_id, starttime, orderid]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}

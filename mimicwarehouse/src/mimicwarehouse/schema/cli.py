@@ -82,7 +82,15 @@ def list_command(
             }
             for t in tables
         ]
-        console.print_json(json.dumps({"tables": payload, "content_hash": contract.content_hash()}))
+        console.print_json(
+            json.dumps(
+                {
+                    "tables": payload,
+                    "content_hash": contract.content_hash(),
+                    "structural_hash": contract.structural_hash(),
+                }
+            )
+        )
         return
     rt = RichTable(box=box.SIMPLE, header_style="bold")
     # overflow="fold" everywhere: rich would otherwise truncate with an ellipsis glyph that a
@@ -101,7 +109,10 @@ def list_command(
         )
     console.print(rt)
     counts = ", ".join(f"{s}={len(contract.by_schema(s))}" for s in contract.schema_names())
-    console.print(f"{len(tables)} table(s); {counts}; contract {contract.content_hash()[:12]}")
+    console.print(
+        f"{len(tables)} table(s); {counts}; contract {contract.content_hash()[:12]} "
+        f"(structural {contract.structural_hash()[:12]})"
+    )
 
 
 @schema_app.command("show")
@@ -116,6 +127,8 @@ def show_command(
     if as_json:
         payload = t.model_dump(mode="json", by_alias=True)
         payload["foreign_keys"] = [fk.model_dump(mode="json") for fk in fks]
+        payload["contract_hash"] = contract.content_hash()
+        payload["contract_schema_hash"] = contract.structural_hash()
         console.print_json(json.dumps(payload))
         return
     console.print(f"[bold]{t.qualified_name}[/]  ({t.dataset}; {t.csv_path})", highlight=False)
@@ -156,6 +169,10 @@ def show_command(
                 f"  [{fk.source}]",
                 highlight=False,
             )
+    console.print(
+        f"contract {contract.content_hash()[:12]} (structural {contract.structural_hash()[:12]})",
+        highlight=False,
+    )
 
 
 @schema_app.command("ddl")

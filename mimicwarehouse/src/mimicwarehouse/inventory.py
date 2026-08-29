@@ -59,6 +59,7 @@ from rich.table import Table as RichTable
 from mimicwarehouse import config
 from mimicwarehouse.config import Settings
 from mimicwarehouse.console import console, err_console
+from mimicwarehouse.schema.csv_dialect import READ_OPTIONS_SQL
 
 if TYPE_CHECKING:  # pragma: no cover — typing only (import budget)
     import duckdb
@@ -83,9 +84,10 @@ RAW_DIRNAME = "raw"
 SNAPSHOT_FILENAME = "raw_snapshot.json"
 SHA256SUMS_NAME = "SHA256SUMS.txt"
 DOCS_RELPATH = PurePosixPath("docs/resources/raw-inventory.md")
-#: DuckDB ``read_csv`` options for counting: header on, everything VARCHAR (no casts can fail),
-#: explicit dialect (no sniffer surprises). The fallback adds ``parallel=false``.
-CSV_READ_OPTIONS = "header=true, all_varchar=true, delim=',', quote='\"', escape='\"'"
+#: DuckDB ``read_csv`` options for counting: the one CSV dialect (EP-169,
+#: :mod:`mimicwarehouse.schema.csv_dialect`) plus ``all_varchar=true`` (no casts can fail;
+#: no sniffer surprises). The fallback adds ``parallel=false``.
+CSV_READ_OPTIONS = f"{READ_OPTIONS_SQL}, all_varchar=true"
 #: Snapshot history kept in ``raw_snapshot.json`` (last N build invocations).
 MAX_RUN_HISTORY = 20
 

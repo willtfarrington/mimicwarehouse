@@ -26,8 +26,9 @@ stays get FiO2 / PEEP / tidal volume / ventilator mode / ``Endotracheal tube`` r
 Real MetaVision itemids from ``vocab/d_items.yaml`` (typed from public docs) are used because
 the vendored concepts look them up by number; the fixture-only ``datetimeevents`` /
 ``ingredientevents`` items live in the 240xxx band. Nothing here reads data; every id is
->= 90 000 000 (``stay_id`` from the plan, ``caregiver_id`` / ``orderid`` from
-``spec.first_event_id``); every event lies inside its stay's ``[intime, outtime]``.
+>= 90 000 000 (``stay_id`` from the plan, ``orderid`` from ``spec.first_event_id``,
+``caregiver_id`` from ``spec.first_caregiver_id`` - disjoint floors since EP-169, D-27
+addendum); every event lies inside its stay's ``[intime, outtime]``.
 
 Row budget (brief item 3): chartevents <= 3 MB, whole fixture <= 10 MB - vitals hourly for the
 first 48 h then 4-hourly, temperature 6-hourly, GCS / O2 device 4-hourly, ventilator settings
@@ -263,7 +264,7 @@ class IcuContext:
     @property
     def caregivers(self) -> tuple[int, ...]:
         spec = self.plan.spec
-        return tuple(range(spec.first_event_id, spec.first_event_id + spec.n_caregivers))
+        return tuple(range(spec.first_caregiver_id, spec.first_caregiver_id + spec.n_caregivers))
 
     @property
     def norepinephrine_starts(self) -> dict[int, datetime]:

@@ -98,9 +98,11 @@ class _Frozen(BaseModel):
 class Column(_Frozen):
     """One column: name, DuckDB type, nullability, documentation.
 
-    ``upstream_type`` / ``upstream_nullable`` are set **only** when the contract deliberately
-    deviates from the vendored Postgres DDL (the raw upstream type text / NOT NULL flag are
-    recorded so ``mwh schema check`` can still detect upstream drift; the ``comment`` says why).
+    ``upstream_type`` / ``upstream_nullable`` record the raw upstream type text / NOT NULL flag
+    when the contract deliberately deviates from the vendored Postgres DDL, **or** when the
+    mapping would otherwise discard an upstream fact worth keeping (the nine ``TIMESTAMP(3)``
+    columns, EP-169 / retro SCH-1); either way ``mwh schema check`` compares the recorded value
+    against the DDL, and the ``comment`` says why.
     """
 
     name: str
@@ -274,6 +276,13 @@ class Table(_Frozen):
     def read_csv_columns(self) -> dict[str, str]:
         """``{name: duckdb_type}`` in column order, for ``read_csv(..., columns=…)`` (EP-17)."""
         return {c.name: c.duckdb_type for c in self.columns}
+
+    def read_csv_options(self) -> dict[str, Any]:
+        """DuckDB ``read_csv`` options for this table under the one CSV dialect (EP-169,
+        :mod:`mimicwarehouse.schema.csv_dialect`): dialect keywords + ``columns``."""
+        from mimicwarehouse.schema.csv_dialect import read_csv_options
+
+        return read_csv_options(self.read_csv_columns())
 
 
 class ForeignKey(_Frozen):
@@ -557,8 +566,66 @@ class Contract(_Frozen):
         return "\n".join(f"CREATE SCHEMA IF NOT EXISTS {s};" for s in self.schema_names())
 
     def content_hash(self) -> str:
-        """sha256 of the canonical JSON dump — what run manifests cite (GOVERNANCE §12)."""
+        """sha256 of the canonical JSON dump — what run manifests cite (GOVERNANCE §12).
+
+        Covers **everything**, comments and version notes included, so it is provenance
+        ("which contract text was live"), never a change detector for load behaviour — that
+        is :meth:`structural_hash` (EP-169, retro SCH-2/FC-4).
+        """
         payload = self.model_dump(mode="json", by_alias=True)
+        blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(blob).hexdigest()
+
+    def structural_hash(self) -> str:
+        """sha256 over the **load-relevant** facts only (EP-169, retro SCH-2/FC-4/FXT-2).
+
+        Per table: schema, name, csv_path, the ordered ``(name, type, nullable)`` column
+        triples, primary_key, uniqueness_hint, sort_keys, time_column, partitioned,
+        load_class, subject_keyed; plus the FK tuples and the column-map mechanics (which
+        tables are identity / mapped / absent and their add/rename/drop sets). Comments,
+        unit metadata, ``upstream_*`` records and version notes are **excluded**, so a
+        wording edit changes :meth:`content_hash` but not this — the fixture manifest and
+        the EP-17 loader pin this one.
+        """
+        payload = {
+            "tables": [
+                {
+                    "schema": t.schema_name,
+                    "table": t.name,
+                    "csv_path": t.csv_path,
+                    "columns": [[c.name, c.duckdb_type, c.nullable] for c in t.columns],
+                    "primary_key": list(t.primary_key) if t.primary_key else None,
+                    "uniqueness_hint": list(t.uniqueness_hint) if t.uniqueness_hint else None,
+                    "sort_keys": list(t.sort_keys),
+                    "time_column": t.time_column,
+                    "partitioned": t.partitioned,
+                    "load_class": t.load_class,
+                    "subject_keyed": t.subject_keyed,
+                }
+                for t in self.tables
+            ],
+            "foreign_keys": [
+                [fk.table, list(fk.columns), fk.ref_table, list(fk.ref_columns)]
+                for fk in self.foreign_keys
+            ],
+            "column_maps": {
+                name: {
+                    "schemas": list(cm.schemas),
+                    "schemas_absent_in_source": list(cm.schemas_absent_in_source),
+                    "identity_tables": sorted(cm.identity_tables),
+                    "tables": {
+                        qn: {
+                            "added_in_3_1": list(tm.added_in_3_1),
+                            "renamed": dict(tm.renamed),
+                            "dropped_in_3_1": list(tm.dropped_in_3_1),
+                        }
+                        for qn, tm in sorted(cm.tables.items())
+                    },
+                    "tables_absent_in_2_2": sorted(cm.tables_absent_in_2_2),
+                }
+                for name, cm in sorted(self.column_maps.items())
+            },
+        }
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(blob).hexdigest()
 

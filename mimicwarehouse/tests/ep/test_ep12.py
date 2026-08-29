@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import polars as pl
 import pytest
 from pydantic import ValidationError
@@ -558,16 +559,28 @@ def test_icu_fixture_drift(
     assert set(fresh) == set(manifest["files"])
     icu_keys = {k for k in fresh if k.startswith("mimic-iv-3.1/icu/")}
     assert len(icu_keys) == len(contract.by_schema("mimiciv_icu"))
+    env = (
+        f"committed numpy {manifest['numpy_version']} / polars {manifest['polars_version']}, "
+        f"running numpy {np.__version__} / polars {pl.__version__}"
+    )
     for rel in sorted(icu_keys):
         entry = fresh[rel]
         committed = FIXTURE_DIR / Path(rel)
-        assert entry.sha256 == manifest["files"][rel]["sha256"], f"{rel}: manifest sha drift"
-        assert entry.sha256 == _sha256(committed), f"{rel}: committed file drift"
+        assert entry.sha256 == manifest["files"][rel]["sha256"], (
+            f"{rel}: manifest sha drift ({env})"
+        )
+        assert entry.sha256 == _sha256(committed), f"{rel}: committed file drift ({env})"
         assert entry.bytes == committed.stat().st_size == manifest["files"][rel]["bytes"]
         assert entry.rows == manifest["files"][rel]["rows"]
         assert entry.generator_version == manifest["files"][rel]["generator_version"]
-    assert manifest["contract_hash"] == contract.content_hash()
-    assert regenerated.manifest_path.read_bytes() == (FIXTURE_DIR / "manifest.json").read_bytes()
+    # structural pin + provenance-insensitive manifest comparison (EP-169, retro SCH-2/FXT-2)
+    assert manifest["contract_schema_hash"] == contract.structural_hash()
+    fresh_manifest = json.loads(regenerated.manifest_path.read_text(encoding="utf-8"))
+    committed_manifest = json.loads((FIXTURE_DIR / "manifest.json").read_text(encoding="utf-8"))
+    for key in write_mod.MANIFEST_PROVENANCE_KEYS:
+        fresh_manifest.pop(key)
+        committed_manifest.pop(key)
+    assert fresh_manifest == committed_manifest
     assert regenerated.readme_path.read_bytes() == (FIXTURE_DIR / "README.md").read_bytes()
 
 

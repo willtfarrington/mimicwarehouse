@@ -22,6 +22,16 @@
 #   * ICD-9 -> ICD-10 switch (~2015): `icd_version` is part of every diagnosis / procedure key;
 #   * the MIMIC-IV Demo v2.2 ships the same 22 + 9 tables and columns as 3.1 (verified at
 #     EP-9; see column_maps/demo_2_2_to_3_1.yaml).
+#
+# 2026-08-28 (EP-169; D-17 addendum, ledger ARCH-4/FC-3/SCH-1): sort_keys gained tie-break
+# keys in one edit (labevents +itemid, emar +emar_seq, emar_detail +emar_seq, pharmacy /
+# prescriptions +pharmacy_id, poe +poe_seq, microbiologyevents +microevent_id, transfers
+# +transfer_id, hcpcsevents / procedures_icd -> [subject_id, chartdate, hadm_id, seq_num])
+# so the EP-18 per-bucket sort and its determinism tests are well-defined under ties;
+# microbiologyevents stays `load_class: large` (owner exception to the "> 1 GB" rule of
+# thumb). The nine upstream TIMESTAMP(3) columns (pharmacy 5, prescriptions 2; outputevents
+# 2 in mimiciv_icu.yaml) are recorded as `upstream_type` so the precision fact stays
+# visible to the drift oracle; readers rely on DuckDB's ISO cast (schema/csv_dialect.py).
 schema: mimiciv_hosp
 dataset: mimic-iv-3.1
 csv_dir: hosp
@@ -124,7 +134,7 @@ tables:
   - name: emar_detail
     comment: "Detail rows for each eMAR administration event: one row per emar_id per formulary product / dose fragment (parent_field_ordinal), incl. barcode scanning, dose given, infusion rate. Free-text-ish varchar columns; NULL parent_field_ordinal marks the summary row. No upstream primary key."
     time_column: null
-    sort_keys: [subject_id, emar_id, parent_field_ordinal]
+    sort_keys: [subject_id, emar_id, emar_seq, parent_field_ordinal]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -164,7 +174,7 @@ tables:
   - name: emar
     comment: "Electronic medication administration record: one row per medication administration event (or intended event), timed by charttime; event_txt says what happened (Administered, Not Given, ...). Links poe and pharmacy orders to bedside administration."
     time_column: charttime
-    sort_keys: [subject_id, charttime]
+    sort_keys: [subject_id, charttime, emar_seq]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -183,7 +193,7 @@ tables:
   - name: hcpcsevents
     comment: "Billed HCPCS/CPT events per admission (dated by chartdate)."
     time_column: chartdate
-    sort_keys: [subject_id, chartdate]
+    sort_keys: [subject_id, chartdate, hadm_id, seq_num]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -196,7 +206,7 @@ tables:
   - name: labevents
     comment: "Laboratory measurements (~158 M rows, 17.5 GB CSV): one row per analyte result. valuenum is the numeric value with valueuom its unit; value keeps the raw text (e.g. '<0.1'). hadm_id is NULL for outpatient labs. Sourced from the hospital lab system, so it covers the whole hospital stay, not only the ICU."
     time_column: charttime
-    sort_keys: [subject_id, charttime]
+    sort_keys: [subject_id, charttime, itemid]
     load_class: large
     columns:
       - {name: labevent_id, type: INTEGER, nullable: false, comment: "Row identifier; primary key."}
@@ -219,7 +229,7 @@ tables:
   - name: microbiologyevents
     comment: "Microbiology cultures and sensitivities: one row per specimen x test x organism x antibiotic (nested via spec_itemid, test_itemid, org_itemid, ab_itemid). chartdate is always set; charttime only when a time is known. NULL org_name = no growth."
     time_column: charttime
-    sort_keys: [subject_id, chartdate, charttime]
+    sort_keys: [subject_id, chartdate, charttime, microevent_id]
     load_class: large
     columns:
       - {name: microevent_id, type: INTEGER, nullable: false, comment: "Row identifier; primary key."}
@@ -276,20 +286,20 @@ tables:
   - name: pharmacy
     comment: "Pharmacy-verified medication orders (~17.8 M rows): one row per pharmacy_id with formulary detail, route, frequency, dispensation; starttime/stoptime bound the intended course. Joins to prescriptions (pharmacy_id) and emar."
     time_column: starttime
-    sort_keys: [subject_id, starttime]
+    sort_keys: [subject_id, starttime, pharmacy_id]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
       - {name: hadm_id, type: INTEGER, nullable: false, comment: "Admission identifier."}
       - {name: pharmacy_id, type: INTEGER, nullable: false, comment: "Pharmacy order identifier; primary key."}
       - {name: poe_id, type: VARCHAR, comment: "Provider order (-> poe)."}
-      - {name: starttime, type: TIMESTAMP, comment: "Intended start of the medication course."}
-      - {name: stoptime, type: TIMESTAMP, comment: "Intended stop."}
+      - {name: starttime, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Intended start of the medication course. Upstream TIMESTAMP(3): fractional seconds may appear in the raw CSV (read via the ISO cast, csv_dialect.py)."}
+      - {name: stoptime, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Intended stop. Upstream TIMESTAMP(3)."}
       - {name: medication, type: VARCHAR, comment: "Medication name."}
       - {name: proc_type, type: VARCHAR, nullable: false, comment: "Order type (Unit Dose, IV Piggyback, ...)."}
       - {name: status, type: VARCHAR, comment: "Order status (Active, Discontinued, ...)."}
-      - {name: entertime, type: TIMESTAMP, nullable: false, comment: "Time the order was entered."}
-      - {name: verifiedtime, type: TIMESTAMP, comment: "Time the pharmacy verified the order."}
+      - {name: entertime, type: TIMESTAMP, nullable: false, upstream_type: "TIMESTAMP(3)", comment: "Time the order was entered. Upstream TIMESTAMP(3)."}
+      - {name: verifiedtime, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Time the pharmacy verified the order. Upstream TIMESTAMP(3)."}
       - {name: route, type: VARCHAR, comment: "Route of administration."}
       - {name: frequency, type: VARCHAR, comment: "Dosing frequency (text)."}
       - {name: disp_sched, type: VARCHAR, comment: "Dispensing schedule (hours of day, text)."}
@@ -303,7 +313,7 @@ tables:
       - {name: duration_interval, type: VARCHAR, comment: "Unit of duration (Days, Hours, ...)."}
       - {name: expiration_value, type: INTEGER, comment: "Expiration value in expiration_unit."}
       - {name: expiration_unit, type: VARCHAR, comment: "Unit of expiration_value."}
-      - {name: expirationdate, type: TIMESTAMP, comment: "Expiration date."}
+      - {name: expirationdate, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Expiration date. Upstream TIMESTAMP(3)."}
       - {name: dispensation, type: VARCHAR, comment: "Dispensation type."}
       - {name: fill_quantity, type: VARCHAR, comment: "Fill quantity (text)."}
 
@@ -322,7 +332,7 @@ tables:
   - name: poe
     comment: "Provider order entry (~52 M rows): every order placed for the patient (medications, labs, nutrition, consults, ADT ...), timed by ordertime; discontinue_of_poe_id / discontinued_by_poe_id chain replacements. Medication orders link to pharmacy/emar via poe_id."
     time_column: ordertime
-    sort_keys: [subject_id, ordertime]
+    sort_keys: [subject_id, ordertime, poe_seq]
     load_class: large
     columns:
       - {name: poe_id, type: VARCHAR, nullable: false, comment: "Order identifier '<subject_id>-<poe_seq>'; primary key."}
@@ -341,7 +351,7 @@ tables:
   - name: prescriptions
     comment: "Prescribed medications (~20 M rows): one row per drug per pharmacy order with dose/form/route as ordered; starttime/stoptime bound the course. Upstream primary key (pharmacy_id, drug_type, drug) - test, do not assume, before relying on it."
     time_column: starttime
-    sort_keys: [subject_id, starttime]
+    sort_keys: [subject_id, starttime, pharmacy_id]
     load_class: large
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -350,8 +360,8 @@ tables:
       - {name: poe_id, type: VARCHAR, comment: "Provider order (-> poe)."}
       - {name: poe_seq, type: INTEGER, comment: "Sequence of the provider order within the patient."}
       - {name: order_provider_id, type: VARCHAR, comment: "Anonymised ordering provider (-> provider). Present since v2.2."}
-      - {name: starttime, type: TIMESTAMP, comment: "Start of the prescription."}
-      - {name: stoptime, type: TIMESTAMP, comment: "Stop of the prescription."}
+      - {name: starttime, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Start of the prescription. Upstream TIMESTAMP(3): fractional seconds may appear in the raw CSV (read via the ISO cast, csv_dialect.py)."}
+      - {name: stoptime, type: TIMESTAMP, upstream_type: "TIMESTAMP(3)", comment: "Stop of the prescription. Upstream TIMESTAMP(3)."}
       - {name: drug_type, type: VARCHAR, nullable: false, comment: "MAIN / BASE / ADDITIVE."}
       - {name: drug, type: VARCHAR, nullable: true, upstream_nullable: false, comment: "Drug name. Upstream DDL says NOT NULL, but zero-length strings in the data load as NULL under DuckDB's CSV reader (mimic-code build_mimic.sh relaxes it too) - contract keeps it nullable."}
       - {name: formulary_drug_cd, type: VARCHAR, comment: "Hospital formulary code."}
@@ -369,7 +379,7 @@ tables:
   - name: procedures_icd
     comment: "Billed ICD-9/ICD-10-PCS procedures per admission with the procedure date; icd_version distinguishes the vocabularies."
     time_column: chartdate
-    sort_keys: [subject_id, hadm_id, seq_num]
+    sort_keys: [subject_id, chartdate, hadm_id, seq_num]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}
@@ -403,7 +413,7 @@ tables:
   - name: transfers
     comment: "Physical location history (ADT): one row per ward stay (eventtype admit / transfer / discharge; careunit names the ward; ICU careunits map to icustays). hadm_id is NULL for ED-only stays."
     time_column: intime
-    sort_keys: [subject_id, intime]
+    sort_keys: [subject_id, intime, transfer_id]
     load_class: small
     columns:
       - {name: subject_id, type: INTEGER, nullable: false, comment: "Patient identifier."}

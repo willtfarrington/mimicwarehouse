@@ -20,7 +20,11 @@ MIMIC caveats mirrored on purpose (DESIGN section 7): ages >= 89 written as 91, 
 year of the last discharge and never before an in-hospital ``deathtime``, ICD-9 for the
 2008-2010 / 2011-2013 groups, ICD-10 from 2017 on, a coin flip inside 2014-2016 (the switch).
 Guard rule (EP-4 G4): no constant here is an 8-digit number starting with 1, 2 or 3 - the seed
-validator refuses one, and every fixture id starts at 90 000 000 (D-27).
+validator refuses one, and every fixture id starts at 90 000 000 (D-27). Since EP-169 (retro
+FXT-1; D-27 addendum) each id space has its own floor - subject 90 000 000, hadm 91 000 000,
+stay 92 000 000, event ids 93 000 000, caregiver 93 900 000 - so subject/hadm/stay/caregiver
+id sets are pairwise disjoint and a wrong-key join cannot match by accident
+(``fixtures.check`` enforces the disjointness).
 """
 
 from __future__ import annotations
@@ -71,14 +75,23 @@ class FixtureSpec(BaseModel):
 
     seed: int = 2026
     n_subjects: int = Field(default=120, ge=1, le=100_000)
+    # Disjoint floors per id space (EP-169, retro FXT-1; D-27 addendum): a wrong-key join
+    # (e.g. hadm_id against subject_id) can no longer match by accident. All >= the guard
+    # floor and none an 8-digit token starting 1/2/3 (guard G4).
     first_subject_id: int = Field(default=FIXTURE_ID_FLOOR, ge=FIXTURE_ID_FLOOR)
-    first_hadm_id: int = Field(default=FIXTURE_ID_FLOOR, ge=FIXTURE_ID_FLOOR)
-    first_stay_id: int = Field(default=FIXTURE_ID_FLOOR, ge=FIXTURE_ID_FLOOR)
+    first_hadm_id: int = Field(default=91_000_000, ge=FIXTURE_ID_FLOOR)
+    first_stay_id: int = Field(default=92_000_000, ge=FIXTURE_ID_FLOOR)
     first_event_id: int = Field(
-        default=FIXTURE_ID_FLOOR,
+        default=93_000_000,
         ge=FIXTURE_ID_FLOOR,
         description="floor for the other row ids (labevent_id, specimen_id, microevent_id, "
-        "micro_specimen_id, transfer_id, pharmacy_id)",
+        "micro_specimen_id, transfer_id, pharmacy_id, orderid)",
+    )
+    first_caregiver_id: int = Field(
+        default=93_900_000,
+        ge=FIXTURE_ID_FLOOR,
+        description="floor for caregiver ids (branched off the event id space; disjoint from "
+        "subject/hadm/stay ids and, at the defaults, from the per-table event id runs)",
     )
     admissions_per_subject_mean: float = Field(default=1.5, ge=1.0, le=6.0)
     max_admissions_per_subject: int = Field(default=5, ge=1, le=20)
@@ -112,7 +125,7 @@ class FixtureSpec(BaseModel):
     planted_per_trait: int = Field(default=6, ge=0, le=1000)
     # icu knobs (EP-12): read only by mimicwarehouse.fixtures.icu, never by build_plan
     n_caregivers: int = Field(
-        default=15, ge=1, le=9999, description="caregiver ids, consecutive from first_event_id"
+        default=15, ge=1, le=9999, description="caregiver ids, consecutive from first_caregiver_id"
     )
     vent_fraction: float = Field(
         default=0.4,
