@@ -65,6 +65,26 @@ timings and appends the completion note.
 - Drug/ATC/RxNorm code sets and mapping → EP-40, EP-143; microbiology-based phenotypes → EP-41/42.
 - Referential-integrity suites and QC profiles → EP-44.
 
+> **Launch note (2026-08-29).** Job `stage-hosp-rest-full` (pid 36984) launched first thing
+> (after a green fixture smoke build of the four steps) via
+> `uv run --group dev mwh build --tier full --tag hosp-rest --background --job stage-hosp-rest-full`;
+> log `%MWH_DATA_ROOT%\runs\jobs\stage-hosp-rest-full.log`; started 2026-08-29T20:01:46Z;
+> build id `20260829T200147-full-691fa6c` (4 sequential steps: pharmacy, prescriptions,
+> poe, microbiologyevents — single writer, spec order). `mwh doctor` confirmed AC power
+> mode *Best performance* and 397 GB free on C: before launch. Timing/RSS/disk recording
+> and count reconciliation land with EP-28 per the header.
+>
+> The job finished **inside the session**: exit 0 at 2026-08-29T20:05:06Z — total wall
+> 198.8 s against the brief's under-an-hour budget (from the job log; EP-28 verifies
+> against the benchmark ledger): pharmacy 51.6 s / 17,847,567 rows, prescriptions
+> 62.1 s / 20,292,611 rows, poe 69.7 s / 52,212,109 rows, microbiologyevents 15.0 s /
+> 3,988,224 rows; snapshot `core/full = d7631f25a016ac…`. After a
+> `mwh build --tier dev --select catalog` refresh the dev-marked test ran green for
+> real (8/8 with `--tier dev`): counts equal the dev-bucket manifest sums and both
+> join-closure counts are 0 unmatched on dev (prescriptions→pharmacy on `pharmacy_id`,
+> poe_detail→poe on `poe_id`). With this job every one of the 22 hosp contract tables
+> is staged.
+
 ## Verification / acceptance
 
 - `uv run poe test -m ep_25` green on fixture; `tier("dev")`-marked test green once `dev-ready` (or recorded as pending for EP-28); `uv run --group dev mwh verify EP-25` green.

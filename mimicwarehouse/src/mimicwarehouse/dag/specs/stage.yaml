@@ -112,6 +112,39 @@ steps:
     depends_on: [stage.mimiciv_hosp.emar]
     tags: [stage, mimiciv_hosp, large, emar]
     tiers: [fixture, demo, dev, full]
+  # hosp-rest (EP-25): the four remaining hosp tables in one background job. The runner is
+  # sequential on one connection (single writer), so no depends_on between them; spec order
+  # stages pharmacy before prescriptions (they share pharmacy_id) and poe before the
+  # microbiology tail. All four are contract load_class large (microbiologyevents stays
+  # large by owner decision at EP-169, D-17 addendum).
+  - name: stage.mimiciv_hosp.pharmacy
+    kind: stage
+    schema: mimiciv_hosp
+    table: pharmacy
+    source: mimic-iv-3.1/hosp/pharmacy.csv
+    tags: [stage, mimiciv_hosp, large, hosp-rest]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_hosp.prescriptions
+    kind: stage
+    schema: mimiciv_hosp
+    table: prescriptions
+    source: mimic-iv-3.1/hosp/prescriptions.csv
+    tags: [stage, mimiciv_hosp, large, hosp-rest]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_hosp.poe
+    kind: stage
+    schema: mimiciv_hosp
+    table: poe
+    source: mimic-iv-3.1/hosp/poe.csv
+    tags: [stage, mimiciv_hosp, large, hosp-rest]
+    tiers: [fixture, demo, dev, full]
+  - name: stage.mimiciv_hosp.microbiologyevents
+    kind: stage
+    schema: mimiciv_hosp
+    table: microbiologyevents
+    source: mimic-iv-3.1/hosp/microbiologyevents.csv
+    tags: [stage, mimiciv_hosp, large, hosp-rest]
+    tiers: [fixture, demo, dev, full]
   # -- mimiciv_hosp: dimensions (unpartitioned) --------------------------------------------
   - name: stage.mimiciv_hosp.d_labitems
     kind: stage
@@ -203,6 +236,10 @@ steps:
       - stage.mimiciv_hosp.labevents
       - stage.mimiciv_hosp.emar
       - stage.mimiciv_hosp.emar_detail
+      - stage.mimiciv_hosp.pharmacy
+      - stage.mimiciv_hosp.prescriptions
+      - stage.mimiciv_hosp.poe
+      - stage.mimiciv_hosp.microbiologyevents
       - stage.mimiciv_hosp.d_labitems
       - stage.mimiciv_hosp.d_hcpcs
       - stage.mimiciv_hosp.d_icd_diagnoses
