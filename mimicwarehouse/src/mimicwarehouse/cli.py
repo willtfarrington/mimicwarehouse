@@ -11,8 +11,8 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 :mod:`mimicwarehouse.catalog.cli`; since EP-30 ``sql`` routes everything through
 ``safe_query`` — aggregate-only, audited, refusals exit 3) · ``demo`` (EP-22) ·
 ``runs`` (EP-30 ``refresh``, :mod:`mimicwarehouse.runs_cli`; EP-35 adds list/show) ·
-``protocol`` (EP-51) · ``backup`` (EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) ·
-``init`` (EP-158).
+``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) · ``protocol`` (EP-51) · ``backup``
+(EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
 
 Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
 :class:`mimicwarehouse.config.Settings` once per invocation — ``--data-root`` > ``MWH_*`` env >
@@ -55,6 +55,7 @@ from mimicwarehouse.guard import guard_command
 from mimicwarehouse.inventory import inventory_app
 from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
+from mimicwarehouse.tracer import tracer_command
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 
 #: Commands that must run even when the data root is unsafe: ``doctor`` / ``paths`` report it
@@ -188,6 +189,7 @@ app.command("paths")(paths_command)
 app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
 app.command("sql")(sql_command)
+app.command("tracer")(tracer_command)
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)
 
 

@@ -621,7 +621,7 @@ n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59,
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs; planned: protocol disclose backup app init
+│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer; planned: protocol disclose backup app init
 │   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
 │   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
 │   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
@@ -637,6 +637,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
 │   ├── demo.py                    EP-22
 │   ├── safe.py                    EP-30 shipped  safe_query, audit JSONL, runs.duckdb (+ runs_cli.py: `mwh runs refresh`)
+│   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql): attrition/descriptives via safe_query, logit, report; `mwh tracer`
 │   ├── timesem.py                 EP-34  eras, relative time, dod rule, grains
 │   ├── run.py                     EP-35/36 run ledger, seeds, resource log
 │   ├── concepts/                  EP-8 shipped (vendor/ + pin); EP-37/38 runner + patches
@@ -1199,6 +1200,37 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 > Parquet MB and a column table. Integers go through `inventory.fmt_int`, distinct counts
 > below k = 11 render `<11`, ordering is deterministic and every timestamp comes from
 > `meta.catalog_info` — regeneration from an unchanged catalog is byte-identical.
+
+> **Note (2026-08-30, EP-31).** **`tracer.py`** landed — the first end-to-end proof (D-8)
+> over the tier catalogs, canonical theme D-5. `sql/tracer_first_icu_mortality.sql` is a
+> packaged WITH-clause chain (`base → first_stay → adult → complete → cohort`, one CTE per
+> criterion; identifiers only inside the chain, never in a final select list);
+> `statement(select)` appends the final SELECT. `attrition(tier)` runs one
+> `safe_query("SELECT count(*) AS n FROM <step>", actor="tracer")` per step (a suppressed
+> count comes back `n=None`); `descriptives(tier)` returns mortality by age band × gender
+> and by `first_careunit` — deaths as `count(*) FILTER (WHERE hospital_expire_flag = 1)`,
+> **not** the brief's `sum(...)`: DuckDB's `sum` returns HUGEINT, and a cast around an
+> aggregate trips the safe-query aggregate-only walk, while the FILTER form is a genuine
+> BIGINT count column (row-wise k = 11 applies to deaths too, `rows_suppressed` recorded).
+> `fit(tier)` reads the `cohort` CTE via `open_catalog` (in-process only) into
+> polars → pandas → statsmodels `Logit` (treatment coding, HC1). **Quasi-separation is
+> real on every tier** — a handful of rare `first_careunit`/`admission_type` levels
+> (each < 11 first stays) have zero deaths, so the specified model has no finite ML CIs:
+> `fit` probes zero-cell levels to a fixed point, excludes their rows (exact for the
+> remaining coefficients — their profile likelihood equals the row-excluded likelihood),
+> names the degenerate levels in `model.json`/the report, and never emits an unstable
+> table; a constant outcome records `not_fit (constant outcome)` per the brief.
+> `run_tracer(tier, *, out=None)` writes `runs/tracer/<yyyymmddThhmmss>-<tier>/`
+> (manifest with git sha/versions/`core_snapshot_id`/params/cohort n/wall_s/audit ids +
+> attrition/descriptives/model JSON + `report.md` — claim type **associational
+> (exploratory)**, "MIMIC-IV analyses are retrospective", an explicit does-not-claim list,
+> integers via `fmt_int`, raw ints only in the JSON, no identifier column name and no
+> string value over 64 chars anywhere in the folder — model term labels are normalised to
+> `var=level` and truncated). CLI **`mwh tracer --tier {fixture,demo,dev,full}
+> [--background --job NAME]`** (detach via `dag.jobs.launch`; safe-query refusals exit 3).
+> Lessons queued for the P2 re-plan: level-degeneracy policy belongs in the cohort/model
+> engines (EP-46/79), the age/era inlining moves to EP-34, and complementary suppression
+> of "n vs n_fit" differences is EP-43 territory.
 
 ## 16. App structure (D-21)
 

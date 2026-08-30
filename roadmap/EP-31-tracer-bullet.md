@@ -85,3 +85,29 @@ takes seconds — it still runs as a logged background job. Claim type: **associ
 - `uv run poe test -m ep_31` green on fixture; `tier("dev")`-marked test green; `uv run --group dev mwh verify EP-31` green.
 - Run folders exist for `dev` and `full` under `%MWH_DATA_ROOT%\runs\tracer\`; the full run was launched **in the background** (`runs\jobs\tracer-full.log`); both run ids and wall times are in the completion note.
 - All attrition/descriptive numbers came through `safe_query` (audit lines with `actor = "tracer"` match the call count); the report labels the claim type and states the analysis is retrospective; nothing row-level appears in tool output or the run folder.
+
+> **Completion note (2026-08-30).** Shipped as `tracer.py` +
+> `sql/tracer_first_icu_mortality.sql` + `mwh tracer` (DESIGN §15 note of the same date).
+> Runs (7 audited `safe_query` calls each, `actor = "tracer"`):
+> **dev** foreground run `20260830T011025-dev` — cohort n = 3,208, model fit
+> (in-sample AUC 0.744), wall 2.11 s; **full** background job `tracer-full`
+> (`runs\jobs\tracer-full.log`) — run `20260830T011037-full`, cohort n = 65,366,
+> model fit (in-sample AUC 0.731), wall 3.3 s. Fixture: cohort n = 66, model fit on
+> n = 47 (AUC 0.90 in-sample; small synthetic cohort). Two superseded runs from the
+> mid-session build (`20260830T010206-dev`, `20260830T010602-full`, both
+> `not_fit (quasi-separation)`) remain under `runs\tracer\` for the audit trail.
+> Deviations, both argued in the DESIGN note: (1) `n_deaths` is
+> `count(*) FILTER (WHERE hospital_expire_flag = 1)`, not `sum(hospital_expire_flag)` —
+> DuckDB's `sum` returns HUGEINT and a cast around an aggregate trips the EP-30
+> aggregate-only walk; the FILTER form is the same value as a BIGINT count column.
+> (2) **Quasi-separation is real on every tier**: a handful of rare
+> `first_careunit`/`admission_type` levels (each < 11 first stays) have zero deaths, so
+> the brief's model has no finite ML CIs as specified — `fit` excludes the zero-cell
+> levels' rows (exact for the remaining coefficients; the levels are named in
+> `model.json` and the report; 5 such levels on dev, 4 on full) instead of emitting an
+> unstable table; the constant-outcome `not_fit` fallback is unchanged. For the EP-33
+> retro: fixture outcomes are sparse (5 degenerate levels on 66 rows — consider
+> enriching fixture outcomes), level-degeneracy policy belongs in the cohort/model
+> engines (EP-46/EP-79), and the disclosure interplay of `n` vs `n_fit` (a small
+> difference is recoverable by subtraction) is EP-43 complementary-suppression
+> territory.
