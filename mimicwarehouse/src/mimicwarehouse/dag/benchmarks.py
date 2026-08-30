@@ -8,6 +8,12 @@ absent when a resume skipped pass 1 — and a ``pass2`` line before it, EP-23)
 plus one ``kind: build`` summary line per run; EP-28/EP-32 read it. Distinct from the
 analysis run ledger (``runs/ledger.jsonl``, EP-30/EP-35).
 
+EP-32 adds the case-study renderer over :func:`summarize`: :func:`render_markdown`
+(one Markdown row per step, integers via ``inventory.fmt_int`` — guard G4) and
+:func:`replace_marked_block` (swap the block between the ``benchmarks:begin`` /
+``benchmarks:end`` HTML comments in a doc, leaving the narrative untouched), both
+driven by ``mwh runs benchmarks`` (:mod:`mimicwarehouse.runs_cli`).
+
 Everything recorded is counts, versions and timings — never a row.
 """
 
@@ -179,13 +185,136 @@ def summarize(
     ).sort(["tier", "step"])
 
 
+MARK_BEGIN = "<!-- benchmarks:begin -->"
+MARK_END = "<!-- benchmarks:end -->"
+
+#: Column order of :func:`render_markdown` (EP-32 item 2; the brief's per-table facts).
+RENDER_COLUMNS = (
+    "table",
+    "rows",
+    "CSV GB",
+    "Parquet GB",
+    "ratio",
+    "files",
+    "pass 1 s",
+    "pass 2 s",
+    "total s",
+    "MB/s",
+    "peak RSS MB",
+)
+
+
+def _fmt_gb(value: float | int | None) -> str:
+    return "-" if value is None else f"{value / 1e9:.2f}"
+
+
+def _fmt_s(value: float | None) -> str:
+    return "-" if value is None else f"{value:.1f}"
+
+
+def render_rows(summary: polars.DataFrame) -> list[list[str]]:
+    """Formatted body + totals rows over a :func:`summarize` frame (shared by
+    :func:`render_markdown` and the ``mwh runs benchmarks`` rich table).
+
+    One row per summary line in its (tier, step) order — the ``stage.`` prefix is
+    stripped from step names — then a ``total`` row: sums for rows/bytes/files/walls,
+    overall CSV→Parquet ratio and MB/s, and the peak-RSS **high-water** (max, not sum).
+    Integers go through :func:`mimicwarehouse.inventory.fmt_int` (guard G4); absent
+    telemetry renders ``-``. Callers pre-filter tier/kind; everything here is counts
+    and timings, never a row of data.
+    """
+    from mimicwarehouse.inventory import fmt_int
+
+    body: list[list[str]] = []
+    sums = {"rows": 0, "bytes_in": 0, "bytes_out": 0, "files": 0}
+    walls = {"pass1_wall_s": 0.0, "pass2_wall_s": 0.0, "wall_s": 0.0}
+    rss_max: float | None = None
+    for rec in summary.to_dicts():
+        bytes_in, bytes_out = rec["bytes_in"], rec["bytes_out"]
+        ratio = "-" if not bytes_in or not bytes_out else f"{bytes_in / bytes_out:.1f}x"
+        body.append(
+            [
+                str(rec["step"]).removeprefix("stage."),
+                fmt_int(rec["rows"]),
+                _fmt_gb(bytes_in),
+                _fmt_gb(bytes_out),
+                ratio,
+                fmt_int(rec["files"]),
+                _fmt_s(rec["pass1_wall_s"]),
+                _fmt_s(rec["pass2_wall_s"]),
+                _fmt_s(rec["wall_s"]),
+                _fmt_s(rec["mb_in_per_s"]),
+                fmt_int(None if rec["peak_rss_mb"] is None else round(rec["peak_rss_mb"])),
+            ]
+        )
+        for key in sums:
+            if rec[key] is not None:
+                sums[key] += rec[key]
+        for key in walls:
+            if rec[key] is not None:
+                walls[key] += rec[key]
+        if rec["peak_rss_mb"] is not None:
+            rss_max = max(rss_max or 0.0, rec["peak_rss_mb"])
+    total_ratio = "-" if not sums["bytes_out"] else f"{sums['bytes_in'] / sums['bytes_out']:.1f}x"
+    total_mb_s = "-" if not walls["wall_s"] else f"{sums['bytes_in'] / 1e6 / walls['wall_s']:.1f}"
+    body.append(
+        [
+            "total",
+            fmt_int(sums["rows"]),
+            _fmt_gb(sums["bytes_in"]),
+            _fmt_gb(sums["bytes_out"]),
+            total_ratio,
+            fmt_int(sums["files"]),
+            _fmt_s(walls["pass1_wall_s"]),
+            _fmt_s(walls["pass2_wall_s"]),
+            _fmt_s(walls["wall_s"]),
+            total_mb_s,
+            fmt_int(None if rss_max is None else round(rss_max)),
+        ]
+    )
+    return body
+
+
+def render_markdown(summary: polars.DataFrame) -> str:
+    """The :func:`summarize` frame as one Markdown table (EP-32 item 2) — the block
+    ``mwh runs benchmarks --format md`` prints and ``--out`` splices between the
+    :data:`MARK_BEGIN` / :data:`MARK_END` markers. Columns per :data:`RENDER_COLUMNS`;
+    the last row is the totals row (peak RSS = high-water)."""
+    lines = [
+        "| " + " | ".join(RENDER_COLUMNS) + " |",
+        "|" + "|".join("---" if i == 0 else "---:" for i in range(len(RENDER_COLUMNS))) + "|",
+    ]
+    lines.extend("| " + " | ".join(row) + " |" for row in render_rows(summary))
+    return "\n".join(lines) + "\n"
+
+
+def replace_marked_block(text: str, block: str) -> str:
+    """``text`` with the content between :data:`MARK_BEGIN` and :data:`MARK_END`
+    replaced by ``block`` — markers kept, narrative untouched, idempotent for the
+    same ``block``. Raises :class:`ValueError` unless exactly one well-ordered
+    marker pair exists."""
+    if text.count(MARK_BEGIN) != 1 or text.count(MARK_END) != 1:
+        raise ValueError(f"the target needs exactly one {MARK_BEGIN!r} and one {MARK_END!r} marker")
+    start = text.index(MARK_BEGIN) + len(MARK_BEGIN)
+    end = text.index(MARK_END)
+    if end < start:
+        raise ValueError(f"{MARK_END!r} precedes {MARK_BEGIN!r} in the target")
+    return text[:start] + "\n" + block.rstrip("\n") + "\n" + text[end:]
+
+
 __all__ = [
     "BENCHMARKS_FILENAME",
+    "MARK_BEGIN",
+    "MARK_END",
+    "RENDER_COLUMNS",
     "BenchmarkLine",
     "HostInfo",
     "append",
     "benchmarks_path",
     "host_info",
     "read",
+    "render_markdown",
+    "render_rows",
+    "replace_marked_block",
     "summarize",
 ]

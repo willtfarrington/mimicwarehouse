@@ -70,7 +70,7 @@ later re-plans refresh this list):
 | [DECISIONS.md](DECISIONS.md) | D-1 … D-43 owner decisions + assumed defaults + judgment calls |
 | [DATA-DICTIONARY.md](DATA-DICTIONARY.md) | generated from the full catalog's `meta.*` by `mwh catalog dictionary --tier full` (EP-29); regenerate after a catalog rebuild — never edit by hand; disclosure sidecar pending EP-43 |
 | `docs/resources/` | all six P1 inventories shipped ([index](docs/resources/README.md)): [raw-inventory.md](docs/resources/raw-inventory.md) (EP-10) · [repos.md](docs/resources/repos.md) (EP-13) · [vocabularies.md](docs/resources/vocabularies.md) (EP-14) · [reading.md](docs/resources/reading.md), [datasets.md](docs/resources/datasets.md), [methods-notes.md](docs/resources/methods-notes.md) (EP-15) |
-| `docs/analyses/` | capstone case studies (from EP-32), hupsim style: "what it deliberately does not claim" + Reproduction blocks |
+| [`docs/analyses/`](docs/analyses/README.md) | capstone case studies (convention + index: EP-32), hupsim style: claim-type labels, "what it deliberately does not claim" + Reproduction blocks; first entry [00-staging-benchmark.md](docs/analyses/00-staging-benchmark.md) (build telemetry; table rendered by `mwh runs benchmarks`) |
 
 ## Install (EP-1)
 
@@ -220,7 +220,7 @@ mimicwarehouse/
 ├── app/                      Streamlit multipage app (P4)
 ├── notebooks/                marimo scratch notebooks (zero-output .py)
 ├── tests/                    ✓ pytest; tests/ep/test_epNN.py; tests/fixtures/ (synthetic only); tests/README.md
-├── docs/                     ✓ brand/ (EP-5) · resources/ (raw-inventory.md, EP-10); analyses/ + site from P2+
+├── docs/                     ✓ brand/ (EP-5) · resources/ (raw-inventory.md, EP-10) · analyses/ (EP-32); site from P11
 ├── DESIGN.md · GOVERNANCE.md · DECISIONS.md   ✓ · DATA-DICTIONARY.md (generated, EP-29)
 ```
 

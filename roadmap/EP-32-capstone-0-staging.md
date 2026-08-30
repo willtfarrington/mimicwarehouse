@@ -70,3 +70,29 @@ tracer is only the worked example of a Reproduction block (run id + command, no 
 - `uv run poe test -m ep_32` green; `uv run --group dev mwh verify EP-32` green.
 - `docs/analyses/README.md` and `docs/analyses/00-staging-benchmark.md` exist; every number in the benchmark table reproduces from `%MWH_DATA_ROOT%\runs\benchmarks.jsonl` via `uv run --group dev mwh runs benchmarks --format md`; links resolve; the guard hook passes on commit.
 - The tracer appears in the index only as a pending row with its run id — no results copied.
+
+> **Completion note (2026-08-30).** Executed in one session (under the S budget; power
+> mode confirmed *Best performance* first). Shipped: `dag.benchmarks.render_markdown()`
+> + `render_rows()` + `replace_marked_block()` (exactly-one-marker-pair check,
+> idempotent, line-endings preserved) and **`mwh runs benchmarks [--tier] [--kind]
+> [--format table|md] [--out PATH]`** in `runs_cli.py` (defaults `full`/`stage`, so the
+> bare `--format md` reproduces the note's table; refusals exit 2);
+> `docs/analyses/README.md` (convention: `NN-slug.md` naming, the seven required
+> sections, claim-type label + D-1 reader guides, disclosure rule, index with the
+> tracer as a pending row citing run `20260830T011037-full` — no numbers copied) and
+> `docs/analyses/00-staging-benchmark.md` (telemetry only; header "disclosure sidecar
+> pending EP-43"; Results table generated in place by
+> `mwh runs benchmarks --out docs/analyses/00-staging-benchmark.md` — run twice,
+> second run "unchanged": idempotent against the real ledger). The rendered totals
+> reproduce EP-28's measurements exactly (97.19 GB CSV → 7.05 GB Parquet, 13.8x,
+> 2,407 part files, peak RSS high-water 24,563 MB); core snapshot
+> `b1fc5313…410eca`; the seven latest stage build ids are listed in the note's
+> Data & tier. Cross-links per item 4: workspace README `docs/analyses/` row linked,
+> DESIGN §15 dated note (+ one-line `runs_cli` map tweak); `roadmap/README.md`
+> untouched — **the EP-32 ☑ hash is EP-33's** per item 4. Tests:
+> `tests/ep/test_ep32.py`, 14 fixture tests (renderer columns/totals/G4-cleanliness on
+> a synthetic ledger, marker idempotence + 5 refusal shapes, CLI md/--out/refusals via
+> CliRunner, both docs' required content, `guard.scan` clean on both docs).
+> `poe test -m ep_32` **14 passed** · `mwh verify EP-32` green · full `poe check`
+> **720 passed** · `mwh guard --all-tracked` + `mwh guard docs/analyses` clean ·
+> `poe roadmap-check --strict` 0 errors, 0 warnings.
