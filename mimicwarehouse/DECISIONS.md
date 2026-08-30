@@ -864,3 +864,62 @@ per session; every choice above took the reviewers' recommended option after ind
 review session (rejected by the owner for usage-limit reasons); versioned catalogs + pointer files
 (more robust, more code — kept as the fallback if rename-aside misbehaves); a `fixture < demo < dev <
 full` ladder; pinning numpy/polars minors; refusing on unknown env vars.
+
+**D-44 EP-33 becomes the consolidation re-plan of P0–P2, executed as one multi-agent
+session (2026-08-30, owner).** The owner re-scoped EP-33 from the standard S re-plan to an
+**L** episode that reconciles, simplifies and hardens everything shipped in P0–P2 before
+EP-34 opens P3 — run as a **single owner-supervised multi-agent ("ultracode") session**
+with one mid-session triage checkpoint (D-2's split-at-pickup rule deliberately waived for
+this one episode). Scope decisions, taken in three question rounds on 2026-08-30 (the
+recommended option chosen in every round; the amended `roadmap/EP-33-replan-p2.md` is the
+executable charter):
+
+1. *Refactor authority.* Full authority over shipped P0–P2 code **including public
+   surfaces** (CLI, cross-module APIs, module paths), under hard invariants: the staged
+   lake's bytes and snapshot ids untouched (no restage; catalogs/`runs.duckdb` are derived
+   and rebuildable), every `mwh verify EP-k` (k ∈ 0…32, 164…171) green at every commit,
+   fixture byte-identity kept, every rename propagated to all citing docs/briefs in-session.
+2. *Audit.* An enumerated known-debt worklist **plus** a bounded discovery audit (the
+   2026-08-18 lenses → adversarial-verifier method) over everything shipped since that
+   review's baseline, with a verification pass over the retro's 69 findings; ledger
+   `roadmap/retro-p2-findings.md`; findings triaged fix-now / allocate EP-172+ / park /
+   reject at the checkpoint — discovery findings are the **only** scope allowed to spill
+   past the session.
+3. *Owner gates.* Pre-recorded defaults plus one triage checkpoint (defaults recorded in
+   the brief, D4a–g: EP-42/EP-43 wording fix with no table move; **no** P3
+   toolchain-remediation slot — the concept parse smoke feeds EP-37/38 instead; parallel
+   per-bucket sort stays parked with its fired triggers recorded, re-examined before P9;
+   bucket count stays 100; fixture outcome enrichment folds into EP-41's 0.3.0; retro CMP-4
+   parked; EP-29's undescribed-columns follow-up closed as moot).
+4. *Docs.* DESIGN.md is consolidated to **as-built truth** (dated notes folded in,
+   superseded planning prose dropped, per-section history pointers; the EP-166 trim
+   precedent at document scale — git is the archive); DECISIONS.md **stays append-only**
+   and gains a compact status index; READMEs and CLAUDE.md are tightened; one canonical
+   gotchas home replaces scattered lore so machine-local memory shrinks to pointers.
+5. *Session guard.* Changes to `.claude/settings.json` + the PreToolUse hook are
+   pre-authorized **as a class but precision-only** — real-data coverage stays equal or
+   tighter (e.g. a Read allowance for the committed synthetic `tests/fixtures/**`,
+   path-aware checks for repo-internal `.csv`/`.duckdb` mentions) — and every diff is
+   individually checkpoint-approved; GOVERNANCE.md untouched.
+6. *Roadmap reach.* P3 briefs may be amended **and reshaped within the phase** (reorder,
+   resize, split, add an S brief; phase boundaries and capability coverage stay); P4+
+   receives mechanical rename propagation only — substantive P4+ work stays with
+   EP-54/EP-74 (D-9 unchanged).
+7. *Validation.* The full regression battery closes the episode: fixture suite +
+   `poe check` (now with a format gate) + the verify loop, catalog rebuilds on
+   fixture/dev/full, tracer re-runs on dev + full diffed against EP-31, a canary re-run,
+   guard sweeps, and a perf comparison against the pre-flight baseline.
+8. *Overflow & commits.* Work lands as a series of green, hook-guarded checkpoint commits
+   (`feat`/`docs` … `(EP-33)`, multi-hash ☑ cell); **all six workstreams (record &
+   reconciliation, debt fixes + paradigm unification, docs consolidation, P3 hardening,
+   audit, battery) are must-land in-session**; a handoff file is the recorded-failure
+   fallback, not a plan.
+
+*Why:* EP-33 is the last cheap moment to rename, unify or simplify anything before ~130
+briefs (P3–P11) build on the P0–P2 surfaces; the owner's stated goal is to minimize
+unanticipated build-time and runtime issues in the upcoming phases **without conceding
+functionality, architecture or design principles**. *Alternatives considered:* keep the S
+re-plan and allocate separate retro briefs (the D-43 vehicle — rejected: more session
+boundaries and the debt compounds through P3); an audit-only session followed by
+implementation sessions (rejected: the owner wants one session); deferring consolidation to
+EP-54 (rejected: P3 would code against the un-consolidated surfaces).
