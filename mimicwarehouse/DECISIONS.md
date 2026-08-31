@@ -36,6 +36,13 @@ is ingested later (EP-142) as the real-data test of the additional-data ingestio
 linkage capability. *Why:* proves the wizard on real data with shared keys. *Alternatives:*
 stage ED on day one; both.
 
+> **Addendum (2026-08-30, EP-33).** The P2 demo tier holds this line: EP-22 *fetched and
+> verified* the ED demo files (7 files; licensing register `ext\demo\source.yaml`, both
+> datasets `verified: true`) but stages and catalogs only the hosp + icu demo tables — ED
+> demo staging waits for the P9 wizard (EP-142), keeping every tier's scope ≡ the core
+> warehouse until then. Standing pattern: fetch-and-register may precede staging; staging
+> waits for the capability's phase.
+
 **D-5 Clinical themes vary per category.** Each capability's representative workflow
 picks its own best-fit clinical theme (portfolio variety); the tracer bullet is
 first-ICU-stay adults → in-hospital mortality. *Alternatives:* a single sepsis-3 anchor;
@@ -177,7 +184,15 @@ native only; pandas primary.
 > flags without a central list (21 names duplicated across 31 tables); name patterns like
 > `*_provider_id` (pattern semantics on a governance list).
 
-**D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
+> **Addendum (2026-08-30, EP-33 — the P2 engine facts, recorded).** The engine rule as
+> practised through P2: `duckdb==1.5.5` exact pin (`test_ep01` asserts installed == pin;
+> DESIGN §6 note), the Python client as the **only** engine (no CLI, GOVERNANCE §4), and —
+> because DuckDB's storage format moves between minor lines — catalogs record their build's
+> DuckDB version and are **derived and disposable**: after a pin bump or data-root move the
+> fix is `mwh build --select catalog` per tier, never file surgery (D-43 item 6, DESIGN §6
+> note). Bumping the pin is a deliberate change: one line + re-lock + per-tier catalog
+> rebuilds + a DESIGN §6 version note. Measured at EP-28 for the record: the typed-Parquet
+> layer compresses the 97.19 GB raw CSVs to 7.05 GB (13.8×, ZSTD-3, sorted). Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
 full only; full runs batched per phase.
@@ -194,7 +209,14 @@ full only; full runs batched per phase.
 > catalog file; demo tests are an **orthogonal opt-in** `@pytest.mark.demo` + `--with-demo`
 > (`PYTEST_DEMO`), never a ladder step (DESIGN §20 note; code EP-168).
 
-**D-19 Adopt mimic-code `concepts_duckdb` (MIT), vendored at a pinned commit, tested,
+> **Addendum (2026-08-30, EP-33 — `dev-first` staging ordering, verdict: keep).** Every
+> partitioned P2 stage shipped dev-first inside the step: pass 1 sweeps all buckets, pass 2
+> sorts `settings.dev_buckets` first and flips `dev_ready: true` in `status.json` the
+> moment they are sorted (EP-18), so the dev tier became queryable 31–66 s into each large
+> table's build (labevents 66 s, emar 31 s, chartevents 50 s after step start) while the
+> full pass continued — at zero measured cost. `dev_ready(step)` is the tier-readiness
+> signal the EP-168 test fixtures consume; the dev snapshot id deliberately ignores buckets
+> outside `dev_buckets` so it does not move when the full pass finishes (DESIGN §11).
 fixes ported; re-derive only what is missing.** *Alternatives:* re-derive everything;
 adopt as-is untested.
 
@@ -223,7 +245,17 @@ adopt as-is untested.
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
 
-**D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
+> **Addendum (2026-08-30, EP-33 — the ⏱ background-job standard, recorded).** P2 settled
+> how long full-tier steps run: `mwh build … --background --job <name>` launches a
+> **detached supervisor** (`mimicwarehouse.dag.jobs`; `DETACHED_PROCESS` on Windows) that
+> owns the child process, the log under `runs\jobs\<name>.log`, and the authoritative
+> `{state, pid, exit_code, started, finished}` job file — a child-side rewrite alone cannot
+> record a hard crash (EP-19). Sessions read jobs back with `mwh jobs [--job <name>
+> --tail N]`, never a shell tail of a data-root log (the PreToolUse hook refuses those
+> forms). All five P2 ⏱ staging jobs finished inside their launching sessions with exit 0;
+> "verified by the next EP" (D-18) remained the record-keeping pattern, not a wall-time
+> necessity. In-process heartbeat rss/ctypes probes read 0 for minutes on this host — the
+> supervisor's psutil sampler is the trustworthy number (EP-23/EP-24 notes).
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
 *Alternatives:* marimo apps (ranked first by the research panel for a solo builder —
 see Judgment calls), Panel/HoloViz, Dash, notebook-first, CLI-only.
@@ -245,7 +277,15 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > `run_id`, `audit_id`, protocol hash) live in DESIGN §11's dated note and the D-26
 > addendum below. `runs.duckdb` follows the §6 rename-aside swap protocol (D-43 item 6).
 
-**D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
+> **Addendum (2026-08-30, EP-33 — P2 ledger practice, recorded).** As shipped:
+> `runs/benchmarks.jsonl` carries per-phase lines for `load_class: large` stages
+> (`phase: pass1` with `bytes_in`, `phase: pass2` with `rows`, then `phase: total` —
+> EP-23; what EP-26/EP-28/EP-32 read); `runs/audit.jsonl` receives one `O_APPEND` + fsync
+> line per `safe_query` call (EP-30); `warehouse/runs.duckdb` is *views over the JSONL*,
+> rebuilt on demand by `safe.build_runs_db()` (`mwh runs refresh`) and published by the §6
+> rename-aside swap — app and CLI read the views, never the JSONL directly. The committed
+> renderer for benchmark tables is `mwh runs benchmarks [--format table|md] [--out PATH]`
+> (EP-32; `inventory.fmt_int` separation, raw ints only in `--json`). = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
 
@@ -390,6 +430,22 @@ delete after verified Parquet.
 **D-31 Claude sessions: aggregate-only via a safe-query wrapper** (k = 11 suppression,
 no identifiers, no note text, audit-logged) + `CLAUDE.md`. *Alternatives:* schema-only;
 same access as the owner.
+
+> **Addendum (2026-08-30, EP-33 — the shipped rule set, recorded).** EP-30's
+> implementation (DESIGN §12 note carries the full pipeline) is stricter than this
+> decision's floor and is the operating contract: one-SELECT parse via
+> `json_serialize_sql` (statement bound, never executed), schema + function allow-lists,
+> aggregate-only outer select from a closed set with no value-collecting members, ≥ 1
+> count-family column unless the statement reads only `meta.*` / dims /
+> `information_schema` (EP-170 amendment), identifier columns only inside count-family
+> aggregates, row-wise k = 11 drop-suppression via the `safe.SUPPRESSOR` hook **until
+> EP-43's complementary suppression replaces it**, row cap, one audit line per call.
+> Interim history, for the record: EP-13 … EP-29 sessions ran no statements against real
+> data at all (the wrapper did not exist; D-39 chain); from EP-30 on `mwh sql` is the only
+> session query path, first exercised end-to-end by the EP-31 tracer — whose
+> `count(*) FILTER (WHERE flag = 1)` pattern is the sanctioned way to count flagged rows
+> (`sum()` returns HUGEINT and the cast a HUGEINT needs trips the closed-set walk; the
+> EP-33 worklist item B1 revisits that cast case).
 
 **D-32 Row display allowed in-app for the owner** behind an explicit toggle with audit
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
@@ -836,6 +892,21 @@ option first, all chosen as recommended unless noted; the implementing brief is 
     `DEV_BUCKETS` constant); `psutil` joins core at EP-19; EP-42's disclosure dependency is fixed by
     wording, not by moving EP-43. [EP-170]
 
+*Why:* the owner wants the remaining ~150 briefs to build on a foundation whose environment realities,
+governance layers, status prose, test semantics and contract are settled once rather than re-discovered
+per session; every choice above took the reviewers' recommended option after independent verification.
+*Alternatives considered:* a standalone retro document (less traceable); implementing everything in the
+review session (rejected by the owner for usage-limit reasons); versioned catalogs + pointer files
+(more robust, more code — kept as the fallback if rename-aside misbehaves); a `fixture < demo < dev <
+full` ladder; pinning numpy/polars minors; refusing on unknown env vars.
+
+> **Correction (2026-08-30, EP-33 — mechanical repair; EP-33 worklist B9).** The
+> *Why/Alternatives* tail above is restored to its original position directly under item
+> 14: the EP-165/EP-166 addenda had been inserted between the item list and the tail, and
+> the tail's first line ("*Why:* the owner wants … environment realities,") was lost in
+> that move — recovered verbatim from `f3eb115`. Content otherwise unchanged; the
+> truncated fragment that had been floating below the addenda is removed in the same edit.
+
 > **Addendum (2026-08-28, EP-165).** Items **2** and **3** are shipped by EP-165
 > (settings.json env/deny/allow + PreToolUse hook; CLAUDE.md §§1–3/6; GOVERNANCE §2/§4
 > amendments; `.gitignore` anchoring; guard G1/G4; ledger ids DOC-1, ENV-1/2/3, GOV-1/2/4/5/6/8,
@@ -858,12 +929,6 @@ option first, all chosen as recommended unless noted; the implementing brief is 
 > (EP-167/168 + EP-21/30/35/57), item 9–10 code (EP-169), item 14's brief amendments
 > (EP-170), and item 5's two owner actions (VS Code restart; ninth/eighth Malwarebytes
 > paths — see the D-38 EP-165 addendum).
-governance layers, status prose, test semantics and contract are settled once rather than re-discovered
-per session; every choice above took the reviewers' recommended option after independent verification.
-*Alternatives considered:* a standalone retro document (less traceable); implementing everything in the
-review session (rejected by the owner for usage-limit reasons); versioned catalogs + pointer files
-(more robust, more code — kept as the fallback if rename-aside misbehaves); a `fixture < demo < dev <
-full` ladder; pinning numpy/polars minors; refusing on unknown env vars.
 
 **D-44 EP-33 becomes the consolidation re-plan of P0–P2, executed as one multi-agent
 session (2026-08-30, owner).** The owner re-scoped EP-33 from the standard S re-plan to an
