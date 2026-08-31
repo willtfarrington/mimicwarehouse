@@ -181,7 +181,6 @@ propagated in the same session)*
 
 - `876e781` — `docs(roadmap): record EP-33 aborted first attempt + re-run tuning (EP-33)`
 - `d88e2b5` — `docs(roadmap): EP-33 workstream A - EP-32 hash, P2 retro, DECISIONS addenda, parked-trigger records (EP-33)`
-- *(salvage commit, 2026-08-31 — audit ledger + scout plans + EP-37/38 amendments + brief
-  § Second attempt + DRF-1 header repair; hash recorded by its follow-up record commit)*
+- `2aa9e65` — `docs(roadmap): EP-33 second-attempt salvage - audit ledger, scout plans, D2 amendments, brief map, DRF-1 repair (EP-33)` *(per-commit guard sweep re-run over the extended series: 39 commits `45f1c84` → `2aa9e65`, 0 violations)*
 
 *(appended as the series lands)*
