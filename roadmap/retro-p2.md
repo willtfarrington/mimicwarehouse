@@ -10,6 +10,14 @@ and — appended as the EP-33 session proceeds — the § Renames ledger, § Wor
 § Checkpoint minutes and the commit series. Integers are thousands-separated
 (`inventory.fmt_int` style, guard G4).
 
+> **Session note (2026-08-31).** The EP-33 second attempt was stopped by the owner at
+> weekly-usage-limit proximity after Workstream E completed (no safeguard refusal fired —
+> the first addendum's tunings held throughout); its finished outputs were salvaged into
+> the repository on the owner's follow-up instruction. Done: A (+B9), the baselines below,
+> D2, E1/E2 (ledger `retro-p2-findings.md`), and the B1–B6/B8 scout plans
+> (`retro-p2-scout-plans.md`). The re-run resumes at the owner triage checkpoint — see the
+> brief's § Second attempt for the full map. § Checkpoint minutes stays pending.
+
 ## Pre-flight baselines (recorded before any EP-33 edit; the F6 comparison base)
 
 Session start 2026-08-30 (UTC timestamps below roll past midnight); `mwh doctor`
@@ -22,7 +30,7 @@ working tree clean at `876e781`.
 | `uv run poe check` (ruff + pyright + pytest, fixture tier) | exit 0 · 720 passed · **219 s** |
 | `mwh verify EP-k`, k ∈ 0…32 ∪ 164…171 (41 briefs, fresh interpreter each) | **0 failures** · 414 s |
 | `uv run poe roadmap-check --strict` | exit 0 (0 errors, 0 warnings) |
-| `mwh build --tier fixture` (resume over a current fixture lake) | exit 0 · 16 s |
+| `mwh build --tier fixture` (first build into the data-root fixture lake / resume over it) | exit 0 · 16 s first · **3.3 s resume** (the F6 comparable) |
 | `mwh --help` (import-budget probe, one cold run) | 558 ms |
 | `mwh jobs` | 11 jobs, all `done`, exit 0 |
 | A7 guard sweep — `guard.scan_tracked` per commit, `45f1c84` → `876e781` | **37 commits · 0 violations** · 13.2 s |
@@ -160,6 +168,10 @@ propagated in the same session)*
 - **B9** — done (landed with the A4 DECISIONS edit pass): D-43's *Why/Alternatives* tail
   restored under item 14 with its lost first line recovered verbatim from `f3eb115`; the
   orphaned fragment below the addenda removed; dated correction note in place.
+- **A4 repair (ledger DRF-1)** — the A4 edit pass itself consumed four decision headers
+  (D-18/D-19/D-21/D-25) as edit anchors without re-emitting them; caught by the E-audit,
+  restored verbatim in the salvage commit. C1 inherits the lesson: heading-preserving
+  edits, verified by a structure diff, before committing DECISIONS/DESIGN changes.
 
 ## Checkpoint minutes
 
@@ -168,5 +180,8 @@ propagated in the same session)*
 ## Commit series
 
 - `876e781` — `docs(roadmap): record EP-33 aborted first attempt + re-run tuning (EP-33)`
+- `d88e2b5` — `docs(roadmap): EP-33 workstream A - EP-32 hash, P2 retro, DECISIONS addenda, parked-trigger records (EP-33)`
+- *(salvage commit, 2026-08-31 — audit ledger + scout plans + EP-37/38 amendments + brief
+  § Second attempt + DRF-1 header repair; hash recorded by its follow-up record commit)*
 
 *(appended as the series lands)*

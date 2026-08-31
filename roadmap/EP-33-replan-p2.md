@@ -41,6 +41,15 @@
 > addendum proposes changes, it does not make them (two touch owner decisions under D-44
 > and need an owner call).**
 
+> **Addendum (2026-08-31) — the second execution attempt adopted the tunings above, ran
+> with no safeguard refusal at any point, and was stopped by the owner at weekly-usage-limit
+> proximity after the discovery audit completed. Its finished outputs are salvaged into the
+> repository: read [§ Second attempt](#second-attempt-2026-08-31--stopped-at-usage-limits)
+> at the end of this brief before re-running — Workstream A (with B9), the F6 pre-flight
+> baselines, item D2 and Workstream E1/E2 are DONE and must not be reattempted; the re-run
+> resumes at the owner triage checkpoint with `retro-p2-findings.md` (the audit ledger) and
+> `retro-p2-scout-plans.md` (the B1–B6/B8 implementation plans) already in hand.**
+
 ## Context
 
 P0 and P1 have already been consolidated twice — the P0/P1 re-plans (EP-7, EP-16) and the
@@ -498,3 +507,97 @@ session ending abruptly.
 **Model note.** The refusal names the model and suggests changing it; the owner's
 preference is to stay on the current model, so the levers here are content shaping and
 work partitioning rather than routing. Items 1–6 are chosen accordingly.
+
+## Second attempt (2026-08-31) — stopped at usage limits
+
+> **Addendum (2026-08-31, written when the owner stopped the second attempt and directed
+> that its completed outputs be salvaged into the repository).** The second execution ran
+> on the same model at maximum effort with multi-agent orchestration, adopting the first
+> addendum's tunings 3–6 as written (neutral coverage/completeness register for every audit
+> lens; findings constrained to id/area/file:line/class/severity/evidence/fix-direction
+> with schema-enforced length caps; session-guard work planned only as an owner-applied
+> diff package, sequenced last; the recovery rule armed but never needed). **No safeguard
+> refusal fired at any point** — through record-keeping, code auditing, the session-guard
+> lens included. The binding constraint was usage volume: a mid-audit session limit felled
+> 16 of 77 agents (the workflow's resume replayed 61 cached agents and re-ran the 16 after
+> the reset — all 75 finished with zero errors), and the owner then stopped the session
+> short of the triage checkpoint to protect the weekly budget. The repository was first
+> reverted to the pre-session state, then — on the owner's follow-up instruction — the
+> completed outputs below were salvaged back in. This section is the re-run's map.
+
+### Done — do not reattempt
+
+- **Pre-flight + baselines (the F6 comparison base).** Doctor green (power mode Best
+  performance), tree clean, and the full baseline battery recorded in
+  [`retro-p2.md`](retro-p2.md) § Pre-flight baselines: `poe check` 720 passed / 219 s;
+  the 41-brief verify loop 0 failures / 414 s; `roadmap-check --strict` 0/0;
+  `mwh --help` 558 ms; fixture build 16 s first / 3.3 s resume; 11 jobs all done.
+- **Workstream A — complete and committed** (`876e781` + `d88e2b5`): A1 (EP-32 ☑
+  `e832218`), A2 (reconciliation green), A3 (`retro-p2.md`), A4 (DECISIONS addenda under
+  D-4/D-17/D-18/D-20/D-24/D-31), A5 (all P2 Parked items verified mirrored; LOAD-2/LOAD-4
+  trigger records; Risk 2's executability half struck), A7 (per-commit guard sweep,
+  37 commits, 0 violations, 13.2 s). A6 is deliberately folded into C1 (still open).
+  **B9 landed with A4** (D-43's *Why/Alternatives* tail restored verbatim from `f3eb115`).
+  One defect was introduced and repaired: the A4 edit pass consumed four decision headers
+  (D-18/D-19/D-21/D-25) as edit anchors — caught by the audit as ledger **DRF-1**,
+  restored verbatim in the salvage commit. Lesson for C1: heading-preserving edits,
+  verified by a structure diff, before any DECISIONS/DESIGN commit.
+- **Item D2 — complete.** All **65** vendored `concepts_duckdb` files executed cleanly in
+  driver order on DuckDB 1.5.5 against a throwaway demo-catalog copy (1.78 s, zero
+  failures); attached to EP-37/EP-38 as `EP-33 amendment (2026-08-31)` blocks; Risk 2
+  updated. D4b's "no P3 toolchain-remediation slot" default now has its supporting
+  measurement.
+- **Workstream E1/E2 — complete.** 13 review lenses + 6 re-verification batches over the
+  2026-08-18 ledger's 69 findings → one independent adversarial verifier per material
+  finding → completeness critic (75 agents, 0 errors). Ledger:
+  [`retro-p2-findings.md`](retro-p2-findings.md) — **46 verified findings** (7 high ·
+  26 medium · 13 low; 1 refuted), 60 carried-low, **69/69 retro re-checks** (66 held,
+  3 partial: FXT-4, CFG-2, FC-9), and a 10-item completeness critique naming the surfaces
+  no lens owned (catalog package depth, tracer/benchmarks statistics, vendoring
+  provenance, packaging config, shared test infra, and others — a cheap follow-up round
+  the checkpoint may commission). Headline: LDR-1 (high, confirmed) — a forced dev-tier
+  restage over a full-complete table discards the 95 non-dev partitions.
+- **Workstream B scouting (B1–B6, B8) — complete.**
+  [`retro-p2-scout-plans.md`](retro-p2-scout-plans.md): read-only implementation plans
+  with file:line anchors, caller migration lists, preserve-semantics risk notes, and the
+  proposed public-surface renames (chief among them `mimicwarehouse.paths` →
+  `mimicwarehouse.publish`). Nothing implemented; line numbers drift with B's own edits.
+
+### Remaining — the re-run's scope
+
+1. **The owner triage checkpoint** (unchanged from § Session protocol, now with everything
+   in hand): the `retro-p2-findings.md` index for fix-now / allocate / park / reject; the
+   D4 defaults (b now measurement-backed); B7 handling (recommended: the owner-applied
+   diff-file package per tuning 5, authored last); the scout plans' checkpoint-flagged
+   questions (the `paths` → `publish` module move; the `EXIT_REFUSED` canonical home —
+   B1 and B8 propose different ones, reconcile to one; whether `runs` joins B1c's
+   registry schemas; test_ep12's exact-chain pin relaxation; the import-budget test
+   deletions; the canary's write-path option).
+2. **Workstream B implementation** (B1–B8 per the scout plans; B9 done), folding in the
+   checkpoint's fix-now findings.
+3. **Workstream C** (all of it; C1 additionally has the audit's precise drift lists —
+   DRF-2/3/4/5 and the carried DRF/RES items — as its worklist).
+4. **Workstream D**: D1 (the full P3 amendment pass — the workstream text's queued
+   specifics plus ledger P3C-1…P3C-11), D3, D5. D2 done; D4 defaults pre-recorded.
+5. **Workstream F** — the full battery against the recorded baselines.
+6. Optional, at the checkpoint's discretion: a small audit round over the completeness
+   critique's 10 named gaps.
+
+### Where the artifacts live
+
+Committed (everything the re-run needs): `retro-p2.md`, `retro-p2-findings.md`,
+`retro-p2-scout-plans.md`, the EP-37/EP-38 amendment blocks, the DECISIONS addenda, this
+section. Session-temp only (provenance/convenience; may be cleaned; everything material
+was rendered into the committed files): the raw audit-workflow result JSON
+(`tasks\wtxo1mhq2.output` under the session scratchpad root), the audit workflow script
+(`scratchpad\ep33-audit.js` — reusable if a gap round is commissioned), the ledger/plan
+renderers, the D2 smoke script and its per-file JSON, the baseline logs, and the
+checkpoint presentation draft.
+
+### Cost note for the re-run
+
+The audit was the budget hog (≈ 8.4 M subagent tokens across a session-limit boundary);
+with it banked, the remainder — checkpoint → B/C/D → F — is the cheap half of the brief
+and fits one session comfortably. If usage limits threaten again, the first addendum's
+item 2 (split at the checkpoint boundary) is now free to take: the audit session has
+effectively already happened.

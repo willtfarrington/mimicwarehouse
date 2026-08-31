@@ -2,6 +2,24 @@
 
 **Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-38) · **Core/Stretch:** core · **Depends on:** EP-8 (mimic-code vendoring), EP-19 (DAG runner `mwh build`), EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)) · **Blocks:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-54 (Re-plan P3)
 
+> **EP-33 amendment (2026-08-31) — D2 pre-flight smoke result.** The consolidation
+> re-plan's concept smoke (EP-33 item D2) executed **all 65 vendored `concepts_duckdb`
+> concept files cleanly, in `duckdb.sql` driver order, on DuckDB 1.5.5** — zero failures
+> of any kind, 1.78 s wall — against a throwaway copy of the demo catalog (method: parse
+> the driver's `.read` lines, execute each file via the Python client on a copy under
+> `tmp\`; never a credentialed catalog's write path). The Context line "expect some
+> concepts to fail — do not fix them here, record them" is therefore retired: plan for
+> **zero executability breakage** on 1.5.x (roadmap Risk 2's executability half is struck
+> with this measurement), item 4's "failing concepts on 1.5.x" list in
+> `docs/resources/concepts.md` is expected to be empty, and the remaining real risks are
+> count drift (execution success ≠ numerical correctness — the count-pins stay this
+> brief's work) and the upstream concept-logic PR lag (EP-38's charter). The live demo
+> catalog already holds all 31 staged tables. The fuller EP-33 D1 reconciliation of this
+> brief against the shipped P2 APIs (spec-file loading for `mwh build --tag concepts` —
+> ledger P3C-2; `CATALOG_EXTENSIONS`; Depends-on additions per retro FC-13) is **still
+> owed** by the EP-33 re-run — see `EP-33-replan-p2.md` § Second attempt and
+> `retro-p2-findings.md`.
+
 ## Context
 
 D-19: adopt mimic-code's `concepts_duckdb/` (MIT, ~65 sqlglot-transpiled concepts: demographics

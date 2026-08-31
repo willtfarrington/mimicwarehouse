@@ -192,7 +192,9 @@ native only; pandas primary.
 > fix is `mwh build --select catalog` per tier, never file surgery (D-43 item 6, DESIGN §6
 > note). Bumping the pin is a deliberate change: one line + re-lock + per-tier catalog
 > rebuilds + a DESIGN §6 version note. Measured at EP-28 for the record: the typed-Parquet
-> layer compresses the 97.19 GB raw CSVs to 7.05 GB (13.8×, ZSTD-3, sorted). Every EP passes tests on fixture+dev
+> layer compresses the 97.19 GB raw CSVs to 7.05 GB (13.8×, ZSTD-3, sorted).
+
+**D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
 full only; full runs batched per phase.
@@ -217,6 +219,8 @@ full only; full runs batched per phase.
 > full pass continued — at zero measured cost. `dev_ready(step)` is the tier-readiness
 > signal the EP-168 test fixtures consume; the dev snapshot id deliberately ignores buckets
 > outside `dev_buckets` so it does not move when the full pass finishes (DESIGN §11).
+
+**D-19 Adopt mimic-code `concepts_duckdb` (MIT), vendored at a pinned commit, tested,
 fixes ported; re-derive only what is missing.** *Alternatives:* re-derive everything;
 adopt as-is untested.
 
@@ -256,6 +260,8 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > "verified by the next EP" (D-18) remained the record-keeping pattern, not a wall-time
 > necessity. In-process heartbeat rss/ctypes probes read 0 for minutes on this host — the
 > supervisor's psutil sampler is the trustworthy number (EP-23/EP-24 notes).
+
+**D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
 *Alternatives:* marimo apps (ranked first by the research panel for a solo builder —
 see Judgment calls), Panel/HoloViz, Dash, notebook-first, CLI-only.
@@ -285,7 +291,9 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > rebuilt on demand by `safe.build_runs_db()` (`mwh runs refresh`) and published by the §6
 > rename-aside swap — app and CLI read the views, never the JSONL directly. The committed
 > renderer for benchmark tables is `mwh runs benchmarks [--format table|md] [--out PATH]`
-> (EP-32; `inventory.fmt_int` separation, raw ints only in `--json`). = YAML protocol → content hash → registry entry before run;
+> (EP-32; `inventory.fmt_int` separation, raw ints only in `--json`).
+
+**D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
 

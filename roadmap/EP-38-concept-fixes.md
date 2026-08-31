@@ -2,7 +2,17 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱) · **Blocks:** EP-42 (Phenotypes: sepsis-3 + KDIGO AKI stage), EP-53 (Capstone #1: concepts/QC case study), EP-54 (Re-plan P3), EP-55 (Latency marts A: first-day features + itemid rollups ⏱)
 
-## Context
+> **EP-33 amendment (2026-08-31) — charter shift after the D2 smoke.** EP-33's
+> pre-flight smoke executed all 65 vendored `concepts_duckdb` files cleanly on DuckDB
+> 1.5.5 (zero failures; see the EP-37 amendment of this date for the method), so the
+> Context's "plus whatever the 1.5.x run surfaced (function renames, integer-division/
+> `date_diff` semantics, `regexp_matches` flags, epoch functions)" class is expected to
+> be **empty**. This brief's charter shifts accordingly: (a) the ⏱ verification loop of
+> item 1 stands unchanged; (b) the substantive work is porting the four known upstream
+> concept-logic PRs (SIRS `wbc` guard, lab `valueuom` filters, Charlson, APS-III —
+> Risk 2's still-open half; semantic fixes, not 1.5.x breakage) and (c) any count-pin
+> mismatches item 5 surfaces that execution success alone cannot see. The patch
+> mechanism (item 2) is unchanged — it exists for semantic ports either way.
 
 EP-37 ran the vendored mimic-code concepts per tier and launched the full-tier build as a
 background job; it recorded, but did not fix, concepts that fail on DuckDB 1.5.x or lag upstream.
