@@ -128,6 +128,12 @@ DECISION_CASES: tuple[tuple[str, dict[str, Any], bool], ...] = (
     ("Read", {"file_path": "roadmap/EP-165-retro-governance-session-hardening.md"}, False),
     ("Grep", {"pattern": "mimicdata", "path": "mimicwarehouse/DESIGN.md"}, False),  # doc work
     ("Edit", {"file_path": "C:/mimicdata/x.csv"}, False),  # unmatched tool → not this hook's job
+    # EP-33 / D-45 item 4 (owner-applied package): the Grep glob is a filesystem selector,
+    # and git's --no-index modes read arbitrary content, so the bare git rescue stops there.
+    ("Grep", {"pattern": "select", "path": "mimicwarehouse/docs", "glob": "*.csv"}, True),
+    ("Bash", {"command": "git diff --no-index C:/mimicdata/x.csv probe.txt"}, True),
+    ("Bash", {"command": "git grep --no-index select C:/mimicdata/lake"}, True),
+    ("Bash", {"command": "git diff -- mimicwarehouse/tests/fixtures/manifest.json"}, False),
 )
 
 

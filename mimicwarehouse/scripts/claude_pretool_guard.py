@@ -12,10 +12,12 @@ but README.md>``, ``.csv``/``.csv.gz``, ``.parquet``, ``.duckdb`` — unless the
 starts with an allow-listed read-only project launcher (``uv run [--project mimicwarehouse]
 [--group <g>] mwh|pytest|poe|pre-commit``, ``git ``, ``ls ``, ``mwh ``, ``pre-commit``).
 Nested interpreters (``sh -c`` / ``bash -c`` / ``python -c``) mentioning those tokens are
-denied even behind an allow-listed prefix. For the Read tool the ``file_path`` is checked;
-for Glob the pattern+path (a filesystem glob); for Grep only the ``path`` — the search
-*pattern* is content, so ``Grep("mimicdata", path="DESIGN.md")`` stays legal doc work
-(GOV-12: use the Read/Grep tools, not shell readers, for docs mentioning the tokens).
+denied even behind an allow-listed prefix, and so are git's ``--no-index`` modes, which
+read arbitrary file content (EP-33, D-45 item 4). For the Read tool the ``file_path`` is
+checked; for Glob the pattern+path (a filesystem glob); for Grep the ``path`` **and** the
+``glob`` (both filesystem selectors) — never the search *pattern*, which is content, so
+``Grep("mimicdata", path="DESIGN.md")`` stays legal doc work (GOV-12: use the Read/Grep
+tools, not shell readers, for docs mentioning the tokens).
 
 This is a mitigation, not a guarantee (a string filter is trivially evaded): GOVERNANCE §4
 prose and ``safe_query`` (EP-30) remain the primary controls. Decisions — never tool
@@ -46,13 +48,16 @@ ALLOW_RE = re.compile(
 )
 #: Nested interpreters an allow-listed prefix must NOT rescue.
 NESTED_RE = re.compile(r"(?i)\b(?:sh -c|bash -c|python3? -c)\b")
+#: git modes that print arbitrary file content (``--no-index`` diff / grep): the bare
+#: ``git`` launcher rescue does not extend to them (EP-33, D-45 item 4).
+GIT_CONTENT_RE = re.compile(r"(?i)^\s*git\b.*\s--no-index\b")
 
 #: Tool name → the ``tool_input`` fields that are path-like and therefore checked.
 CHECKED_FIELDS: dict[str, tuple[str, ...]] = {
     "Bash": ("command",),
     "PowerShell": ("command",),
     "Read": ("file_path",),
-    "Grep": ("path",),  # never the pattern: a content regex mentioning the tokens is doc work
+    "Grep": ("path", "glob"),  # both filesystem selectors; never the pattern (content, doc work)
     "Glob": ("pattern", "path"),  # a Glob pattern IS a filesystem path
 }
 
@@ -75,7 +80,12 @@ def decide(tool_name: str, tool_input: dict[str, object]) -> tuple[bool, str]:
     text = " ".join(str(tool_input.get(f, "") or "") for f in fields).strip()
     if not text or not DATA_RE.search(text):
         return False, text
-    if tool_name in ("Bash", "PowerShell") and ALLOW_RE.match(text) and not NESTED_RE.search(text):
+    if (
+        tool_name in ("Bash", "PowerShell")
+        and ALLOW_RE.match(text)
+        and not NESTED_RE.search(text)
+        and not GIT_CONTENT_RE.search(text)
+    ):
         return False, text
     return True, text
 
