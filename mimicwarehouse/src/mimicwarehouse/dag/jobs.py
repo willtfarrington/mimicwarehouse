@@ -11,10 +11,14 @@ final ``state``/``exit_code`` reliable for **any** argv, including hard crashes 
 lock refusals; ``mwh build --job <name>`` additionally merges its own outcome into
 the same file (the brief's child-side rewrite), which the supervisor then confirms.
 
-State file ``runs/jobs/<job>.json``: ``{job, pid, argv, started, log, state:
-running|done|failed, exit_code, finished}`` (``pid`` is the supervisor's — alive iff
-the job is). Log ``runs/jobs/<job>.log``: INFO lines only (steps, counts, bytes,
-wall, rss) — never rows (GOVERNANCE §4).
+State file ``runs/jobs/<job>.json``: ``{job, pid, create_time, argv, started, log,
+state: running|done|failed, exit_code, finished}`` (``pid`` is the supervisor's — alive
+iff the job is; ``create_time`` is that process's ``psutil`` creation time, EP-33
+DAG-3/DAG-6: a pid Windows has recycled to an unrelated process no longer reads as a
+live job — :func:`pid_alive` requires pid **and** create_time to match; files written
+before EP-33 carry no create_time and fall back to the pid-only test). Log
+``runs/jobs/<job>.log``: INFO lines only (steps, counts, bytes, wall, rss) — never rows
+(GOVERNANCE §4).
 
 Fallback recipe, documented in ``mwh build --help``, for when detaching misbehaves:
 resolve the log directory via ``mwh paths --json`` (key ``runs_jobs``, never
@@ -36,11 +40,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from mimicwarehouse import fsio
 from mimicwarehouse.config import Settings, get_settings, workspace_root
 
 JOB_JSON_SUFFIX = ".json"
 JOB_LOG_SUFFIX = ".log"
 JOB_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+#: Two ``psutil`` creation-time readings of the same process agree to well under this
+#: (seconds); a recycled pid's new owner is minutes-to-days apart.
+CREATE_TIME_TOLERANCE_S = 1.0
 
 JobState = Literal["running", "done", "failed"]
 
@@ -62,6 +70,7 @@ class JobInfo(BaseModel):
     state: JobState = "running"
     exit_code: int | None = None
     finished: str | None = None
+    create_time: float | None = None  # supervisor process identity (EP-33); None pre-EP-33
 
 
 def _now() -> str:
@@ -87,10 +96,8 @@ def job_log_path(job: str, settings: Settings | None = None) -> Path:
 
 
 def _write_info(path: Path, info: JobInfo) -> None:
-    from mimicwarehouse.inventory import _atomic_write_text
-
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, json.dumps(info.model_dump(mode="json"), indent=2) + "\n")
+    fsio.atomic_write_text(path, json.dumps(info.model_dump(mode="json"), indent=2) + "\n")
 
 
 def read_job(job: str, settings: Settings | None = None) -> JobInfo | None:
@@ -133,10 +140,40 @@ def tail_log(job: str, n: int = 20, settings: Settings | None = None) -> list[st
     return path.read_text(encoding="utf-8", errors="replace").splitlines()[-n:]
 
 
-def pid_alive(pid: int) -> bool:
+def process_create_time(pid: int) -> float | None:
+    """``psutil`` creation time of ``pid`` (seconds since the epoch), or None when the
+    process is gone or cannot be inspected."""
     import psutil
 
-    return pid > 0 and psutil.pid_exists(pid)
+    try:
+        return float(psutil.Process(pid).create_time())
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
+        return None
+
+
+def pid_alive(pid: int, create_time: float | None = None) -> bool:
+    """Whether ``pid`` is the live process a lock or job state file recorded.
+
+    With ``create_time`` (EP-33 DAG-3/DAG-6) the process must also have the recorded
+    creation time — a recycled pid whose new owner was created at a different time is
+    **dead** for our purposes, so a stale lock becomes breakable and a finished job is
+    never misreported alive. A pid whose creation time cannot be read (access denied) is
+    treated as alive: never break a build that may be running. Without ``create_time``
+    (pre-EP-33 files) this is the plain ``psutil.pid_exists`` test.
+    """
+    import psutil
+
+    if pid <= 0 or not psutil.pid_exists(pid):
+        return False
+    if create_time is None:
+        return True
+    try:
+        actual = float(psutil.Process(pid).create_time())
+    except (psutil.NoSuchProcess, psutil.ZombieProcess):
+        return False
+    except (psutil.AccessDenied, OSError):
+        return True
+    return abs(actual - create_time) <= CREATE_TIME_TOLERANCE_S
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +188,11 @@ def launch(argv: list[str], job: str, settings: Settings | None = None) -> JobIn
     settings = settings or get_settings()
     require_job_name(job)
     existing = read_job(job, settings)
-    if existing is not None and existing.state == "running" and pid_alive(existing.pid):
+    if (
+        existing is not None
+        and existing.state == "running"
+        and pid_alive(existing.pid, existing.create_time)
+    ):
         raise JobError(f"job {job!r} is still running (pid {existing.pid}) — pick another name")
 
     json_path = job_json_path(job, settings)
@@ -203,6 +244,7 @@ def launch(argv: list[str], job: str, settings: Settings | None = None) -> JobIn
         started=_now(),
         log=str(log_path),
         state="running",
+        create_time=process_create_time(proc.pid),
     )
     _write_info(json_path, info)
     return info
@@ -255,6 +297,7 @@ if __name__ == "__main__":  # pragma: no cover - exercised by the launch test en
 
 
 __all__ = [
+    "CREATE_TIME_TOLERANCE_S",
     "JOB_NAME_RE",
     "JobError",
     "JobInfo",
@@ -265,6 +308,7 @@ __all__ = [
     "launch",
     "list_jobs",
     "pid_alive",
+    "process_create_time",
     "read_job",
     "require_job_name",
     "tail_log",

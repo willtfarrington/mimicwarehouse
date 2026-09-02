@@ -120,13 +120,15 @@ def test_every_command_module_shares_the_console_instances() -> None:
     import mimicwarehouse.fixtures.cli as fixtures_cli
     import mimicwarehouse.schema.cli as schema_cli
 
-    assert cli_mod.console is console_mod.console
+    # EP-33 (B8): errors go through console.fail (stderr) and --json through console.emit_json,
+    # so the command modules no longer bind console/err_console for those; cli.py keeps
+    # err_console for the unknown-MWH_* warning line only
+    assert cli_mod.err_console is console_mod.err_console
     assert inventory.console is console_mod.console
     assert schema_cli.console is console_mod.console
     assert fixtures_cli.console is console_mod.console
-    assert inventory.err_console is console_mod.err_console
-    assert schema_cli.err_console is console_mod.err_console
-    assert fixtures_cli.err_console is console_mod.err_console
+    for mod in (inventory, schema_cli, fixtures_cli):
+        assert mod.fail is console_mod.fail and mod.emit_json is console_mod.emit_json
     # verify._console_safe stays as an alias of the moved helper
     assert verify._console_safe is console_safe
 

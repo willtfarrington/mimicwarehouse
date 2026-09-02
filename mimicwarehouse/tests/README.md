@@ -1,7 +1,9 @@
 # mimicwarehouse tests
 
 pytest + hypothesis (DESIGN §20). One acceptance module per roadmap brief under `tests/ep/`
-(`test_ep<NN>.py`, marker `ep_<n>`), synthetic data only under `tests/fixtures/`
+(`test_ep<NN>.py`, marker `ep_<n>`; the one exception is EP-33, the consolidation re-plan,
+whose acceptance spans `test_ep33.py` plus `test_ep33_{loader,safe,hygiene,cli}.py` — one
+file per workstream area, all marker `ep_33`), synthetic data only under `tests/fixtures/`
 (`tests/fixtures/README.md`), the tier machinery in `tests/conftest.py`, and shared scaffolding
 in `tests/helpers.py`.
 
@@ -9,6 +11,10 @@ in `tests/helpers.py`.
 the coupling is the bug — read counts from `tests/fixtures/manifest.json`, the schema contract
 or `fixtures.spec.build_plan()`, probe verify/roadmap behaviour on crafted roadmaps under
 `tmp_path`, and never pin a future EP number or file count into an assertion.
+
+The committed-text hygiene rules (fmt_int integers, ASCII CLI strings, no ids or compact
+dates in names, run-folder limits, the guard pragma, DOI-not-PMID) and the tests that assert
+each are indexed in `docs/committed-text.md` (EP-33 B4).
 
 ## Running
 
@@ -22,14 +28,18 @@ uv run poe test-full            # = pytest --tier full  (adds tier("full") tests
 uv run poe test --with-demo     # opts in the @pytest.mark.demo tests (EP-22)
 uv run mwh verify EP-22 -- --with-demo   # pytest args after `--` pass through untouched
 PYTEST_TIER=dev uv run poe test          # environment fallback for --tier (bash)
+uv run --project mimicwarehouse --group dev poe check   # from the repo root (poe_tasks.toml, EP-33 B5)
 ```
 
 PowerShell has no `VAR=x cmd` prefix form — the fallback there is
 `$env:PYTEST_TIER='dev'; uv run poe test` (likewise `$env:PYTEST_DEMO='1'`).
 
-`uv run poe check` (`lint` + `typecheck` + `test`) is fixture-only on purpose; `test-dev` /
-`test-full` are separate tasks, and `test` stays serial by default (`test-fast` is the xdist
-opt-in; the AV heuristics of D-42 are why parallel is not the default).
+`uv run poe check` (`lint` + `fmt-check` + `typecheck` + `test`) is fixture-only on purpose;
+`test-dev` / `test-full` are separate tasks, and `test` stays serial by default (`test-fast` is
+the xdist opt-in; the AV heuristics of D-42 are why parallel is not the default). Every poe
+task also runs from the repository root through the root `poe_tasks.toml`
+(`uv run --project mimicwarehouse --group dev poe <task>`; it includes the workspace task
+table with `cwd = mimicwarehouse`).
 
 ## Tiers (markers)
 

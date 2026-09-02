@@ -15,6 +15,8 @@ The portfolio is read by two audiences (**D-1**), so each case study carries a o
 
 `NN-slug.md` — two digits in allocation order (`00-staging-benchmark.md`,
 `01-…`), allocated when the case study is written, never renumbered.
+The `NN-slug` form and the no-run-ids-or-compact-dates-in-names rule are instances of the
+committed-text hygiene canon, `docs/committed-text.md` (rule 3; EP-33 B4).
 
 ## Required sections, in order
 

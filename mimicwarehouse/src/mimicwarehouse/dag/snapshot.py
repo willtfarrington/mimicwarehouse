@@ -29,6 +29,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from mimicwarehouse import fsio
 from mimicwarehouse.config import Settings, get_settings
 from mimicwarehouse.loader.buckets import BUCKET_COLUMN
 from mimicwarehouse.loader.manifest import (
@@ -64,16 +65,16 @@ def _bucket_of(path: str) -> int | None:
 
 
 def _latest_lines(lake_root: Path) -> dict[str, ManifestLine]:
-    """Newest manifest line per lake-relative path, across every build's jsonl."""
+    """Newest manifest line per lake-relative path, across every build's jsonl (read
+    through :func:`fsio.iter_jsonl`, so one torn trailing line — a crash mid-append — is
+    skipped with a warning instead of breaking every snapshot id; LGR-1/LDR-5)."""
     latest: dict[str, ManifestLine] = {}
     mdir = manifests_dir(lake_root)
     if not mdir.is_dir():
         return latest
     for jsonl in sorted(mdir.glob("*.jsonl")):
-        for raw in jsonl.read_text(encoding="utf-8").splitlines():
-            if not raw.strip():
-                continue
-            line = ManifestLine.model_validate_json(raw)
+        for obj in fsio.iter_jsonl(jsonl):
+            line = ManifestLine.model_validate(obj)
             have = latest.get(line.path)
             if have is None or line.ts >= have.ts:
                 latest[line.path] = line
@@ -180,8 +181,6 @@ def record_snapshot(
     lake_root: Path, *, layer: str, tier: str, snapshot_id: str, build_id: str
 ) -> dict[str, Any]:
     """Append one history entry to ``snapshots.json`` (atomic write) and return it."""
-    from mimicwarehouse.inventory import _atomic_write_text
-
     entry = {
         "layer": layer,
         "tier": tier,
@@ -193,7 +192,7 @@ def record_snapshot(
     history.append(entry)
     path = snapshots_path(lake_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, json.dumps(history, indent=2, sort_keys=True) + "\n")
+    fsio.atomic_write_text(path, json.dumps(history, indent=2, sort_keys=True) + "\n")
     return entry
 
 

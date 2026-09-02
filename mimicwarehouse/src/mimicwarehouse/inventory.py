@@ -28,9 +28,18 @@ The header line is schema, not data. Console output stays ASCII (roadmap Risk 13
 integer in the docs table carries thousands separators because the guard's G4 rule (EP-4)
 refuses bare 8-digit tokens starting with 1-3, and byte sizes / row counts routinely are.
 
+EP-33 (B8) puts the module on the shared canon: progress lines are stdlib logging on
+``mimicwarehouse.inventory`` routed through
+:func:`mimicwarehouse.console.configure_progress_logging` (``--log`` adds the file handler,
+``--quiet`` skips the stdout one); the DuckDB connection
+comes from :func:`mimicwarehouse.engine.open_duckdb` (``open_connection`` is the kept thin
+alias); atomic writes are :func:`mimicwarehouse.fsio.atomic_write_text` (``_atomic_write_text``
+is the kept alias); errors go through :func:`~mimicwarehouse.console.fail` (``mwh inventory:``
+on stderr) and ``--json`` through :func:`~mimicwarehouse.console.emit_json`.
+
 Import budget: this module is imported by ``mwh`` at start-up (the typer sub-app lives here),
-so duckdb, the schema contract and the vendor pin are imported inside the functions that need
-them.
+so duckdb, the engine, the schema contract and the vendor pin are imported inside the
+functions that need them.
 """
 
 from __future__ import annotations
@@ -38,6 +47,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import logging
 import os
 import re
 import socket
@@ -45,6 +55,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterable, Sequence
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -58,13 +69,25 @@ from rich.table import Table as RichTable
 
 from mimicwarehouse import config
 from mimicwarehouse.config import Settings
-from mimicwarehouse.console import console, err_console
+from mimicwarehouse.console import (
+    EXIT_FINDINGS,
+    EXIT_OK,
+    EXIT_USAGE,
+    configure_progress_logging,
+    console,
+    emit_json,
+    fail,
+)
+from mimicwarehouse.fsio import atomic_write_text
 from mimicwarehouse.schema.csv_dialect import READ_OPTIONS_SQL
 
 if TYPE_CHECKING:  # pragma: no cover — typing only (import budget)
     import duckdb
 
     from mimicwarehouse.schema.contract import Contract, Table
+
+#: Progress lines (counts, bytes, seconds, hashes — never rows) of ``build_inventory``.
+_LOG = logging.getLogger("mimicwarehouse.inventory")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -258,12 +281,15 @@ def _iso(ts_ns: int) -> str:
 
 def fmt_int(value: int | None) -> str:
     """Thousands-separated integer (``123,456,789``) or ``-`` — the only way integers appear
-    in docs / console output (guard G4)."""
+    in docs / console output (guard G4; ``docs/committed-text.md`` is the rule's home).
+    ``--json`` payloads keep raw integers (:func:`mimicwarehouse.console.emit_json`)."""
     return "-" if value is None else f"{value:,}"
 
 
-def fmt_bytes_mb(value: int) -> str:
-    return f"{value / 1e6:,.1f} MB"
+def fmt_bytes_mb(value: int | None) -> str:
+    """Bytes as ``12.3 MB`` (decimal MB, one decimal) or ``-`` for None — :func:`fmt_int`'s
+    None convention; the one MB renderer (``catalog.dictionary`` imports it, EP-33 B8)."""
+    return "-" if value is None else f"{value / 1e6:,.1f} MB"
 
 
 def dataset_dir(dataset: str) -> str:
@@ -385,19 +411,15 @@ def compare_header(header: Sequence[str], table: Table) -> tuple[bool, list[str]
 
 
 def open_connection(settings: Settings | None = None) -> duckdb.DuckDBPyConnection:
-    """In-memory DuckDB configured with ``duckdb_settings("build")`` (DESIGN §6: explicit
-    memory_limit / threads / temp_directory / max_temp_directory_size / insertion order).
-
-    Ensures ``layout["tmp_duckdb"]`` exists first: DuckDB 1.5.5 creates a missing leaf temp
-    dir but raises an IOException on first spill when the *parent* is missing (EP-167, retro
-    CFG-3; every connection site does this — EP-17's ``open_build_connection`` must too).
+    """In-memory DuckDB with the ``build`` profile — a thin alias over
+    :func:`mimicwarehouse.engine.open_duckdb` since EP-33 (B3/B8; retro FC-7/INV-15: one
+    connection factory). The engine applies ``duckdb_settings("build")`` (DESIGN §6) and
+    creates ``layout["tmp_duckdb"]`` first (retro CFG-3). The name is kept for its callers
+    (``canary``, ``loader.engine``); new code calls ``engine.open_duckdb("build", ...)``.
     """
-    import duckdb
+    from mimicwarehouse import engine  # lazy: keeps the mwh --help import budget
 
-    settings = settings or config.get_settings()
-    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
-    cfg: dict[str, Any] = dict(settings.duckdb_settings("build"))
-    return duckdb.connect(database=":memory:", config=cfg)
+    return engine.open_duckdb("build", settings=settings)
 
 
 def count_rows(
@@ -489,9 +511,11 @@ def inventory_file(
     fallback = False
     seconds_rows = 0.0
     error: str | None = None
-    if rowcount:
-        con = connection if connection is not None else open_connection()
-        rows, method, fallback, seconds_rows, error = count_rows(path, con)
+    if rowcount and connection is not None:
+        rows, method, fallback, seconds_rows, error = count_rows(path, connection)
+    elif rowcount:  # a self-opened connection is closed again (retro INV-15)
+        with closing(open_connection()) as con:
+            rows, method, fallback, seconds_rows, error = count_rows(path, con)
     ds_dir = dataset_dir(table.dataset)
     return FileRecord(
         dataset=table.dataset,
@@ -540,20 +564,10 @@ def dataset_manifest_path(root: Path, dataset: str) -> Path:
     return root / f"{dataset_dir(dataset)}.jsonl"
 
 
-def _atomic_write_text(path: Path, text: str, *, retries: int = 20) -> None:
-    """Write ``path`` via a temp file + ``os.replace``. On Windows the replace fails with
-    ``PermissionError`` while another process (``mwh inventory show``) has the target open for
-    the few milliseconds it takes to read it, so retry briefly before giving up."""
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
-    for attempt in range(retries):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            if attempt == retries - 1:
-                raise
-            time.sleep(0.05 * (attempt + 1))
+#: The temp-file + ``os.replace`` write with the Windows ``PermissionError`` retry, promoted to
+#: :func:`mimicwarehouse.fsio.atomic_write_text` at EP-33 (B8). This private name is kept
+#: permanently — DESIGN §5, the EP-10/EP-171 briefs and the retro ledgers cite it.
+_atomic_write_text = atomic_write_text
 
 
 def write_dataset_manifest(root: Path, dataset: str, records: Iterable[FileRecord]) -> Path:
@@ -722,29 +736,29 @@ def plan_files(
     return out
 
 
-class _Log:
-    """Progress lines to stdout and, optionally, an append-only log file (ASCII, timestamped)."""
+def _attach_progress_handlers(log_path: Path | None, quiet: bool) -> list[logging.Handler]:
+    """Route this build's ``_LOG.info`` lines through the shared seam
+    (:func:`mimicwarehouse.console.configure_progress_logging`): ``log_path`` adds the
+    append-mode file handler (parents created), ``quiet`` skips the stdout one. Returns the
+    handlers this call added so :func:`_detach_progress_handlers` can remove and close them
+    when the build ends — the seam is process-global (a background job configures it once and
+    keeps it), but ``build_inventory`` is a library function called many times per process
+    (tests, EP-16's recipe) whose ``--log`` file must be closed on return."""
+    logger = logging.getLogger("mimicwarehouse")
+    before = list(logger.handlers)
+    if log_path is not None:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+        configure_progress_logging(to_file=log_path)
+    if not quiet:
+        configure_progress_logging()
+    return [h for h in logger.handlers if h not in before]
 
-    def __init__(self, path: Path | None, *, quiet: bool = False) -> None:
-        self.path = path
-        self.quiet = quiet
-        self._fh = None
-        if path is not None:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self._fh = path.open("a", encoding="utf-8")
 
-    def __call__(self, message: str) -> None:
-        line = f"{_now()} {message}"
-        if not self.quiet:
-            print(line, flush=True)
-        if self._fh is not None:
-            self._fh.write(line + "\n")
-            self._fh.flush()
-
-    def close(self) -> None:
-        if self._fh is not None:
-            self._fh.close()
-            self._fh = None
+def _detach_progress_handlers(handlers: list[logging.Handler]) -> None:
+    logger = logging.getLogger("mimicwarehouse")
+    for handler in handlers:
+        logger.removeHandler(handler)
+        handler.close()
 
 
 def build_inventory(
@@ -777,7 +791,6 @@ def build_inventory(
     root = manifest_root if manifest_root is not None else ensure_manifest_dir(settings)
     root.mkdir(parents=True, exist_ok=True)
     manifest = load_raw_manifest(settings, root)
-    log = _Log(log_path, quiet=quiet)
     result = BuildResult(started=_now())
     t_start = time.perf_counter()
 
@@ -853,19 +866,24 @@ def build_inventory(
             root, manifest.records.values(), job=job, previous=previous, versions=versions
         )
 
-    log(
-        f"inventory build: {len(todo)} to process, {len(result.skipped)} up to date, "
-        f"{len(result.filtered)} over --max-bytes, {len(result.missing)} missing"
-        + (f", {len(result.refreshed)} header status refreshed" if result.refreshed else "")
-        + f"; source root {source_root}; manifest {root}"
-    )
-    for rel in result.missing:
-        log(f"missing: {rel}")
-    flush()
-
     sums_cache: dict[str, dict[str, str]] = {}
     con: duckdb.DuckDBPyConnection | None = None
+    handlers = _attach_progress_handlers(log_path, quiet)
     try:
+        _LOG.info(
+            "inventory build: %d to process, %d up to date, %d over --max-bytes, %d missing%s; "
+            "source root %s; manifest %s",
+            len(todo),
+            len(result.skipped),
+            len(result.filtered),
+            len(result.missing),
+            f", {len(result.refreshed)} header status refreshed" if result.refreshed else "",
+            source_root,
+            root,
+        )
+        for rel in result.missing:
+            _LOG.info("missing: %s", rel)
+        flush()
         if rowcount and todo:
             con = open_connection(settings)
         for i, (p, known) in enumerate(todo, start=1):
@@ -890,7 +908,7 @@ def build_inventory(
                 err = {"rel_path": p.rel_path, "stage": "hash", "error": _one_line(str(exc))}
                 job["errors"].append(err)
                 result.errors.append(err)
-                log(f"[{i}/{len(todo)}] ERROR {p.rel_path}: {err['error']}")
+                _LOG.info("[%d/%d] ERROR %s: %s", i, len(todo), p.rel_path, err["error"])
                 flush()
                 continue
             manifest.records[p.rel_path] = rec
@@ -910,10 +928,18 @@ def build_inventory(
                 if rec.rows is not None
                 else f"rows {rec.rowcount_method}"
             )
-            log(
-                f"[{i}/{len(todo)}] {p.rel_path}  {fmt_bytes_mb(rec.bytes)}  "
-                f"sha256 {rec.sha256[:12]} in {rec.seconds_hash:.1f}s ({rate})  {rows_txt}  "
-                f"header {rec.header_status}  wall {wall:.1f}s"
+            _LOG.info(
+                "[%d/%d] %s  %s  sha256 %s in %.1fs (%s)  %s  header %s  wall %.1fs",
+                i,
+                len(todo),
+                p.rel_path,
+                fmt_bytes_mb(rec.bytes),
+                rec.sha256[:12],
+                rec.seconds_hash,
+                rate,
+                rows_txt,
+                rec.header_status,
+                wall,
             )
     finally:
         if con is not None:
@@ -939,13 +965,17 @@ def build_inventory(
         snapshot = flush()
         result.raw_snapshot_id = snapshot["raw_snapshot_id"]
         result.files_done = snapshot["files_done"]
-        log(
-            f"inventory build finished: {len(result.processed)} processed, "
-            f"{len(result.errors)} error(s), {result.files_done}/{FILES_EXPECTED} files in "
-            f"manifest, raw_snapshot_id {result.raw_snapshot_id or 'None (incomplete)'}, "
-            f"{result.seconds:.1f}s"
+        _LOG.info(
+            "inventory build finished: %d processed, %d error(s), %d/%d files in manifest, "
+            "raw_snapshot_id %s, %.1fs",
+            len(result.processed),
+            len(result.errors),
+            result.files_done,
+            FILES_EXPECTED,
+            result.raw_snapshot_id or "None (incomplete)",
+            result.seconds,
         )
-        log.close()
+        _detach_progress_handlers(handlers)
     return result
 
 
@@ -1166,11 +1196,6 @@ def _settings(ctx: typer.Context) -> Settings:
     return settings if isinstance(settings, Settings) else config.get_settings()
 
 
-def _fail(message: str, code: int = 2) -> None:
-    err_console.print(f"[bold red]mwh inventory:[/] {escape(message)}", highlight=False)
-    raise typer.Exit(code=code)
-
-
 @inventory_app.command("build")
 def build_command(
     ctx: typer.Context,
@@ -1216,7 +1241,7 @@ def build_command(
         try:
             resolve_dataset(d)
         except KeyError as exc:
-            _fail(str(exc))
+            fail("mwh inventory", str(exc), code=EXIT_USAGE)
     try:
         result = build_inventory(
             settings,
@@ -1228,12 +1253,10 @@ def build_command(
             quiet=quiet,
         )
     except config.DiskGuardError as exc:
-        _fail(str(exc))
-        return
+        fail("mwh inventory", str(exc), code=EXIT_USAGE)
     except FileNotFoundError as exc:
-        _fail(str(exc))
-        return
-    raise typer.Exit(code=0 if result.ok else 1)
+        fail("mwh inventory", str(exc), code=EXIT_USAGE)
+    raise typer.Exit(code=EXIT_OK if result.ok else EXIT_FINDINGS)
 
 
 def _job_lines(snapshot: dict[str, Any]) -> list[str]:
@@ -1287,7 +1310,7 @@ def show_command(
             ],
             "snapshot": manifest.snapshot,
         }
-        console.print_json(json.dumps(payload))
+        emit_json(payload)
         return
     rt = RichTable(box=box.SIMPLE, header_style="bold")
     cols = ["dataset", "table", "bytes", "rows", "header ok", "sha256[:12]"]
@@ -1386,8 +1409,8 @@ def reconcile_command(
             },
             "docs": str(written) if written else None,
         }
-        console.print_json(json.dumps(payload))
-        raise typer.Exit(code=1 if n_mismatch else 0)
+        emit_json(payload)
+        raise typer.Exit(code=EXIT_FINDINGS if n_mismatch else EXIT_OK)
     rt = RichTable(box=box.SIMPLE, header_style="bold")
     for c in ("dataset", "table", "expected", "observed", "delta", "status"):
         rt.add_column(
@@ -1412,7 +1435,7 @@ def reconcile_command(
     console.print(f"{len(rows)} table(s): {summary}", highlight=False)
     if written:
         console.print(f"wrote {escape(str(written))}", highlight=False)
-    raise typer.Exit(code=1 if n_mismatch else 0)
+    raise typer.Exit(code=EXIT_FINDINGS if n_mismatch else EXIT_OK)
 
 
 __all__ = [
@@ -1436,6 +1459,7 @@ __all__ = [
     "docs_path",
     "ensure_manifest_dir",
     "expected_counts",
+    "fmt_bytes_mb",
     "fmt_int",
     "gz_sha256_for",
     "inventory_app",

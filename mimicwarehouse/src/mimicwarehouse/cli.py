@@ -1,32 +1,36 @@
 """``mwh`` — the mimicwarehouse command line (typer + rich; EP-2, DESIGN §15).
 
 Commands live in their own modules and are attached here with **one** ``app.command()`` /
-``app.add_typer()`` line each, so later briefs extend without restructuring:
-``doctor`` (EP-2, :mod:`mimicwarehouse.doctor`) · ``paths`` (EP-3,
-:mod:`mimicwarehouse.config`) · ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``verify``
-(EP-6, :mod:`mimicwarehouse.verify`) · ``schema`` (EP-9, :mod:`mimicwarehouse.schema.cli`) ·
-``inventory`` (EP-10, :mod:`mimicwarehouse.inventory`) · ``fixtures`` (EP-11,
-:mod:`mimicwarehouse.fixtures.cli`) · ``canary`` (EP-171, :mod:`mimicwarehouse.canary`) ·
-``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``catalog``/``sql`` (EP-21,
-:mod:`mimicwarehouse.catalog.cli`; since EP-30 ``sql`` routes everything through
-``safe_query`` — aggregate-only, audited, refusals exit 3) · ``demo`` (EP-22) ·
-``runs`` (EP-30 ``refresh``, :mod:`mimicwarehouse.runs_cli`; EP-35 adds list/show) ·
-``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) · ``protocol`` (EP-51) · ``backup``
-(EP-52) · ``app`` (EP-57) · ``disclose`` (EP-43/133) · ``init`` (EP-158).
+``app.add_typer()`` line each, so later briefs extend without restructuring. The registered
+set (the ``# --- commands`` block below is authoritative; retro CLI-4):
+``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``canary`` (EP-171,
+:mod:`mimicwarehouse.canary`) · ``catalog``/``sql`` (EP-21, :mod:`mimicwarehouse.catalog.cli`;
+since EP-30 ``sql`` routes everything through ``safe_query`` — aggregate-only, audited,
+refusals exit 3) · ``demo`` (EP-22, :mod:`mimicwarehouse.demo`) · ``doctor`` (EP-2,
+:mod:`mimicwarehouse.doctor`) · ``fixtures`` (EP-11, :mod:`mimicwarehouse.fixtures.cli`) ·
+``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``inventory`` (EP-10,
+:mod:`mimicwarehouse.inventory`) · ``paths`` (EP-3, :mod:`mimicwarehouse.config`) · ``runs``
+(``refresh`` EP-30, ``benchmarks`` EP-32, :mod:`mimicwarehouse.runs_cli`) · ``schema`` (EP-9,
+:mod:`mimicwarehouse.schema.cli`) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
+``verify`` (EP-6, :mod:`mimicwarehouse.verify`). Later briefs add theirs the same way; a
+command is listed here only once its line exists below.
 
 Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
 :class:`mimicwarehouse.config.Settings` once per invocation — ``--data-root`` > ``MWH_*`` env >
 ``.env`` > ``mwh.toml`` > defaults — installs the override process-wide
 (:func:`mimicwarehouse.config.configure`, so ``get_settings()`` agrees with ``ctx.obj``) and
-hands a :class:`CliState` to the command. A configuration error (broken ``.env``/``mwh.toml``)
-is stored as :attr:`CliState.pending_error` instead of raised, and the D-29 location refusals
-run on the **first access** of :attr:`CliState.settings` by a non-diagnostic command — so
-``--help``, ``--version`` and ``no_args_is_help`` always work, even over an unsafe or broken
-configuration (retro CFG-5), while ``mwh inventory build`` still exits 2 before touching
-anything. The diagnostic commands in :data:`DIAGNOSTIC_COMMANDS` receive the unchecked
-instance so they can *report* the problem. Whether the allow-list should give way to fully
-lazy validation everywhere is the EP-16 (re-plan P1) decision; until then the set below is
-authoritative.
+hands a :class:`CliState` to the command. A configuration error (broken ``.env``/``mwh.toml``,
+an unparsable complex value such as ``MWH_DEV_BUCKETS`` — pydantic-settings'
+``SettingsError``, retro CLI-2) is stored as :attr:`CliState.pending_error` instead of
+raised, and the D-29 location refusals run on the **first access** of
+:attr:`CliState.settings` by a non-diagnostic command — so ``--help``, ``--version`` and
+``no_args_is_help`` always work, even over an unsafe or broken configuration (retro CFG-5),
+while ``mwh inventory build`` still exits 2 before touching anything. The diagnostic
+commands in :data:`DIAGNOSTIC_COMMANDS` (the rule is stated once, on that constant)
+receive the unchecked instance so they can *report* the problem.
+
+Errors follow the EP-33 canon (:mod:`mimicwarehouse.console`): ``mwh: <message>`` in bold
+red on **stderr** via :func:`~mimicwarehouse.console.fail`, exit ``EXIT_USAGE`` (2).
 
 Import-time budget: ``mwh --help`` must stay under ~0.5 s, so this module never imports
 duckdb / pandas / polars / pyarrow — commands import what they need inside their bodies.
@@ -40,13 +44,14 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic_settings import SettingsError
 from rich.markup import escape
 
 from mimicwarehouse import __version__, config
 from mimicwarehouse.canary import canary_app
 from mimicwarehouse.catalog.cli import catalog_app, sql_command
 from mimicwarehouse.config import Settings, paths_command
-from mimicwarehouse.console import console, err_console
+from mimicwarehouse.console import EXIT_USAGE, err_console, fail
 from mimicwarehouse.dag.cli import build_command, jobs_command
 from mimicwarehouse.demo import demo_app
 from mimicwarehouse.doctor import doctor_command
@@ -58,16 +63,15 @@ from mimicwarehouse.schema.cli import schema_app
 from mimicwarehouse.tracer import tracer_command
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 
-#: Commands that must run even when the data root is unsafe: ``doctor`` / ``paths`` report it
-#: (exit codes tell); ``guard`` never touches the data root and, as the pre-commit hook, must
-#: not be blocked by a mis-set ``MWH_DATA_ROOT`` (EP-4); ``verify`` only runs pytest in a fresh
-#: interpreter / reads the roadmap markdown, so a bad root must not hide a roadmap check (EP-6);
-#: ``schema`` only reads the packaged YAML contract and the vendored DDL, so a bad root must not
-#: hide a schema-drift check (EP-9); ``fixtures`` reads the packaged vocab + contract and writes
-#: synthetic files under ``tests/fixtures/`` in the checkout - never the data root (EP-11).
-#: Since EP-167 validation is lazy (first ``CliState.settings`` access), so this allow-list only
-#: decides *whether* that access validates; replacing it with lazy validation everywhere is the
-#: EP-16 decision.
+#: The diagnostic allow-list — the one canonical statement of the rule (EP-33 B8;
+#: ``docs/gotchas.md`` § One way to do each thing): **a command is diagnostic iff it never
+#: touches the data root**, and membership is pinned by ``tests/ep/test_ep167.py``. Members
+#: receive the *unchecked* settings so they can report a bad root instead of being blocked by
+#: it: ``doctor`` / ``paths`` report it (exit codes tell); ``guard`` is the pre-commit hook
+#: (EP-4); ``verify`` runs pytest in a fresh interpreter / reads the roadmap (EP-6); ``schema``
+#: reads the packaged contract and the vendored DDL (EP-9); ``fixtures`` writes synthetic files
+#: under ``tests/fixtures/`` in the checkout (EP-11). Every other command writes or reads under
+#: the data root, so its first ``CliState.settings`` access runs the D-29 refusals (EP-167).
 DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset(
     {"doctor", "paths", "guard", "verify", "schema", "fixtures"}
 )
@@ -108,20 +112,14 @@ class CliState:
     @property
     def settings(self) -> Settings:
         if self._settings is None:
-            console.print(f"[bold red]mwh:[/] {escape(str(self.pending_error))}", highlight=False)
-            raise typer.Exit(code=2)
+            fail("mwh", str(self.pending_error), code=EXIT_USAGE)
         if not self.diagnostic and not self._validated:
             try:
                 self._settings.require_safe()
             except config.UnsafeLocationError as exc:
-                console.print(f"[bold red]mwh:[/] {escape(str(exc))}", highlight=False)
-                raise typer.Exit(code=2) from None
+                fail("mwh", str(exc), code=EXIT_USAGE)
             self._validated = True
         return self._settings
-
-    @property
-    def data_root(self) -> Path:
-        return self.settings.data_root
 
 
 def _version_callback(value: bool) -> None:
@@ -158,7 +156,10 @@ def main(
     pending: Exception | None = None
     try:
         settings = config.load_settings(checked=False, **overrides)
-    except (config.ConfigError, config.ValidationError) as exc:
+    except (config.ConfigError, config.ValidationError, SettingsError) as exc:
+        # SettingsError (retro CLI-2): pydantic-settings raises it *before* validation when a
+        # complex field's env / .env value fails its JSON parse (an unparsable
+        # MWH_DEV_BUCKETS); it is a ValueError, not a ValidationError, so it must be named.
         pending = exc
     unknown = config.unknown_env_keys()
     if unknown:

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse.config import Settings, Tier, get_settings, workspace_root
-from mimicwarehouse.inventory import fmt_int
+from mimicwarehouse.inventory import fmt_bytes_mb, fmt_int
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -80,10 +80,6 @@ def _fmt_distinct(value: int | None, k: int = SMALL_CELL_K) -> str:
     if value is None:
         return "-"
     return f"<{k}" if value < k else fmt_int(value)
-
-
-def _fmt_mb(value: int | None) -> str:
-    return "-" if value is None else f"{value / 1e6:,.1f} MB"
 
 
 def _flags(is_identifier: bool, is_free_text: bool) -> str:
@@ -147,7 +143,7 @@ def render_dictionary(con: duckdb.DuckDBPyConnection) -> tuple[str, DictionaryRe
         else:
             shape = "partitioned (view)" if partitioned else "dimension (table)"
             lines += [
-                f"Rows: {fmt_int(row_count)} - Parquet: {_fmt_mb(size)} "
+                f"Rows: {fmt_int(row_count)} - Parquet: {fmt_bytes_mb(size)} "
                 f"({fmt_int(files)} file(s)) - {shape}",
                 "",
             ]

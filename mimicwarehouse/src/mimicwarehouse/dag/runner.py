@@ -5,9 +5,13 @@ in topological order, one tier at a time, as the **only writer** of the lake
 (single-writer rule, DESIGN §6):
 
 * ``build_id = <UTC yyyymmddThhmmss>-<tier>-<git short sha>``;
-* the build lock ``warehouse/.build.lock`` (``{pid, build_id, started}``) refuses a
-  second build while the recorded pid is alive; a stale lock (dead pid) yields only to
-  ``break_lock`` — **one** build-profile (36 GB / 12-thread) connection per machine at
+* the build lock ``warehouse/.build.lock`` (``{pid, create_time, build_id, started}``)
+  is created with ``O_CREAT | O_EXCL`` (EP-33 DAG-2: two builds racing the same data
+  root cannot both pass an existence check) and refuses a second build while the
+  recorded pid **with the recorded creation time** is alive (DAG-3: a pid Windows has
+  recycled reads as dead, so ``--break-lock`` can clear it; a pre-EP-33 lock without
+  ``create_time`` falls back to the pid-only test); a stale lock (dead pid) yields only
+  to ``break_lock`` — **one** build-profile (36 GB / 12-thread) connection per machine at
   a time (ledger ARCH-11), tests and ad-hoc readers use the app profile;
 * the free-space guard is per tier (``settings.min_free_gb_for``, EP-170/ARCH-9);
 * the raw root: ``fixture`` -> the committed ``tests/fixtures`` tree (EP-11/12),
@@ -35,6 +39,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -280,23 +285,68 @@ def lock_path(settings: Settings) -> Path:
     return settings.layout["warehouse"] / LOCK_FILENAME
 
 
+#: How often a just-created lock whose payload is not yet readable is re-read before it
+#: is classified as unreadable (a concurrent creator between its ``O_EXCL`` create and
+#: its write).
+_LOCK_READ_ATTEMPTS = 5
+_LOCK_READ_SLEEP_S = 0.05
+
+
+def _read_lock(path: Path) -> tuple[dict[str, Any], int]:
+    """``(payload, pid)`` of the lock at ``path``; ``({}, 0)`` when unreadable after a
+    few short retries (a creator still writing its payload, or a corrupt file)."""
+    for attempt in range(_LOCK_READ_ATTEMPTS):
+        try:
+            held = json.loads(path.read_text(encoding="utf-8"))
+            return held, int(held.get("pid", 0))
+        except (OSError, ValueError, AttributeError):
+            if attempt == _LOCK_READ_ATTEMPTS - 1 or not path.exists():
+                return {}, 0
+            time.sleep(_LOCK_READ_SLEEP_S)
+    return {}, 0  # pragma: no cover - the loop always returns
+
+
+def _try_create_lock(path: Path, payload: dict[str, Any]) -> bool:
+    """Exclusive create + write; False when the lock already exists (DAG-2)."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    try:
+        fd = os.open(path, flags, 0o644)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, (json.dumps(payload, indent=2) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    return True
+
+
 def acquire_lock(settings: Settings, build_id: str, *, break_lock: bool = False) -> Path:
     """Take ``warehouse/.build.lock`` or raise :class:`BuildLockError` (module docstring).
 
-    A live pid always refuses; a stale lock (dead pid, or unreadable) is taken over
-    only with ``break_lock``.
+    The lock is created exclusively (``O_CREAT | O_EXCL``); when it already exists its
+    holder is classified by pid **and** creation time (:func:`jobs.pid_alive`). A live
+    holder always refuses; a stale lock (dead or recycled pid, or unreadable) is taken
+    over only with ``break_lock`` — by unlinking it and repeating the exclusive create,
+    so two take-overs cannot both succeed.
     """
-    from mimicwarehouse.dag.jobs import pid_alive
+    from mimicwarehouse.dag.jobs import pid_alive, process_create_time
 
     path = lock_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.is_file():
-        try:
-            held = json.loads(path.read_text(encoding="utf-8"))
-            held_pid = int(held.get("pid", 0))
-        except (OSError, ValueError):
-            held, held_pid = {}, 0
-        if held_pid and pid_alive(held_pid):
+    payload: dict[str, Any] = {
+        "pid": os.getpid(),
+        "create_time": process_create_time(os.getpid()),
+        "build_id": build_id,
+        "started": utc_now_iso(),
+    }
+    for _attempt in range(2):
+        if _try_create_lock(path, payload):
+            return path
+        held, held_pid = _read_lock(path)
+        held_create = held.get("create_time")
+        if held_pid and pid_alive(
+            held_pid, float(held_create) if isinstance(held_create, (int, float)) else None
+        ):
             raise BuildLockError(
                 f"{path}: build {held.get('build_id', '?')} (pid {held_pid}) is running — "
                 "one build-profile connection per machine (DESIGN §6); wait for it"
@@ -307,11 +357,9 @@ def acquire_lock(settings: Settings, build_id: str, *, break_lock: bool = False)
                 f"(pid {held_pid or '?'} is not alive) — rerun with --break-lock to take over"
             )
         path.unlink(missing_ok=True)
-    import os
-
-    payload = {"pid": os.getpid(), "build_id": build_id, "started": utc_now_iso()}
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
-    return path
+    raise BuildLockError(
+        f"{path}: could not take over the stale lock (another build re-created it first); rerun"
+    )
 
 
 def release_lock(settings: Settings, build_id: str) -> None:

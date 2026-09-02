@@ -6,12 +6,13 @@ and listed in ``DIAGNOSTIC_COMMANDS``: nothing here touches the data root, so a 
 contract / yaml / pydantic work is imported inside the commands.
 
 Console output stays cp1252-safe (roadmap Risk 13): plain ASCII, no arrows or box glyphs beyond
-what rich's ``Table`` draws with ``box.SIMPLE``.
+what rich's ``Table`` draws with ``box.SIMPLE``. Errors and ``--json`` follow the EP-33 canon
+(:func:`~mimicwarehouse.console.fail` — ``mwh schema …:`` on stderr, exit 2 — and
+:func:`~mimicwarehouse.console.emit_json`).
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -20,7 +21,7 @@ from rich import box
 from rich.markup import escape
 from rich.table import Table as RichTable
 
-from mimicwarehouse.console import console, err_console
+from mimicwarehouse.console import EXIT_FINDINGS, EXIT_OK, EXIT_USAGE, console, emit_json, fail
 
 schema_app = typer.Typer(
     name="schema",
@@ -37,8 +38,7 @@ def _load():
     try:
         return load_contract()
     except SchemaError as exc:
-        err_console.print(f"[bold red]mwh schema:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+        fail("mwh schema", str(exc), code=EXIT_USAGE)
 
 
 def _resolve_table(contract, name: str):
@@ -47,8 +47,7 @@ def _resolve_table(contract, name: str):
     try:
         return contract.table(name)
     except (KeyError, SchemaError) as exc:
-        err_console.print(f"[bold red]mwh schema:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+        fail("mwh schema", str(exc), code=EXIT_USAGE)
 
 
 @schema_app.command("list")
@@ -63,8 +62,7 @@ def list_command(
     contract = _load()
     tables = contract.by_schema(schema) if schema else contract.tables
     if schema and not tables:
-        err_console.print(f"[bold red]mwh schema:[/] no tables in schema {escape(schema)!s}")
-        raise typer.Exit(code=2)
+        fail("mwh schema", f"no tables in schema {schema}", code=EXIT_USAGE)
     if as_json:
         payload = [
             {
@@ -82,14 +80,12 @@ def list_command(
             }
             for t in tables
         ]
-        console.print_json(
-            json.dumps(
-                {
-                    "tables": payload,
-                    "content_hash": contract.content_hash(),
-                    "structural_hash": contract.structural_hash(),
-                }
-            )
+        emit_json(
+            {
+                "tables": payload,
+                "content_hash": contract.content_hash(),
+                "structural_hash": contract.structural_hash(),
+            }
         )
         return
     rt = RichTable(box=box.SIMPLE, header_style="bold")
@@ -129,7 +125,7 @@ def show_command(
         payload["foreign_keys"] = [fk.model_dump(mode="json") for fk in fks]
         payload["contract_hash"] = contract.content_hash()
         payload["contract_schema_hash"] = contract.structural_hash()
-        console.print_json(json.dumps(payload))
+        emit_json(payload)
         return
     console.print(f"[bold]{t.qualified_name}[/]  ({t.dataset}; {t.csv_path})", highlight=False)
     if t.comment:
@@ -192,8 +188,7 @@ def ddl_command(
             typer.echo(t.duckdb_ddl(if_not_exists=if_not_exists))
         return
     if not table:
-        err_console.print("[bold red]mwh schema:[/] give <schema>.<table> or --all")
-        raise typer.Exit(code=2)
+        fail("mwh schema", "give <schema>.<table> or --all", code=EXIT_USAGE)
     t = _resolve_table(contract, table)
     typer.echo(t.duckdb_ddl(if_not_exists=if_not_exists))
 
@@ -211,29 +206,26 @@ def check_command(
     try:
         drifts = check_contract(contract)
     except (SchemaError, FileNotFoundError) as exc:
-        err_console.print(f"[bold red]mwh schema check:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+        fail("mwh schema check", str(exc), code=EXIT_USAGE)
     info = vendor_info()
     if as_json:
-        console.print_json(
-            json.dumps(
-                {
-                    "vendored_sha": info.sha,
-                    "contract_hash": contract.content_hash(),
-                    "tables": len(contract.tables),
-                    "drift": [
-                        {
-                            "schema": d.schema,
-                            "table": d.table,
-                            "column": d.column,
-                            "kind": d.kind,
-                            "ddl": d.expected,
-                            "yaml": d.actual,
-                        }
-                        for d in drifts
-                    ],
-                }
-            )
+        emit_json(
+            {
+                "vendored_sha": info.sha,
+                "contract_hash": contract.content_hash(),
+                "tables": len(contract.tables),
+                "drift": [
+                    {
+                        "schema": d.schema,
+                        "table": d.table,
+                        "column": d.column,
+                        "kind": d.kind,
+                        "ddl": d.expected,
+                        "yaml": d.actual,
+                    }
+                    for d in drifts
+                ],
+            }
         )
     else:
         for d in drifts:
@@ -244,7 +236,7 @@ def check_command(
             f"schema check: {n} tables vs mimic-code {info.short_sha}: {verdict}",
             highlight=False,
         )
-    raise typer.Exit(code=1 if drifts else 0)
+    raise typer.Exit(code=EXIT_FINDINGS if drifts else EXIT_OK)
 
 
 @schema_app.command("transcribe")
@@ -267,10 +259,7 @@ def transcribe_command(
     from mimicwarehouse.schema.transcribe import draft_schema_yaml, parse_create_sql
 
     if not create_sql.is_file():
-        err_console.print(
-            f"[bold red]mwh schema transcribe:[/] no such file {escape(str(create_sql))}"
-        )
-        raise typer.Exit(code=2)
+        fail("mwh schema transcribe", f"no such file {create_sql}", code=EXIT_USAGE)
     try:
         tables = parse_create_sql(create_sql.read_text(encoding="utf-8"))
         text = draft_schema_yaml(
@@ -281,10 +270,7 @@ def transcribe_command(
             source_ddl=source_ddl or create_sql.as_posix(),
         )
     except SchemaError as exc:
-        err_console.print(
-            f"[bold red]mwh schema transcribe:[/] {escape(str(exc))}", highlight=False
-        )
-        raise typer.Exit(code=2) from None
+        fail("mwh schema transcribe", str(exc), code=EXIT_USAGE)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8", newline="\n")
     n = sum(1 for t in tables if t.schema == schema)

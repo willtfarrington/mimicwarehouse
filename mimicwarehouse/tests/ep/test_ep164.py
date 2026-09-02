@@ -187,9 +187,11 @@ def test_second_realtime_product_warns_and_names_the_allow_list(
     assert "Synthetic Shield" in res.detail and "Windows Defender" in res.detail
     assert "allow list" in res.detail and "not readable non-elevated" in res.detail
     assert "D-38" in res.detail
-    for path in doctor.D38_ALLOW_LIST:  # the seven paths, spelled out
+    for path in doctor.D38_ALLOW_LIST:  # every allow-list path, spelled out
         assert path in res.detail
-    assert len(doctor.D38_ALLOW_LIST) == 7
+    # EP-33 (2026-09-01, retro CLI-3/P01-1): seven -> nine after the D-38 addendum (D-43 item 5
+    # added the uv cache and the Claude scratchpad).
+    assert len(doctor.D38_ALLOW_LIST) == 9
     assert res.value["non_defender"] == ["Synthetic Shield"]
     assert res.value["non_defender_realtime"] == ["Synthetic Shield"]
     by_name = {p["name"]: p for p in res.value["products"]}

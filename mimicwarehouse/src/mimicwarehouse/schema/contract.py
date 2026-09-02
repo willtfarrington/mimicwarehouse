@@ -602,8 +602,10 @@ class Contract(_Frozen):
         load_class, subject_keyed; plus the FK tuples and the column-map mechanics (which
         tables are identity / mapped / absent and their add/rename/drop sets). Comments,
         unit metadata, ``upstream_*`` records and version notes are **excluded**, so a
-        wording edit changes :meth:`content_hash` but not this — the fixture manifest and
-        the EP-17 loader pin this one.
+        wording edit changes :meth:`content_hash` but not this — the fixture manifest
+        (``contract_schema_hash``) pins this one. The EP-17 loader does **not**: it pins
+        its own per-table ``(name, type)`` digest,
+        :func:`mimicwarehouse.loader.manifest.table_schema_hash` (EP-33, retro CTR-2).
         """
         payload = {
             "tables": [

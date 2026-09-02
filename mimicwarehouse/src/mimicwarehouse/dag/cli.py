@@ -6,6 +6,10 @@ immediately — the shape every full-tier brief uses (foreground shells are capp
 ~10 min). ``jobs`` lists background jobs or prints one job's state and log tail.
 
 ``--data-root`` is the **global** ``mwh`` option (EP-167): ``mwh --data-root X build ...``.
+``--background`` with ``--dry-run`` is refused (EP-33 DAG-1): a dry run prints its plan to
+the foreground console and must never detach a real build. Errors go through
+:func:`mimicwarehouse.console.fail` (stderr, exit 2); progress logging through
+:func:`mimicwarehouse.console.configure_progress_logging` (EP-33 B8).
 Import budget: heavy modules (duckdb, polars, psutil, the runner) are imported inside
 the command bodies (cli.py rule).
 """
@@ -13,14 +17,12 @@ the command bodies (cli.py rule).
 from __future__ import annotations
 
 import contextlib
-import logging
-import sys
 from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.markup import escape
 
-from mimicwarehouse.console import console
+from mimicwarehouse.console import EXIT_FINDINGS, configure_progress_logging, console, fail
 
 if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.cli import CliState
@@ -35,22 +37,6 @@ FALLBACK_RECIPE = (
     "Start-Process pwsh -ArgumentList '-NoProfile','-c','uv run --group dev mwh build "
     "... *> <runs_jobs>\\<name>.log'"
 )
-
-
-def _fail(message: str, code: int = 2) -> None:
-    console.print(f"[bold red]mwh build:[/] {escape(message)}", highlight=False)
-    raise typer.Exit(code=code)
-
-
-def _configure_build_logging() -> None:
-    """INFO lines (steps, counts, bytes, wall, rss — never rows) to stdout, so a
-    background job's log captures the runner's and the loader's progress."""
-    logger = logging.getLogger("mimicwarehouse")
-    logger.setLevel(logging.INFO)
-    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-        logger.addHandler(handler)
 
 
 def _split_csv(values: list[str]) -> list[str]:
@@ -110,14 +96,20 @@ def build_command(
     """Run the stage DAG for one tier (EP-19; the only writer of the lake, DESIGN 6)."""
     state: CliState = ctx.obj
     if tier not in TIERS:
-        _fail(f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
+        fail("mwh build", f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
     settings = state.settings
     selects = _split_csv(select or [])
     tags = _split_csv(tag or [])
 
     if background:
+        if dry_run:  # DAG-1: the plan needs the foreground console; never detach a real build
+            fail(
+                "mwh build",
+                "--dry-run cannot be combined with --background (a dry run prints "
+                "its plan to this console; drop --background to see it)",
+            )
         if not job:
-            _fail("--background requires --job NAME")
+            fail("mwh build", "--background requires --job NAME")
         from mimicwarehouse.dag import jobs as jobs_mod
 
         argv: list[str] = []
@@ -137,8 +129,7 @@ def build_command(
         try:
             info = jobs_mod.launch(argv, job, settings)
         except jobs_mod.JobError as exc:
-            _fail(str(exc))
-            return
+            fail("mwh build", str(exc))
         console.print(
             f"launched job [bold]{escape(info.job)}[/] (pid {info.pid}) - log {escape(info.log)}",
             highlight=False,
@@ -152,7 +143,7 @@ def build_command(
     from mimicwarehouse.dag.spec import DagError, load_dag
     from mimicwarehouse.loader.manifest import utc_now_iso
 
-    _configure_build_logging()
+    configure_progress_logging()
 
     def report_job(state_: str, exit_code: int) -> None:
         # a bad name only means "no state file to report into" — never fail the build
@@ -177,8 +168,7 @@ def build_command(
         )
     except (DagError, runner_mod.BuildLockError, config.ConfigError) as exc:
         report_job("failed", 2)
-        _fail(str(exc))
-        return
+        fail("mwh build", str(exc))
 
     if dry_run:
         console.print(f"[bold]plan[/] ({result.tier}, {len(result.steps)} step(s)):")
@@ -210,9 +200,9 @@ def build_command(
     console.print(table)
     if result.snapshot_id is not None:
         console.print(f"snapshot core/{result.tier} = {result.snapshot_id}", highlight=False)
-    report_job("done" if result.ok else "failed", 0 if result.ok else 1)
+    report_job("done" if result.ok else "failed", 0 if result.ok else EXIT_FINDINGS)
     if not result.ok:
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=EXIT_FINDINGS)
 
 
 def jobs_command(
@@ -231,9 +221,8 @@ def jobs_command(
     if job is not None:
         info = jobs_mod.read_job(job, settings)
         if info is None:
-            console.print(f"[bold red]mwh jobs:[/] no job {escape(job)!s}", highlight=False)
-            raise typer.Exit(code=2)
-        alive = jobs_mod.pid_alive(info.pid)
+            fail("mwh jobs", f"no job {job}")
+        alive = jobs_mod.pid_alive(info.pid, info.create_time)
         console.print(
             f"job [bold]{escape(info.job)}[/]  state={info.state}"
             f"{' (pid alive)' if info.state == 'running' and alive else ''}"
@@ -258,7 +247,7 @@ def jobs_command(
             escape(info.job),
             info.state,
             str(info.pid),
-            "yes" if jobs_mod.pid_alive(info.pid) else "no",
+            "yes" if jobs_mod.pid_alive(info.pid, info.create_time) else "no",
             "" if info.exit_code is None else str(info.exit_code),
             info.started,
             info.finished or "",

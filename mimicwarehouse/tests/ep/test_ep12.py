@@ -13,8 +13,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import subprocess
-import sys
 import time
 import tomllib
 from collections.abc import Iterator
@@ -861,7 +859,10 @@ def test_poe_tasks_and_docs() -> None:
         "poe"
     ]["tasks"]
     assert tasks["test-dev"] == "pytest --tier dev" and tasks["test-full"] == "pytest --tier full"
-    assert tasks["check"] == ["lint", "typecheck", "test"]  # fixture-only
+    # EP-33 B5 (2026-09-01, churn rule - owner-approved): the exact chain pin was the coupling
+    # bug; assert the protected properties (the three original gates present, fixture-only).
+    assert {"lint", "typecheck", "test"} <= set(tasks["check"])
+    assert not {"test-dev", "test-full"} & set(tasks["check"])  # fixture-only
     readme = (WORKSPACE / "tests" / "README.md").read_text(encoding="utf-8")
     needles = ("PYTEST_TIER", "--tier", "fixture < dev < full", "demo", "default_tier",
                "--with-demo", "PYTEST_DEMO", "needs=")  # fmt: skip
@@ -945,17 +946,8 @@ def test_mwh_fixtures_build_writes_all_files(
     assert before == after
 
 
-def test_mwh_help_still_light() -> None:
-    code = (
-        "import sys, mimicwarehouse.cli; "
-        "heavy = ('polars', 'numpy', 'duckdb', 'pandas', 'pyarrow'); "
-        "bad = [m for m in heavy if m in sys.modules]; "
-        "print(bad); sys.exit(1 if bad else 0)"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120, check=False
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
+# EP-33 B6 (2026-09-01): test_mwh_help_still_light deleted - identical to the EP-11 duplicate;
+# the canonical CLI import-budget test (test_ep02, helpers.assert_import_budget) covers it.
 
 
 def test_icu_item_helper() -> None:

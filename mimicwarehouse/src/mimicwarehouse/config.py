@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import ctypes
 import functools
-import json
 import os
 import re
 import shutil
@@ -883,7 +882,7 @@ def paths_command(
     lake/rejects): path · exists · MB used; --create makes it after the checks."""
     state: CliState = ctx.obj
     settings = state.settings
-    from mimicwarehouse.console import console
+    from mimicwarehouse.console import EXIT_USAGE, console, emit_json, fail
 
     unsafe: str | None = None
     try:
@@ -893,21 +892,19 @@ def paths_command(
 
     created: list[Path] | None = None
     if create:
+        # EP-33 (B8): refusals carry the `mwh paths:` prefix and go to stderr via console.fail;
+        # the message text after the prefix is unchanged
         if unsafe is not None:
-            console.print(f"[bold red]refused:[/] {escape(unsafe)}", highlight=False)
-            console.print("nothing was created.")
-            raise typer.Exit(code=2)
+            fail("mwh paths", f"refused: {unsafe}; nothing was created.", code=EXIT_USAGE)
         try:
             require_free_space(settings.data_root, settings.min_free_gb)
         except DiskGuardError as exc:
-            console.print(f"[bold red]refused:[/] {escape(str(exc))}", highlight=False)
-            console.print("nothing was created.")
-            raise typer.Exit(code=2) from None
+            fail("mwh paths", f"refused: {exc}; nothing was created.", code=EXIT_USAGE)
         created = create_layout(settings)
 
     report = paths_report(settings, unsafe=unsafe, created=created)
     if json_output:
-        sys.stdout.write(json.dumps(report, indent=2) + "\n")
+        emit_json(report)
     else:
         source = report["data_root_source"]
         console.print(
@@ -925,9 +922,9 @@ def paths_command(
             console.print(
                 f"created {len(created)} new path(s)" if created else "already complete — no change"
             )
-        if unsafe is not None:
-            console.print(f"[bold red]unsafe data root:[/] {escape(unsafe)}", highlight=False)
-    raise typer.Exit(code=2 if unsafe is not None else 0)
+        if unsafe is not None:  # the table above is the diagnosis; the verdict exits 2
+            fail("mwh paths", f"unsafe data root: {unsafe}", code=EXIT_USAGE)
+    raise typer.Exit(code=EXIT_USAGE if unsafe is not None else 0)
 
 
 __all__ = [

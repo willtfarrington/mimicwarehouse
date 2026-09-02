@@ -14,12 +14,18 @@ written), foreground-sized:
 2. **large sequential pass** — one Parquet of ``large_mb`` (default 2,048 MB; the EP-23/26
    event-table shape); wall time and MB/s are recorded separately for both passes;
 3. **manifest churn** — line-at-a-time appends to a JSONL manifest beside the files, then
-   atomic rewrites via the :func:`mimicwarehouse.inventory._atomic_write_text` retry pattern
-   (the EP-19 ledger shape);
+   atomic rewrites via the :func:`mimicwarehouse.fsio.atomic_write_text` retry pattern
+   (the EP-19 ledger shape; ``inventory._atomic_write_text`` is the kept alias);
 4. **rename-aside swap** — write ``canary.duckdb.new``, ``os.rename`` the live file aside,
    ``os.replace`` the new one in, remove the ``.old`` (the DESIGN §6 catalog protocol);
 5. **cleanup** — delete the whole canary tree unless ``keep`` (the delete-loop shape that
    triggered the 2026-08-17 ``bash.exe`` kill, D-42).
+
+The appends of pass 3 and the raw ``os.rename`` / ``os.replace`` / ``os.remove`` sequence of
+pass 4 are the EP-33 canon's two **sanctioned exceptions** to :mod:`mimicwarehouse.fsio` and
+:mod:`mimicwarehouse.publish` (owner decision at the EP-33 triage checkpoint): the canary
+measures the raw OS write pattern against the endpoint-security products, so its writes stay
+verbatim and its EP-171 baselines stay comparable — do not route them through the helpers.
 
 After each phase the module **re-reads what it wrote** (sha256 of every file, compared with
 the hash taken at write time), so a silent quarantine or in-flight alteration surfaces as a
@@ -32,10 +38,14 @@ The canary tree lives at ``layout["tmp"] / "canary"`` (the ``canary`` leaf is no
 key — this module creates it, the EP-10 ``raw`` precedent). ``mwh canary write`` is **not**
 in :data:`mimicwarehouse.cli.DIAGNOSTIC_COMMANDS` — it writes under the data root, so the
 D-29 location refusals and :func:`mimicwarehouse.config.require_free_space` run first (the
-``mwh inventory`` precedent). Deliberately **not** a doctor check: the doctor never writes.
+``mwh inventory`` precedent). Deliberately **not** a doctor check: the doctor's only write
+is ``check_data_root``'s writability probe (one temp file created and removed under the
+data root; retro CLI-7) — it never rehearses I/O shapes or leaves files behind.
 
 Import budget: imported by ``mwh`` at start-up (the typer sub-app lives here), so duckdb is
-imported inside the function that needs it.
+imported inside the function that needs it. Errors and ``--json`` follow the EP-33 canon
+(:func:`~mimicwarehouse.console.fail` — ``mwh canary:`` on stderr — and
+:func:`~mimicwarehouse.console.emit_json`).
 """
 
 from __future__ import annotations
@@ -58,8 +68,9 @@ from rich.table import Table as RichTable
 
 from mimicwarehouse import config
 from mimicwarehouse.config import Settings
-from mimicwarehouse.console import console, err_console
-from mimicwarehouse.inventory import _atomic_write_text, fmt_int, open_connection
+from mimicwarehouse.console import EXIT_FINDINGS, EXIT_USAGE, console, emit_json, fail
+from mimicwarehouse.fsio import atomic_write_text
+from mimicwarehouse.inventory import fmt_int, open_connection
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -369,6 +380,9 @@ def run_canary(
         )
 
         # -- 3. manifest churn (EP-19 ledger shape) ----------------------------------------
+        # Sanctioned exception to the fsio.append_jsonl canon (module docstring): the buffered
+        # append + flush per line below is the raw pattern the canary measures; the atomic
+        # rewrites use fsio.atomic_write_text because that *is* the raw pattern (temp + replace).
         manifest = root / MANIFEST_NAME
         note("manifest:start", manifest)
         t0 = time.perf_counter()
@@ -390,7 +404,7 @@ def run_canary(
                 f.flush()
         for rev in range(MANIFEST_REWRITES):  # the snapshot-rewrite shape (EP-10 flush())
             payload = "\n".join([json.dumps({"rev": rev}, separators=(",", ":")), *lines]) + "\n"
-            _atomic_write_text(manifest, payload)
+            atomic_write_text(manifest, payload)
         seconds_write = time.perf_counter() - t0
         manifest_records = _record([manifest])
         note("manifest:written", manifest)
@@ -407,6 +421,9 @@ def run_canary(
         )
 
         # -- 4. rename-aside swap (DESIGN section 6 catalog protocol) ----------------------
+        # Sanctioned exception to the publish.swap_file canon (module docstring): the inline
+        # os.rename / os.replace / os.remove sequence is the raw pattern the canary measures;
+        # production code swaps through mimicwarehouse.publish (retries, crash recovery).
         swap_dir = root / "swap"
         swap_dir.mkdir(parents=True, exist_ok=True)
         live = swap_dir / SWAP_NAME
@@ -494,11 +511,6 @@ def _settings(ctx: typer.Context) -> Settings:
     return settings if isinstance(settings, Settings) else config.get_settings()
 
 
-def _fail(message: str, code: int = 2) -> None:
-    err_console.print(f"[bold red]mwh canary:[/] {escape(message)}", highlight=False)
-    raise typer.Exit(code=code)
-
-
 def _fmt_seconds(value: float) -> str:
     return f"{value:,.1f}"
 
@@ -539,17 +551,14 @@ def write_command(
             observer=None if as_json else _progress,
         )
     except ValueError as exc:
-        _fail(str(exc))
-        return
+        fail("mwh canary", str(exc), code=EXIT_USAGE)
     except config.DiskGuardError as exc:
-        _fail(str(exc))
-        return
+        fail("mwh canary", str(exc), code=EXIT_USAGE)
     except CanaryError as exc:
-        _fail(str(exc), code=1)
-        return
+        fail("mwh canary", str(exc), code=EXIT_FINDINGS)
 
     if as_json:
-        console.print_json(json.dumps(result.to_dict()))
+        emit_json(result.to_dict())
         return
     rt = RichTable(box=box.SIMPLE, header_style="bold")
     for c in ("pass", "files", "bytes", "write s", "MB/s", "verify s", "ops"):

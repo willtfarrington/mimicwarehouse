@@ -21,20 +21,16 @@ and metadata — never a row, never an identifier value.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 import helpers
-from mimicwarehouse import config
+from mimicwarehouse import config, publish
 from mimicwarehouse.catalog import build as build_mod
-from mimicwarehouse.catalog.build import (
-    CatalogSwapError,
-    build_catalog,
-    catalog_new_path,
-    qualifies,
-)
+from mimicwarehouse.catalog.build import CatalogSwapError, build_catalog, qualifies
 from mimicwarehouse.catalog.cli import EXIT_REFUSED
 from mimicwarehouse.catalog.connect import CatalogOpenError, open_catalog
 from mimicwarehouse.cli import app
@@ -60,6 +56,13 @@ def data_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     root = helpers.tmp_data_root(monkeypatch, tmp_path)
     yield root
     config.configure()
+
+
+@pytest.fixture(scope="session")
+def fixture_manifest(fixture_root: Path) -> dict[str, Any]:
+    """``tests/fixtures/manifest.json`` — the churn-rule source of expected counts
+    (EP-33 TST-2: no hard-coded fixture literals)."""
+    return json.loads((fixture_root / "manifest.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -105,7 +108,7 @@ def _information_schema_tables(con: duckdb_mod.DuckDBPyConnection) -> set[str]:
 def test_catalog_file_published_and_new_gone(fixture_lake_settings: Settings) -> None:
     path = fixture_lake_settings.catalog_path("fixture")
     assert path.is_file(), "the runner's catalog step publishes warehouse/fixture.duckdb"
-    assert not catalog_new_path(path).exists(), "no .duckdb.new left after the swap"
+    assert not publish.new_path_for(path).exists(), "no .duckdb.new left after the swap"
     assert path.parent == fixture_lake_settings.layout["warehouse"]
 
 
@@ -239,7 +242,7 @@ def test_swap_with_open_reader_raises_and_keeps_old_catalog(mini_lake: Settings)
     finally:
         con.close()
     rebuilt = build_catalog("fixture", mini_lake, lake_root=lake)
-    assert rebuilt.path.is_file() and not catalog_new_path(rebuilt.path).exists()
+    assert rebuilt.path.is_file() and not publish.new_path_for(rebuilt.path).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -296,9 +299,15 @@ def test_sql_refuses_row_level(data_root: Path) -> None:
     assert "refused" in result.output
 
 
-def test_sql_metadata_surface(fixture_lake_settings: Settings) -> None:
+def test_sql_metadata_surface(
+    fixture_lake_settings: Settings, contract: Contract, fixture_manifest: dict[str, Any]
+) -> None:
     runner = helpers.cli_runner()
     root = ["--data-root", str(fixture_lake_settings.data_root)]
+    # EP-33 (TST-2): the subject count comes from manifest.json (one patients row per
+    # subject), never a literal — the fixture 0.3.0 regeneration must not break this test
+    patients_csv = f"mimic-iv-3.1/{contract.table(HOSP, 'patients').csv_path}"
+    subjects = int(fixture_manifest["files"][patients_csv]["rows"])
     try:
         listed = runner.invoke(app, [*root, "sql", "--tier", "fixture", "--tables"])
         assert listed.exit_code == 0, listed.output
@@ -313,18 +322,22 @@ def test_sql_metadata_surface(fixture_lake_settings: Settings) -> None:
         assert payload == {
             "tier": "fixture",
             "table": f"{HOSP}.patients",
-            "count": 120,  # the committed fixture's 120 synthetic subjects (EP-11)
+            "count": subjects,  # the committed fixture's synthetic subjects (EP-11)
             "suppressed": False,
             "k": 11,
         }
 
-        # a count under the threshold is suppressed (GOVERNANCE §5; k raised to prove it)
+        # a count under the threshold is suppressed (GOVERNANCE §5; k raised to prove it):
+        # the true count never appears as a number token in the output (k does)
+        k = subjects + 1
         small = runner.invoke(
             app,
-            [*root, "sql", "--tier", "fixture", "--k", "1000", "--count", f"{HOSP}.patients"],
+            [*root, "sql", "--tier", "fixture", "--k", str(k), "--count", f"{HOSP}.patients"],
         )
         assert small.exit_code == 0, small.output
-        assert "suppressed" in small.output and "120" not in small.output
+        numbers = re.findall(r"\d+", small.output)
+        assert "suppressed" in small.output and str(k) in numbers, small.output
+        assert str(subjects) not in numbers, small.output
 
         described = runner.invoke(
             app,

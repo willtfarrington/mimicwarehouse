@@ -177,7 +177,8 @@ def test_lock_refuses_live_and_stale(
     assert lock.is_file()  # a refused run never removes someone else's lock
 
     # stale (dead pid): refused without --break-lock, taken over with it
-    monkeypatch.setattr(jobs_mod, "pid_alive", lambda pid: False)
+    # EP-33: pid_alive gained a create_time argument (DAG-3); the stub accepts it
+    monkeypatch.setattr(jobs_mod, "pid_alive", lambda pid, create_time=None: False)
     with pytest.raises(runner_mod.BuildLockError, match="break-lock"):
         runner_mod.run(dag, "fixture", select=[f"stage.{HOSP}.d_labitems"], settings=settings)
     result = runner_mod.run(

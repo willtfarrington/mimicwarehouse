@@ -1,0 +1,12 @@
+# Repo-root poe entry point (EP-33 B5; DESIGN section 15).
+#
+# poethepoet reads this file when invoked from the repository root and pulls in every task of
+# the uv project's [tool.poe.tasks] table, running each with cwd=mimicwarehouse — so the dev
+# loop no longer needs a `cd mimicwarehouse` first:
+#
+#     uv run --project mimicwarehouse --group dev poe check
+#     uv run --project mimicwarehouse --group dev poe test -m ep_33
+#
+# Deliberately NOT a root pyproject.toml: that would enter uv's upward project discovery and
+# change what a bare `uv run` at the root resolves to. This file is invisible to uv.
+include = [{ path = "mimicwarehouse/pyproject.toml", cwd = "mimicwarehouse" }]

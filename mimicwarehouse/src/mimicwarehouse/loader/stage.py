@@ -7,8 +7,9 @@ path and reuses everything here.
 Write protocol (DESIGN §5): stage into ``<dest>.new/part-0.parquet`` with
 ``COPY (SELECT <contract cols> FROM read_csv(...) ORDER BY <contract sort_keys>)``
 (zstd level 3, 1 M-row row groups, ``preserve_insertion_order = true`` for this one
-statement — small tables only), then publish with :func:`mimicwarehouse.paths.swap_dir`
-(rename-aside two-step; crash-safe, not atomic — readers must be closed). The sort keys
+statement — small tables only), then publish with :func:`mimicwarehouse.publish.swap_dir`
+(rename-aside two-step; crash-safe, not atomic — readers must be closed; EP-33 moved the
+primitive from ``mimicwarehouse.paths`` to :mod:`mimicwarehouse.publish`). The sort keys
 carry same-table tie-breaks since EP-169, so two stagings of the same file are
 byte-identical (the determinism test pins their sha256).
 
@@ -29,7 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mimicwarehouse import paths
+from mimicwarehouse import publish
 from mimicwarehouse.config import Settings, get_settings
 from mimicwarehouse.loader.csv import plan_csv_read, plan_map_notes
 from mimicwarehouse.loader.manifest import (
@@ -142,9 +143,9 @@ def stage_unpartitioned(
 
     plan = plan_csv_read(source, table_spec, column_map)
     map_notes = plan_map_notes(table_spec, plan) if column_map is not None else None
-    new_dir = paths.new_dir_for(dest_dir)
-    if new_dir.exists():  # a stale .new from a crashed stage
-        shutil.rmtree(new_dir)
+    new_dir = publish.new_path_for(dest_dir)
+    if new_dir.exists():  # a stale .new from a crashed stage (retrying rmtree, WIN-4)
+        publish.rmtree(new_dir)
     new_dir.mkdir(parents=True, exist_ok=True)
     part = new_dir / PART_FILENAME
 
@@ -177,7 +178,7 @@ def stage_unpartitioned(
     (rows,) = con.execute(
         f"SELECT num_rows FROM parquet_file_metadata({_sql_str(str(part))})"
     ).fetchone()  # type: ignore[misc]
-    paths.swap_dir(new_dir, dest_dir)
+    publish.swap_dir(new_dir, dest_dir)
 
     published = dest_dir / PART_FILENAME
     line = ManifestLine(

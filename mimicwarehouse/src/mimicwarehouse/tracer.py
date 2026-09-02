@@ -16,9 +16,11 @@ The three public services and the runner:
   ``first_careunit``, each as ``count(*) AS n`` plus
   ``count(*) FILTER (WHERE hospital_expire_flag = 1) AS n_deaths`` — a genuine count
   column, so the row-wise k = 11 suppression applies to deaths too (``rows_suppressed``
-  is recorded). (The brief's ``sum(hospital_expire_flag)`` returns HUGEINT, which the
-  safe-query AST walk cannot re-cast without tripping the aggregate-only rule; the
-  FILTER form keeps the same value as a BIGINT count.)
+  is recorded). (The brief's ``sum(hospital_expire_flag)`` returns HUGEINT; when EP-31
+  shipped, the safe-query walk refused a re-cast, so the FILTER form was chosen — it is
+  also the better statement, a real count the suppressor recognises. EP-33 B1a lifted the
+  cast restriction — ``CAST(sum(x) AS BIGINT)`` now verifies — but the shipped FILTER
+  statements stay as they are.)
 * :func:`fit` — reads the ``cohort`` CTE through
   :func:`~mimicwarehouse.catalog.connect.open_catalog` (READ_ONLY, in-process only; the
   frame is never printed or written) into polars -> pandas -> statsmodels ``Logit``
@@ -64,7 +66,7 @@ import typer
 from rich.markup import escape
 
 from mimicwarehouse.config import Settings, Tier, get_settings
-from mimicwarehouse.console import console
+from mimicwarehouse.console import EXIT_USAGE, console, fail
 
 if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.cli import CliState
@@ -89,7 +91,10 @@ MODEL_FORMULA = (
     "+ C(first_careunit) + C(anchor_year_group)"
 )
 
-#: Longest string value allowed in any run-folder file (mirrors safe.FREE_TEXT_MAX_CHARS).
+#: Longest string value allowed in any run-folder file. Deliberately a **mirror** of
+#: ``safe.FREE_TEXT_MAX_CHARS`` rather than an import: this module is imported by
+#: ``cli.py`` at start-up and ``safe`` is not (``mwh --help`` import budget, DESIGN §15);
+#: ``test_ep33`` asserts the two stay equal.
 VALUE_MAX_CHARS = 64
 
 CLAIM_TYPE = "associational (exploratory)"
@@ -297,7 +302,10 @@ def fit(tier: Tier | str, *, settings: Settings | None = None) -> dict[str, Any]
             ors = np.exp(fitted.params)
             auc = float(roc_auc_score(pdf_fit["hospital_expire_flag"], fitted.predict(pdf_fit)))
     except Exception as exc:  # separation / singular matrix on tiny tiers
-        reason = f"{type(exc).__name__}: {exc}"[:VALUE_MAX_CHARS]
+        from mimicwarehouse.safe import sanitize_error_text
+
+        # DKB-2: no raw error text (it could quote a value) enters a run-folder file
+        reason = f"{type(exc).__name__}: {sanitize_error_text(str(exc))}"[:VALUE_MAX_CHARS]
         payload |= {"status": "not_fit", "reason": reason}
         return payload
     converged = bool(fitted.mle_retvals.get("converged", False))
@@ -511,9 +519,9 @@ def _new_run_dir(tier: str, settings: Settings) -> tuple[str, Path]:
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    from mimicwarehouse.inventory import _atomic_write_text
+    from mimicwarehouse.fsio import atomic_write_text
 
-    _atomic_write_text(path, json.dumps(payload, indent=2, default=str) + "\n")
+    atomic_write_text(path, json.dumps(payload, indent=2, default=str) + "\n")
 
 
 def run_tracer(
@@ -571,9 +579,9 @@ def run_tracer(
     _write_json(out_dir / "attrition.json", {"steps": att})
     _write_json(out_dir / "descriptives.json", desc)
     _write_json(out_dir / "model.json", model)
-    from mimicwarehouse.inventory import _atomic_write_text
+    from mimicwarehouse.fsio import atomic_write_text
 
-    _atomic_write_text(out_dir / "report.md", report)
+    atomic_write_text(out_dir / "report.md", report)
     return TracerResult(
         run_id=run_id,
         tier=str(tier),
@@ -588,20 +596,16 @@ def run_tracer(
 def _snapshot_of_last_call(settings: Settings, audit_ids: list[str]) -> str | None:
     """The queried catalog's core snapshot id, read back from the audit log (the runs
     are all against one catalog; the last line is the cheapest authoritative source)."""
+    from mimicwarehouse.fsio import iter_jsonl
     from mimicwarehouse.safe import audit_path
 
-    path = audit_path(settings)
-    if not audit_ids or not path.is_file():
+    if not audit_ids:
         return None
     wanted = set(audit_ids)
     snapshot: str | None = None
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            if not line.strip():
-                continue
-            record = json.loads(line)
-            if record.get("audit_id") in wanted:
-                snapshot = (record.get("snapshot_ids") or {}).get("core") or snapshot
+    for record in iter_jsonl(audit_path(settings)):  # tolerates a torn trailing line (LGR-1)
+        if record.get("audit_id") in wanted:
+            snapshot = (record.get("snapshot_ids") or {}).get("core") or snapshot
     return snapshot
 
 
@@ -634,20 +638,12 @@ def tracer_command(
     prefix = "mwh tracer"
     state: CliState = ctx.obj
     if tier not in TIERS:
-        console.print(
-            f"[bold red]{prefix}:[/] unknown tier {escape(tier)!s}; expected one of "
-            f"{', '.join(TIERS)}",
-            highlight=False,
-        )
-        raise typer.Exit(code=2)
+        fail(prefix, f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
     settings = state.settings
 
     if background:
         if not job:
-            console.print(
-                f"[bold red]{prefix}:[/] --background requires --job NAME", highlight=False
-            )
-            raise typer.Exit(code=2)
+            fail(prefix, "--background requires --job NAME")
         from mimicwarehouse.dag import jobs as jobs_mod
 
         argv: list[str] = []
@@ -657,8 +653,7 @@ def tracer_command(
         try:
             info = jobs_mod.launch(argv, job, settings)
         except jobs_mod.JobError as exc:
-            console.print(f"[bold red]{prefix}:[/] {escape(str(exc))}", highlight=False)
-            raise typer.Exit(code=2) from None
+            fail(prefix, str(exc))
         console.print(
             f"launched job [bold]{escape(info.job)}[/] (pid {info.pid}) - log {escape(info.log)}",
             highlight=False,
@@ -666,18 +661,20 @@ def tracer_command(
         console.print(f"check it with: mwh jobs --job {escape(info.job)}", highlight=False)
         return
 
-    from mimicwarehouse.catalog.connect import CatalogOpenError
+    from mimicwarehouse.catalog.cli import safe_cli_errors
     from mimicwarehouse.inventory import fmt_int
-    from mimicwarehouse.safe import SafeQueryRefused
 
-    try:
-        result = run_tracer(tier, settings=settings)
-    except SafeQueryRefused as exc:
-        console.print(f"[bold red]{prefix}: refused:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=3) from None
-    except CatalogOpenError as exc:
-        console.print(f"[bold red]{prefix}:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+    def run() -> TracerResult:
+        # refusal -> EXIT_REFUSED (3); usage / environment / TracerError -> EXIT_USAGE (2);
+        # nothing tracebacks to exit 1 (EP-33 B1d)
+        with safe_cli_errors(prefix):
+            try:
+                return run_tracer(tier, settings=settings)
+            except TracerError as exc:
+                fail(prefix, str(exc), code=EXIT_USAGE)
+        raise AssertionError  # unreachable: safe_cli_errors exits on every error
+
+    result = run()
 
     k = result.descriptives["k"]
     cohort_n = result.manifest["cohort_n"]

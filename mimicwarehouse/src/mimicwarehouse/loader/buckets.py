@@ -4,8 +4,10 @@ The physical layout every subject-keyed table uses:
 ``<dest>/subject_bucket=<n>/part-0.parquet`` with ``subject_bucket = subject_id % 100``
 (un-padded DuckDB partition names, partition column **not** written into the files), rows
 sorted ``(subject_id, <sort_by>)``, ZSTD-3, ~1 M-row row groups. Two paths, one publish
-protocol (every ``.new`` → ``dest`` goes through :func:`mimicwarehouse.paths.swap_dir`,
-rename-aside two-step — ``os.replace`` cannot replace an existing directory on Windows):
+protocol (every ``.new`` → ``dest`` goes through :func:`mimicwarehouse.publish.swap_dir`,
+rename-aside two-step — ``os.replace`` cannot replace an existing directory on Windows;
+every other pass-2 replace/unlink and the stale-``.new`` sweep use the same module's
+retrying helpers, EP-33 WIN-2/WIN-4):
 
 * **small** (CSV ≤ ~1 GB): one ``COPY … PARTITION_BY`` with a global
   ``ORDER BY subject_bucket, subject_id, <sort_by>`` under
@@ -21,12 +23,27 @@ pass 1, so the swap publishes data and progress together). ``pass1_done`` false 
 is redone into a fresh ``.new`` (partial output discarded); already-sorted buckets are
 skipped; a stale ``_sorting.tmp`` is deleted. The per-bucket order of operations is
 deliberately *publish before delete*: ``os.replace(_sorting.tmp → part-0.parquet)``,
-record the bucket in ``_progress.json``, **then** delete the ``raw_*`` files — a crash at
-any point leaves either the raws (bucket re-sorts) or a recorded sorted bucket (raws are
-swept on resume), never a bucket with no complete source. Progress resumes only when the
-recorded ``buckets_requested`` equal the new request and ``complete`` is false; anything
-else (e.g. a **full** request over a ``tier_complete = "dev"`` table) restages the whole
-table.
+append the bucket's manifest line, record the bucket in ``_progress.json``, **then**
+delete the ``raw_*`` files — a crash at any point leaves either the raws (bucket
+re-sorts; a re-appended manifest line is harmless, newest ``ts`` wins per path) or a
+recorded sorted bucket whose line is already in the manifest (raws are swept on
+resume), never a bucket with no complete source and never a recorded bucket without a
+manifest line (EP-33 WIN-1/LDR-3). Progress resumes only when the recorded
+``buckets_requested`` equal the new request, ``complete`` is false, and — when the
+progress file records them (EP-33 LDR-4) — the source identity (``source_sha256`` or the
+source file's name/size/mtime fingerprint) and the resolved ``sort_by`` match; anything
+else (a different source file, a **full** request over a ``tier_complete = "dev"``
+table) restages the whole table. A pre-EP-33 progress file without those fields keeps
+the old predicate, so the full lake's ``_progress.json`` files still load.
+
+**Coverage guard** (EP-33 LDR-1, owner decision): before pass 1 replaces ``dest``, a
+request whose bucket set is a **strict subset** of what ``dest`` already holds (its
+recorded ``buckets_requested``, or ``tier_complete = "full"`` in ``status.json``) raises
+:class:`StageCoverageError` and leaves the lake untouched — dev and full share one lake
+root, so ``mwh build --tier dev --force`` must never discard the 95 non-dev partitions
+of a complete table. Equal or wider requests proceed; ``mwh build --tier full --force``
+is the only path that rewrites a complete table, and the runner's ``--force`` only
+bypasses the skip, never this guard.
 
 When the dev buckets (``settings.dev_buckets``, D-43 item 14 — no separate constant) are
 all sorted the stage logs ``dev-ready <schema>.<table>`` and sets
@@ -40,23 +57,23 @@ tmp-dir / bytes-written counts.
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import sys
 import threading
 import time
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from mimicwarehouse import paths
+from mimicwarehouse import fsio, publish
 from mimicwarehouse.config import Settings, dir_size_bytes, get_settings
 from mimicwarehouse.loader.csv import plan_csv_read, plan_map_notes
 from mimicwarehouse.loader.manifest import (
     ManifestLine,
     append_manifest,
     lake_relative_posix,
+    read_status,
     sha256_streamed,
     table_schema_hash,
     update_status,
@@ -94,9 +111,21 @@ PROGRESS_FILENAME = "_progress.json"
 SizeClass = Literal["small", "large"]
 
 
+class StageCoverageError(StageError):
+    """A bucket request would replace a table that already holds a strict superset of
+    those buckets (EP-33 LDR-1). Nothing was changed."""
+
+
 @dataclass(slots=True)
 class Progress:
-    """``<dest>/_progress.json`` — the resume state of one partitioned stage (EP-18 item 3)."""
+    """``<dest>/_progress.json`` — the resume state of one partitioned stage (EP-18 item 3).
+
+    EP-33 (LDR-4) adds the identity a resume must match: ``source_sha256`` (the EP-10
+    raw-manifest hash the caller passed; None on the fixture tier), ``source_fingerprint``
+    (``<name>:<size>:<mtime_ns>`` of the source file — always recorded, the check that
+    works without a manifest) and the resolved ``sort_by``. They are ``None`` when the
+    file predates EP-33; :func:`read_progress` tolerates unknown and missing keys.
+    """
 
     build_id: str
     pass1_done: bool = False
@@ -107,11 +136,27 @@ class Progress:
     started: str = ""
     updated: str = ""
     rejects: int = 0  # counted when pass 1 ran; carried across resumes
+    source_sha256: str | None = None
+    source_fingerprint: str | None = None
+    sort_by: list[str] | None = None
 
     def to_json(self) -> str:
         import json
 
         return json.dumps(asdict(self), indent=2, sort_keys=True) + "\n"
+
+    def resumable_for(
+        self, *, source_sha256: str | None, source_fingerprint: str, sort_by: Iterable[str]
+    ) -> bool:
+        """Whether the recorded identity fields (those present) match a new request."""
+        if self.source_sha256 is not None and self.source_sha256 != source_sha256:
+            return False
+        if self.source_fingerprint is not None and self.source_fingerprint != source_fingerprint:
+            return False
+        return self.sort_by is None or self.sort_by == list(sort_by)
+
+
+_PROGRESS_FIELDS = frozenset(f.name for f in fields(Progress))
 
 
 def progress_path(dest_dir: Path) -> Path:
@@ -119,7 +164,9 @@ def progress_path(dest_dir: Path) -> Path:
 
 
 def read_progress(dest_dir: Path) -> Progress | None:
-    """The parsed progress file, or None (missing / unreadable / wrong shape)."""
+    """The parsed progress file, or None (missing / unreadable / wrong shape). Unknown
+    keys are ignored and missing ones take their defaults (EP-33: old and new formats
+    both load)."""
     import json
 
     path = progress_path(dest_dir)
@@ -127,16 +174,39 @@ def read_progress(dest_dir: Path) -> Progress | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return Progress(**data)
+        if not isinstance(data, dict) or "build_id" not in data:
+            return None
+        return Progress(**{k: v for k, v in data.items() if k in _PROGRESS_FIELDS})
     except (OSError, ValueError, TypeError):
         return None
 
 
-def _write_progress(dest_dir: Path, progress: Progress) -> None:
-    from mimicwarehouse.inventory import _atomic_write_text
+def source_fingerprint(source: Path) -> str:
+    """``<name>:<size>:<mtime_ns>`` of the source file — the resume identity that needs
+    no raw manifest (a file name, never content)."""
+    st = Path(source).stat()
+    return f"{Path(source).name}:{st.st_size}:{st.st_mtime_ns}"
 
+
+def _write_progress(dest_dir: Path, progress: Progress) -> None:
     progress.updated = utc_now_iso()
-    _atomic_write_text(progress_path(dest_dir), progress.to_json())
+    fsio.atomic_write_text(progress_path(dest_dir), progress.to_json())
+
+
+def _existing_coverage(dest_dir: Path, lake_root: Path, qn: str) -> set[int] | None:
+    """The bucket set ``dest_dir`` already holds according to its records — the recorded
+    ``buckets_requested`` of a pass-1-complete progress file, or all buckets when
+    ``status.json`` says ``tier_complete = "full"``; None when nothing is recorded."""
+    if not dest_dir.is_dir():
+        return None
+    covered: set[int] | None = None
+    progress = read_progress(dest_dir)
+    if progress is not None and progress.pass1_done and progress.buckets_requested:
+        covered = set(progress.buckets_requested)
+    entry = read_status(lake_root)["steps"].get(qn)
+    if entry is not None and entry.get("tier_complete") == "full":
+        covered = set(range(NUM_BUCKETS)) | (covered or set())
+    return covered
 
 
 # ---------------------------------------------------------------------------
@@ -251,10 +321,12 @@ def _sort_bucket(
     Publish-before-delete (module docstring): write ``_sorting.tmp``, ``os.replace`` it to
     ``part-0.parquet`` — the raws are deleted by the caller only after the bucket is
     recorded sorted. A pre-existing ``_sorting.tmp`` here is stale (crashed run): deleted.
+    The replace and unlink go through :mod:`mimicwarehouse.publish`'s retry policy (a
+    scanner holding a freshly written multi-GB file is transient; WIN-2).
     """
     tmp = bucket_dir / SORTING_TMP
     if tmp.exists():
-        tmp.unlink()
+        publish.unlink(tmp)
     part = bucket_dir / PART_FILENAME
     raw_glob = (bucket_dir / RAW_GLOB).as_posix()
     if not any(bucket_dir.glob(RAW_GLOB)):
@@ -275,7 +347,7 @@ def _sort_bucket(
         )
     finally:
         con.execute("SET preserve_insertion_order = false")
-    os.replace(tmp, part)
+    publish.replace(tmp, part)
     (rows,) = con.execute(
         f"SELECT num_rows FROM parquet_file_metadata({_sql_str(str(part))})"
     ).fetchone()  # type: ignore[misc]
@@ -283,9 +355,10 @@ def _sort_bucket(
 
 
 def _sweep_raws(bucket_dir: Path) -> None:
-    """Delete leftover ``raw_*`` files of a bucket that is already recorded sorted."""
-    for raw in bucket_dir.glob(RAW_GLOB):
-        raw.unlink(missing_ok=True)
+    """Delete leftover ``raw_*`` files of a bucket that is already recorded sorted
+    (retrying unlink, WIN-2)."""
+    for raw in list(bucket_dir.glob(RAW_GLOB)):
+        publish.unlink(raw)
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +455,9 @@ def stage_partitioned(
     swap; large path: per bucket as it finishes) and merges the ``status.json`` step entry
     (``dev_ready`` as soon as the dev buckets are sorted, ``tier_complete`` at the end).
     Raises :class:`RejectThresholdError` over ``settings.loader_reject_max`` — the ``.new``
-    directory is discarded and ``dest_dir`` is left untouched.
+    directory is discarded and ``dest_dir`` is left untouched — and
+    :class:`StageCoverageError` when ``buckets`` is a strict subset of what ``dest_dir``
+    already holds (module docstring, coverage guard).
     """
     t0 = time.perf_counter()
     settings = settings or get_settings()
@@ -427,6 +502,7 @@ def stage_partitioned(
     )
 
     # -- resume decision (large path only) -------------------------------------------------
+    fingerprint = source_fingerprint(source)
     progress = read_progress(dest_dir)
     resume = (
         resolved_class == "large"
@@ -434,6 +510,9 @@ def stage_partitioned(
         and progress.pass1_done
         and not progress.complete
         and progress.buckets_requested == list(requested)
+        and progress.resumable_for(
+            source_sha256=source_sha256, source_fingerprint=fingerprint, sort_by=resolved_sort_by
+        )
     )
 
     manifest_lines: list[ManifestLine] = []
@@ -446,15 +525,30 @@ def stage_partitioned(
         progress.build_id = build_id
         rejects = progress.rejects
     else:
+        # -- coverage guard (LDR-1): never let a subset request discard staged buckets ------
+        covered = _existing_coverage(dest_dir, lake_root, qn)
+        if covered is not None and set(requested) < covered:
+            raise StageCoverageError(
+                f"{qn}: refusing to restage {len(requested)} bucket(s) over a table that "
+                f"already holds {len(covered)} — the request is a strict subset and the "
+                "rename-aside swap would discard the other staged partitions; "
+                "`mwh build --tier full --force` is the only path that rewrites a complete "
+                "table (the runner's --force only bypasses the skip)"
+            )
         # -- pass 1 (both paths): partitioned COPY into <dest>.new -------------------------
         t_pass1 = time.perf_counter()
         plan = plan_csv_read(source, table_spec, column_map)
-        new_dir = paths.new_dir_for(dest_dir)
+        new_dir = publish.new_path_for(dest_dir)
         if new_dir.exists():  # a stale .new from a crashed stage: partial output discarded
-            shutil.rmtree(new_dir)
+            publish.rmtree(new_dir)  # retrying (WIN-4)
         new_dir.mkdir(parents=True, exist_ok=True)
         progress = Progress(
-            build_id=build_id, buckets_requested=list(requested), started=utc_now_iso()
+            build_id=build_id,
+            buckets_requested=list(requested),
+            started=utc_now_iso(),
+            source_sha256=source_sha256,
+            source_fingerprint=fingerprint,
+            sort_by=list(resolved_sort_by),
         )
 
         select = f"SELECT {', '.join(plan.select_exprs)}, {_bucket_expr()} AS {BUCKET_COLUMN} "
@@ -523,7 +617,7 @@ def stage_partitioned(
             progress.sorted_buckets = list(requested)
         # progress travels inside .new so the swap publishes data + progress together
         _write_progress(new_dir, progress)
-        paths.swap_dir(new_dir, dest_dir)
+        publish.swap_dir(new_dir, dest_dir)
         if resolved_class == "large":
             pass1_wall_s = time.perf_counter() - t_pass1
 
@@ -543,24 +637,27 @@ def stage_partitioned(
                 continue
             tb0 = time.perf_counter()
             rows = _sort_bucket(con, bucket_dir, order_by_pass2) if bucket_dir else 0
+            # order (WIN-1/LDR-3): manifest line -> progress record -> raw sweep. A crash
+            # after the append but before the record re-sorts the bucket and re-appends
+            # (newest ts wins per path); a recorded bucket always has its line.
+            part = bucket_dir / PART_FILENAME if bucket_dir is not None else None
+            if part is not None and part.is_file():
+                line = _manifest_line_for(
+                    part,
+                    table_spec,
+                    lake_root,
+                    rows=rows,
+                    build_id=build_id,
+                    source_sha256=source_sha256,
+                    raw_snapshot_id=raw_snapshot_id,
+                    map_notes=map_notes,
+                )
+                append_manifest(lake_root, build_id, [line])
+                manifest_lines.append(line)
             progress.sorted_buckets.append(n)
             _write_progress(dest_dir, progress)
             if bucket_dir is not None:
                 _sweep_raws(bucket_dir)
-                part = bucket_dir / PART_FILENAME
-                if part.is_file():
-                    line = _manifest_line_for(
-                        part,
-                        table_spec,
-                        lake_root,
-                        rows=rows,
-                        build_id=build_id,
-                        source_sha256=source_sha256,
-                        raw_snapshot_id=raw_snapshot_id,
-                        map_notes=map_notes,
-                    )
-                    append_manifest(lake_root, build_id, [line])
-                    manifest_lines.append(line)
             _LOG.info(
                 "bucket %02d/%d sorted rows=%d wall=%.1fs",
                 n,
@@ -569,10 +666,12 @@ def stage_partitioned(
                 time.perf_counter() - tb0,
             )
             if not progress.dev_ready and set(dev_buckets) <= set(progress.sorted_buckets):
-                progress.dev_ready = True
-                _write_progress(dest_dir, progress)
+                # status first (LDR-8): a crash between the two writes then re-emits the
+                # status signal on resume instead of losing it
                 _LOG.info("dev-ready %s", qn)
                 update_status(lake_root, qn, dev_ready=True)
+                progress.dev_ready = True
+                _write_progress(dest_dir, progress)
         pass2_wall_s = time.perf_counter() - t_pass2
     else:
         # small path: everything was sorted in the one COPY — manifest per partition file
@@ -596,10 +695,10 @@ def stage_partitioned(
         if manifest_lines:
             append_manifest(lake_root, build_id, manifest_lines)
         if not progress.dev_ready and set(dev_buckets) <= set(progress.sorted_buckets):
+            _LOG.info("dev-ready %s", qn)
+            update_status(lake_root, qn, dev_ready=True)  # status before progress (LDR-8)
             progress.dev_ready = True
             _write_progress(dest_dir, progress)
-            _LOG.info("dev-ready %s", qn)
-            update_status(lake_root, qn, dev_ready=True)
 
     # -- completion ------------------------------------------------------------------------
     progress.complete = True
@@ -639,7 +738,9 @@ __all__ = [
     "RAW_GLOB",
     "SORTING_TMP",
     "Progress",
+    "StageCoverageError",
     "progress_path",
     "read_progress",
+    "source_fingerprint",
     "stage_partitioned",
 ]

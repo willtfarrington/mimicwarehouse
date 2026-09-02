@@ -1,52 +1,80 @@
 """Safe-query wrapper + audit log — the governance choke point (EP-30; DESIGN §12,
-GOVERNANCE §4/§5/§8, D-31/D-32/D-33/D-39).
+GOVERNANCE §4/§5/§8, D-31/D-32/D-33/D-39; hardened in EP-33 B1).
 
 From this module on, *every* result a Claude session or an export can see comes through
 :func:`safe_query` (or the ``mwh sql`` CLI built on it). The pipeline, in order:
 
 1. **Parse** (DuckDB ``json_serialize_sql``): exactly one statement, of type SELECT
-   (CTEs allowed) or one of the metadata forms ``DESCRIBE <schema.table>`` /
-   ``SHOW TABLES`` / ``SHOW ALL TABLES``. Everything else (COPY, ATTACH, INSTALL, LOAD,
-   PRAGMA, SET, CREATE, INSERT, UPDATE, DELETE, EXPORT, IMPORT, CALL, BEGIN,
-   multi-statement, set operations) is refused.
+   (CTEs allowed; since EP-33 also ``UNION`` / ``UNION ALL`` / ``EXCEPT`` / ``INTERSECT``
+   of SELECTs — every leaf is checked on its own, see 3) or one of the metadata forms
+   ``DESCRIBE <schema.table>`` / ``SHOW TABLES`` / ``SHOW ALL TABLES``. Everything else
+   (COPY, ATTACH, INSTALL, LOAD, PRAGMA, SET, CREATE, INSERT, UPDATE, DELETE, EXPORT,
+   IMPORT, CALL, BEGIN, multi-statement, ``UNION BY NAME``) is refused.
 2. **Allow-list**: no table/scalar functions that touch files or the environment
    (:data:`FORBIDDEN_FUNCTION_NAMES` / :data:`FORBIDDEN_FUNCTION_PREFIXES`; ``query`` /
    ``query_table`` are included — they take SQL/table-name strings and would bypass this
    static walk); every qualified table must live in :data:`ALLOWED_SCHEMAS` (notes
    schemas never exist in these catalogs); unqualified names must be CTEs.
-3. **Aggregate-only** (outermost select list): every result column must be an aggregate
-   call (:data:`AGGREGATE_FUNCTIONS` — deliberately no value-collecting aggregates such
-   as ``string_agg`` / ``list`` / ``histogram`` / ``arg_min``), a GROUP BY key, or a
-   constant; identifier columns (contract flags, GOVERNANCE §4) may appear **only**
-   inside count-family calls (:data:`COUNT_FAMILY_FUNCTIONS`), never as output, inside
-   arithmetic, or in MIN/MAX/string aggregates; at least one count-family column
-   (``count(*)`` / ``count(x)`` / ``count(DISTINCT x)`` or an alias matching
-   :data:`COUNT_ALIAS_RE`) is required — unless the statement reads only ``meta.*``,
-   dictionary/dim tables (``Table.is_dim``), ``information_schema`` or metadata
-   functions (``duckdb_tables()`` / ``duckdb_columns()``), which GOVERNANCE §4
-   explicitly allows (EP-170 amendment 1).
+3. **Aggregate-only** (the select list of every leaf SELECT): every result column must be
+   an aggregate call (:data:`AGGREGATE_FUNCTIONS` — deliberately no value-collecting
+   aggregates such as ``string_agg`` / ``list`` / ``histogram`` / ``arg_min``), optionally
+   wrapped in ``CAST`` / ``TRY_CAST`` (EP-33 B1a: ``CAST(sum(x) AS BIGINT)`` verifies; a
+   cast around arithmetic or around a bare column does not — the set stays closed,
+   DIS-3), a GROUP BY key, or a constant; identifier columns (contract flags, GOVERNANCE
+   §4) may appear **only** inside count-family calls (:data:`COUNT_FAMILY_FUNCTIONS`),
+   never as output, inside arithmetic, or in MIN/MAX/string aggregates. At least one
+   column must be a **real** count-family call — ``count(*)`` / ``count(x)`` /
+   ``count(DISTINCT x)`` / ``approx_count_distinct(x)``, possibly cast-wrapped; an alias
+   alone never satisfies it, an alias matching :data:`COUNT_ALIAS_RE` on a non-count
+   expression is refused (DKB-1/SGT-1/SGT-4: the suppressor must only ever test group
+   sizes), and a cast-wrapped count must be aliased (its generated column name would
+   evade the suppressor). The count requirement is waived when the statement reads only
+   registry tables (:func:`is_registry_ref`: ``meta.*``, ``information_schema``, contract
+   dims, :data:`REGISTRY_TABLES`) or metadata functions (``duckdb_tables()`` /
+   ``duckdb_columns()``), which GOVERNANCE §4 explicitly allows (EP-170 amendment 1).
+   Set operations (EP-33 B1b): every branch is checked against its own node; branch
+   widths and count-family **positions** must agree across branches (the output column
+   takes branch 1's name and the combined frame is suppressed as one).
 4. **Execute** on :func:`~mimicwarehouse.catalog.connect.open_catalog` (READ_ONLY, app
-   profile, hardened) with ``warehouse/runs.duckdb`` ATTACHed read-only as ``runs`` when
-   it exists, under a ``threading.Timer`` that calls ``con.interrupt()`` at ``timeout_s``.
+   profile, hardened) with ``warehouse/runs.duckdb`` attached read-only as ``runs`` when
+   it exists (:func:`mimicwarehouse.engine.attach_read_only`), under a ``threading.Timer``
+   that calls ``con.interrupt()`` at ``timeout_s``. Any DuckDB error before or during
+   execution is refused with a **sanitized** message (:func:`sanitize_error_text`: first
+   line only, quoted literals and standalone numbers masked, ~120 characters — DuckDB
+   quotes the offending cell value in conversion errors, DKB-2; DKB-3/SGT-6 put the
+   snapshot read and the attach inside the audited path).
 5. **Result checks**: refuse output columns named like identifiers or like contract
    ``free_text`` columns (refused by name, ARCH-10/FC-18); the free-text value heuristic
    (any VARCHAR value longer than :data:`FREE_TEXT_MAX_CHARS` characters or containing a
-   newline) is **scoped to statements that read a subject-keyed table** — dims and
+   newline) applies to every statement that is **not** registry-exempt (EP-33 B1c: reads
+   of ``mimiciv_derived`` and non-registry ``marts`` are scanned too, P3C-5); dims and
    ``meta.*`` are exempt, and the label columns :data:`LABEL_COLUMN_NAMES`
    (``drgcodes.description``, ``hcpcsevents.short_description``) are allow-listed
    (EP-170 amendment 1); the post-suppression row count must not exceed ``row_cap``.
-6. **k-suppression** via :data:`SUPPRESSOR` (see below); on ``dev``/``full`` a ``k``
-   below 11 is refused (D-31/D-33); on ``fixture``/``demo`` (synthetic / ODbL) the
-   caller may lower it.
+6. **k-suppression** via :data:`SUPPRESSOR` (see below) over the real count columns
+   only; on ``dev``/``full`` a ``k`` below 11 is refused (D-31/D-33); on
+   ``fixture``/``demo`` (synthetic / ODbL) the caller may lower it. Extreme-value
+   aggregates (``min`` / ``max`` / ``mode`` / ``median`` / quantiles) stay admitted and are
+   released only inside k-gated rows (SGT-2, owner decision).
 
-Refusals raise :class:`SafeQueryRefused` **after** auditing. Every call — allowed or
-refused — appends one :class:`AuditLine` to the append-only ``runs/audit.jsonl``
-(``O_APPEND`` + flush + fsync, one canonical JSON object per line; D-24, GOVERNANCE §8):
-never result values, only the statement text/hash, counts and provenance
+Errors are three-way (EP-33 B1d): :class:`SafeQueryRefused` is a governance verdict
+(exit :data:`EXIT_REFUSED` = 3), raised **after** auditing; :class:`SafeQueryError` is a
+usage error (``k < 1``, ``row_cap < 1``, unknown tier; exit :data:`EXIT_USAGE` = 2),
+also audited — its ``refusal_reason`` starts with ``usage: `` so the EP-35 ledger views
+can filter it; :class:`~mimicwarehouse.catalog.connect.CatalogOpenError` is an
+environment error (exit 2), unaudited. ``tier`` / ``k`` default to
+``settings.default_tier`` / ``settings.k_suppression``.
+
+Every call — allowed, refused or usage — appends one :class:`AuditLine` to the
+append-only ``runs/audit.jsonl`` through :func:`mimicwarehouse.fsio.append_jsonl`
+(``O_APPEND`` + checked write + fsync, one canonical JSON object per line; D-24,
+GOVERNANCE §8): never result values, only the statement text/hash, counts and provenance
 (``snapshot_ids`` is a ``{layer: id}`` dict per the DESIGN §11 glossary — here
 ``{"core": <core_snapshot_id>}`` of the queried catalog). :func:`build_runs_db` exposes
-the file as the ``audit`` view of ``warehouse/runs.duckdb`` (rename-aside swap, the
-DESIGN §6 scheme; ``mwh runs refresh`` calls it, EP-35 adds the ledger views).
+the file as the ``audit`` view of ``warehouse/runs.duckdb`` (published with
+:func:`mimicwarehouse.publish.swap_file`; ``mwh runs refresh`` calls it, EP-35 adds the
+ledger views); the view reads with ``ignore_errors = true`` so a torn trailing line
+(LGR-1) skips instead of breaking every query.
 
 **Suppression hook contract**: :data:`SUPPRESSOR` is a module-level
 ``Callable[[polars.DataFrame, int, list[str]], tuple[polars.DataFrame, int]]`` —
@@ -61,15 +89,15 @@ Owner row viewing is **not** here — that is the app's audited ``owner_rows()``
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
-import os
 import re
 import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
@@ -78,6 +106,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict
 
 from mimicwarehouse.config import Settings, Tier, get_settings
+from mimicwarehouse.console import EXIT_REFUSED, EXIT_USAGE
 
 if TYPE_CHECKING:  # pragma: no cover
     import polars
@@ -98,6 +127,14 @@ ALLOWED_SCHEMAS: frozenset[str] = frozenset(
         "information_schema",
     }
 )
+
+#: Registry schemas (EP-33 B1c): metadata-only surfaces GOVERNANCE §4 lets a session read
+#: without a count column and without the free-text value scan. ``runs`` deliberately
+#: does **not** join (owner decision, 2026-09-01): ``runs.audit`` carries statement text.
+REGISTRY_SCHEMAS: frozenset[str] = frozenset({"meta", "information_schema"})
+#: Named registry tables outside the registry schemas (``schema.table``, casefolded) —
+#: seeded for EP-47's cohort registry so it does not need a second mechanism.
+REGISTRY_TABLES: frozenset[str] = frozenset({"marts.cohorts"})
 
 #: Functions refused wherever they appear (file / environment / SQL-indirection access).
 FORBIDDEN_FUNCTION_NAMES: frozenset[str] = frozenset(
@@ -154,7 +191,9 @@ AGGREGATE_FUNCTIONS: frozenset[str] = COUNT_FAMILY_FUNCTIONS | frozenset(
     }
 )
 
-#: Aliases recognised as count-family columns (brief EP-30 item 1c).
+#: Aliases reserved for count-family columns (brief EP-30 item 1c). Since EP-33 (DKB-1 /
+#: SGT-1) an alias never *satisfies* the count requirement — it is refused on any
+#: non-count expression so the suppressor only ever tests group sizes.
 COUNT_ALIAS_RE = re.compile(r"^(n|n_.*|.*_n|count|.*_count|cnt|.*_cnt|num_.*)$")
 
 #: Result-column *name* prefixes that mark unaliased count outputs (``count_star()``,
@@ -172,10 +211,24 @@ LABEL_COLUMN_NAMES: frozenset[str] = frozenset({"description", "short_descriptio
 K_FLOOR = 11
 CREDENTIALED_TIERS: frozenset[str] = frozenset({"dev", "full"})
 
+#: Longest sanitized engine-error text that enters a refusal / audit line (DKB-2).
+ERROR_TEXT_MAX_CHARS = 120
+
+#: Set-operation kinds the walk supports (json_serialize_sql ``setop_type``; DuckDB 1.5.5
+#: spells ``UNION BY NAME`` as ``UNION_BY_NAME`` and is refused by name).
+_SET_OPERATION_TYPES: frozenset[str] = frozenset({"UNION", "EXCEPT", "INTERSECT"})
+
 #: SHOW_REF table names DuckDB desugars ``SHOW TABLES`` / ``SHOW ALL TABLES`` into.
 _SHOW_TABLE_NAMES: frozenset[str] = frozenset({'"tables"', "__show_tables_expanded"})
 
 _JUNK_AST_KEYS = ("alias", "query_location")
+
+_TIERS: tuple[str, ...] = ("fixture", "demo", "dev", "full")
+
+# single- or double-quoted SQL literal (doubled quotes inside are the escape form)
+_QUOTED_LITERAL_RE = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+# a standalone number token (not glued to a word such as INT32 / UINT8)
+_NUMBER_TOKEN_RE = re.compile(r"(?<![\w.])[-+]?\d[\d.,]*(?:[eE][-+]?\d+)?(?![\w.])")
 
 
 class SafeQueryRefused(RuntimeError):
@@ -183,7 +236,8 @@ class SafeQueryRefused(RuntimeError):
 
 
 class SafeQueryError(RuntimeError):
-    """A non-governance failure inside safe_query (bad arguments)."""
+    """A usage error (``k < 1``, ``row_cap < 1``, unknown tier) — exit
+    :data:`EXIT_USAGE`; audited with a ``usage: `` reason (EP-33 B1d)."""
 
 
 @dataclass(slots=True)
@@ -224,22 +278,46 @@ class AuditLine(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Contract-derived name sets (identifiers, free text, dims, subject-keyed)
+# Contract-derived name sets (identifiers, free text, dims) + registry exemptions
 # ---------------------------------------------------------------------------
 
 
 @cache
-def _contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str], frozenset[str]]:
-    """(identifier column names, free-text column names, dim ``schema.table``\\ s,
-    subject-keyed ``schema.table``\\ s) from the EP-9 contract flags."""
+def _contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """(identifier column names, free-text column names, dim ``schema.table``\\ s) from
+    the EP-9 contract flags."""
     from mimicwarehouse.schema.contract import load_contract
 
     contract = load_contract()
     identifiers = frozenset(c.name for t in contract.tables for c in t.columns if c.identifier)
     free_text = frozenset(c.name for t in contract.tables for c in t.columns if c.free_text)
     dims = frozenset(t.qualified_name for t in contract.dims())
-    subject_keyed = frozenset(t.qualified_name for t in contract.subject_keyed())
-    return identifiers, free_text, dims, subject_keyed
+    return identifiers, free_text, dims
+
+
+def is_registry_ref(schema: str, table: str) -> bool:
+    """Whether ``schema.table`` is a registry / metadata surface (module note 3):
+    :data:`REGISTRY_SCHEMAS`, :data:`REGISTRY_TABLES`, or a contract dim
+    (``Table.is_dim``). Case-insensitive."""
+    folded_schema = schema.casefold()
+    if folded_schema in REGISTRY_SCHEMAS:
+        return True
+    qualified = f"{folded_schema}.{table.casefold()}"
+    return qualified in REGISTRY_TABLES or qualified in _contract_names()[2]
+
+
+def sanitize_error_text(text: str, *, max_chars: int = ERROR_TEXT_MAX_CHARS) -> str:
+    """The first line of an engine error with every quoted literal replaced by ``'...'``
+    and every standalone number by ``#``, whitespace collapsed, cut to ``max_chars``
+    (DKB-2: DuckDB quotes the offending cell value in conversion errors, so raw error text
+    must never reach a refusal message or an audit line)."""
+    first = text.strip().split("\n", 1)[0]
+    masked = _QUOTED_LITERAL_RE.sub("'...'", first)
+    masked = _NUMBER_TOKEN_RE.sub("#", masked)
+    masked = " ".join(masked.split())
+    if len(masked) > max_chars:
+        masked = masked[: max_chars - 3] + "..."
+    return masked
 
 
 # ---------------------------------------------------------------------------
@@ -258,17 +336,11 @@ def runs_db_path(settings: Settings | None = None) -> Path:
 
 
 def _append_audit(line: AuditLine, settings: Settings) -> None:
-    """One canonical JSON object per line, ``O_APPEND`` + fsync (the EP-19 ledger
-    pattern) so concurrent readers never see a torn line."""
-    path = audit_path(settings)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    blob = (json.dumps(line.model_dump(mode="json"), sort_keys=True) + "\n").encode("utf-8")
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        os.write(fd, blob)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    """One canonical JSON object per line through the ledger canon
+    (:func:`mimicwarehouse.fsio.append_jsonl`: ``O_APPEND``, checked write, fsync)."""
+    from mimicwarehouse.fsio import append_jsonl
+
+    append_jsonl(audit_path(settings), line.model_dump(mode="json"))
 
 
 def _git_sha() -> str | None:
@@ -312,9 +384,19 @@ class _Analysis:
     """What the static walk learned about one parsed statement."""
 
     metadata_form: bool  # DESCRIBE / SHOW TABLES / SHOW ALL TABLES
-    exempt: bool  # reads only meta.* / dims / information_schema / no tables
-    reads_subject_keyed: bool
-    count_aliases: list[str]
+    exempt: bool  # reads only registry refs (meta.* / dims / information_schema) or no tables
+    count_aliases: list[str]  # aliases of the real count-family columns (all branches)
+    unaliased_counts: int  # unaliased count-family items in branch 1 (name-prefix matched)
+
+
+@dataclass(slots=True)
+class _LeafReport:
+    """What :func:`_check_select_list` learned about one leaf SELECT."""
+
+    width: int
+    count_positions: list[bool] = field(default_factory=list)
+    count_aliases: list[str] = field(default_factory=list)
+    unaliased_counts: int = 0
 
 
 def _iter_dicts(obj: Any):
@@ -336,13 +418,25 @@ def _strip_ast(obj: Any) -> Any:
     return obj
 
 
+def _unwrap_cast(expr: Any) -> Any:
+    """Descend through ``CAST`` / ``TRY_CAST`` nodes (json_serialize_sql ``class ==
+    'CAST'``, ``type == 'OPERATOR_CAST'``, ``try_cast`` flag, the operand under ``child``;
+    ``x::T`` serializes the same way) to the expression being cast (EP-33 B1a)."""
+    while isinstance(expr, dict) and expr.get("class") == "CAST":
+        expr = expr.get("child") or {}
+    return expr
+
+
+def _function_name(expr: Any) -> str:
+    if isinstance(expr, dict) and expr.get("class") == "FUNCTION":
+        return str(expr.get("function_name", "")).casefold()
+    return ""
+
+
 def _find_identifier_outside_count(expr: Any, identifiers: frozenset[str]) -> str | None:
     """First identifier column referenced outside a count-family call, or None."""
     if isinstance(expr, dict):
-        if (
-            expr.get("class") == "FUNCTION"
-            and str(expr.get("function_name", "")).casefold() in COUNT_FAMILY_FUNCTIONS
-        ):
+        if _function_name(expr) in COUNT_FAMILY_FUNCTIONS:
             return None  # identifiers are allowed anywhere inside count-family calls
         if expr.get("class") == "COLUMN_REF":
             names = expr.get("column_names") or []
@@ -361,13 +455,20 @@ def _find_identifier_outside_count(expr: Any, identifiers: frozenset[str]) -> st
 
 
 def _is_count_family_item(expr: dict[str, Any]) -> bool:
-    if (
-        expr.get("class") == "FUNCTION"
-        and str(expr.get("function_name", "")).casefold() in COUNT_FAMILY_FUNCTIONS
-    ):
-        return True
-    alias = str(expr.get("alias") or "")
-    return bool(alias and COUNT_ALIAS_RE.match(alias.casefold()))
+    """A real count-family FUNCTION node, possibly cast-wrapped — never an alias
+    (DKB-1/SGT-1)."""
+    return _function_name(_unwrap_cast(expr)) in COUNT_FAMILY_FUNCTIONS
+
+
+def _is_allowed_aggregate(expr: dict[str, Any]) -> bool:
+    """An :data:`AGGREGATE_FUNCTIONS` call, optionally cast-wrapped; operator arithmetic
+    (``is_operator``) never qualifies, even under a cast (DIS-3 stays parked)."""
+    inner = _unwrap_cast(expr)
+    return (
+        _function_name(inner) in AGGREGATE_FUNCTIONS
+        and isinstance(inner, dict)
+        and not inner.get("is_operator")
+    )
 
 
 def _is_group_key(expr: dict[str, Any], position: int, node: dict[str, Any]) -> bool:
@@ -392,12 +493,13 @@ def _is_group_key(expr: dict[str, Any], position: int, node: dict[str, Any]) -> 
     return False
 
 
-def _describe_ast(sql: str) -> tuple[list[dict[str, Any]] | None, str | None]:
-    """``json_serialize_sql`` on a throw-away in-memory connection (the statement is
-    passed as a **parameter**, never executed): ``(statements, refusal_reason)``."""
-    import duckdb
+def _describe_ast(sql: str, settings: Settings) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """``json_serialize_sql`` on a throw-away in-memory app-profile connection (the
+    statement is passed as a **parameter**, never executed): ``(statements,
+    refusal_reason)``."""
+    from mimicwarehouse.engine import open_duckdb
 
-    con = duckdb.connect(":memory:")
+    con = open_duckdb("app", settings=settings)
     try:
         row = con.execute("SELECT json_serialize_sql(?)", [sql]).fetchone()
     finally:
@@ -415,23 +517,104 @@ def _describe_ast(sql: str) -> tuple[list[dict[str, Any]] | None, str | None]:
     return list(doc.get("statements") or ()), None
 
 
-def _analyze(sql: str) -> tuple[_Analysis | None, str | None]:
+def _leaf_selects(node: dict[str, Any], leaves: list[dict[str, Any]]) -> str | None:
+    """Collect the leaf SELECT nodes of ``node`` left-to-right into ``leaves`` (a plain
+    SELECT is its own single leaf); the refusal reason for unsupported shapes."""
+    kind = str(node.get("type") or "")
+    if kind == "SELECT_NODE":
+        leaves.append(node)
+        return None
+    if kind == "SET_OPERATION_NODE":
+        setop = str(node.get("setop_type") or "")
+        if setop == "UNION_BY_NAME":
+            return (
+                "UNION BY NAME is not supported — the safe-query walk matches set-operation "
+                "columns by position (branch 1 names the output); use UNION / UNION ALL "
+                "with the same column order in every branch"
+            )
+        if setop not in _SET_OPERATION_TYPES:
+            return f"set operation {setop!r} is not supported"
+        for side in ("left", "right"):
+            reason = _leaf_selects(node.get(side) or {}, leaves)
+            if reason is not None:
+                return reason
+        return None
+    if leaves:
+        return f"set-operation branch {len(leaves) + 1} is a {kind!r} node, not a SELECT"
+    return f"statement node {kind!r} is not a SELECT"
+
+
+def _check_select_list(
+    node: dict[str, Any], identifiers: frozenset[str], exempt: bool, label: str
+) -> tuple[_LeafReport | None, str | None]:
+    """Step 3 over one leaf SELECT: ``(report, refusal_reason)``. ``label`` names the
+    branch in a set operation (empty for a plain SELECT)."""
+    where = f" ({label})" if label else ""
+    select_list = node.get("select_list") or []
+    report = _LeafReport(width=len(select_list))
+    for position, item in enumerate(select_list, start=1):
+        hit = _find_identifier_outside_count(item, identifiers)
+        if hit is not None:
+            return None, (
+                f"identifier column {hit!r} may appear only inside count(...) / "
+                "count(DISTINCT ...) / approx_count_distinct(...) — never as output, "
+                f"in arithmetic, or in other aggregates (GOVERNANCE §4){where}"
+            )
+        alias = str(item.get("alias") or "")
+        is_count = _is_count_family_item(item)
+        report.count_positions.append(is_count)
+        if is_count:
+            if alias:
+                report.count_aliases.append(alias)
+            elif item.get("class") == "CAST":
+                return None, (
+                    f"select-list column #{position}{where} is a cast-wrapped count without "
+                    "an alias — alias the cast count column (its generated name would not be "
+                    "recognised by the k-suppressor)"
+                )
+            else:
+                report.unaliased_counts += 1
+        elif alias and COUNT_ALIAS_RE.match(alias.casefold()):
+            return None, (
+                f"count-named alias {alias!r} on a non-count expression{where} — aliases "
+                f"matching {COUNT_ALIAS_RE.pattern!r} are reserved for count(*)/count(x)/"
+                "count(DISTINCT x)/approx_count_distinct(x), whose values drive k-suppression"
+            )
+        if exempt:
+            continue
+        if _is_allowed_aggregate(item) or item.get("class") == "CONSTANT":
+            continue
+        if not _is_group_key(item, position, node):
+            name = alias or f"#{position}"
+            return None, (
+                f"select-list column {name}{where} is neither an allowed aggregate "
+                "(optionally CAST-wrapped) nor a GROUP BY key — results must be aggregates "
+                "only (GOVERNANCE §4)"
+            )
+    if not exempt and not any(report.count_positions):
+        return None, (
+            f"no count-family column{where} — every SELECT needs count(*)/count(x)/"
+            "count(DISTINCT x)/approx_count_distinct(x) as a real call (an alias alone "
+            "does not count; unless it reads only meta.*, dims, information_schema or "
+            "registry tables)"
+        )
+    return report, None
+
+
+def _analyze(sql: str, settings: Settings) -> tuple[_Analysis | None, str | None]:
     """The full static walk (steps 1-3): ``(analysis, refusal_reason)``."""
-    identifiers, _free_text, dims, subject_keyed = _contract_names()
-    statements, reason = _describe_ast(sql)
+    identifiers, _free_text, _dims = _contract_names()
+    statements, reason = _describe_ast(sql, settings)
     if reason is not None:
         return None, reason
     assert statements is not None
     if len(statements) != 1:
         return None, f"multi-statement input ({len(statements)} statements; exactly 1 allowed)"
     node = statements[0].get("node") or {}
-    if node.get("type") == "SET_OPERATION_NODE":
-        return None, (
-            "set operations (UNION/EXCEPT/INTERSECT) are not supported — run each "
-            "aggregate separately (parked for a later EP)"
-        )
-    if node.get("type") != "SELECT_NODE":
-        return None, f"statement node {node.get('type')!r} is not a SELECT"
+    leaves: list[dict[str, Any]] = []
+    reason = _leaf_selects(node, leaves)
+    if reason is not None:
+        return None, reason
 
     # ---- metadata forms: DESCRIBE <schema.table> / SHOW TABLES / SHOW ALL TABLES ----
     metadata_form = False
@@ -446,7 +629,7 @@ def _analyze(sql: str) -> tuple[_Analysis | None, str | None]:
             return None, "only SHOW TABLES / SHOW ALL TABLES are allowed SHOW forms"
         metadata_form = True
 
-    # ---- one pass over the whole tree: functions, base tables, CTE names ----
+    # ---- one pass over the whole tree (all branches): functions, base tables, CTEs ----
     cte_names: set[str] = set()
     base_tables: list[tuple[str, str]] = []
     for d in _iter_dicts(node):
@@ -477,63 +660,53 @@ def _analyze(sql: str) -> tuple[_Analysis | None, str | None]:
                 f"{', '.join(sorted(ALLOWED_SCHEMAS))}"
             )
 
-    qualified = {f"{s.casefold()}.{t.casefold()}" for s, t in base_tables if s}
+    exempt = metadata_form or all(is_registry_ref(s, t) for s, t in base_tables if s)
 
-    def exempt_ref(schema: str, table: str) -> bool:
-        return (
-            schema.casefold() in ("meta", "information_schema")
-            or f"{schema.casefold()}.{table.casefold()}" in dims
-        )
+    if metadata_form:
+        return _Analysis(
+            metadata_form=True, exempt=True, count_aliases=[], unaliased_counts=0
+        ), None
 
-    exempt = metadata_form or all(exempt_ref(s, t) for s, t in base_tables if s)
-    reads_subject_keyed = any(q in subject_keyed for q in qualified)
-
-    count_aliases: list[str] = []
-    if not metadata_form:
-        select_list = node.get("select_list") or []
-        found_count_family = False
-        for position, item in enumerate(select_list, start=1):
-            hit = _find_identifier_outside_count(item, identifiers)
-            if hit is not None:
-                return None, (
-                    f"identifier column {hit!r} may appear only inside count(...) / "
-                    "count(DISTINCT ...) / approx_count_distinct(...) — never as output, "
-                    "in arithmetic, or in other aggregates (GOVERNANCE §4)"
-                )
-            if _is_count_family_item(item):
-                found_count_family = True
-                alias = str(item.get("alias") or "")
-                if alias:
-                    count_aliases.append(alias)
-            if exempt:
-                continue
-            is_aggregate = (
-                item.get("class") == "FUNCTION"
-                and str(item.get("function_name", "")).casefold() in AGGREGATE_FUNCTIONS
-                and not item.get("is_operator")
-            )
-            if is_aggregate or item.get("class") == "CONSTANT":
-                continue
-            if not _is_group_key(item, position, node):
-                label = str(item.get("alias") or "") or f"#{position}"
-                return None, (
-                    f"select-list column {label} is neither an allowed aggregate nor a "
-                    "GROUP BY key — results must be aggregates only (GOVERNANCE §4)"
-                )
-        if not exempt and not found_count_family:
+    # ---- step 3 per leaf; set operations must agree positionally ----
+    reports: list[_LeafReport] = []
+    for index, leaf in enumerate(leaves, start=1):
+        label = f"set-operation branch {index}" if len(leaves) > 1 else ""
+        if label and (leaf.get("from_table") or {}).get("type") == "SHOW_REF":
+            return None, f"{label}: DESCRIBE / SHOW forms cannot be combined in a set operation"
+        report, reason = _check_select_list(leaf, identifiers, exempt, label)
+        if reason is not None:
+            return None, reason
+        assert report is not None
+        reports.append(report)
+    first = reports[0]
+    for index, report in enumerate(reports[1:], start=2):
+        if report.width != first.width:
             return None, (
-                "no count-family column — every SELECT needs count(*)/count(x)/"
-                "count(DISTINCT x) or an alias matching "
-                f"{COUNT_ALIAS_RE.pattern!r} (unless it reads only meta.*, dims or "
-                "information_schema)"
+                f"set-operation branch {index} has {report.width} select-list column(s), "
+                f"branch 1 has {first.width}"
             )
-
+        for position, (leftmost, here) in enumerate(
+            zip(first.count_positions, report.count_positions, strict=True), start=1
+        ):
+            if leftmost != here:
+                return None, (
+                    f"set-operation branch {index}, select-list column #{position} is "
+                    f"{'' if here else 'not '}count-family while branch 1's is "
+                    f"{'' if leftmost else 'not '}— count-family positions must agree "
+                    "across branches (the output column takes branch 1's name and the "
+                    "combined frame is k-suppressed as one)"
+                )
+    count_aliases: list[str] = []
+    for report in reports:
+        for alias in report.count_aliases:
+            if alias not in count_aliases:
+                count_aliases.append(alias)
     return (
         _Analysis(
-            metadata_form=metadata_form,
+            metadata_form=False,
             exempt=exempt,
-            reads_subject_keyed=reads_subject_keyed,
             count_aliases=count_aliases,
+            unaliased_counts=first.unaliased_counts,
         ),
         None,
     )
@@ -544,28 +717,29 @@ def _analyze(sql: str) -> tuple[_Analysis | None, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _count_columns(df: polars.DataFrame, count_aliases: list[str]) -> list[str]:
-    return [
-        c
-        for c in df.columns
-        if c in count_aliases
-        or COUNT_ALIAS_RE.match(c.casefold())
-        or c.casefold().startswith(COUNT_NAME_PREFIXES)
-    ]
+def _count_columns(df: polars.DataFrame, analysis: _Analysis) -> list[str]:
+    """The frame's real count columns: the audited aliases, plus — only when branch 1
+    had unaliased count calls — DuckDB's generated ``count…`` names."""
+    cols = [c for c in df.columns if c in analysis.count_aliases]
+    if analysis.unaliased_counts:
+        cols += [
+            c for c in df.columns if c not in cols and c.casefold().startswith(COUNT_NAME_PREFIXES)
+        ]
+    return cols
 
 
 def _result_problem(df: polars.DataFrame, analysis: _Analysis) -> str | None:
     """Identifier / free-text checks over the executed frame, or None when clean."""
     import polars as pl
 
-    identifiers, free_text, _dims, _subject_keyed = _contract_names()
+    identifiers, free_text, _dims = _contract_names()
     for name in df.columns:
         folded = name.casefold()
         if folded in identifiers:
             return f"output column {name!r} is an identifier column (GOVERNANCE §4)"
         if folded in free_text:
             return f"output column {name!r} is a contract free-text column (GOVERNANCE §4/§9)"
-    if analysis.reads_subject_keyed:
+    if not analysis.exempt:
         for name, dtype in df.schema.items():
             if dtype != pl.String or name.casefold() in LABEL_COLUMN_NAMES:
                 continue
@@ -591,39 +765,41 @@ def _result_problem(df: polars.DataFrame, analysis: _Analysis) -> str | None:
 def safe_query(
     sql: str,
     *,
-    tier: Tier | str = "dev",
-    k: int = K_FLOOR,
+    tier: Tier | str | None = None,
+    k: int | None = None,
     row_cap: int = 200,
     timeout_s: float = 120,
     actor: str | None = None,
     settings: Settings | None = None,
 ) -> SafeResult:
     """Run one allow-listed aggregate statement against the tier catalog (module
-    docstring has the full rule set). Raises :class:`SafeQueryRefused` after auditing;
-    :class:`~mimicwarehouse.catalog.connect.CatalogOpenError` (no catalog) propagates
-    unaudited — it is an environment error, not a statement verdict."""
+    docstring has the full rule set). ``tier`` defaults to ``settings.default_tier``,
+    ``k`` to ``settings.k_suppression``. Raises :class:`SafeQueryRefused` (governance)
+    or :class:`SafeQueryError` (usage: ``k < 1``, ``row_cap < 1``, unknown tier) after
+    auditing; :class:`~mimicwarehouse.catalog.connect.CatalogOpenError` (no catalog)
+    propagates unaudited — it is an environment error, not a statement verdict."""
     import duckdb
 
     settings = settings or get_settings()
-    if tier not in ("fixture", "demo", "dev", "full"):
-        raise SafeQueryError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
+    resolved_tier: str = str(tier if tier is not None else settings.default_tier)
+    resolved_k: int = k if k is not None else settings.k_suppression
     started = time.perf_counter()
     sha = hashlib.sha256(sql.encode("utf-8")).hexdigest()
     snapshot_ids: dict[str, str] = {}
     resolved_actor = actor if actor else settings.role
 
-    def refuse(reason: str) -> SafeQueryRefused:
+    def audit_verdict(reason: str) -> None:
         _append_audit(
             AuditLine(
                 audit_id=uuid.uuid4().hex,
                 ts=datetime.now(UTC).isoformat(timespec="milliseconds"),
                 actor=resolved_actor,
-                tier=str(tier),
+                tier=resolved_tier,
                 statement_sha256=sha,
                 sql_text=sql,
                 allowed=False,
                 refusal_reason=reason,
-                k=k,
+                k=resolved_k,
                 wall_ms=round((time.perf_counter() - started) * 1000, 1),
                 duckdb_version=duckdb.__version__,
                 snapshot_ids=snapshot_ids,
@@ -631,56 +807,76 @@ def safe_query(
             ),
             settings,
         )
+
+    def refuse(reason: str) -> SafeQueryRefused:
+        audit_verdict(reason)
         return SafeQueryRefused(reason)
 
-    if k < 1:
-        raise refuse(f"k = {k} is invalid (k >= 1)")
-    if str(tier) in CREDENTIALED_TIERS and k < K_FLOOR:
-        raise refuse(
-            f"k = {k} < {K_FLOOR} is refused on the {tier} tier (D-31/D-33; only the "
-            "synthetic fixture/demo tiers may lower k)"
-        )
-    if row_cap < 1:
-        raise refuse(f"row_cap = {row_cap} is invalid (row_cap >= 1)")
+    def usage(reason: str) -> SafeQueryError:
+        audit_verdict(f"usage: {reason}")
+        return SafeQueryError(reason)
 
-    analysis, reason = _analyze(sql)
+    if resolved_tier not in _TIERS:
+        raise usage(f"unknown tier {resolved_tier!r}; expected {' | '.join(_TIERS)}")
+    if resolved_k < 1:
+        raise usage(f"k = {resolved_k} is invalid (k >= 1)")
+    if row_cap < 1:
+        raise usage(f"row_cap = {row_cap} is invalid (row_cap >= 1)")
+    if resolved_tier in CREDENTIALED_TIERS and resolved_k < K_FLOOR:
+        raise refuse(
+            f"k = {resolved_k} < {K_FLOOR} is refused on the {resolved_tier} tier (D-31/D-33; "
+            "only the synthetic fixture/demo tiers may lower k)"
+        )
+
+    analysis, reason = _analyze(sql, settings)
     if reason is not None:
         raise refuse(reason)
     assert analysis is not None
 
     from mimicwarehouse.catalog.connect import open_catalog
+    from mimicwarehouse.engine import attach_read_only
 
-    con = open_catalog(tier, settings=settings)
+    con = open_catalog(resolved_tier, settings=settings)
     try:
-        row = con.execute("SELECT core_snapshot_id FROM meta.catalog_info").fetchone()
-        snapshot_id = str(row[0]) if row and row[0] is not None else None
-        if snapshot_id is not None:
-            snapshot_ids["core"] = snapshot_id
-        runs_db = runs_db_path(settings)
-        if runs_db.is_file():
-            # IF NOT EXISTS: DuckDB's in-process instance cache is keyed on path
-            # (DESIGN §6 note b) — while another connection keeps the catalog instance
-            # alive, an earlier call's ATTACH is still present instance-wide.
-            escaped = runs_db.resolve().as_posix().replace("'", "''")
-            con.execute(f"ATTACH IF NOT EXISTS '{escaped}' AS runs (READ_ONLY)")
+        # DKB-3/SGT-6: the pre-execution catalog statements sit inside the audited path
+        try:
+            row = con.execute("SELECT core_snapshot_id FROM meta.catalog_info").fetchone()
+            snapshot_id = str(row[0]) if row and row[0] is not None else None
+            if snapshot_id is not None:
+                snapshot_ids["core"] = snapshot_id
+            runs_db = runs_db_path(settings)
+            if runs_db.is_file():
+                attach_read_only(con, runs_db, "runs")
+        except duckdb.Error as exc:
+            raise refuse(
+                f"catalog error before execution: {exc.__class__.__name__}: "
+                f"{sanitize_error_text(str(exc))}"
+            ) from None
 
-        timer = threading.Timer(timeout_s, con.interrupt)
+        def interrupt() -> None:
+            # DKB-4: the timer may fire while the connection is already closing
+            with contextlib.suppress(Exception):
+                con.interrupt()
+
+        timer = threading.Timer(timeout_s, interrupt)
         timer.start()
         try:
             df = con.execute(sql).pl()
         except duckdb.InterruptException:
             raise refuse(f"timeout: statement exceeded {timeout_s} s and was interrupted") from None
         except duckdb.Error as exc:
-            raise refuse(f"execution error: {exc}") from None
+            raise refuse(
+                f"execution error: {exc.__class__.__name__}: {sanitize_error_text(str(exc))}"
+            ) from None
         finally:
-            timer.cancel()
+            timer.cancel()  # before con.close() (outer finally)
     finally:
         con.close()
 
     problem = _result_problem(df, analysis)
     if problem is not None:
         raise refuse(problem)
-    df, rows_suppressed = SUPPRESSOR(df, k, _count_columns(df, analysis.count_aliases))
+    df, rows_suppressed = SUPPRESSOR(df, resolved_k, _count_columns(df, analysis))
     if df.height > row_cap:
         raise refuse(
             f"result has {df.height} rows after suppression, over the row cap of "
@@ -693,14 +889,14 @@ def safe_query(
             audit_id=audit_id,
             ts=datetime.now(UTC).isoformat(timespec="milliseconds"),
             actor=resolved_actor,
-            tier=str(tier),
+            tier=resolved_tier,
             statement_sha256=sha,
             sql_text=sql,
             allowed=True,
             refusal_reason=None,
             n_rows=df.height,
             rows_suppressed=rows_suppressed,
-            k=k,
+            k=resolved_k,
             wall_ms=round((time.perf_counter() - started) * 1000, 1),
             duckdb_version=duckdb.__version__,
             snapshot_ids=snapshot_ids,
@@ -714,8 +910,8 @@ def safe_query(
         rows_suppressed=rows_suppressed,
         statement_sha256=sha,
         audit_id=audit_id,
-        tier=str(tier),
-        k=k,
+        tier=resolved_tier,
+        k=resolved_k,
         duckdb_version=duckdb.__version__,
         snapshot_id=snapshot_ids.get("core"),
     )
@@ -726,14 +922,36 @@ def safe_query(
 # ---------------------------------------------------------------------------
 
 
+def _ledger_has_record(path: Path) -> bool:
+    """Whether at least one line of the JSONL parses (a tolerant scan — a torn or merged
+    line is skipped, never raised, unlike :func:`fsio.read_jsonl`)."""
+    with Path(path).open("rb") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                json.loads(line.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            return True
+    return False
+
+
 def build_runs_db(settings: Settings | None = None) -> Path:
     """Build ``warehouse/runs.duckdb.new`` with the ``audit`` view over
-    ``runs/audit.jsonl`` and publish it by the DESIGN §6 rename-aside swap; readers
-    open it read-only (``mwh runs refresh`` calls this). Creates ``runs/`` and an
-    empty ``audit.jsonl`` when missing (the view then reads 0 rows)."""
-    import duckdb
+    ``runs/audit.jsonl`` and publish it with :func:`mimicwarehouse.publish.swap_file`
+    (rename-aside; a reader holding the live file raises
+    :class:`~mimicwarehouse.publish.SwapBlockedError` naming ``mwh runs refresh`` as the
+    remedy). Readers open it read-only. Creates ``runs/`` and an empty ``audit.jsonl``
+    when missing (the view then reads 0 rows).
 
-    from mimicwarehouse.catalog.build import swap_catalog
+    The view is ``read_json_auto(..., ignore_errors = true)`` (LGR-1): DuckDB 1.5.5 turns a
+    torn trailing line — or the merged line a later append leaves behind it — into an
+    all-NULL record instead of skipping it, so the view filters ``audit_id IS NOT NULL``
+    (every real line carries one). An empty ledger binds as a single ``json`` column, so
+    the filter is added only once the ledger holds a parseable record."""
+    from mimicwarehouse import publish
+    from mimicwarehouse.engine import open_duckdb
 
     settings = settings or get_settings()
     audit = audit_path(settings)
@@ -741,20 +959,18 @@ def build_runs_db(settings: Settings | None = None) -> Path:
     audit.touch(exist_ok=True)
     dest = runs_db_path(settings)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
-    new = dest.with_name(dest.name + ".new")
-    new.unlink(missing_ok=True)
+    new = publish.new_path_for(dest)
+    publish.unlink(new)
     escaped = audit.resolve().as_posix().replace("'", "''")
-    con = duckdb.connect(str(new), config=dict(settings.duckdb_settings("app")))
+    source = f"read_json_auto('{escaped}', format = 'newline_delimited', ignore_errors = true)"
+    torn_filter = " WHERE audit_id IS NOT NULL" if _ledger_has_record(audit) else ""
+    con = open_duckdb("app", database=new, settings=settings)
     try:
-        con.execute(
-            "CREATE VIEW audit AS SELECT * FROM "
-            f"read_json_auto('{escaped}', format = 'newline_delimited')"
-        )
+        con.execute(f"CREATE VIEW audit AS SELECT * FROM {source}{torn_filter}")
         con.execute("CHECKPOINT")
     finally:
         con.close()
-    swap_catalog(new, dest, "runs")
+    publish.swap_file(new, dest, blocked_hint="close it and rerun `mwh runs refresh`")
     return dest
 
 
@@ -765,11 +981,16 @@ __all__ = [
     "COUNT_ALIAS_RE",
     "COUNT_FAMILY_FUNCTIONS",
     "CREDENTIALED_TIERS",
+    "ERROR_TEXT_MAX_CHARS",
+    "EXIT_REFUSED",
+    "EXIT_USAGE",
     "FORBIDDEN_FUNCTION_NAMES",
     "FORBIDDEN_FUNCTION_PREFIXES",
     "FREE_TEXT_MAX_CHARS",
     "K_FLOOR",
     "LABEL_COLUMN_NAMES",
+    "REGISTRY_SCHEMAS",
+    "REGISTRY_TABLES",
     "RUNS_DB_FILENAME",
     "SUPPRESSOR",
     "AuditLine",
@@ -778,7 +999,9 @@ __all__ = [
     "SafeResult",
     "audit_path",
     "build_runs_db",
+    "is_registry_ref",
     "rowwise_suppress",
     "runs_db_path",
     "safe_query",
+    "sanitize_error_text",
 ]

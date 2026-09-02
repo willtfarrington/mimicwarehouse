@@ -32,12 +32,14 @@ Formats recognised (planning session, verbatim)::
     > **Charter.** … upgraded to a full brief by EP-m (Re-plan Pk) before execution.
 
 Import cost: stdlib + typer + the shared console module (EP-167; rich tables only inside the
-command bodies); nothing data-related.
+command bodies) + :mod:`mimicwarehouse.config` at module level for the workspace / repo
+roots (pydantic + pydantic-settings, already paid by ``cli.py``; retro P01-3); nothing
+data-related. Errors and ``--json`` follow the EP-33 canon: :func:`~mimicwarehouse.console.fail`
+(``mwh verify: …`` on stderr) and :func:`~mimicwarehouse.console.emit_json`.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -50,15 +52,15 @@ from typing import Annotated, Any, Literal
 import typer
 
 from mimicwarehouse import config
-from mimicwarehouse.console import console_safe
+from mimicwarehouse.console import EXIT_OK, EXIT_USAGE, console_safe, emit_json, err_console, fail
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Exit codes of :func:`verify` beyond pytest's own (0 pass, 1 failures, 3/4 internal/usage).
-EXIT_OK = 0
-EXIT_USAGE = 2
+#: Exit codes of :func:`verify` beyond pytest's own (0 pass, 1 failures, 3/4 internal/usage):
+#: ``EXIT_OK`` / ``EXIT_USAGE`` are re-exported from :mod:`mimicwarehouse.console` (the
+#: definition site since EP-33 B8; ``from mimicwarehouse.verify import EXIT_USAGE`` keeps working).
 #: pytest's "no tests collected" — reported as :data:`EXIT_USAGE` with a marker hint.
 PYTEST_NO_TESTS_COLLECTED = 5
 
@@ -770,22 +772,18 @@ def verify_command(
         if on
     ]
     if len(modes) != 1:
-        console.print(
-            "[bold red]mwh verify:[/] give exactly one of EP-<n>, --list or --roadmap",
-            highlight=False,
-        )
-        raise typer.Exit(code=EXIT_USAGE)
+        fail("mwh verify", "give exactly one of EP-<n>, --list or --roadmap", code=EXIT_USAGE)
     roadmap = roadmap_dir()
     workspace = workspace_root()
 
     if list_briefs:
         _print_list(console, roadmap, workspace)
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=EXIT_OK)
 
     if roadmap_flag:
         report = roadmap_check(roadmap, repo_root(), strict=strict)
         if json_output:
-            typer.echo(json.dumps(report.as_dict(strict), indent=2))
+            emit_json(report.as_dict(strict))
         else:
             _print_report(console, report, strict)
         raise typer.Exit(code=report.exit_code(strict))
@@ -794,8 +792,7 @@ def verify_command(
     try:
         n = resolve_ep(ep)
     except VerifyError as exc:
-        console.print(f"[bold red]mwh verify:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=EXIT_USAGE) from None
+        fail("mwh verify", str(exc), code=EXIT_USAGE)
     brief_path = find_brief(n, roadmap)
     if brief_path is not None:
         b = parse_brief(brief_path)
@@ -827,12 +824,16 @@ def roadmap_check_main(argv: Sequence[str] | None = None) -> int:
     if "--roadmap" in args:
         i = args.index("--roadmap")
         if i + 1 >= len(args):
-            print("roadmap_check: --roadmap needs a directory", file=sys.stderr)
+            # the script entry *returns* its exit code (poe/CI read it), so the stderr line
+            # is printed here instead of raised through console.fail
+            err_console.print(
+                "[bold red]roadmap_check:[/] --roadmap needs a directory", highlight=False
+            )
             return EXIT_USAGE
         roadmap = Path(args[i + 1])
     report = roadmap_check(roadmap, strict=strict)
     if as_json:
-        print(json.dumps(report.as_dict(strict), indent=2))
+        emit_json(report.as_dict(strict))
     else:
         _print_report(console, report, strict)
     return report.exit_code(strict)

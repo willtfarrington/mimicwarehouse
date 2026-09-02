@@ -10,8 +10,14 @@ is integrity-only, never part of a snapshot id.
 
 ``status.json`` (``<lake_root>/manifests/status.json``) tracks one entry per
 ``<schema>.<table>`` under ``{"steps": {...}}`` — the shape the EP-168 ``dev_ready``
-test fixture reads — written atomically (``.tmp`` + ``os.replace`` with the Windows
-retry loop shared with :mod:`mimicwarehouse.inventory`).
+test fixture reads — written atomically (:func:`mimicwarehouse.fsio.atomic_write_text`:
+``.tmp`` + ``os.replace`` with the Windows retry loop).
+
+The manifest jsonl is written through :func:`mimicwarehouse.fsio.append_jsonl_lines`
+(EP-33 B8: ``O_APPEND`` + short-write check + fsync — the resume-critical ledger no
+longer has a buffered-write torn-line window) and read through
+:func:`mimicwarehouse.fsio.iter_jsonl` (:func:`iter_manifest`), which skips one torn
+trailing line with a warning (LGR-1/LDR-5).
 
 Nothing here opens a source file: hashes are streamed from the Parquet the loader itself
 wrote, row counts come from Parquet metadata.
@@ -21,13 +27,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mimicwarehouse import __version__
+from mimicwarehouse import __version__, fsio
 from mimicwarehouse.schema.contract import Table
 
 MANIFESTS_DIRNAME = "manifests"
@@ -112,16 +119,19 @@ def manifest_path(lake_root: Path, build_id: str) -> Path:
 
 def append_manifest(lake_root: Path, build_id: str, lines: list[ManifestLine]) -> Path:
     """Append ``lines`` to ``<lake_root>/manifests/<build_id>.jsonl`` (one canonical JSON
-    object per line, append-only — a build appends as tables finish)."""
-    path = manifest_path(lake_root, build_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    text = "".join(
-        json.dumps(line.model_dump(mode="json", by_alias=True), sort_keys=True) + "\n"
-        for line in lines
+    object per line, append-only — a build appends as tables finish; ``O_APPEND`` +
+    fsync via :func:`fsio.append_jsonl_lines`)."""
+    return fsio.append_jsonl_lines(
+        manifest_path(lake_root, build_id),
+        (line.model_dump(mode="json", by_alias=True) for line in lines),
     )
-    with path.open("a", encoding="utf-8", newline="\n") as f:
-        f.write(text)
-    return path
+
+
+def iter_manifest(path: Path) -> Iterator[ManifestLine]:
+    """The :class:`ManifestLine` objects of one manifest jsonl, tolerant of a torn
+    trailing line (:func:`fsio.iter_jsonl`); a missing file yields nothing."""
+    for obj in fsio.iter_jsonl(path):
+        yield ManifestLine.model_validate(obj)
 
 
 def status_path(lake_root: Path) -> Path:
@@ -142,8 +152,6 @@ def update_status(lake_root: Path, step: str, **fields: Any) -> Path:
     """Merge ``fields`` into ``status.json``'s entry for ``step`` (``<schema>.<table>``),
     atomically (``.tmp`` + ``os.replace`` retry loop). New entries start from
     :data:`STATUS_DEFAULTS` so ``tier_complete`` / ``dev_ready`` are always present."""
-    from mimicwarehouse.inventory import _atomic_write_text
-
     data = read_status(lake_root)
     entry = data["steps"].setdefault(step, dict(STATUS_DEFAULTS))
     for key in STATUS_DEFAULTS:
@@ -151,7 +159,7 @@ def update_status(lake_root: Path, step: str, **fields: Any) -> Path:
     entry.update(fields)
     path = status_path(lake_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
+    fsio.atomic_write_text(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path
 
 
@@ -161,6 +169,7 @@ __all__ = [
     "STATUS_FILENAME",
     "ManifestLine",
     "append_manifest",
+    "iter_manifest",
     "lake_relative_posix",
     "manifest_path",
     "manifests_dir",

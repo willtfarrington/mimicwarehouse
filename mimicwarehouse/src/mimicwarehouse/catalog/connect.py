@@ -3,7 +3,8 @@
 :func:`open_catalog` is the **one** way any reader (tests, the app, EP-30's
 ``safe_query``, notebooks) attaches a tier catalog: ``read_only=True`` with the explicit
 app-profile DuckDB configuration (``memory_limit`` = ``settings.duckdb_app_memory_limit``,
-``threads``, ``temp_directory``, ``max_temp_directory_size``), then the hardening
+``threads``, ``temp_directory``, ``max_temp_directory_size`` — applied by the connection
+factory :func:`mimicwarehouse.engine.open_duckdb`, EP-33 B3), then the hardening
 ``SET``\\ s (no extension autoinstall/autoload, ``HTTPFileSystem`` disabled — the catalog
 must never reach the network). It asserts the catalog's recorded DuckDB version equals
 the running one (catalogs are derived and disposable: on mismatch the fix is
@@ -20,19 +21,19 @@ row — the connection is handed to callers who are bound by GOVERNANCE §4/§5.
 from __future__ import annotations
 
 import json
-import time
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from mimicwarehouse.config import Role, Settings, Tier, get_settings
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
 
-#: How long :func:`open_catalog` retries the swap's no-file window before giving up.
+#: How long :func:`open_catalog` retries the swap's no-file window before giving up
+#: (handed to ``engine.open_duckdb(retry_missing_s=...)``, which polls every
+#: ``engine.RETRY_MISSING_SLEEP_S``).
 OPEN_RETRY_S = 0.5
-OPEN_RETRY_SLEEP_S = 0.01
 
 #: The hardening applied to every catalog connection (GOVERNANCE §4: a catalog reader
 #: must never install extensions or touch the network).
@@ -53,24 +54,26 @@ def catalog_path(tier: Tier | str, settings: Settings | None = None) -> Path:
     return (settings or get_settings()).catalog_path(tier)
 
 
-def _connect_with_retry(path: Path, config: dict[str, Any], tier: str) -> duckdb.DuckDBPyConnection:
-    """``duckdb.connect(read_only=True)``, retrying while the file is transiently absent
-    (the rename-aside swap's sub-millisecond window, EP-170 amendment 1)."""
+def _connect_with_retry(path: Path, settings: Settings, tier: str) -> duckdb.DuckDBPyConnection:
+    """The read-only app-profile open through :func:`mimicwarehouse.engine.open_duckdb`,
+    retrying for :data:`OPEN_RETRY_S` while the file is transiently absent (the
+    rename-aside swap's sub-millisecond window, EP-170 amendment 1); a file still missing
+    afterwards is the no-catalog :class:`CatalogOpenError` raised at this layer."""
     import duckdb
 
-    deadline = time.monotonic() + OPEN_RETRY_S
-    while True:
-        try:
-            return duckdb.connect(str(path), read_only=True, config=config)
-        except (duckdb.Error, FileNotFoundError) as exc:
-            if path.exists() or time.monotonic() >= deadline:
-                if not path.exists():
-                    raise CatalogOpenError(
-                        f"no {tier} catalog at {path} — build it with "
-                        f"`mwh build --tier {tier} --select catalog`"
-                    ) from exc
-                raise
-            time.sleep(OPEN_RETRY_SLEEP_S)
+    from mimicwarehouse.engine import open_duckdb
+
+    try:
+        return open_duckdb(
+            "app", database=path, read_only=True, settings=settings, retry_missing_s=OPEN_RETRY_S
+        )
+    except (duckdb.Error, FileNotFoundError) as exc:
+        if not path.exists():
+            raise CatalogOpenError(
+                f"no {tier} catalog at {path} — build it with "
+                f"`mwh build --tier {tier} --select catalog`"
+            ) from exc
+        raise
 
 
 def open_catalog(
@@ -97,10 +100,9 @@ def open_catalog(
             f"{target}: refusing to open an unpublished .new catalog — only `mwh build` "
             "writes it, and only the published <tier>.duckdb is ever read (DESIGN §6)"
         )
-    # DuckDB 1.5.5 needs the temp-directory parent to exist before the first spill
-    # (EP-167, retro CFG-3) — every connection site ensures it.
-    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
-    con = _connect_with_retry(target, dict(settings.duckdb_settings("app")), str(tier))
+    # the temp-directory parent (retro CFG-3) and the app-profile settings are the
+    # factory's (engine.open_duckdb, EP-33 B3)
+    con = _connect_with_retry(target, settings, str(tier))
     try:
         for statement in HARDENING_SQL:
             con.execute(statement)

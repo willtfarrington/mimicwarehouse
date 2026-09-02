@@ -6,8 +6,9 @@ layout is encoded for readers: the catalog views (EP-21) and the tests build the
 pinned to ``part-*.parquet`` on purpose — pass-1 ``raw_*`` files and ``_sorting.tmp`` of
 an in-progress large stage are never visible through it (DESIGN §5 note, 2026-08-28).
 
-Distinct from :mod:`mimicwarehouse.paths` (the directory-swap publisher): this module
-only formats strings; it never touches the filesystem.
+Distinct from :mod:`mimicwarehouse.publish` (the rename-aside publisher, which absorbed
+the former ``mimicwarehouse.paths`` at EP-33): this module only formats strings; it never
+touches the filesystem.
 """
 
 from __future__ import annotations

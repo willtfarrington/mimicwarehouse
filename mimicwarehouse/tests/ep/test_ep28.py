@@ -36,7 +36,7 @@ from typing import Any
 import pytest
 
 import helpers
-from mimicwarehouse import config, paths
+from mimicwarehouse import config, publish
 from mimicwarehouse.config import Settings
 from mimicwarehouse.dag import benchmarks as benchmarks_mod
 from mimicwarehouse.dag import jobs as jobs_mod
@@ -108,8 +108,8 @@ def _structural_check(settings: Settings, contract: Contract, tier: str) -> None
         assert entry.get("rejects", 0) == 0, qn
         tdir = loader_paths.table_dir(lake, table.schema_name, table.name)
         assert tdir.is_dir(), qn
-        assert not paths.new_dir_for(tdir).exists(), qn
-        assert not paths.old_dir_for(tdir).exists(), qn
+        assert not publish.new_path_for(tdir).exists(), qn
+        assert not publish.old_path_for(tdir).exists(), qn
         entries = list(tdir.iterdir())
         if table.partitioned:
             bucket_dirs = [p for p in entries if p.is_dir()]

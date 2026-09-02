@@ -1,12 +1,17 @@
 """Benchmark ledger — build telemetry, append-only JSONL (EP-19 item 4; D-24).
 
-``runs/benchmarks.jsonl``: one canonical JSON object per line, written with
-``O_APPEND`` + flush so concurrent readers never see a torn line. **Nothing else
-writes to this file** — the EP-19 runner appends one :class:`BenchmarkLine` per
+``runs/benchmarks.jsonl``: one canonical JSON object per line, written through
+:func:`mimicwarehouse.fsio.append_jsonl` (``O_APPEND`` + short-write check + **fsync**;
+EP-33 B8). Two writers exist: the EP-19 runner appends one :class:`BenchmarkLine` per
 executed step (``phase: total``; a large partitioned stage adds a ``pass1`` line —
-absent when a resume skipped pass 1 — and a ``pass2`` line before it, EP-23)
-plus one ``kind: build`` summary line per run; EP-28/EP-32 read it. Distinct from the
-analysis run ledger (``runs/ledger.jsonl``, EP-30/EP-35).
+absent when a resume skipped pass 1 — and a ``pass2`` line before it, EP-23) plus one
+``kind: build`` summary line per run, and the EP-28 full-tier verify test appends
+``kind: verify`` lines. Appends are **not** atomic between processes on Windows (the CRT
+implements ``O_APPEND`` as seek-then-write, DAG-4): the ledger relies on
+single-writer-by-sequencing — builds are serialized by the build lock and a verify run
+follows the build it verifies — not on OS-level locking. :func:`read` tolerates one torn
+trailing line (LGR-1). EP-28/EP-32 read it. Distinct from the analysis run ledger
+(``runs/ledger.jsonl``, EP-30/EP-35).
 
 EP-32 adds the case-study renderer over :func:`summarize`: :func:`render_markdown`
 (one Markdown row per step, integers via ``inventory.fmt_int`` — guard G4) and
@@ -19,13 +24,12 @@ Everything recorded is counts, versions and timings — never a row.
 
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from mimicwarehouse import fsio
 from mimicwarehouse.config import Settings, get_settings
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -85,27 +89,22 @@ def benchmarks_path(settings: Settings | None = None) -> Path:
 
 
 def append(line: BenchmarkLine, settings: Settings | None = None) -> Path:
-    """Append one line (``O_APPEND`` + flush; one canonical JSON object per line)."""
-    path = benchmarks_path(settings)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    blob = (json.dumps(line.model_dump(mode="json"), sort_keys=True) + "\n").encode("utf-8")
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        os.write(fd, blob)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    return path
+    """Append one line (``O_APPEND`` + fsync via :func:`fsio.append_jsonl`; one canonical
+    JSON object per line)."""
+    return fsio.append_jsonl(benchmarks_path(settings), line.model_dump(mode="json"))
 
 
 def read(settings: Settings | None = None) -> polars.DataFrame:
-    """The whole ledger as a polars DataFrame (empty frame when the file is missing)."""
+    """The whole ledger as a polars DataFrame (empty frame when the file is missing or
+    empty). The lines go through :func:`fsio.read_jsonl` first, so one torn trailing line
+    (a crash mid-append) is skipped with a warning instead of failing every summary
+    (LGR-1); polars then infers the schema from the surviving canonical lines."""
     import polars
 
-    path = benchmarks_path(settings)
-    if not path.is_file():
+    rows = fsio.read_jsonl(benchmarks_path(settings))
+    if not rows:
         return polars.DataFrame()
-    return polars.read_ndjson(path)
+    return polars.read_ndjson(b"".join(fsio.encode_line(row) for row in rows))
 
 
 def summarize(
@@ -125,7 +124,9 @@ def summarize(
     (``bytes_in / 1e6 / wall_s``), ``mb_out_per_s``, ``ok``. ``kind`` filters the step
     lines (default ``"stage"``; ``None`` keeps every kind); the per-run ``kind: build``
     summary lines (``step`` null) are always excluded. Everything here is timings and
-    counts — never a row of data.
+    counts — never a row of data. The "latest" pick is deterministic: lines are ordered
+    by ``(ts, build_id)`` with a stable sort, so two lines sharing a one-second ``ts``
+    resolve the same way on every run (carried finding DAG-8).
     """
     import polars
 
@@ -139,7 +140,8 @@ def summarize(
         df = df.filter(polars.col("tier") == tier)
     if df.is_empty():
         return polars.DataFrame()
-    df = df.sort("ts")
+    order = ["ts", "build_id"]
+    df = df.sort(order, maintain_order=True)
     keys = ["tier", "step", "build_id"]
     totals = df.filter(polars.col("phase") == "total").group_by(keys, maintain_order=True).last()
     out = totals
@@ -152,7 +154,9 @@ def summarize(
         )
         out = out.join(walls, on=keys, how="left")
     # latest total per (tier, step): the group_by above kept ts order within each build
-    out = out.sort("ts").group_by(["tier", "step"], maintain_order=True).last()
+    out = (
+        out.sort(order, maintain_order=True).group_by(["tier", "step"], maintain_order=True).last()
+    )
     wall = polars.col("wall_s")
     out = out.with_columns(
         polars.when(wall > 0)

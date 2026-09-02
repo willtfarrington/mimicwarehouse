@@ -39,7 +39,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from rich.markup import escape
 
-from mimicwarehouse.console import console
+from mimicwarehouse.console import EXIT_USAGE, console, fail
 
 if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.cli import CliState
@@ -341,8 +341,7 @@ def fetch_command(
     try:
         register, counts = fetch_all(settings, force=force)
     except (DemoFetchError, DiskGuardError) as exc:
-        console.print(f"[bold red]mwh demo fetch:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+        fail("mwh demo fetch", str(exc), code=EXIT_USAGE)
     for record, c in zip(register.datasets, counts, strict=True):
         console.print(
             f"{escape(record.name)} {record.version}: {len(record.files)} file(s) verified "
@@ -360,21 +359,15 @@ def status_command(ctx: typer.Context) -> None:
     settings = state.settings
     path = register_path(settings)
     if not path.is_file():
-        console.print(
-            f"[bold red]mwh demo status:[/] no register at {escape(str(path))} — "
-            "run `mwh demo fetch` first",
-            highlight=False,
-        )
-        raise typer.Exit(code=2)
+        fail("mwh demo status", f"no register at {path} - run `mwh demo fetch` first")
     try:
         register = load_register(path)
     except Exception as exc:  # malformed YAML / schema — report, never guess
-        console.print(
-            f"[bold red]mwh demo status:[/] {escape(str(path))} is not a valid register "
-            f"({escape(str(exc))}) — rerun `mwh demo fetch`",
-            highlight=False,
+        fail(
+            "mwh demo status",
+            f"{path} is not a valid register ({exc}) - rerun `mwh demo fetch`",
+            code=EXIT_USAGE,
         )
-        raise typer.Exit(code=2) from None
 
     from rich.table import Table as RichTable
 

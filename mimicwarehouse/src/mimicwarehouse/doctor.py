@@ -79,9 +79,11 @@ GB = config.GB  # GiB — the unit Explorer / Win32_LogicalDisk report as "GB" (
 DISK_FAIL_GB = 100  # DESIGN §3: never below 100 GB free (Settings.min_free_gb overrides)
 DISK_WARN_MARGIN_GB = 50  # warn within this margin above the fail line
 
-#: The D-38 allow list (DECISIONS D-38 addenda, EP-7 table): what the owner excludes in *every*
-#: real-time product besides Defender's ``C:\mimicdata`` exclusion. Names only — the doctor
-#: reminds, it cannot read any product's exclusion list non-elevated.
+#: The D-38 allow list (DECISIONS D-38 addenda, EP-7 table; nine paths since the EP-165/166
+#: addendum — D-43 item 5 added the uv cache and the Claude scratchpad; EP-33, retro
+#: CLI-3/P01-1): what the owner excludes in *every* real-time product besides Defender's
+#: ``C:\mimicdata`` exclusion. Names only — the doctor reminds, it cannot read any product's
+#: exclusion list non-elevated.
 D38_ALLOW_LIST: tuple[str, ...] = (
     r"C:\Program Files\Git",
     r"%APPDATA%\uv\python",
@@ -90,6 +92,8 @@ D38_ALLOW_LIST: tuple[str, ...] = (
     "source material\\",
     r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*",
     r"%USERPROFILE%\.cache\pre-commit",
+    r"%LOCALAPPDATA%\uv\cache",
+    "%LOCALAPPDATA%\\Temp\\claude\\",
 )
 
 #: ``root/SecurityCenter2`` query (non-elevated; Windows 7+). One JSON object for a single
@@ -675,7 +679,7 @@ def check_antivirus() -> CheckResult:
         return CheckResult("antivirus", "info", f"{listing} — Defender is the only product", value)
     names = ", ".join(value["non_defender"])
     detail = (
-        f"{listing} — {names} keeps its own allow list: exclude the D-38 paths there too "
+        f"{listing} — {names} keeps its own allow list: exclude the nine D-38 paths there too "
         f"({'; '.join(D38_ALLOW_LIST)}); its exclusion list is not readable non-elevated, taken "
         "on the owner's word (D-38, D-42)"
     )
@@ -955,7 +959,9 @@ def doctor_command(
     results = run_checks(state.settings)
     report = doctor_report(results)
     if json_output:
-        sys.stdout.write(json.dumps(report, indent=2) + "\n")
+        from mimicwarehouse.console import emit_json
+
+        emit_json(report)
     else:
         from mimicwarehouse.console import console
 

@@ -5,12 +5,16 @@ DESIGN §3/§6 and D-17/D-18: one DuckDB file per tier holding the ``mimiciv_hos
 every tier, subject-keyed tables as views** over the Hive-partitioned Parquet (the DESIGN
 §21 decision made here; Hive pruning already makes dev fast, EP-55 revisits for marts).
 ``mwh build`` is the only writer: the catalog is built to ``<tier>.duckdb.new`` and
-published by the **rename-aside two-step** (DESIGN §6 note, D-43 item 6):
-``os.rename(<tier>.duckdb → .old)`` succeeds with DuckDB READ_ONLY readers open
-(``FILE_SHARE_DELETE``), then ``os.replace(.new → <tier>.duckdb)``, then remove ``.old``
-(Windows holds it delete-pending while a reader lives). Only when even the rename fails
-(a non-sharing handle) does the build raise the documented "close the app/notebooks and
-rerun" message and leave the old catalog intact.
+published by the **rename-aside two-step** — :func:`mimicwarehouse.publish.swap_file`
+since EP-33 B2 (DESIGN §6 note, D-43 item 6): ``os.rename(<tier>.duckdb → .old)``
+succeeds with DuckDB READ_ONLY readers open (``FILE_SHARE_DELETE``), then
+``os.replace(.new → <tier>.duckdb)``, then remove ``.old`` (Windows holds it
+delete-pending while a reader lives). Only when even the rename fails (a non-sharing
+handle) does the build raise :class:`CatalogSwapError` — the documented "close the
+app/notebooks and rerun" message, a :class:`publish.SwapBlockedError` translated at the
+call site — and leave the old catalog intact. Both DuckDB opens go through
+:func:`mimicwarehouse.engine.open_duckdb` (B3): the writer with the ``build`` profile,
+the previous catalog's ``dev_buckets`` probe with ``app`` / read-only.
 
 Which tables enter the catalog is decided by the lake's ``status.json`` (EP-17/19):
 ``full`` requires ``tier_complete = "full"``; ``dev`` accepts ``dev_ready`` (the EP-19
@@ -31,14 +35,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mimicwarehouse import __version__
+from mimicwarehouse import __version__, publish
 from mimicwarehouse.config import (
     Settings,
     Tier,
@@ -71,32 +73,15 @@ CATALOG_SCHEMAS: tuple[str, ...] = (
 #: EP-148 — DESIGN §5 note).
 STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 
-NEW_SUFFIX = ".new"
-OLD_SUFFIX = ".old"
-
-#: ``PermissionError`` retry policy for the file swap (anti-virus / indexer holds are
-#: transient on Windows; matches :mod:`mimicwarehouse.paths`).
-RETRIES = 20
-RETRY_BASE_SLEEP_S = 0.05
-
 
 class CatalogBuildError(RuntimeError):
     """The catalog cannot be built (bad tier, missing lake, DuckDB failure)."""
 
 
-class CatalogSwapError(CatalogBuildError):
+class CatalogSwapError(CatalogBuildError, publish.SwapBlockedError):
     """The freshly built catalog cannot replace the live one (a non-sharing reader holds
-    the file). The old catalog is left intact."""
-
-
-def catalog_new_path(catalog: Path) -> Path:
-    """``<tier>.duckdb.new`` — where a build writes before the swap."""
-    return catalog.with_name(catalog.name + NEW_SUFFIX)
-
-
-def catalog_old_path(catalog: Path) -> Path:
-    """``<tier>.duckdb.old`` — the aside name the live catalog briefly holds."""
-    return catalog.with_name(catalog.name + OLD_SUFFIX)
+    the file). The old catalog is left intact. Both a :class:`CatalogBuildError` and the
+    :class:`publish.SwapBlockedError` the swap primitive raises (EP-33 B2)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,76 +157,36 @@ def _create_view_sql(table: Table, lake_root: Path, buckets: list[int] | None) -
 
 
 # ---------------------------------------------------------------------------
-# The swap (rename-aside two-step for a single file; DESIGN §6 note)
-# ---------------------------------------------------------------------------
-
-
-def _retry_os(op: Callable[[], None], what: str) -> None:
-    for attempt in range(RETRIES):
-        try:
-            op()
-            return
-        except PermissionError:
-            if attempt == RETRIES - 1:
-                raise
-            time.sleep(RETRY_BASE_SLEEP_S * (attempt + 1))
-        except FileNotFoundError:
-            return  # already gone
-
-
-def swap_catalog(new: Path, dest: Path, tier: str) -> None:
-    """Publish ``new`` as ``dest``. Crash-safe, not atomic: there is a sub-millisecond
-    window with no ``dest`` (``open_catalog`` retries it, EP-170 amendment 1). Raises
-    :class:`CatalogSwapError` — with the old catalog intact — only when even the
-    rename-aside fails (a reader without ``FILE_SHARE_DELETE`` holds the file)."""
-    new, dest = Path(new), Path(dest)
-    if not new.is_file():
-        raise CatalogBuildError(f"swap_catalog: {new} is not a file (nothing built?)")
-    old = catalog_old_path(dest)
-    # crash recovery: an interrupted swap left the live catalog under `.old`
-    if not dest.exists() and old.is_file():
-        _retry_os(lambda: os.rename(old, dest), "restore .old")
-    # a stale `.old` beside a live dest is dead weight from a crash after the replace
-    if old.exists():
-        _retry_os(lambda: os.remove(old), "remove stale .old")
-    if dest.exists():
-        try:
-            os.rename(dest, old)
-        except OSError as exc:
-            raise CatalogSwapError(
-                f"{dest}: cannot replace the live catalog while a reader holds it open — "
-                f"close the app/notebooks and rerun `mwh build --tier {tier} --select catalog` "
-                "(the old catalog is intact; DuckDB READ_ONLY readers share the file, a plain "
-                "file handle does not)"
-            ) from exc
-    try:
-        os.replace(new, dest)
-    except OSError:
-        # roll back so the tier is not left without a live catalog
-        if not dest.exists() and old.is_file():
-            os.rename(old, dest)
-        raise
-    if old.exists():
-        try:
-            _retry_os(lambda: os.remove(old), "remove .old")
-        except OSError:  # delete-pending edge: the next build's stale-.old sweep gets it
-            _LOG.warning("%s: could not remove yet (open reader?); next build removes it", old)
-
-
-# ---------------------------------------------------------------------------
 # The build
 # ---------------------------------------------------------------------------
 
 
-def _recorded_dev_buckets(path: Path) -> list[int] | None:
+def _publish_catalog(new: Path, dest: Path, tier: str) -> None:
+    """Publish ``new`` as ``dest`` through :func:`publish.swap_file` (crash-safe, not
+    atomic: a sub-millisecond no-``dest`` window that ``open_catalog`` retries, EP-170
+    amendment 1), translating the primitive's :class:`publish.SwapBlockedError` into
+    :class:`CatalogSwapError` (the ``close the app/notebooks and rerun`` remedy) and any
+    other :class:`publish.SwapError` into :class:`CatalogBuildError`."""
+    hint = f"close the app/notebooks and rerun `mwh build --tier {tier} --select catalog`"
+    try:
+        publish.swap_file(new, dest, blocked_hint=hint)
+    except publish.SwapBlockedError as exc:
+        raise CatalogSwapError(str(exc)) from exc
+    except publish.SwapError as exc:
+        raise CatalogBuildError(f"{tier} catalog publish failed: {exc}") from exc
+
+
+def _recorded_dev_buckets(path: Path, settings: Settings) -> list[int] | None:
     """``meta.catalog_info.dev_buckets`` of an existing catalog, or None (absent, not a
     mimicwarehouse catalog, wrong DuckDB version, or locked)."""
     if not path.is_file():
         return None
     import duckdb
 
+    from mimicwarehouse.engine import open_duckdb
+
     try:
-        con = duckdb.connect(str(path), read_only=True)
+        con = open_duckdb("app", database=path, read_only=True, settings=settings)
     except duckdb.Error:
         return None
     try:
@@ -268,6 +213,7 @@ def build_catalog(
     callable standalone for tests and for rebuilds after a data-root move / pin bump."""
     import duckdb
 
+    from mimicwarehouse.engine import open_duckdb
     from mimicwarehouse.loader.engine import require_pinned_duckdb
     from mimicwarehouse.schema.contract import load_contract
 
@@ -282,11 +228,10 @@ def build_catalog(
     require_free_space(settings.data_root, settings.min_free_gb_for(tier))
 
     dest = settings.catalog_path(tier)
-    new = catalog_new_path(dest)
+    new = publish.new_path_for(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
 
-    previous_buckets = _recorded_dev_buckets(dest)
+    previous_buckets = _recorded_dev_buckets(dest, settings)
     if previous_buckets is not None and previous_buckets != list(settings.dev_buckets):
         _LOG.warning(
             "dev_buckets drift: the previous %s catalog was built with %s, settings now say "
@@ -296,7 +241,7 @@ def build_catalog(
             list(settings.dev_buckets),
         )
 
-    new.unlink(missing_ok=True)  # a stale .new from a crashed build
+    publish.unlink(new)  # a stale .new from a crashed build
     t0 = time.perf_counter()
     result = CatalogBuildResult(
         tier=str(tier),
@@ -308,14 +253,14 @@ def build_catalog(
     contract = load_contract()
     buckets = list(settings.dev_buckets) if tier == "dev" else None
 
-    con = duckdb.connect(str(new), config=dict(settings.duckdb_settings("build")))
+    con = open_duckdb("build", database=new, settings=settings)
     try:
         _populate(con, result, status, contract, lake_root, buckets, settings)
     except duckdb.Error as exc:
-        new.unlink(missing_ok=True)
+        publish.unlink(new)
         raise CatalogBuildError(f"{tier} catalog build failed: {exc}") from exc
 
-    swap_catalog(new, dest, str(tier))
+    _publish_catalog(new, dest, str(tier))
     result.bytes = dest.stat().st_size
     result.wall_s = round(time.perf_counter() - t0, 3)
     _LOG.info(
@@ -617,17 +562,12 @@ def _populate_meta(
 
 __all__ = [
     "CATALOG_SCHEMAS",
-    "NEW_SUFFIX",
-    "OLD_SUFFIX",
     "STAGED_SCHEMAS",
     "CatalogBuildError",
     "CatalogBuildResult",
     "CatalogSwapError",
     "CatalogTableEntry",
     "build_catalog",
-    "catalog_new_path",
-    "catalog_old_path",
     "qualifies",
-    "swap_catalog",
     "unit_hint",
 ]

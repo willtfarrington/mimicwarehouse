@@ -35,7 +35,13 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse.guard import id_band_hits
-from mimicwarehouse.schema.csv_dialect import WRITE_DATE_FORMAT, WRITE_TIMESTAMP_FORMAT
+from mimicwarehouse.schema.csv_dialect import (
+    DELIM,
+    NULLSTR,
+    QUOTE,
+    WRITE_DATE_FORMAT,
+    WRITE_TIMESTAMP_FORMAT,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import polars as pl
@@ -94,18 +100,19 @@ def rel_path(table: str, module: str = HOSP_DIR, dataset_dir: str = DATASET_DIR)
 
 
 def frame_to_csv_bytes(frame: pl.DataFrame) -> bytes:
-    """Contract-order CSV bytes of one frame (LF, header, fixed formats)."""
+    """Contract-order CSV bytes of one frame (LF, header, fixed formats — the
+    :mod:`mimicwarehouse.schema.csv_dialect` constants; EP-33, retro CTR-4)."""
     buf = io.BytesIO()
     frame.write_csv(
         buf,
         include_header=True,
-        separator=",",
+        separator=DELIM,
         line_terminator="\n",
-        quote_char='"',
+        quote_char=QUOTE,
         datetime_format=TIMESTAMP_FORMAT,
         date_format=DATE_FORMAT,
         float_scientific=False,
-        null_value="",
+        null_value=NULLSTR,
         quote_style="necessary",
     )
     return buf.getvalue()

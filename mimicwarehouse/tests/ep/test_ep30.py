@@ -45,6 +45,14 @@ pytestmark = pytest.mark.ep_30
 
 HOSP = "mimiciv_hosp"
 
+# EP-33 (TST-2): fixture counts come from the committed manifest, never literals — the
+# churn rule of tests/README.md (the planned fixture 0.3.0 regeneration moves them).
+_MANIFEST = json.loads(
+    (helpers.WORKSPACE / "tests" / "fixtures" / "manifest.json").read_text(encoding="utf-8")
+)
+N_SUBJECTS = int(_MANIFEST["files"]["mimic-iv-3.1/hosp/patients.csv"]["rows"])
+N_LABEVENTS = int(_MANIFEST["files"]["mimic-iv-3.1/hosp/labevents.csv"]["rows"])
+
 #: A crafted small group on the committed fixture: exactly one synthetic patient holds
 #: the minimum anchor_age, so k = 11 suppresses exactly that row (deterministic — the
 #: fixture CSVs are committed).
@@ -112,9 +120,11 @@ def _assert_refused(settings: Settings, sql: str, reason_fragment: str, **kwargs
         ("SELECT count(*) AS n FROM mimiciv_note.discharge", "not allowed"),
         ("SELECT count(*) AS n FROM patients", "unqualified"),
         (
-            f"SELECT count(*) n FROM {HOSP}.patients UNION ALL "
-            f"SELECT count(*) FROM {HOSP}.admissions",
-            "set operations",
+            # EP-33 (B1b): UNION / UNION ALL / EXCEPT / INTERSECT are supported since
+            # EP-33 (per-branch checks, test_ep33); BY NAME stays refused
+            f"SELECT count(*) AS n FROM {HOSP}.patients UNION ALL BY NAME "
+            f"SELECT count(*) AS n FROM {HOSP}.admissions",
+            "UNION BY NAME",
         ),
     ],
 )
@@ -169,7 +179,7 @@ def test_small_group_suppressed_rowwise(fixture_lake_settings: Settings) -> None
     assert result.rows_suppressed == 1
     assert result.n_rows == 1
     assert result.df["age_bucket"].to_list() == ["rest"]
-    assert int(result.df["n"][0]) == 119  # 120 fixture subjects minus the crafted cell
+    assert int(result.df["n"][0]) == N_SUBJECTS - 1  # the subjects minus the crafted cell
     assert result.k == 11
     last = _audit_lines(fixture_lake_settings)[-1]
     assert last["allowed"] is True
@@ -185,7 +195,7 @@ def test_count_distinct_identifier_allowed(fixture_lake_settings: Settings) -> N
         settings=fixture_lake_settings,
     )
     assert result.n_rows == 1 and result.rows_suppressed == 0
-    assert int(result.df["n_subjects"][0]) == 120
+    assert int(result.df["n_subjects"][0]) == N_SUBJECTS
 
 
 def test_identifier_in_join_predicate_allowed(fixture_lake_settings: Settings) -> None:
@@ -291,7 +301,9 @@ def test_sql_cli_free_form_footer_and_fmt_int(fixture_lake_settings: Settings) -
             ],
         )
         assert ok.exit_code == 0, ok.output
-        assert "9,619" in ok.output, "table output thousands-separates counts (FC-16)"
+        from mimicwarehouse.inventory import fmt_int
+
+        assert fmt_int(N_LABEVENTS) in ok.output, "table output thousands-separates counts (FC-16)"
         assert "rows suppressed" in ok.output and "audit" in ok.output
         assert "snapshot" in ok.output
         assert len(_audit_lines(fixture_lake_settings)) == before + 1
@@ -325,7 +337,7 @@ def test_sql_cli_json_keeps_raw_ints(fixture_lake_settings: Settings) -> None:
         )
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["rows"] == [{"n": 9619}]  # raw int (FC-16); never pasted into git
+        assert payload["rows"] == [{"n": N_LABEVENTS}]  # raw int (FC-16); never pasted into git
         assert payload["n_rows"] == 1 and payload["rows_suppressed"] == 0
         assert payload["tier"] == "fixture" and payload["audit_id"]
     finally:
@@ -350,7 +362,7 @@ def test_sql_cli_csv_format(fixture_lake_settings: Settings) -> None:
         )
         assert result.exit_code == 0, result.output
         assert "age_bucket,n" in result.output
-        assert "rest,119" in result.output
+        assert f"rest,{N_SUBJECTS - 1}" in result.output
         assert "index" not in result.output, "the small cell stays suppressed in CSV too"
     finally:
         config.configure()

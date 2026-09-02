@@ -15,8 +15,6 @@ import hashlib
 import itertools
 import json
 import re
-import subprocess
-import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -823,14 +821,5 @@ def test_mwh_fixtures_build_rejects_band_seed(tmp_path: Path) -> None:
     assert not (tmp_path / "x").exists()
 
 
-def test_mwh_help_does_not_import_polars_or_numpy() -> None:
-    code = (
-        "import sys, mimicwarehouse.cli; "
-        "heavy = ('polars', 'numpy', 'duckdb', 'pandas', 'pyarrow'); "
-        "bad = [m for m in heavy if m in sys.modules]; "
-        "print(bad); sys.exit(1 if bad else 0)"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, timeout=120, check=False
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
+# EP-33 B6 (2026-09-01): test_mwh_help_does_not_import_polars_or_numpy deleted - numpy joined
+# helpers.HEAVY_MODULES, so the canonical CLI import-budget test (test_ep02) covers it.

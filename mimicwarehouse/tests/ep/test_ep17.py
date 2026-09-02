@@ -1,5 +1,5 @@
 """EP-17 — Loader core A: typed CSV → Parquet (unpartitioned stage, manifests, rejects,
-column flags, ``paths.swap_dir``).
+column flags, ``publish.swap_dir`` — moved from ``mimicwarehouse.paths`` at EP-33).
 
 Fixture tier (default): every stage goes against a temp data root (``helpers.tmp_data_root``)
 and the committed synthetic fixture CSVs (ids >= 90 000 000) or CSVs crafted in-test — never
@@ -22,7 +22,7 @@ import duckdb
 import pytest
 
 import helpers
-from mimicwarehouse import config, paths
+from mimicwarehouse import config, publish
 from mimicwarehouse.loader import csv as loader_csv
 from mimicwarehouse.loader import engine, stage
 from mimicwarehouse.loader import manifest as manifest_mod
@@ -221,7 +221,7 @@ def test_stage_is_deterministic_and_restages(
     assert first.manifest_lines[0].sha256 == second.manifest_lines[0].sha256
     dest = _dest(lake_root, table)
     assert [p.name for p in dest.iterdir()] == [stage.PART_FILENAME]
-    assert not paths.new_dir_for(dest).exists() and not paths.old_dir_for(dest).exists()
+    assert not publish.new_path_for(dest).exists() and not publish.old_path_for(dest).exists()
     status = manifest_mod.read_status(lake_root)
     assert status["steps"][table.qualified_name]["build_id"] == "b2"
 
@@ -310,7 +310,7 @@ def test_reject_threshold(
         _stage(con, table, source, lake_root, build_id="strict")
     assert excinfo.value.rejects == 1 and excinfo.value.allowed == 0
     assert not _dest(lake_root, table).exists()
-    assert not paths.new_dir_for(_dest(lake_root, table)).exists()
+    assert not publish.new_path_for(_dest(lake_root, table)).exists()
     # the row-level rejects landed on the (temp) data root — count only, never read back
     assert stage.rejects_parquet_path(lake_root, table, "strict").is_file()
 
@@ -334,7 +334,7 @@ def test_csv_relation_sql_shape(contract: Contract, fixture_root: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5. paths.swap_dir (rename-aside two-step)
+# 5. publish.swap_dir (rename-aside two-step; EP-33 moved it out of mimicwarehouse.paths)
 # ---------------------------------------------------------------------------
 
 
@@ -348,26 +348,26 @@ def _make_dir(root: Path, name: str, content: str) -> Path:
 def test_swap_dir_first_publish_and_restage(tmp_path: Path) -> None:
     dest = tmp_path / "table"
     new = _make_dir(tmp_path, "table.new", "v1")
-    paths.swap_dir(new, dest)
+    publish.swap_dir(new, dest)
     assert (dest / "part-0.parquet").read_text(encoding="utf-8") == "v1"
     assert not new.exists()
     new2 = _make_dir(tmp_path, "table.new", "v2")
-    paths.swap_dir(new2, dest)  # over an existing dest (the Windows os.replace failure case)
+    publish.swap_dir(new2, dest)  # over an existing dest (the Windows os.replace failure case)
     assert (dest / "part-0.parquet").read_text(encoding="utf-8") == "v2"
-    assert not paths.old_dir_for(dest).exists() and not new2.exists()
+    assert not publish.old_path_for(dest).exists() and not new2.exists()
 
 
 def test_swap_dir_crash_recovery_and_errors(tmp_path: Path) -> None:
     dest = tmp_path / "table"
     _make_dir(tmp_path, "table.old", "crashed-live")  # interrupted swap left dest missing
     new = _make_dir(tmp_path, "table.new", "v3")
-    paths.swap_dir(new, dest)
+    publish.swap_dir(new, dest)
     assert (dest / "part-0.parquet").read_text(encoding="utf-8") == "v3"
-    assert not paths.old_dir_for(dest).exists()
-    with pytest.raises(paths.SwapError):
-        paths.swap_dir(tmp_path / "does-not-exist", dest)
-    with pytest.raises(paths.SwapError):
-        paths.swap_dir(dest, dest)
+    assert not publish.old_path_for(dest).exists()
+    with pytest.raises(publish.SwapError):
+        publish.swap_dir(tmp_path / "does-not-exist", dest)
+    with pytest.raises(publish.SwapError):
+        publish.swap_dir(dest, dest)
 
 
 def test_update_status_merges(tmp_path: Path) -> None:

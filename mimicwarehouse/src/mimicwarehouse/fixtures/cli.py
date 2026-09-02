@@ -7,12 +7,13 @@ mis-set ``MWH_DATA_ROOT`` must not block regenerating fixtures. Import cost is t
 numpy / polars / the contract are imported inside the command.
 
 Console output is ASCII (roadmap Risk 13) and never shows a row - only table names, row counts
-and byte sizes (thousands-separated, so no bare 8-digit token can appear).
+and byte sizes (thousands-separated, so no bare 8-digit token can appear). Errors and
+``--json`` follow the EP-33 canon (:func:`~mimicwarehouse.console.fail` — ``mwh fixtures:`` on
+stderr — and :func:`~mimicwarehouse.console.emit_json`).
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -21,7 +22,7 @@ from rich import box
 from rich.markup import escape
 from rich.table import Table as RichTable
 
-from mimicwarehouse.console import console, err_console
+from mimicwarehouse.console import EXIT_FINDINGS, EXIT_USAGE, console, emit_json, fail
 
 fixtures_app = typer.Typer(
     name="fixtures",
@@ -30,11 +31,6 @@ fixtures_app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
-
-
-def _fail(message: str, code: int = 2) -> None:
-    err_console.print(f"[bold red]mwh fixtures:[/] {escape(message)}", highlight=False)
-    raise typer.Exit(code=code)
 
 
 @fixtures_app.command("build")
@@ -80,13 +76,11 @@ def build_command(
     try:
         spec = FixtureSpec(**overrides)
     except ValidationError as exc:
-        _fail(str(exc))
-        return
+        fail("mwh fixtures", str(exc), code=EXIT_USAGE)
     try:
         result = build_and_write(out, spec=spec, check=check)
     except (FixtureError, WriteError) as exc:
-        _fail(str(exc), code=1)
-        return
+        fail("mwh fixtures", str(exc), code=EXIT_FINDINGS)
     if as_json:
         payload = {
             "out_dir": str(result.out_dir),
@@ -100,7 +94,7 @@ def build_command(
             "total_rows": result.total_rows,
             "manifest": str(result.manifest_path),
         }
-        console.print_json(json.dumps(payload))
+        emit_json(payload)
         return
     table = RichTable(box=box.SIMPLE, show_edge=False, pad_edge=False)
     table.add_column("file")

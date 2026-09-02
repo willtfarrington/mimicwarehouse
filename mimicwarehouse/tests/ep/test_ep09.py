@@ -19,6 +19,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+import helpers
 from mimicwarehouse import guard
 from mimicwarehouse.cli import DIAGNOSTIC_COMMANDS, app
 from mimicwarehouse.concepts import vendored_path
@@ -859,18 +860,6 @@ def test_package_data_resolves_and_is_hatch_shipped() -> None:
 
 
 def test_cli_import_budget() -> None:
-    """``mwh --help`` must not pay for yaml / duckdb / the contract at import time."""
-    import subprocess
-
-    code = (
-        "import sys, mimicwarehouse.cli as m\n"
-        "heavy = [k for k in ('duckdb', 'pandas', 'polars', 'pyarrow') if k in sys.modules]\n"
-        "print('heavy=' + ','.join(sorted(heavy)))\n"
-        "lazy = 'mimicwarehouse.schema.contract' not in sys.modules\n"
-        "print('contract=' + ('lazy' if lazy else 'loaded'))\n"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, cwd=WORKSPACE
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.split() == ["heavy=", "contract=lazy"], proc.stdout
+    """``mwh --help`` must not pay for duckdb / the contract at import time (EP-33 B6: the
+    shared helper; this test uniquely owns the contract-stays-lazy clause)."""
+    helpers.assert_import_budget(lazy=("mimicwarehouse.schema.contract",))

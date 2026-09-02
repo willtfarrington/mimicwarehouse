@@ -5,11 +5,11 @@
 
 | | |
 |---|---|
-| Build id | `20260829T215141-full-691c974` |
+| Build id | `20260902T030011-full-84d9d8d` |
 | Tier | `full` |
 | Core snapshot id | `b1fc53134348f3b4ede369ed6ae27424c4988fafb45065c87a09907f7a410eca` |
 | DuckDB | 1.5.5 |
-| Catalog built at | 2026-08-29T21:51:57+00:00 |
+| Catalog built at | 2026-09-02T03:00:13+00:00 |
 
 **Caveats (MIMIC-IV de-identification; GOVERNANCE section 5, D-33).** All timestamps are date-shifted per subject: absolute dates are meaningless and `anchor_year_group` (patients) is the only calendar anchor. Patients aged 89 and over appear with `anchor_age` 91. The `dod` (date of death) horizon is roughly one year after the last hospital discharge; later deaths are not captured. All row counts and distinct counts here are aggregate metadata over a retrospective EHR extract; distinct counts under 11 are shown as `<11`. Identifier and free-text columns are flagged: `safe_query` (EP-30) and `mwh disclose check` (EP-43) refuse to return them.
 

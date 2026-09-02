@@ -24,12 +24,21 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 from rich.markup import escape
 
-from mimicwarehouse.console import console, console_safe, err_console
+from mimicwarehouse.console import (
+    EXIT_REFUSED,
+    EXIT_USAGE,
+    console,
+    console_safe,
+    err_console,
+    fail,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -43,8 +52,8 @@ TIERS = ("fixture", "demo", "dev", "full")
 #: ``schema.table`` the metadata subcommands accept (contract identifiers only).
 QUALIFIED_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$")
 
-#: Exit code of a safe_query refusal (brief EP-30 item 4).
-EXIT_REFUSED = 3
+# ``EXIT_REFUSED`` (3, a safe_query refusal; brief EP-30 item 4) is re-exported from
+# :mod:`mimicwarehouse.console` since EP-33 — test_ep21 / test_ep30 import it from here.
 
 catalog_app = typer.Typer(
     name="catalog",
@@ -57,14 +66,30 @@ catalog_app = typer.Typer(
 )
 
 
-def _fail(prefix: str, message: str, code: int = 2) -> None:
-    console.print(f"[bold red]{prefix}:[/] {escape(message)}", highlight=False)
-    raise typer.Exit(code=code)
+@contextmanager
+def safe_cli_errors(prefix: str) -> Iterator[None]:
+    """The one error mapping of every command built on ``safe_query`` (EP-33 B1d):
+    :class:`~mimicwarehouse.safe.SafeQueryRefused` -> ``refused: <reason>``, exit
+    :data:`EXIT_REFUSED` (3); :class:`~mimicwarehouse.safe.SafeQueryError` (usage) and
+    :class:`~mimicwarehouse.catalog.connect.CatalogOpenError` (environment) -> exit
+    :data:`EXIT_USAGE` (2). Messages go to stderr through :func:`console.fail`; nothing
+    tracebacks to exit 1."""
+    from mimicwarehouse.catalog.connect import CatalogOpenError
+    from mimicwarehouse.safe import SafeQueryError, SafeQueryRefused
+
+    try:
+        yield
+    except SafeQueryRefused as exc:
+        fail(prefix, f"refused: {exc}", code=EXIT_REFUSED)
+    except SafeQueryError as exc:
+        fail(prefix, str(exc), code=EXIT_USAGE)
+    except CatalogOpenError as exc:
+        fail(prefix, str(exc), code=EXIT_USAGE)
 
 
 def _require_tier(prefix: str, tier: str) -> None:
     if tier not in TIERS:
-        _fail(prefix, f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
+        fail(prefix, f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
 
 
 def _open(tier: str, settings: Settings, prefix: str) -> duckdb.DuckDBPyConnection:
@@ -73,8 +98,7 @@ def _open(tier: str, settings: Settings, prefix: str) -> duckdb.DuckDBPyConnecti
     try:
         return open_catalog(tier, settings=settings)
     except CatalogOpenError as exc:
-        _fail(prefix, str(exc))
-        raise AssertionError from exc  # unreachable; _fail always raises
+        fail(prefix, str(exc), code=EXIT_USAGE)
 
 
 @catalog_app.command("info")
@@ -201,8 +225,7 @@ def dictionary_command(
             tier, state.settings, out=Path(out) if out is not None else None
         )
     except CatalogOpenError as exc:
-        _fail(prefix, str(exc))
-        raise AssertionError from exc  # unreachable; _fail always raises
+        fail(prefix, str(exc), code=EXIT_USAGE)
     console.print(
         f"wrote {result.path} ({result.tables} table(s), {result.columns} column(s), "
         f"tier {result.tier}, build {result.build_id})",
@@ -329,46 +352,33 @@ def sql_command(
     prefix = "mwh sql"
     state: CliState = ctx.obj
     if output_format not in ("table", "csv", "json"):
-        _fail(prefix, f"unknown --format {output_format!r}; expected table | csv | json")
+        fail(prefix, f"unknown --format {output_format!r}; expected table | csv | json")
     selectors = sum([statement is not None, tables, describe is not None, count is not None])
     if selectors != 1:
-        _fail(
+        fail(
             prefix,
             "give exactly one of a STATEMENT, --tables, --describe SCHEMA.TABLE or "
             "--count SCHEMA.TABLE",
         )
     settings = state.settings
-    resolved_tier = tier if tier is not None else settings.default_tier
-    _require_tier(prefix, resolved_tier)
-    threshold = k if k is not None else settings.k_suppression
     for qualified in (describe, count):
         if qualified is not None and not QUALIFIED_RE.match(qualified):
-            _fail(prefix, f"{qualified!r} is not a schema.table identifier")
+            fail(prefix, f"{qualified!r} is not a schema.table identifier")
 
-    from mimicwarehouse.catalog.connect import CatalogOpenError
-    from mimicwarehouse.safe import SafeQueryRefused, safe_query
+    from mimicwarehouse.safe import safe_query
 
     def run(sql: str) -> SafeResult:
-        try:
-            return safe_query(
-                sql,
-                tier=resolved_tier,
-                k=threshold,
-                row_cap=row_cap,
-                settings=settings,
-            )
-        except SafeQueryRefused as exc:
-            console.print(f"[bold red]{prefix}: refused:[/] {escape(str(exc))}", highlight=False)
-            raise typer.Exit(code=EXIT_REFUSED) from None
-        except CatalogOpenError as exc:
-            _fail(prefix, str(exc))
-            raise AssertionError from exc  # unreachable; _fail always raises
+        # tier / k pass through as given (None -> settings.default_tier / k_suppression
+        # inside safe_query, which also audits an unknown tier as a usage error; EP-33 B1d)
+        with safe_cli_errors(prefix):
+            return safe_query(sql, tier=tier, k=k, row_cap=row_cap, settings=settings)
+        raise AssertionError  # unreachable: safe_cli_errors exits on every error
 
     if tables:
         result = run(_TABLES_SQL)
         names = [str(r[0]) for r in result.df.rows()]
         if output_format == "json":
-            sys.stdout.write(json.dumps({"tier": resolved_tier, "tables": names}) + "\n")
+            sys.stdout.write(json.dumps({"tier": result.tier, "tables": names}) + "\n")
         else:
             for name in names:
                 console.print(escape(name), highlight=False)
@@ -394,12 +404,12 @@ def sql_command(
                 for row in described.to_dicts()
             ]
             sys.stdout.write(
-                json.dumps({"tier": resolved_tier, "table": describe, "columns": payload}) + "\n"
+                json.dumps({"tier": result.tier, "table": describe, "columns": payload}) + "\n"
             )
             return
         from rich.table import Table as RichTable
 
-        listing = RichTable(title=f"{describe} ({resolved_tier})", pad_edge=False)
+        listing = RichTable(title=f"{describe} ({result.tier})", pad_edge=False)
         for col in ("column", "type", "null", "comment"):
             listing.add_column(col)
         for row in described.to_dicts():
@@ -422,18 +432,18 @@ def sql_command(
             sys.stdout.write(
                 json.dumps(
                     {
-                        "tier": resolved_tier,
+                        "tier": result.tier,
                         "table": count,
                         "count": n,
                         "suppressed": suppressed,
-                        "k": threshold,
+                        "k": result.k,
                     }
                 )
                 + "\n"
             )
         elif suppressed:
             console.print(
-                f"{escape(count)} count(*) < {threshold} (suppressed, GOVERNANCE §5)",
+                f"{escape(count)} count(*) < {result.k} (suppressed, GOVERNANCE §5)",
                 highlight=False,
             )
         else:
@@ -448,8 +458,10 @@ def sql_command(
 
 __all__ = [
     "EXIT_REFUSED",
+    "EXIT_USAGE",
     "catalog_app",
     "dictionary_command",
     "info_command",
+    "safe_cli_errors",
     "sql_command",
 ]

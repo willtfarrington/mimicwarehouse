@@ -30,7 +30,7 @@ from typing import Any
 import pytest
 
 import helpers
-from mimicwarehouse import config, paths
+from mimicwarehouse import config, publish
 from mimicwarehouse.cli import app
 from mimicwarehouse.dag import benchmarks as benchmarks_mod
 from mimicwarehouse.dag.spec import load_dag
@@ -153,7 +153,7 @@ def test_fixture_build_large_path(data_root: Path, contract: Contract) -> None:
     assert bucket_dirs, "no partition directories staged"
     for bdir in bucket_dirs.values():
         assert [p.name for p in sorted(bdir.iterdir())] == ["part-0.parquet"], bdir.name
-    assert not paths.new_dir_for(tdir).exists() and not paths.old_dir_for(tdir).exists()
+    assert not publish.new_path_for(tdir).exists() and not publish.old_path_for(tdir).exists()
     progress = buckets_mod.read_progress(tdir)
     assert progress is not None and progress.pass1_done and progress.complete
 
@@ -251,7 +251,7 @@ def test_sweeps_identical_and_progress_lines_counts_only(
         assert dirs, f"no partition dirs under {dest}"
         for d in dirs.values():
             assert [p.name for p in sorted(d.iterdir())] == [stage.PART_FILENAME]
-        assert not paths.new_dir_for(dest).exists() and not paths.old_dir_for(dest).exists()
+        assert not publish.new_path_for(dest).exists() and not publish.old_path_for(dest).exists()
         return {n: manifest_mod.sha256_streamed(d / stage.PART_FILENAME) for n, d in dirs.items()}
 
     # identical per-bucket sha256 sets across sweeps=1 and sweeps=3 (byte-identical output)

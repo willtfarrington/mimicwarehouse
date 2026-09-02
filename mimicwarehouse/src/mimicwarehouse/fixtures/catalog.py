@@ -1,7 +1,7 @@
 """In-memory fixture catalog - typed DuckDB over the fixture CSVs (EP-12 item 4).
 
-:func:`build_fixture_catalog` opens an **in-memory** DuckDB configured with
-``get_settings().duckdb_settings("app")`` (explicit ``memory_limit`` / ``threads`` /
+:func:`build_fixture_catalog` opens an **in-memory** DuckDB through the connection
+factory (``engine.open_duckdb("app")``, EP-33 B3: explicit ``memory_limit`` / ``threads`` /
 ``temp_directory`` / ``max_temp_directory_size``, DESIGN section 6), creates the
 ``mimiciv_hosp`` and ``mimiciv_icu`` schemas and one table per contract table (31) with
 ``CREATE TABLE ... AS SELECT * FROM read_csv(<file>, header=true, columns=<contract types>,
@@ -12,15 +12,15 @@ tier (``tests/conftest.py`` ``fixture_catalog`` session fixture) until EP-21 bui
 discipline of the real catalogs does not apply here because every row is synthetic.
 
 Budget: < 5 s for the committed fixture (a few MB of CSV). The settings are read for the
-DuckDB configuration values, and since EP-167 the connection site also ensures the configured
-``layout["tmp_duckdb"]`` directory exists (retro CFG-3) — the only path under the data root
-this module ever creates; no data is read or written there.
+DuckDB configuration values, and the factory ensures the configured ``layout["tmp_duckdb"]``
+directory exists (retro CFG-3) — the only path under the data root this module ever
+creates; no data is read or written there.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from mimicwarehouse.fixtures.write import DATASET_DIR, MODULE_SCHEMAS
 
@@ -66,6 +66,7 @@ def build_fixture_catalog(
     import duckdb
 
     from mimicwarehouse.config import get_settings
+    from mimicwarehouse.engine import open_duckdb
     from mimicwarehouse.schema.contract import load_contract
 
     contract = contract or load_contract()
@@ -75,11 +76,9 @@ def build_fixture_catalog(
         raise FixtureCatalogError(
             f"fixture dataset directory {dataset} not found - run `uv run mwh fixtures build`"
         )
-    # DuckDB 1.5.5 creates a missing leaf temp dir but not a missing parent (IOException on
-    # first spill) — every connection site ensures it exists (EP-167, retro CFG-3).
-    settings.layout["tmp_duckdb"].mkdir(parents=True, exist_ok=True)
-    config: dict[str, Any] = dict(settings.duckdb_settings("app"))
-    con = duckdb.connect(":memory:", config=config)
+    # the app-profile settings and the temp-directory parent (retro CFG-3) are the
+    # connection factory's (engine.open_duckdb, EP-33 B3)
+    con = open_duckdb("app", settings=settings)
     try:
         for schema in FIXTURE_SCHEMAS:
             con.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")

@@ -160,7 +160,9 @@ def test_tracer_audit_lines_grew_by_call_count(tracer_run: tuple[TracerResult, i
 def test_model_or_table_or_not_fit(tracer_run: tuple[TracerResult, int]) -> None:
     result, _ = tracer_run
     model = result.model
-    assert model["status"] in ("fit", "not_fit")
+    # EP-33 (TST-4): the committed fixture is deterministic and fits — pinned so a
+    # silent regression to not_fit fails instead of passing the either/or
+    assert model["status"] == "fit", model.get("reason")
     assert model["n"] >= 0 and model["n_events"] >= 0
     if model["status"] == "fit":
         assert model["terms"], "a fit model reports an OR table"

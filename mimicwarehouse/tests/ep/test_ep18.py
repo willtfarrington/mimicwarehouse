@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 import helpers
-from mimicwarehouse import config, paths
+from mimicwarehouse import config, publish
 from mimicwarehouse.loader import buckets as buckets_mod
 from mimicwarehouse.loader import engine, stage
 from mimicwarehouse.loader import manifest as manifest_mod
@@ -137,7 +137,7 @@ def _assert_clean_layout(dest: Path) -> None:
     assert dirs, f"no partition dirs under {dest}"
     for d in dirs.values():
         assert [p.name for p in sorted(d.iterdir())] == [stage.PART_FILENAME]
-    assert not paths.new_dir_for(dest).exists() and not paths.old_dir_for(dest).exists()
+    assert not publish.new_path_for(dest).exists() and not publish.old_path_for(dest).exists()
 
 
 def _assert_sorted(con, part: Path, sort_cols: tuple[str, ...]) -> None:

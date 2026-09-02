@@ -735,14 +735,6 @@ def test_poe_task_and_docs_registered() -> None:
     assert (WORKSPACE / "src" / "mimicwarehouse" / "verify.py").is_file()
 
 
-def test_verify_import_stays_light() -> None:
-    """verify.py is imported by cli.py: no duckdb/pandas/polars/pyarrow at import time."""
-    code = (
-        "import sys, mimicwarehouse.cli; "
-        "print(sorted(m for m in ('duckdb','pandas','polars','pyarrow') if m in sys.modules))"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], cwd=WORKSPACE, capture_output=True, text=True, check=False
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.strip() == "[]"
+# EP-33 B6 (2026-09-01): test_verify_import_stays_light deleted - a byte-identical duplicate of
+# the canonical CLI import-budget test (test_ep02, helpers.assert_import_budget); verify.py is
+# on cli.py's start-up chain, so that one test covers it.

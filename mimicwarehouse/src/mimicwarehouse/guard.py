@@ -18,16 +18,21 @@ Five rules, each with an id used in messages and tests:
     ``__marimo__/`` directory (marimo's per-notebook cache).
 ``G4`` real-id band
     in text files (UTF-8-decodable, no NUL byte; :data:`TEXT_EXTENSIONS` or no extension)
-    any token matching :data:`ID_TOKEN` — an isolated 8-digit run starting with 1, 2 or 3,
-    optionally rendered as a float (``.0`` tail, the pandas nullable-int form; EP-165,
-    GOV-4) — whose value lies in :data:`SUBJECT_BAND`, :data:`HADM_BAND` or
-    :data:`STAY_BAND`, unless the same line carries the pragma ``mwh-guard: allow``.
-    Since EP-165 the *path* of every entry is scanned too (:data:`PATH_ID_TOKEN`, digit
-    boundaries only, so ``stay_3xxxxxxx.parquet`` / ``stay-3xxxxxxx.png`` are caught; no
-    pragma escape — ids never belong in tracked names). Compact ``YYYYMMDD`` dates are
-    *not* exempt (write ISO dates with hyphens); longer digit runs, hex hashes and
-    non-``.0`` decimals never match by construction, and the band constants are written
-    with digit-group underscores so this module never trips itself.
+    and — since EP-33 (retro SGD-3) — in the JSON of every ``.ipynb`` (source cells,
+    markdown cells and any outputs alike; a notebook is UTF-8 text), any token matching
+    :data:`ID_TOKEN` — an isolated 8-digit run starting with 1, 2 or 3, optionally
+    rendered as a float (``.0`` tail, the pandas nullable-int form; EP-165, GOV-4) —
+    whose value lies in :data:`SUBJECT_BAND`, :data:`HADM_BAND` or :data:`STAY_BAND`,
+    unless the same line carries the pragma ``mwh-guard: allow``. Since EP-165 the
+    *path* of every entry is scanned too (:data:`PATH_ID_TOKEN`, digit boundaries only,
+    so ``stay_3xxxxxxx.parquet`` / ``stay-3xxxxxxx.png`` are caught; no pragma escape —
+    ids never belong in tracked names). Compact ``YYYYMMDD`` dates are *not* exempt
+    (write ISO dates with hyphens); longer digit runs, hex hashes and non-``.0``
+    decimals never match by construction, and the band constants are written with
+    digit-group underscores so this module never trips itself. The committed-text
+    hygiene rules this rule enforces (and the content-vs-filename asymmetry between
+    :data:`ID_TOKEN` and :data:`PATH_ID_TOKEN`) are canonised in
+    ``docs/committed-text.md`` (EP-33 B4).
 ``G5`` oversize
     any blob larger than :data:`MAX_FILE_BYTES` (20 000 KiB, the same bound as
     ``check-added-large-files --maxkb=20000``); fixtures included.
@@ -42,9 +47,12 @@ unstaged edit cannot mask a staged one), :func:`scan_tracked` (every tracked pat
 revision's tree — the per-commit primitive EP-163's history sweep will call),
 :func:`selfcheck` (the EP-0 ``.gitignore`` / ``.gitattributes`` probe list, the
 ``.pre-commit-config.yaml`` wiring, the installed hook and — since EP-165 — the
-``.claude/settings.json`` PreToolUse hook registration) and :func:`guard_command`
-(``mwh guard [PATHS…] [--staged] [--all-tracked] [--selfcheck] [--json]``; exit 0 clean /
-1 violations / 2 usage). Import cost is a few stdlib modules + typer; nothing data-related.
+``.claude/settings.json`` PreToolUse hook registration, whose registered interpreter and
+script paths must both exist and the script lie under the repository since EP-33, retro
+SGD-4) and :func:`guard_command` (``mwh guard [PATHS…] [--staged] [--all-tracked]
+[--selfcheck] [--json]``; exit 0 clean / 1 violations / 2 usage — the
+:mod:`mimicwarehouse.console` exit-code and ``fail`` / ``emit_json`` conventions, EP-33).
+Import cost is a few stdlib modules + typer; nothing data-related.
 """
 
 from __future__ import annotations
@@ -53,7 +61,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -148,6 +155,13 @@ TEXT_EXTENSIONS: tuple[str, ...] = (
     ".ps1",
     ".ini",
     ".cfg",
+    # EP-33 (retro SGD-3): script and markup types a session could commit unscanned.
+    ".sh",
+    ".psm1",
+    ".bat",
+    ".cmd",
+    ".rst",
+    ".xml",
 )
 #: G4 — an isolated 8-digit run starting with 1, 2 or 3 (ASCII digits only), optionally
 #: with a float-rendered ``.0`` tail (pandas nullable BIGINT → ``NNNNNNNN.0``; EP-165).
@@ -442,7 +456,9 @@ def check_entry(entry: Entry) -> list[Violation]:
         problem = notebook_problem(data)
         if problem is not None:
             out.append(Violation("G3", rel, None, problem))
-    if is_text_candidate(rel):
+    # EP-33 (retro SGD-3): a notebook is UTF-8 JSON text — its source/markdown cells (and
+    # any outputs G3 already refuses) get the same band scan as every other text file.
+    if is_text_candidate(rel) or is_notebook(rel):
         hits = id_band_hits(data)
         for no, band, count, example in hits[:MAX_G4_ROWS_PER_FILE]:
             plural = "s" if count != 1 else ""
@@ -667,8 +683,10 @@ def check_binary_attr(repo_root: Path, probes: Sequence[str]) -> dict[str, str]:
 
 
 def selfcheck(repo_root: Path) -> list[SelfcheckResult]:
-    """Re-run the EP-0 probe list and check the hook wiring; no file is created or opened
-    except ``.pre-commit-config.yaml`` and the installed hook script."""
+    """Re-run the EP-0 probe list and check the hook wiring. No file is created; the only
+    files opened are ``.pre-commit-config.yaml``, the installed git ``pre-commit`` hook
+    script and ``.claude/settings.json`` (EP-165) — the registered PreToolUse interpreter
+    and script paths are stat-ed for existence, never read (EP-33, retro P01-4/SGD-4)."""
     results: list[SelfcheckResult] = []
     ignored = check_ignored(repo_root, IGNORED_PROBES + TRACKED_PROBES)
     for probe in IGNORED_PROBES:
@@ -718,31 +736,94 @@ def selfcheck(repo_root: Path) -> list[SelfcheckResult]:
     return results
 
 
+#: One shell word of a hook command: a double-quoted run, a single-quoted run, or bare.
+_COMMAND_WORD = re.compile(r'"([^"]*)"|\'([^\']*)\'|(\S+)')
+
+
+def _command_words(command: str) -> list[str]:
+    """The words of a registered hook command (quotes stripped; no shell is involved)."""
+    return [a or b or c for a, b, c in _COMMAND_WORD.findall(command)]
+
+
+def _resolve_hook_word(word: str, repo_root: Path) -> Path | None:
+    """A registered interpreter/script word as a path: ``$CLAUDE_PROJECT_DIR`` (Claude
+    Code's hook variable) resolves to ``repo_root`` when unset, other ``%VAR%``/``$VAR``
+    forms through the environment; a bare program name (no separator) is looked up on
+    PATH. None when nothing exists at the result."""
+    expanded = word.replace("${CLAUDE_PROJECT_DIR}", "$CLAUDE_PROJECT_DIR").replace(
+        "$CLAUDE_PROJECT_DIR", os.environ.get("CLAUDE_PROJECT_DIR") or str(repo_root)
+    )
+    expanded = os.path.expandvars(expanded)
+    if "/" not in expanded and "\\" not in expanded:
+        import shutil
+
+        found = shutil.which(expanded)
+        return Path(found) if found else None
+    path = Path(expanded)
+    if not path.is_absolute():
+        path = repo_root / path
+    return path if path.is_file() else None
+
+
 def _pretool_hook_check(repo_root: Path) -> SelfcheckResult:
     """EP-165 (GOV-2): the PreToolUse hook is registered in ``.claude/settings.json``
-    (some ``hooks.PreToolUse[*].hooks[*].command`` names the script) and the script exists."""
-    registered = False
+    (some ``hooks.PreToolUse[*].hooks[*].command`` names the script) and the script exists.
+
+    EP-33 (retro SGD-4): the registration hard-codes this clone's interpreter and script
+    paths, and a hook whose command cannot launch fails *open* — so the registered command
+    is parsed and its interpreter (first word) and script (the word naming the hook script)
+    must both exist, and the script must lie under ``repo_root``; the tracked copy at
+    :data:`PRETOOL_HOOK_SCRIPT` must exist too. Paths are stat-ed, never read.
+    """
+    commands: list[str] = []
     try:
         settings = json.loads((repo_root / ".claude" / "settings.json").read_text("utf-8"))
         groups = settings.get("hooks", {}).get("PreToolUse", [])
-        registered = any(
-            PurePosixPath(PRETOOL_HOOK_SCRIPT).name in str(hook.get("command", ""))
+        commands = [
+            str(hook.get("command", ""))
             for group in groups
             if isinstance(group, dict)
             for hook in group.get("hooks", [])
             if isinstance(hook, dict)
-        )
+            if PurePosixPath(PRETOOL_HOOK_SCRIPT).name in str(hook.get("command", ""))
+        ]
     except (OSError, ValueError, AttributeError):
-        registered = False
-    ok = registered and (repo_root / PRETOOL_HOOK_SCRIPT).is_file()
-    return SelfcheckResult(
-        "pretool-hook",
-        ok,
-        "registered"
-        if ok
-        else f"NOT registered ({PRETOOL_HOOK_SCRIPT} missing from hooks.PreToolUse, "
-        "or the script file is absent)",
-    )
+        commands = []
+    if not commands or not (repo_root / PRETOOL_HOOK_SCRIPT).is_file():
+        return SelfcheckResult(
+            "pretool-hook",
+            False,
+            f"NOT registered ({PRETOOL_HOOK_SCRIPT} missing from hooks.PreToolUse, "
+            "or the script file is absent)",
+        )
+    script_name = PurePosixPath(PRETOOL_HOOK_SCRIPT).name
+    problems: list[str] = []
+    for command in commands:
+        words = _command_words(command)
+        script_word = next(
+            (w for w in words if PurePosixPath(w.replace("\\", "/")).name == script_name), None
+        )
+        interpreter = _resolve_hook_word(words[0], repo_root) if words else None
+        script = _resolve_hook_word(script_word, repo_root) if script_word else None
+        if interpreter is None:
+            problems.append("registered interpreter path does not exist")
+        if script is None:
+            problems.append("registered script path does not exist")
+        else:
+            try:
+                script.resolve().relative_to(repo_root.resolve())
+            except ValueError:
+                problems.append("registered script lies outside this repository")
+    if problems:
+        return SelfcheckResult(
+            "pretool-hook",
+            False,
+            "registered but dead: "
+            + "; ".join(dict.fromkeys(problems))
+            + " (the hook fails open - re-wire .claude/settings.json after moving the clone "
+            "or rebuilding .venv)",
+        )
+    return SelfcheckResult("pretool-hook", True, "registered")
 
 
 def selfcheck_ok(results: Iterable[SelfcheckResult]) -> bool:
@@ -783,10 +864,6 @@ def _render_selfcheck(results: Sequence[SelfcheckResult]) -> Any:
     return table
 
 
-def _emit_json(obj: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(obj, indent=2) + os.linesep)
-
-
 def guard_command(
     ctx: typer.Context,
     paths: Annotated[
@@ -817,9 +894,7 @@ def guard_command(
 ) -> None:
     """Refuse data-shaped files, source material, notebook outputs, real MIMIC id bands
     and oversize blobs before they reach git (GOVERNANCE §3). Exit 0 clean, 1 refused, 2 usage."""
-    from rich.markup import escape
-
-    from mimicwarehouse.console import console
+    from mimicwarehouse.console import EXIT_FINDINGS, EXIT_OK, EXIT_USAGE, console, emit_json, fail
 
     modes = [
         name
@@ -832,8 +907,7 @@ def guard_command(
         if on
     ]
     if len(modes) > 1:
-        console.print(f"[bold red]mwh guard:[/] choose one of {', '.join(modes)}", highlight=False)
-        raise typer.Exit(code=2)
+        fail("mwh guard", f"choose one of {', '.join(modes)}", code=EXIT_USAGE)
     mode = modes[0] if modes else "--staged"
 
     try:
@@ -842,7 +916,7 @@ def guard_command(
             results = selfcheck(repo_root)
             ok = selfcheck_ok(results)
             if json_output:
-                _emit_json(
+                emit_json(
                     {
                         "mode": "selfcheck",
                         "repo_root": str(repo_root),
@@ -856,17 +930,13 @@ def guard_command(
                     "mwh guard: selfcheck passed" if ok else "mwh guard: selfcheck FAILED",
                     style="bold" if ok else "bold red",
                 )
-            raise typer.Exit(code=0 if ok else 1)
+            raise typer.Exit(code=EXIT_OK if ok else EXIT_FINDINGS)
 
         if mode == "paths":
             assert paths is not None
             missing = [str(p) for p in paths if not p.exists()]
             if missing:
-                console.print(
-                    f"[bold red]mwh guard:[/] no such path: {escape(', '.join(missing))}",
-                    highlight=False,
-                )
-                raise typer.Exit(code=2)
+                fail("mwh guard", f"no such path: {', '.join(missing)}", code=EXIT_USAGE)
             entries = worktree_entries(paths, repo_root)
         elif mode == "--all-tracked":
             entries = index_entries(repo_root, tracked_paths(repo_root))
@@ -874,13 +944,12 @@ def guard_command(
             entries = index_entries(repo_root, staged_paths(repo_root))
         violations = check_entries(entries)
     except GuardError as exc:
-        console.print(f"[bold red]mwh guard:[/] {escape(str(exc))}", highlight=False)
-        raise typer.Exit(code=2) from None
+        fail("mwh guard", str(exc), code=EXIT_USAGE)
 
     ok = not violations
     label = mode.lstrip("-")
     if json_output:
-        _emit_json(
+        emit_json(
             {
                 "mode": label,
                 "repo_root": str(repo_root),
@@ -901,7 +970,7 @@ def guard_command(
             f"({len(entries)} file(s) scanned, {label})",
             style="bold red",
         )
-    raise typer.Exit(code=0 if ok else 1)
+    raise typer.Exit(code=EXIT_OK if ok else EXIT_FINDINGS)
 
 
 __all__ = [

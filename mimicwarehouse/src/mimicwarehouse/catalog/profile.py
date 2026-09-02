@@ -29,12 +29,12 @@ The catalog build only *reads* these files — a missing profile leaves the ``nu
 from __future__ import annotations
 
 import logging
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from mimicwarehouse import publish
 from mimicwarehouse.config import (
     Settings,
     Tier,
@@ -64,10 +64,6 @@ COLUMNS_FILENAME = "profile_columns.parquet"
 _MINMAX_TYPES: frozenset[str] = frozenset(
     {"INTEGER", "SMALLINT", "BIGINT", "DOUBLE", "FLOAT", "TIMESTAMP", "DATE"}
 )
-
-#: ``PermissionError`` retry policy for the Parquet publish (transient AV holds).
-_RETRIES = 20
-_RETRY_BASE_SLEEP_S = 0.05
 
 
 class ProfileError(RuntimeError):
@@ -133,15 +129,9 @@ def _aggregate_sql(table: Table, relation: str) -> str:
 
 
 def _publish(tmp: Path, dest: Path) -> None:
-    """``os.replace`` with the transient-``PermissionError`` retry loop the loader uses."""
-    for attempt in range(_RETRIES):
-        try:
-            os.replace(tmp, dest)
-            return
-        except PermissionError:
-            if attempt == _RETRIES - 1:
-                raise
-            time.sleep(_RETRY_BASE_SLEEP_S * (attempt + 1))
+    """``os.replace`` under the one transient-``PermissionError`` retry policy
+    (:func:`mimicwarehouse.publish.replace`, EP-33 B2)."""
+    publish.replace(tmp, dest)
 
 
 def _write_parquet(

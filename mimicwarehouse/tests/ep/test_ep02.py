@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import sys
 from collections import namedtuple
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,6 +24,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+import helpers
 import mimicwarehouse
 from mimicwarehouse import config, doctor
 from mimicwarehouse.cli import app
@@ -140,15 +140,9 @@ def test_no_args_shows_help() -> None:
 
 
 def test_cli_import_does_not_pull_heavy_libraries() -> None:
-    """`mwh --help` must stay fast: no duckdb/pandas/polars/pyarrow at CLI import time."""
-    code = (
-        "import sys, mimicwarehouse.cli; "
-        "print(sorted(m for m in ('duckdb','pandas','polars','pyarrow') if m in sys.modules))"
-    )
-    proc = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=60
-    )
-    assert proc.stdout.strip() == "[]", proc.stdout
+    """`mwh --help` must stay fast: no duckdb/pandas/polars/pyarrow/numpy at CLI import time
+    (EP-33 B6: the canonical import-budget line; ``helpers.HEAVY_MODULES`` is the forbid set)."""
+    helpers.assert_import_budget()
 
 
 def test_data_root_flag_beats_env_beats_default(

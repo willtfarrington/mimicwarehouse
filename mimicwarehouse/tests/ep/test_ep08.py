@@ -398,8 +398,12 @@ def test_script_pragma_and_redaction_paths() -> None:
     assert kind is None and ln == [] and c == b"SELECT 1;\n"
     with pytest.raises(v.VendoringError):
         v.local_edit_for("LICENSE", b"id " + tok + b"\n")
-    # a .sh is not scanned by the guard (not a text candidate) → passes through untouched
-    c, kind, ln = v.local_edit_for("x/build.sh", b"echo " + tok + b"\n")
+    # EP-33 (ledger SGD-3): shell scripts joined the guard's text candidates, so a .sh with a
+    # band token is refused like any other text; a non-text file (binary image) still passes
+    # through untouched.
+    with pytest.raises(v.VendoringError):
+        v.local_edit_for("x/build.sh", b"echo " + tok + b"\n")
+    c, kind, ln = v.local_edit_for("x/logo.png", b"echo " + tok + b"\n")
     assert kind is None
 
 

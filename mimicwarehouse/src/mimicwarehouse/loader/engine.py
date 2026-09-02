@@ -3,11 +3,13 @@
 :func:`open_build_connection` is the loader's DuckDB opener: it refuses to run when the
 data-root volume is below the tier's free-space guard, refuses a DuckDB other than the
 EP-1 pin (one storage format across every process), then delegates the actual connect to
-:func:`mimicwarehouse.inventory.open_connection` — the de-facto opener since EP-10/167 and
-deliberately the **one** implementation (retro FC-7): in-memory DuckDB with the explicit
-``duckdb_settings("build")`` profile (memory_limit / threads / temp_directory /
-max_temp_directory_size / ``preserve_insertion_order = false``), after creating the
-``temp_directory`` parent (DuckDB 1.5.5 errors on first spill otherwise, retro CFG-3).
+:func:`mimicwarehouse.engine.open_duckdb` — the one connection factory since EP-33 B3
+(retro FC-7): in-memory DuckDB with the explicit ``duckdb_settings("build")`` profile
+(memory_limit / threads / temp_directory / max_temp_directory_size /
+``preserve_insertion_order = false``), after creating the ``temp_directory`` parent
+(DuckDB 1.5.5 errors on first spill otherwise, retro CFG-3). The guards stay **outside**
+the factory so callers with no free-space requirement (fixture catalog, the safe-query
+parser connection) can use it directly.
 
 ``memory_limit`` overrides the build profile for one connection (a small stage does not
 need 36 GB); everything else always comes from :meth:`Settings.duckdb_settings`.
@@ -69,20 +71,17 @@ def open_build_connection(
     Order: DuckDB version pin → tier-aware free-space guard
     (:meth:`Settings.min_free_gb_for`; 1 GB for ``fixture`` so tmp-root test builds pass,
     the full ``min_free_gb`` for the credentialed tiers) → the one connection factory
-    (:func:`inventory.open_connection`). ``memory_limit`` (e.g. ``'8GB'``) overrides the
-    build profile's for this connection only.
+    (:func:`mimicwarehouse.engine.open_duckdb` with the ``build`` profile).
+    ``memory_limit`` (e.g. ``'8GB'``) overrides the build profile's for this connection
+    only.
     """
-    from mimicwarehouse.inventory import open_connection
+    from mimicwarehouse.engine import open_duckdb
 
     settings = settings or get_settings()
     resolved_tier = tier if tier is not None else settings.default_tier
     require_pinned_duckdb()
     require_free_space(settings.data_root, settings.min_free_gb_for(resolved_tier))
-    con = open_connection(settings)
-    if memory_limit is not None:
-        escaped = memory_limit.replace("'", "''")
-        con.execute(f"SET memory_limit = '{escaped}'")
-    return con
+    return open_duckdb("build", settings=settings, memory_limit=memory_limit)
 
 
 __all__ = [

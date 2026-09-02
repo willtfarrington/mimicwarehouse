@@ -16,8 +16,9 @@ and clinical-informatics readers.
   (amended EP-7). Free-to-read sources are preferred (brief EP-15); paywalled classics are
   kept only where no free substitute says the same thing.
 - **Category titles** are pinned to the coverage table as it stands at EP-15; a re-plan
-  that re-titles a category updates this file and `tests/ep/test_ep15.py` in the same
-  commit (see `docs/resources/README.md`).
+  that re-titles a category updates this file and the coverage table in
+  `roadmap/README.md` in the same commit — `tests/ep/test_ep15.py` parses that table live,
+  so it needs no edit (see `docs/resources/README.md`; corrected at EP-33, retro RES-5).
 
 ## 1. Data inventory & quality profiling
 
@@ -36,7 +37,7 @@ and clinical-informatics readers.
 - Singer M, Deutschman CS, Seymour CW, et al. (2016), *The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3)*, JAMA 315(8) — https://doi.org/10.1001/jama.2016.0287 — free: yes — the sepsis definition (suspected infection + SOFA rise ≥ 2) that EP-41's sepsis phenotype implements.
 - Johnson AEW, Aboab J, Raffa JD, et al. (2018), *A comparative analysis of sepsis identification methods in an electronic database*, Critical Care Medicine 46(4) — https://doi.org/10.1097/CCM.0000000000002965 — free: yes — the reference Sepsis-3 implementation on MIMIC (suspicion-of-infection window + SOFA); our vendored `sepsis3.sql` follows it, and its sensitivity analysis shows why phenotypes must be versioned.
 - KDIGO (2012), *KDIGO Clinical Practice Guideline for Acute Kidney Injury*, Kidney International Supplements 2(1) — https://kdigo.org/guidelines/acute-kidney-injury/ (also https://doi.org/10.1038/kisup.2012.1) — free: yes — the creatinine/urine-output AKI staging that EP-42's AKI phenotype implements; baseline-creatinine choice is the phenotype's biggest version-to-version lever.
-- Quan H, Sundararajan V, Halfon P, et al. (2005), *Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data*, Medical Care 43(11) — https://doi.org/10.1097/01.mlr.0000182534.19832.83 — free: no — the Charlson/Elixhauser code lists behind the vendored `charlson.sql`; both ICD arms matter because MIMIC-IV spans the ICD-9→10 switch.
+- Quan H, Sundararajan V, Halfon P, et al. (2005), *Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data*, Medical Care 43(11) — https://doi.org/10.1097/01.mlr.0000182534.19832.83 — free: no — the Charlson and Elixhauser code lists (the Charlson arm is the vendored `charlson.sql`; no Elixhauser SQL is vendored — see `vocabularies.md`); both ICD arms matter because MIMIC-IV spans the ICD-9→10 switch.
 
 ## 4. Cross-sectional exploratory analysis
 

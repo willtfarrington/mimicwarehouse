@@ -113,8 +113,9 @@ test-dev = "pytest --tier dev"        # EP-12/168: + tier("dev") tests (each ski
 test-full = "pytest --tier full"      # EP-12/168: + tier("full") tests (same skip rule)
 lint = "ruff check ."
 fmt = "ruff format ."
+fmt-check = "ruff format --check ."   # EP-33 B5 (retro VT-15): the format gate `check` runs; `fmt` fixes what it reports
 typecheck = "pyright"
 guard = "mwh guard --staged"   # EP-4: what the pre-commit hook runs
 roadmap-check = "python scripts/roadmap_check.py"   # EP-6: = mwh verify --roadmap [--strict] [--json]
 vendor-mimic-code = "python -m mimicwarehouse.concepts.vendoring"   # EP-8: --sha <sha> [--src %TEMP%\mimic-code] [--dry-run]; outside `check`
-check = ["lint", "typecheck", "test"]
+check = ["lint", "fmt-check", "typecheck", "test"]   # EP-33 B5: fmt-check second (fast fail before pyright); fixture-only on purpose
