@@ -15,6 +15,36 @@
 > (see the EP-42 amendment); the EP-29/EP-32 retroactive checks arrive via the EP-33 re-plan as
 > already planned.
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (a) **Retroactive checks** (EP-33
+> D1 queue, closing the EP-170 amendment's "arrive via the EP-33 re-plan" clause): after the
+> module ships, `mwh disclose check --write-sidecar` runs on `mimicwarehouse/DATA-DICTIONARY.md`
+> (EP-29) and `docs/analyses/00-staging-benchmark.md` (EP-32) — both committed pre-EP-43 with
+> "sidecar pending" headers — writing their `.disclosure.json` sidecars and removing the
+> pending header; both join the acceptance beside EP-42's `phenotype_prevalence.md`.
+> (b) **n vs n_fit complementary suppression** (EP-31 lesson): the tracer publishes the cohort
+> `n` and the fitted `n_fit`; when `fit` excludes zero-/all-event levels, their difference can
+> back out a small excluded-level cell — `suppress()` must treat such paired totals as a margin
+> (suppress complementarily) and `check()`'s small-cell scan must flag a derivable difference of
+> two published totals in `(0, k)`; the EP-31 tracer report is the regression case (EP-53
+> promotes it). (c) **`SUPPRESSOR` hook** (carried P3C-9, ownership settled here):
+> `safe.SUPPRESSOR: Callable[[polars.DataFrame, int, list[str]], tuple[polars.DataFrame, int]]`
+> — `(df, k, count_columns) -> (df, rows_suppressed)` — is the seam, and **this brief** swaps in
+> an adapter over `disclose.suppress` (mapping `count_columns` -> `count_cols`, returning the
+> suppressed-row count from `SuppressionReport`); the hook signature is fixed by safe.py, and
+> item 1's richer signature is `disclose.suppress`'s own API, not the hook's. (d) **SGT-2
+> policy** (owner decision; D-31 addendum): extreme-value aggregates (`min`/`max`/`mode`/
+> `median`/`quantile`) stay admitted by `safe_query` and are released only inside k-gated rows;
+> any per-column tightening (e.g. refusing `min`/`max` over subject-keyed non-count columns) is
+> decided in this module — record the decision in `docs/methods/disclosure.md` either way.
+> (e) **Error-text convention** (DKB-2): `safe_query` sanitizes DuckDB execution-error text
+> before it reaches a refusal message or audit line; `check()`/`write_sidecar()` apply the same
+> rule to any error text that enters a committed artifact (`CheckResult` details, sidecar
+> `checks[].detail`) — never verbatim engine messages. (f) Committed-artifact hygiene defers to
+> `docs/committed-text.md` (EP-33): no identifier column names, no string value > 64 chars, no
+> run ids / compact dates in committed file names — `check()` encodes the first two, the guard
+> covers the third. (g) Exit codes: findings -> `console.EXIT_FINDINGS`, usage ->
+> `console.EXIT_USAGE`, messages on stderr via `console.fail`.
+
 ## Context
 
 GOVERNANCE §5 and §7 (D-33, D-40) require that any count below 11 is warned in-app and

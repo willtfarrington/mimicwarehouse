@@ -150,6 +150,14 @@ materialised for staging. Staging peak RSS high-water 24,563 MB. The lake holds 
 393.3 GB). The derived/spine/marts estimates stay open — Workstream D3 re-estimates them
 from the measured 13.8× and the D2 shapes.
 
+**D3 (2026-09-01).** All 65 vendored concepts re-run on a throwaway demo-catalog copy
+(2.2 s, 0 failures; 65 derived tables, 131,517 rows, 1,824,855 bytes as ZSTD Parquet at
+140 ICU stays) and scaled by the stay ratio (≈ 675×): derived concepts ≈ 90 M rows /
+0.8–1.5 GB; MEDS spine 2.5–4 GB; marts ≤ 1–2 GB → **derived + spine ≈ 4–6 GB, marts
+≈ 1–2 GB** against the 15–30 / 5–15 GB planning lines; concept build-temp spill bounded at
+≤ 20–40 GB worst case. Recorded in DESIGN §3 (dated note) and roadmap Risk 6; EP-37/EP-50
+measure, EP-54 records. Free space at this session's pre-flight: 390.7 GB.
+
 ## dev-first ordering verdict
 
 **Keep.** Pass 2 sorts `settings.dev_buckets` first and flips `dev_ready` the moment they
@@ -160,10 +168,66 @@ consume; recorded as a D-18 addendum at this EP.
 
 ## Renames (Workstream B ledger — invariant 6)
 
-*(populated as B lands; every public-surface rename/move/merge, with the docs/tests/briefs
-propagated in the same session)*
+Every public-surface rename/move/merge of 2026-09-01, with where the old name was cited
+and what now cites the new one (historical briefs, completion notes and retro ledgers are
+never edited; P3 briefs carry the correction in their `EP-33 amendment` block; P4+ briefs
+a one-line `EP-33 rename` block — D5).
+
+| Old | New | Propagated to |
+|---|---|---|
+| `mimicwarehouse.paths` (module) | `mimicwarehouse.publish` (paths.py deleted) | loader/stage.py, loader/buckets.py, loader/paths.py docstring, catalog/build.py, DESIGN §5/§6/§15, tests ep17/18/21/23–28, workspace README |
+| `paths.swap_dir` · `paths.new_dir_for` · `paths.old_dir_for` · `paths.SwapError` | `publish.swap_dir` · `publish.new_path_for` · `publish.old_path_for` · `publish.SwapError` | same files |
+| `catalog.build.swap_catalog(new, dest, tier)` · `catalog_new_path` · `catalog_old_path` · duplicated `NEW_SUFFIX/OLD_SUFFIX/RETRIES/RETRY_BASE_SLEEP_S` | `publish.swap_file(new, dest, *, blocked_hint, observer=None)` · `publish.new_path_for` / `old_path_for` · single definitions in `publish`/`fsio` | catalog/build.py (`_publish_catalog` translates `SwapBlockedError` → `CatalogSwapError`, which now also subclasses `publish.SwapBlockedError`), safe.build_runs_db, runs_cli.py, test_ep21, DESIGN §6, EP-34/35 amendments |
+| `catalog.cli.EXIT_REFUSED` (definition) · `verify.EXIT_OK` / `EXIT_USAGE` (definitions) · tracer's literal `3` | `console.EXIT_OK` / `EXIT_FINDINGS` / `EXIT_USAGE` / `EXIT_REFUSED` (re-exported from `safe`, `catalog.cli`, `verify`) | catalog/cli.py, safe.py, tracer.py, verify.py, guard.py, dag/cli.py, runs_cli.py; tests unchanged (re-exports) |
+| private `_fail` helpers (catalog/cli, dag/cli, fixtures/cli, canary, inventory, schema/cli, verify, guard) · `dag.cli._configure_build_logging` · `guard._emit_json` · `inventory._Log` | `console.fail` (stderr) · `console.configure_progress_logging` · `console.emit_json` · stdlib logging (`mimicwarehouse.inventory`) | every command module; test_ep167 identity asserts |
+| `inventory.open_connection` (canonical opener) · raw `duckdb.connect` sites (safe._describe_ast, safe.build_runs_db, catalog/build ×2, catalog/connect, fixtures/catalog, loader/engine via inventory) | `engine.open_duckdb(profile, …)` (inventory keeps `open_connection` as a thin alias); inline `ATTACH` → `engine.attach_read_only` | those modules; grep guard in test_ep33 |
+| `inventory._atomic_write_text` · the O_APPEND twins `safe._append_audit` / `benchmarks.append` · buffered `manifest.append_manifest` · bare `json.loads` ledger readers | `fsio.atomic_write_text` (alias kept) · `fsio.append_jsonl` / `append_jsonl_lines` · `fsio.iter_jsonl` / `read_jsonl` (+ `manifest.iter_manifest`) | safe.py, dag/benchmarks.py, dag/snapshot.py, dag/jobs.py, loader/manifest.py, loader/buckets.py, tracer.py, canary.py |
+| `catalog.dictionary._fmt_mb` | `inventory.fmt_bytes_mb` (widened to `int \| None`) | catalog/dictionary.py |
+| `safe.exempt_ref` (closure) · `_Analysis.reads_subject_keyed` | `safe.is_registry_ref` + `REGISTRY_SCHEMAS` / `REGISTRY_TABLES` · (dropped; heuristic scoped to `not exempt`) | safe.py, DESIGN §12, EP-35/41/46/47 amendments |
+| `safe_query(sql, *, tier="dev", k=11, …)` · `SafeQueryError` = "bad arguments, unaudited" | `safe_query(sql, *, tier=None, k=None, …)` (settings defaults) · `SafeQueryError` = the audited usage class (`usage: ` reason) | safe.py, catalog/cli.py (`safe_cli_errors`), tracer.py, test_ep30 |
+| `catalog.connect._connect_with_retry(path, config, tier)` · `OPEN_RETRY_SLEEP_S` | `_connect_with_retry(path, settings, tier)` over `engine.open_duckdb(retry_missing_s=…)` · removed | catalog/connect.py (private) |
+| `jobs.pid_alive(pid)` | `jobs.pid_alive(pid, create_time=None)` + `jobs.process_create_time`; `JobInfo.create_time`; lock payload `create_time` | dag/jobs.py, dag/runner.py, test_ep19 stub |
+| `loader/__init__` eager re-exports | lazy `__getattr__` / `__dir__` (`__all__` unchanged) | loader/__init__.py |
+| new names (no old): `buckets.StageCoverageError`, `buckets.source_fingerprint`, `Progress.resumable_for`, `Progress.source_sha256/source_fingerprint/sort_by`, `manifest.iter_manifest`, `safe.sanitize_error_text`, `safe.ERROR_TEXT_MAX_CHARS`, `catalog.cli.safe_cli_errors`, `helpers.assert_import_budget` / `HEAVY_MODULES`, `guard._command_words` / `_resolve_hook_word`, `cli.CliState.data_root` (deleted) | — | — |
+| `mwh runs bench` (brief shorthand) | `mwh runs benchmarks` | EP-35/38/56 amendments |
+| `safe.owner_rows` (brief citation of a non-existent API) | EP-49's own owner gate (`open_catalog(role="owner")` + an `AuditLine` via `fsio.append_jsonl`); EP-58 defines `owner_rows()` | EP-49/67/149 amendments |
 
 ## Worklist outcomes (Workstream B — one line per item)
+
+- **B1** — done: cast-around-aggregate verifies (`_unwrap_cast`; unaliased cast counts
+  refused); set operations implemented with per-leaf checks and a symmetric positional
+  count rule (`UNION BY NAME` refused; DIS-2 closed); `REGISTRY_SCHEMAS`/`REGISTRY_TABLES`/
+  `is_registry_ref` (runs excluded), free-text heuristic scoped to non-registry reads,
+  settings defaults for tier/k; three-way taxonomy with `usage()` audit lines and
+  `catalog.cli.safe_cli_errors` shared by `mwh sql` and `mwh tracer`; plus DKB-1/SGT-1
+  (real count node mandatory), DKB-2 (`sanitize_error_text`), DKB-3/DKB-4/SGT-6 (pre-
+  execution catalog statements audited; interrupt timer guarded). 43 tests.
+- **B2** — done: `mimicwarehouse.publish` (swap_dir/swap_file over one retry core,
+  observer seam, FileNotFoundError tolerated only on remove/restore, deferred `.old`),
+  every caller migrated, `paths.py` deleted, `catalog.build._publish_catalog` translation;
+  loader fixes LDR-1 (coverage guard), LDR-4 (progress identity), WIN-1/LDR-3 (append
+  before record), LDR-8, WIN-2/WIN-4 (retry on pass-2 ops and stale-`.new` sweeps). 16
+  tests + the foundation's 18.
+- **B3** — done: `mimicwarehouse.engine.open_duckdb(profile)` + `attach_read_only`; all
+  eight `src/` connect sites migrated (two were profile-less); grep guard; DESIGN §6.1.
+- **B4** — done: `docs/committed-text.md` (six rules with enforcers + tests), `fmt_bytes_mb`
+  fold, guard docstring pointer, SGD-3 (notebook source + six text types scanned), SGD-4
+  (selfcheck resolves hook paths), CTR-2/CTR-4 carried items, RES-1/3/5 docs. 21 tests.
+- **B5** — done: `fmt-check` in `poe check` (tree was already formatted), repo-root
+  `poe_tasks.toml`, tests/README text, test_ep12 pin relaxed.
+- **B6** — done: `helpers.assert_import_budget` + `HEAVY_MODULES` (numpy added — a
+  tightening), test_ep02 canonical, test_ep09 lazy clause, three duplicates deleted; red
+  run verified the offender message; doctrine recorded in DESIGN §15.
+- **B7** — owner-applied diff package (D-45 item 4): authored last, see § Commit series.
+- **B8** — done: `fsio` (JSONL canon), console `fail`/`emit_json`/`configure_progress_
+  logging` adopted across every command module (errors → stderr), `inventory._Log`
+  deleted, `loader/__init__` lazy, `DIAGNOSTIC_COMMANDS` doctrine stated once, CLI-2/4/5/7,
+  DAG-1/2/3/4/8, LGR-1/2/4, WIN-6 fixed; canary kept verbatim (sanctioned exception).
+  17 CLI tests.
+- **Test layout note:** EP-33's acceptance spans `tests/ep/test_ep33.py` (foundation) +
+  `test_ep33_loader.py`, `test_ep33_safe.py`, `test_ep33_hygiene.py`, `test_ep33_cli.py`
+  — one file per workstream area written by parallel agents, all marker `ep_33`; kept
+  split rather than merged (recorded in tests/README.md as this brief's one exception).
 
 - **B9** — done (landed with the A4 DECISIONS edit pass): D-43's *Why/Alternatives* tail
   restored under item 14 with its lost first line recovered verbatim from `f3eb115`; the
@@ -175,7 +239,78 @@ propagated in the same session)*
 
 ## Checkpoint minutes
 
-*(recorded after the owner triage checkpoint)*
+> **Checkpoint minutes (2026-09-01).** Third session on this brief; it resumed at the
+> owner triage checkpoint with the salvaged ledger and scout plans in hand (pre-flight:
+> doctor 9 pass / 1 warn, AC power mode Best performance, 390.7 GB free, tree clean at
+> `84d9d8d`; multi-agent orchestration was **not** enabled, so Workstream B ran as four
+> parallel file-ownership subagents instead of a workflow). The owner answered two rounds
+> of four questions; every recommended option was taken.
+>
+> 1. **Triage of the 45 pending verified findings — accepted as proposed.** Outcomes are
+>    recorded per row in the ledger's Triage column
+>    ([`retro-p2-findings.md`](retro-p2-findings.md)): 36 fix-now (bug, robustness,
+>    docs/tests, guard code, or via a D1 brief amendment), 2 to the B7 owner-applied diff
+>    package (SGD-1, SGD-2), 4 reject-with-reason (LGR-3, P3C-1, TST-3, SGT-2 — the
+>    last with an EP-43 amendment), plus CTR-1's decision-now/fixture-later split and the
+>    already-fixed DRF-1. The 60 carried-low findings: the XS doc/dead-code/convention
+>    items are swept where B/C already touch the file (CLI-4/5/6/7, CTR-2/4, DRF-7/8/9,
+>    LDR-5/6/8, LGR-7, P01-3/4, RES-4/5, TST-4, WIN-6/7, DKB-5, DAG-6/8, SGT-4 — the last
+>    closed by DKB-1's fix); the remainder are parked in `final-roadmap.md` for EP-54.
+> 2. **LDR-1 — stage-level refusal.** `stage_partitioned` refuses when the existing
+>    table's recorded coverage is a strict superset of the request; `mwh build --tier full
+>    --force` is the only path that rewrites a complete table; the runner's `--force`
+>    bypasses the skip, never this guard.
+> 3. **SGT-2 — extreme-value aggregates stay admitted.** After DKB-1's fix every row that
+>    carries a min/max/mode/median/quantile is gated by a real count column, so such
+>    values are released only inside k-suppressed rows (dates are patient-shifted);
+>    recorded as a D-31 addendum; EP-43 decides any per-column tightening in the disclose
+>    module (amendment).
+> 4. **B7 — owner-applied diff package, authored last** (first addendum's tunings 1 and 5):
+>    settings.json + PreToolUse hook + selfcheck/test diffs for SGD-1, SGD-2, the
+>    `tests/fixtures/**` Read allowance and the path-aware repo-internal `.csv`/`.duckdb`
+>    check are written to the session scratchpad for the owner to apply interactively.
+> 5. **Renames — approved:** `mimicwarehouse.paths` → `mimicwarehouse.publish` (paths.py
+>    deleted; `swap_dir`/`swap_file`/`new_path_for`/`old_path_for`; `catalog.build.
+>    swap_catalog` absorbed); `mimicwarehouse.console` is the single home of
+>    `EXIT_OK/EXIT_FINDINGS/EXIT_USAGE/EXIT_REFUSED` (safe, catalog.cli, verify re-export).
+> 6. **B1c — `runs` does not join `REGISTRY_SCHEMAS`;** EP-35 allow-lists its ledger label
+>    columns when it builds the ledger views (D1 amendment).
+> 7. **Earlier-EP test edits — approved:** test_ep12's exact `check`-chain pin relaxed
+>    (B5); the duplicate import-budget tests in test_ep06/11/12 deleted, test_ep02
+>    canonical + test_ep09's lazy-contract clause (B6); fixture counts read from
+>    `manifest.json` in test_ep21/22/30 (TST-2).
+> 8. **B8 — errors to stderr via `console.fail`; the AV canary keeps its verbatim raw-os
+>    write sequence** as the canon's sanctioned exception (EP-171 baselines stay
+>    comparable).
+>
+> Routine calls stated at the checkpoint and not objected to: the D4 defaults a–g all
+> kept (b now measurement-backed by D2); the gotchas home is `mimicwarehouse/docs/
+> gotchas.md` with a short DESIGN §6 "Engine gotchas" subsection pointing at it and the
+> hygiene canon at `docs/committed-text.md`; the engine canon module is
+> `mimicwarehouse.engine` (`loader/engine.py` keeps its name; prose uses dotted paths);
+> `fmt_int` stays in `inventory.py`; the DIAGNOSTIC_COMMANDS allow-list is kept and
+> recorded; no agent round over the completeness critique's ten gaps (the catalog package
+> and the tracer get a manual look during B3 and F3).
+
+## Workstream F — battery results (2026-09-01/02, after B–D landed)
+
+| Probe | Result | vs pre-flight baseline |
+|---|---|---|
+| F1 `uv run poe check` (ruff check + **ruff format --check** + pyright + pytest) | exit 0 · **832 passed**, 29 deselected · 248 s (poe wall 257 s) | 720 passed / 219 s — +112 tests (the EP-33 modules), +29 s |
+| F1 `mwh verify EP-k`, k ∈ 0…33 ∪ 164…171 (42 briefs) | **0 failures** after one fix · 486 s | 0 failures / 414 s (41 briefs); the single red was test_ep165's 9,000-byte cap on CLAUDE.md after a pointer bullet — CLAUDE.md trimmed to 8,715 bytes (C3 dedupe), re-verified green |
+| F1 `poe roadmap-check --strict` | 0 errors / 0 warnings (172 rows, 41 done before the EP-33 tick) | 0/0 |
+| F2 catalogs rebuilt (`--select catalog`) — fixture, dev foreground; full as job `catalog-full-ep33` | fixture + dev ≈ 1 s each; full job exit 0 in 4 s; `mwh catalog info` = 31 cataloged (7 tables + 24 views), 0 missing on all three tiers; snapshot `core/full` unchanged (`b1fc5313…410eca`) | lake untouched (invariant 1) |
+| F2 `mwh catalog dictionary --tier full` vs committed `DATA-DICTIONARY.md` | identical except the two provenance lines (build id, built-at timestamp) — file regenerated with the post-EP-33 catalog's provenance | 31 tables / 342 columns unchanged |
+| F3 `mwh tracer --tier dev` | run `…-dev`: cohort n = 3,208, fit, AUC 0.744, 7 audited calls, 2.17 s | EP-31: n = 3,208, AUC 0.744, 2.11 s — identical |
+| F3 `mwh tracer --tier full` (job `tracer-full-ep33`) | n = 65,366, fit, AUC 0.731, 7 audited calls, 3.59 s | EP-31: n = 65,366, AUC 0.731, 3.3 s — identical |
+| F4 `mwh canary write` | OK — 5 passes, 203 files, 2,534,564,809 bytes, 13.7 s; small 179 MB/s, large 229 MB/s, swap 1,231 MB/s; every re-read matched, tree removed | EP-171: 191 / 239 MB/s, 13.3 s (the full tracer job ran concurrently) |
+| F5 `mwh guard --all-tracked` · `--selfcheck` | clean (500 files) · passed, `pretool-hook` registered (the selfcheck now resolves the interpreter/script paths — SGD-4) | clean / passed |
+| F6 fixture build (resume over the data-root fixture lake) | 3.4 s | 3.3 s |
+| F6 `mwh --help` (two cold runs) | 582 / 554 ms | 558 ms |
+| F6 fixture-suite wall | 248 s for 832 tests (0.30 s/test) | 219 s for 720 (0.30 s/test) |
+
+`mwh doctor` at session start: 9 pass · 1 warn (`antivirus`, by design) · 0 fail · 5 info,
+390.7 GB free, AC power mode Best performance.
 
 ## Commit series
 

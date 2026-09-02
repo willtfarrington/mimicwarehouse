@@ -1,6 +1,6 @@
 # EP-37 — Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱
 
-**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-38) · **Core/Stretch:** core · **Depends on:** EP-8 (mimic-code vendoring), EP-19 (DAG runner `mwh build`), EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)) · **Blocks:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-54 (Re-plan P3)
+**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-38) · **Core/Stretch:** core · **Depends on:** EP-8 (mimic-code vendoring), EP-19 (DAG runner `mwh build`), EP-22 (Demo tier (MIMIC-IV Demo 2.2 + ED Demo)), EP-34 (Time semantics + unit-of-analysis registry), EP-35 (Provenance run ledger) · **Blocks:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-54 (Re-plan P3)
 
 > **EP-33 amendment (2026-08-31) — D2 pre-flight smoke result.** The consolidation
 > re-plan's concept smoke (EP-33 item D2) executed **all 65 vendored `concepts_duckdb`
@@ -19,6 +19,56 @@
 > ledger P3C-2; `CATALOG_EXTENSIONS`; Depends-on additions per retro FC-13) is **still
 > owed** by the EP-33 re-run — see `EP-33-replan-p2.md` § Second attempt and
 > `retro-p2-findings.md`.
+
+> **EP-33 amendment (2026-09-01).** **Depends-on changed** (retro FC-13): now EP-8, EP-19,
+> EP-22, **EP-34** (`timesem` fragments cited by the concept-versions/discovery step and the
+> count-pins) and **EP-35** (`run.bench`, `BenchmarkLine.run_id`); the roadmap README row is
+> updated in the same session. This block overrides item 2 where they differ; the D2 smoke
+> result above (65/65 files clean on DuckDB 1.5.5) stands. (1) **Spec discovery — settled and
+> owned here** (ledger P3C-2). Today `dag.spec.load_dag()` loads only the packaged `stage`
+> spec (`DEFAULT_SPEC = "stage"`) and `mwh build` has no `--spec` option — none is added.
+> This brief implements *discovery*: `load_dag()` merges **every** packaged `dag/specs/*.yaml`
+> into one graph at load — step names are unique across files except the shared `catalog`
+> step, which is deduplicated by name with its `depends_on` unioned (so `catalog` runs after
+> the stage steps and after every concept step); cross-file `depends_on` references resolve
+> after the merge; the packaged `stage` spec is simply one of the merged files. Result:
+> `mwh build --tier <t> --tag concepts` and `--select concept.<group>.<name>` work with the
+> shipped CLI (`mwh build --tier t [--select a,b] [--tag t] [--force] [--break-lock]
+> [--background --job NAME] [--dry-run]`; `--dry-run` with `--background` is refused since
+> EP-33), and item 2's "if the EP-19 runner does not merge specs" hedge is retired. EP-39/44/
+> 45/50/53 add their own spec files and rely on this mechanism. (2) **Step kind.** Concept
+> steps use the shipped `python` kind — `callable: module:function`, called with
+> `(step, ctx)`, returning a `dag.runner.StepOutcome` (EP-29's `meta.profile` is the
+> precedent) — registered through `dag.runner.STEP_HANDLERS` (`stage`, `catalog`, `python`
+> today); adding a `sql` handler (the spec's `Kind` literal already lists it) is optional and
+> only if it removes real duplication. Each derived table's manifest line + snapshot id come
+> from the existing `dag.snapshot` conventions (`layer_snapshot`, `complete_for_tier`) — no
+> new manifest format. (3) **Catalog discovery convention** (carried P3C-7, fixed here):
+> derived tables land under `settings.layout["lake_derived"] / <tier> / <schema> / <table> /
+> part-0.parquet` — one file, **no bucket partitions** (item 2's `PARTITION_BY subject_bucket`
+> clause is dropped; the large concepts stay single-file ZSTD Parquet, which DuckDB scans
+> with pushdown); demo uses the same key with its own tier segment. The `catalog` step
+> registers `mimiciv_derived.<table>` views over them (`loader.paths.read_parquet_sql`, which
+> `catalog.build` already imports, builds the relation); the discovery walker is registered
+> via `CATALOG_EXTENSIONS` (EP-34's hook on `catalog.build.build_catalog`) and receives the
+> build connection (`engine.open_duckdb("build", ...)`), attaching read-only sources with
+> `engine.attach_read_only` — it opens nothing itself. Later layouts follow the same rule:
+> `lake/meta/<tier>/<table>.parquet` -> `meta.<table>` (EP-29), `lake/marts/<tier>/...` ->
+> `marts.*` (EP-47); the bucketed spine (EP-50) is the one exception, registered by its own
+> `union` step. (4) **Count-pins.** The demo count-pin may be one `safe_query` statement now
+> that set operations verify (EP-33 B1: `UNION ALL`/`EXCEPT`/`INTERSECT` with per-branch
+> checks and the leftmost-leaf positional count rule) and `CAST` directly around a closed-set
+> aggregate verifies; arithmetic over aggregates stays refused (final-roadmap DIS-3), so
+> ratios are computed in Python from released counts. Pinned counts < 11 stay the string
+> `"<11"` until EP-43's `disclose.render_cell`. (5) **Benchmarks.** Per-concept lines are
+> `BenchmarkLine(kind="concept", run_id=...)` via `run.bench` (EP-35 extends the model; no
+> `BenchmarkRecord`), read back with `mwh runs benchmarks --kind concept` (ledger P3C-6).
+> (6) **Runtime facts.** `mwh build --tier dev --force` over a full-complete table is refused
+> at the stage level (EP-33 LDR-1) and the derived layer inherits the rule — a dev rebuild
+> never replaces a full derived table, `--tier full --force` is the only destructive path;
+> `mwh jobs [--job NAME] [--tail N]` is the job peek; refusals print `mwh build: ...` on
+> stderr with `console.EXIT_REFUSED`/`EXIT_USAGE`. (7) Fixture: generator 0.2.0 counts read
+> from `tests/fixtures/manifest.json` (EP-33 TST-2); EP-41 regenerates to 0.3.0.
 
 ## Context
 

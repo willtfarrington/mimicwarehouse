@@ -11,6 +11,11 @@
 > `MWH_MARTS_*` knob (item 2) is likewise a Settings field with parity, not a bare env read
 > [ARCH-13].
 
+> **EP-33 rename (2026-09-01).** Item 1's `mwh runs bench --kind build` reads `mwh runs
+> benchmarks --kind build` — the shipped EP-32 verb (ledger P3C-6); `dag.benchmarks.
+> BenchmarkLine` (extended by EP-35 with optional `run_id`/`disk_delta_mb`) is the ledger
+> model, not `BenchmarkRecord`. Mechanical only (D5); substantive re-amendment stays with EP-54.
+
 ## Context
 
 EP-55 built the stay-grain `marts.icustay_first_day`, the itemid rollups and the mart registry,

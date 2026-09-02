@@ -5,6 +5,11 @@
 > **Charter.** This is a charter brief (D-9): scope sketch and acceptance sketch to be upgraded to a
 > full brief by EP-147 (Re-plan P9) before execution (track gated at EP-127; re-chartered by EP-136).
 
+> **EP-33 rename (2026-09-01).** `safe.owner_rows` (item 3) does not exist at EP-33 (ledger
+> P3C-3); the audited owner path it mirrors is EP-58's `owner_rows()`, built over the owner gate
+> EP-49 item 4 defines (`open_catalog(role="owner")` + a `safe.AuditLine` appended via
+> `fsio.append_jsonl`). Mechanical only (D5); EP-147 re-charters.
+
 ## Context
 
 First step of the representative text workflow (D-3: search → concept/negation extraction →

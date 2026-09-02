@@ -1,6 +1,6 @@
 # EP-30 — Safe-query wrapper + audit log
 
-**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality), EP-33 (Re-plan P2), EP-35 (Provenance run ledger), EP-43 (Disclosure primitives (`disclose` module)), EP-57 (App shell A (Streamlit multipage))
+**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-31 (Tracer bullet: first-ICU-stay adults → in-hospital mortality), EP-33 (Re-plan P2), EP-35 (Provenance run ledger), EP-43 (Disclosure primitives (`disclose` module)), EP-49 (Event-aligned timeline API), EP-57 (App shell A (Streamlit multipage))
 
 > **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
 > table. (1) Item 1(e)'s free-text heuristic is **scoped to subject-keyed tables**:

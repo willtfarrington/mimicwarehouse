@@ -6,52 +6,52 @@ Machine-rendered record of the EP-33 bounded discovery audit (D-44 item 2; metho
 
 | Id | Sev | Verdict | When | Effort | Class | Title | Triage |
 |---|---|---|---|---|---|---|---|
-| CLI-1 | high | confirmed | now-must | S | bug | FileNotFoundError swallowed in _retry lets a failed rename-into-place complete the swap and delete the aside copy | _pending_ |
-| DKB-1 | high | confirmed | now-must | S | bug | Count-family requirement satisfiable by alias alone, so k-suppression can run without any true group-size count | _pending_ |
-| DKB-2 | high | confirmed | now-should | S | governance-precision | DuckDB execution-error text surfaced verbatim can embed row values in the refusal message and audit log | _pending_ |
+| CLI-1 | high | confirmed | now-must | S | bug | FileNotFoundError swallowed in _retry lets a failed rename-into-place complete the swap and delete the aside copy | fix-now (B2: swallow scoped to remove/restore; dest.is_dir() postcondition) |
+| DKB-1 | high | confirmed | now-must | S | bug | Count-family requirement satisfiable by alias alone, so k-suppression can run without any true group-size count | fix-now (B1: count-family must be a real count node; count-named alias on a non-count expression refused) |
+| DKB-2 | high | confirmed | now-should | S | governance-precision | DuckDB execution-error text surfaced verbatim can embed row values in the refusal message and audit log | fix-now (B1: execution-error text sanitized before audit/raise) |
 | DRF-1 | high | confirmed | now-must | S | doc-drift | Decision headers D-18, D-19, D-21, D-25 destroyed by insertion of the 2026-08-30 EP-33 addenda | **fixed** (salvage commit — session-introduced) |
-| LDR-1 | high | confirmed | owner-decision | S | robustness | Subset bucket request replaces a superset table wholesale via the directory swap | _pending_ |
-| SGT-1 | high | confirmed | now-must | M | bug | Count-family requirement satisfiable by alias regex on a non-count column | _pending_ |
-| WIN-1 | high | confirmed | now-should | S | bug | Resume path permanently drops the manifest line for a bucket sorted just before a crash | _pending_ |
-| CLI-2 | medium | confirmed | now-should | XS | robustness | Callback's pending-error catch misses pydantic-settings SettingsError, so one class of broken .env values bypasses the CFG-5 fix | _pending_ |
-| CTR-1 | medium | confirmed | next-replan | S | robustness | NULL placement under contract sort_keys differs between the Polars fixture path and the DuckDB staging ORDER BY | _pending_ |
-| DAG-1 | medium | confirmed | now-should | XS | bug | --dry-run silently dropped when combined with --background, launching a real build | _pending_ |
-| DAG-3 | medium | confirmed | next-replan | S | robustness | Recycled pid makes a stale lock unbreakable, even with --break-lock | _pending_ |
-| DRF-2 | medium | confirmed | now-should | M | doc-drift | State of the workspace frozen at EP-16 while EP-17 through EP-32 have shipped | _pending_ |
-| DRF-3 | medium | confirmed | now-should | S | doc-drift | Root README project-status block is an EP-166-era snapshot | _pending_ |
-| DRF-5 | medium | confirmed | now-should | S | doc-drift | Quick-start command roster and layout package list omit the EP-30/31/32 surface | _pending_ |
-| LDR-2 | medium | confirmed | now-should | XS | bug | FileNotFoundError treated as success by _retry on the publish rename in swap_dir | _pending_ |
-| LDR-3 | medium | confirmed | now-should | S | bug | Crash window between per-bucket progress write and manifest append permanently omits the bucket's manifest line | _pending_ |
-| LDR-4 | medium | confirmed | now-should | S | robustness | Resume precondition omits source identity and sort parameters recorded in Progress | _pending_ |
-| LGR-1 | medium | confirmed | now-should | S | robustness | No reader of the append-only ledgers tolerates a torn trailing line | _pending_ |
-| LGR-2 | medium | confirmed | now-should | XS | robustness | Unchecked os.write return value in both O_APPEND ledger writers | _pending_ |
-| P3C-2 | medium | confirmed | next-replan | S | forward-compat | Six P3 briefs address steps in new DAG spec files via `mwh build --tag/--select`, but the CLI only loads the packaged stage spec | _pending_ |
-| P3C-3 | medium | confirmed | next-replan | S | forward-compat | EP-49 requires `safe.owner_rows` attributed to EP-30, which does not exist and is deferred to EP-58 | _pending_ |
-| P3C-5 | medium | confirmed-with-corrections | next-replan | S | governance-precision | Contract-derived subject-keyed/free-text classification does not extend to the mimiciv_derived and marts surfaces P3 creates | _pending_ |
-| P3C-6 | medium | confirmed-with-corrections | next-replan | XS | doc-drift | EP-35/EP-38 benchmark plans drift from the shipped BenchmarkLine model and the `mwh runs benchmarks` verb | _pending_ |
-| RES-1 | medium | confirmed | now-should | S | doc-drift | Elixhauser comorbidity concept described as vendored mimic-code SQL that does not exist in the vendored tree | _pending_ |
-| SGD-1 | medium | downgraded | owner-decision | S | governance-precision | git-prefixed file-content readers classified as allow-listed read-only project commands | _pending_ |
-| SGD-2 | medium | confirmed | owner-decision | XS | governance-precision | Grep glob field excluded from the hook's checked fields | _pending_ |
-| SGD-3 | medium | confirmed | owner-decision | S | governance-precision | G4 content scan skips notebook source cells and several tracked text types | _pending_ |
-| SGD-4 | medium | confirmed | owner-decision | S | robustness | pretool-hook selfcheck passes with a dead absolute hook command | _pending_ |
-| SGT-2 | medium | confirmed | owner-decision | M | governance-precision | min/max/mode/quantile over subject-keyed non-count columns disclose individual raw values | _pending_ |
-| TST-2 | medium | confirmed-with-corrections | now-should | S | convention | Hard-coded fixture row counts in test_ep30/21/22 contradict the suite's churn rule | _pending_ |
-| WIN-2 | medium | confirmed | now-should | S | robustness | Pass-2 publish and delete operations lack the transient-PermissionError retry loop | _pending_ |
-| WIN-3 | medium | confirmed | now-should | XS | robustness | swap_dir fails the whole stage when post-publish .old cleanup exhausts retries, unlike swap_catalog | _pending_ |
-| WIN-4 | medium | confirmed | now-should | XS | robustness | Stale-.new sweeps use bare shutil.rmtree without the retry loop | _pending_ |
-| CLI-3 | low | downgraded | now-should | XS | doc-drift | D38_ALLOW_LIST still enumerates seven paths after the D-38 addendum grew the allow list to nine | _pending_ |
-| DAG-2 | low | downgraded | now-should | S | robustness | Build-lock acquisition is check-then-write, not atomic | _pending_ |
-| DAG-4 | low | downgraded | next-replan | S | robustness | O_APPEND ledger append is not atomic between processes on Windows | _pending_ |
-| DRF-4 | low | downgraded | now-should | XS | doc-drift | DESIGN.md framing paragraph stops the shipped inventory at the P0/P1a modules | _pending_ |
-| LGR-3 | low | downgraded | owner-decision | S | governance-precision | GOVERNANCE section 8 event coverage exceeds what is implemented | _pending_ |
-| LGR-4 | low | downgraded | now-should | M | convention | Six distinct append implementations behind the one-JSONL-helper unification | _pending_ |
-| P01-1 | low | downgraded | now-should | XS | governance-precision | Doctor antivirus warn detail still names the seven-path D-38 allow list; D-38 was amended to nine paths | _pending_ |
-| P3C-1 | low | downgraded | next-replan | XS | forward-compat | EP-35 run_id format embeds a compact date that falls inside a real id band, colliding with G4 and EP-43's id-band scan | _pending_ |
-| P3C-4 | low | downgraded | next-replan | S | forward-compat | EP-47 acceptance query over marts.cohorts is refused by the shipped aggregate-only rules and depends on B1c covering marts registries | _pending_ |
-| RES-3 | low | downgraded | now-should | XS | doc-drift | Landing-convention text pins a 15-key Settings.layout contract that EP-167 already grew to 18 keys | _pending_ |
-| SGT-3 | low | downgraded | next-replan | M | governance-precision | CAST of an aggregate and arithmetic over aggregates are refused | _pending_ |
-| TST-1 | low | downgraded | now-should | S | test-gap | Sortedness assertions degenerate to a one-column prefix for pharmacy and prescriptions | _pending_ |
-| TST-3 | low | downgraded | owner-decision | M | test-gap | Dev/full acceptance can go all-skip green; stale-catalog inconsistency is skipped, not failed | _pending_ |
+| LDR-1 | high | confirmed | owner-decision | S | robustness | Subset bucket request replaces a superset table wholesale via the directory swap | fix-now (owner: stage-level refusal when existing coverage is a strict superset; `--tier full --force` is the only destructive path) |
+| SGT-1 | high | confirmed | now-must | M | bug | Count-family requirement satisfiable by alias regex on a non-count column | fix-now (with DKB-1) |
+| WIN-1 | high | confirmed | now-should | S | bug | Resume path permanently drops the manifest line for a bucket sorted just before a crash | fix-now (B8/loader: manifest line appended before the progress write) |
+| CLI-2 | medium | confirmed | now-should | XS | robustness | Callback's pending-error catch misses pydantic-settings SettingsError, so one class of broken .env values bypasses the CFG-5 fix | fix-now (cli: catch pydantic-settings SettingsError) |
+| CTR-1 | medium | confirmed | next-replan | S | robustness | NULL placement under contract sort_keys differs between the Polars fixture path and the DuckDB staging ORDER BY | fix-now (decision: DuckDB NULLS LAST is canonical, D-17 addendum) + EP-41 amendment (fixture writer/check aligned at the 0.3.0 regeneration) |
+| DAG-1 | medium | confirmed | now-should | XS | bug | --dry-run silently dropped when combined with --background, launching a real build | fix-now (dag: `--dry-run` + `--background` refused) |
+| DAG-3 | medium | confirmed | next-replan | S | robustness | Recycled pid makes a stale lock unbreakable, even with --break-lock | fix-now (dag: lock payload gains process create_time; pid+create_time identity; closes carried DAG-6) |
+| DRF-2 | medium | confirmed | now-should | M | doc-drift | State of the workspace frozen at EP-16 while EP-17 through EP-32 have shipped | fix-now (C3) |
+| DRF-3 | medium | confirmed | now-should | S | doc-drift | Root README project-status block is an EP-166-era snapshot | fix-now (C3) |
+| DRF-5 | medium | confirmed | now-should | S | doc-drift | Quick-start command roster and layout package list omit the EP-30/31/32 surface | fix-now (C3) |
+| LDR-2 | medium | confirmed | now-should | XS | bug | FileNotFoundError treated as success by _retry on the publish rename in swap_dir | fix-now (with CLI-1) |
+| LDR-3 | medium | confirmed | now-should | S | bug | Crash window between per-bucket progress write and manifest append permanently omits the bucket's manifest line | fix-now (with WIN-1) |
+| LDR-4 | medium | confirmed | now-should | S | robustness | Resume precondition omits source identity and sort parameters recorded in Progress | fix-now (loader: Progress records source identity + sort_by; pre-EP-33 progress files fall back to the old predicate) |
+| LGR-1 | medium | confirmed | now-should | S | robustness | No reader of the append-only ledgers tolerates a torn trailing line | fix-now (readers tolerate one malformed trailing line) |
+| LGR-2 | medium | confirmed | now-should | XS | robustness | Unchecked os.write return value in both O_APPEND ledger writers | fix-now (B8: fsio short-write check) |
+| P3C-2 | medium | confirmed | next-replan | S | forward-compat | Six P3 briefs address steps in new DAG spec files via `mwh build --tag/--select`, but the CLI only loads the packaged stage spec | fix-now via D1 (spec discovery settled: `load_dag` merges the packaged specs; EP-37 implements) |
+| P3C-3 | medium | confirmed | next-replan | S | forward-compat | EP-49 requires `safe.owner_rows` attributed to EP-30, which does not exist and is deferred to EP-58 | fix-now via D1 (EP-49: own owner gate + public audit seam) |
+| P3C-5 | medium | confirmed-with-corrections | next-replan | S | governance-precision | Contract-derived subject-keyed/free-text classification does not extend to the mimiciv_derived and marts surfaces P3 creates | fix-now (B1c: non-registry reads outside the contract are treated subject-keyed) + D1 rule statement |
+| P3C-6 | medium | confirmed-with-corrections | next-replan | XS | doc-drift | EP-35/EP-38 benchmark plans drift from the shipped BenchmarkLine model and the `mwh runs benchmarks` verb | fix-now via D1 (EP-35/EP-38/EP-56: BenchmarkLine + `mwh runs benchmarks`) |
+| RES-1 | medium | confirmed | now-should | S | doc-drift | Elixhauser comorbidity concept described as vendored mimic-code SQL that does not exist in the vendored tree | fix-now (docs) |
+| SGD-1 | medium | downgraded | owner-decision | S | governance-precision | git-prefixed file-content readers classified as allow-listed read-only project commands | B7 owner-applied diff package (authored last) |
+| SGD-2 | medium | confirmed | owner-decision | XS | governance-precision | Grep glob field excluded from the hook's checked fields | B7 owner-applied diff package (authored last) |
+| SGD-3 | medium | confirmed | owner-decision | S | governance-precision | G4 content scan skips notebook source cells and several tracked text types | fix-now (guard code: G4 scans notebook source + script/markup types) |
+| SGD-4 | medium | confirmed | owner-decision | S | robustness | pretool-hook selfcheck passes with a dead absolute hook command | fix-now (guard code: selfcheck resolves the registered interpreter/script paths) |
+| SGT-2 | medium | confirmed | owner-decision | M | governance-precision | min/max/mode/quantile over subject-keyed non-count columns disclose individual raw values | reject-with-reason (owner: extreme-value aggregates stay admitted; released only in k-gated rows once DKB-1 lands; D-31 addendum) + EP-43 amendment (per-column policy decided in the disclose module) |
+| TST-2 | medium | confirmed-with-corrections | now-should | S | convention | Hard-coded fixture row counts in test_ep30/21/22 contradict the suite's churn rule | fix-now (counts read from tests/fixtures/manifest.json) |
+| WIN-2 | medium | confirmed | now-should | S | robustness | Pass-2 publish and delete operations lack the transient-PermissionError retry loop | fix-now (B2/loader: retry loop on pass-2 replace/unlink) |
+| WIN-3 | medium | confirmed | now-should | XS | robustness | swap_dir fails the whole stage when post-publish .old cleanup exhausts retries, unlike swap_catalog | fix-now (B2: warn-and-defer on `.old` cleanup) |
+| WIN-4 | medium | confirmed | now-should | XS | robustness | Stale-.new sweeps use bare shutil.rmtree without the retry loop | fix-now (B2: retrying rmtree on stale-`.new` sweeps) |
+| CLI-3 | low | downgraded | now-should | XS | doc-drift | D38_ALLOW_LIST still enumerates seven paths after the D-38 addendum grew the allow list to nine | fix-now (nine-path list; test_ep164 pin bumped under the churn rule) |
+| DAG-2 | low | downgraded | now-should | S | robustness | Build-lock acquisition is check-then-write, not atomic | fix-now (dag: O_CREAT|O_EXCL lock create) |
+| DAG-4 | low | downgraded | next-replan | S | robustness | O_APPEND ledger append is not atomic between processes on Windows | fix-now (docstring admits the verify writer); msvcrt locking rejected (single writer by sequencing) |
+| DRF-4 | low | downgraded | now-should | XS | doc-drift | DESIGN.md framing paragraph stops the shipped inventory at the P0/P1a modules | fix-now (C1) |
+| LGR-3 | low | downgraded | owner-decision | S | governance-precision | GOVERNANCE section 8 event coverage exceeds what is implemented | reject-with-reason (GOVERNANCE.md untouched by invariant 2; section 8 is the target contract and already cites future EPs) |
+| LGR-4 | low | downgraded | now-should | M | convention | Six distinct append implementations behind the one-JSONL-helper unification | fix-now (B8: fsio.append_jsonl) |
+| P01-1 | low | downgraded | now-should | XS | governance-precision | Doctor antivirus warn detail still names the seven-path D-38 allow list; D-38 was amended to nine paths | fix-now (with CLI-3) |
+| P3C-1 | low | downgraded | next-replan | XS | forward-compat | EP-35 run_id format embeds a compact date that falls inside a real id band, colliding with G4 and EP-43's id-band scan | reject-with-reason (ID_TOKEN cannot match a date+T token; the file-name lesson is already recorded at EP-32) |
+| P3C-4 | low | downgraded | next-replan | S | forward-compat | EP-47 acceptance query over marts.cohorts is refused by the shipped aggregate-only rules and depends on B1c covering marts registries | fix-now via D1 (EP-47 registers marts.cohorts in B1c's REGISTRY_TABLES) |
+| RES-3 | low | downgraded | now-should | XS | doc-drift | Landing-convention text pins a 15-key Settings.layout contract that EP-167 already grew to 18 keys | fix-now (docs) |
+| SGT-3 | low | downgraded | next-replan | M | governance-precision | CAST of an aggregate and arithmetic over aggregates are refused | fix-now, cast half (B1a); arithmetic over aggregates stays parked (DIS-3) |
+| TST-1 | low | downgraded | now-should | S | test-gap | Sortedness assertions degenerate to a one-column prefix for pharmacy and prescriptions | fix-now (full-key NULLS-aware sortedness check added in test_ep33; ep24/ep25 untouched) |
+| TST-3 | low | downgraded | owner-decision | M | test-gap | Dev/full acceptance can go all-skip green; stale-catalog inconsistency is skipped, not failed | reject-with-reason (documented design: skips print reasons and fixture tests always execute under verify) |
 
 ## Index - carried low findings (no verifier pass, 2026-08-18 precedent)
 

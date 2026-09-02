@@ -2,6 +2,20 @@
 
 **Size:** S · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-35 (Provenance run ledger), EP-51 (Protocol schema + freeze registry + `mwh protocol`) · **Blocks:** EP-54 (Re-plan P3)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) `--data-root` is a **global**
+> `mwh` option since EP-167 (carried P3C-10): item 3's restore drill reads `mwh --data-root
+> <dir> runs refresh`, not `mwh runs refresh --data-root <dir>`; likewise `mwh --data-root
+> <dir> backup verify ...` in tests. (2) The backup set enumerates ledgers by the EP-33 canon:
+> `runs/*.jsonl` are written only by `fsio.append_jsonl`, and `fsio.read_jsonl` tolerates one
+> torn trailing line, so a backup taken mid-append still verifies; `backup_manifest.json` is
+> written with `fsio.atomic_write_text`; the per-backup directory is published with
+> `publish.swap_dir` (write to `publish.new_path_for(target)`, then swap) so an interrupted
+> backup never looks complete; `runs.duckdb` is **excluded** from the set (rebuilt by
+> `safe.build_runs_db` / `mwh runs refresh`). (3) Refusals use `console.fail(..., code=
+> console.EXIT_REFUSED)` on stderr; `mwh backup list --json` via `console.emit_json`.
+> (4) Layout keys replace `%MWH_DATA_ROOT%` shorthand: `layout["runs"]`, `layout["runs_jobs"]`
+> (excluded — job state/logs are transient), `layout["warehouse"]`.
+
 ## Context
 
 The lake, catalogs, derived layers and marts are rebuildable from raw + code (`mwh init` +

@@ -2,6 +2,25 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-44 (Data-quality profiling) · **Blocks:** EP-54 (Re-plan P3)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **Tracer-report promotion**
+> (EP-33 D1 queue): the EP-31 tracer report (`report.md` + `model.json`, `attrition.json`,
+> `descriptives.json` under `layout["runs"]/tracer/` from `mwh tracer --tier full`) is promoted
+> into `docs/analyses/` beside this capstone — through `mwh disclose check --write-sidecar`
+> (EP-43), with the n-vs-n_fit complementary-suppression rule applied (EP-43 amendment (b)), a
+> file name without run id / compact date (`docs/committed-text.md` rule 3; e.g. `docs/
+> analyses/02-tracer-first-icu-mortality.md` + a same-named folder), the claim-type label
+> (exploratory) and the retrospective sentence; its reproduction block cites the EP-31 run and,
+> after EP-35's retrofit, the ledger run id. (2) **Spec discovery** (ledger P3C-2, EP-37):
+> `--select analyses.c01_concepts_qc` resolves because the `analyses` spec file is merged by
+> `dag.spec.load_dag()` — the module is a `python` step (`mimicwarehouse.analyses.
+> c01_concepts_qc:build`, `(step, ctx) -> StepOutcome`) in `dag/specs/analyses.yaml`; no
+> `--spec`. (3) Reads: `meta.*` is a registry exemption, `runs.*` is **not** (checkpoint
+> decision — count-family GROUP BYs), phenotype/concept views are subject-keyed (P3C-5); ratios
+> (demo-vs-full pins, Wilson CIs) are computed in Python from released counts (DIS-3).
+> Benchmarks via `mwh runs benchmarks --kind concept|query --format md --out ...` (the EP-32
+> verb). (4) Errors on stderr via `console.fail`; `--json` via `console.emit_json` (raw ints
+> never pasted into the case study — `fmt_int` for tracked Markdown).
+
 ## Context
 
 Each phase closes with a capstone that turns the phase's machinery into a reproducible, disclosed

@@ -5,6 +5,12 @@
 > **Charter.** This is a charter brief (D-9): scope sketch and acceptance sketch to be upgraded to a
 > full brief by EP-74 (Re-plan P4) before execution.
 
+> **EP-33 amendment (2026-09-01).** Mechanical only (D5): this brief inherits the
+> **level-degeneracy policy** from EP-46 (EP-31's `tracer.fit` precedent — probe every
+> categorical level for zero-event / all-event cells before fitting, exclude those rows, and
+> name the excluded levels in the model record and report; never fit through a quasi-separated
+> level); EP-31's amendment names EP-46 (spec level) and EP-79 (model level) as the two homes.
+
 ## Context
 
 Capability category 15 (*Regression and generalized linear modeling*). The tracer bullet (EP-31)

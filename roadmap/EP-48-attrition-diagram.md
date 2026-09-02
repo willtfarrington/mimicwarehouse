@@ -2,6 +2,16 @@
 
 **Size:** S · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-43 (Disclosure primitives (`disclose` module)) · **Blocks:** EP-54 (Re-plan P3), EP-62 (Cohort Builder page)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. Every artifact this brief writes
+> passes through `disclose` (EP-43) and obeys `docs/committed-text.md` (the EP-33 hygiene
+> canon) — in particular rule 3: committed figure/table file names carry no run ids or compact
+> dates (`attrition.mmd`, `attrition.png`, `attrition.csv`, `attrition.md` — never
+> `attrition_<run_id>.png`); run ids appear only inside the footer/Markdown text. The
+> suppressed frame comes from `cohort.attrition(...)` -> `disclose.suppress(mode="chain")` (the
+> `SUPPRESSOR` seam is `(df, k, count_columns) -> (df, rows_suppressed)`; EP-43 amendment (c));
+> files are written with `fsio.atomic_write_text`; CLI errors go to stderr via `console.fail`
+> (`console.EXIT_FINDINGS` when `disclose.check` refuses a write).
+
 ## Context
 
 Every cohort deserves a STROBE-style attrition (flow) diagram, and it must be safe to paste into a

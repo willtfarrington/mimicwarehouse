@@ -2,6 +2,27 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-29 (Catalog & data dictionary (meta.*)), EP-39 (Itemid dictionary curation + unit harmonization), EP-43 (Disclosure primitives (`disclose` module)) · **Blocks:** EP-45 (Measurement-process summaries), EP-53 (Capstone #1: concepts/QC case study), EP-54 (Re-plan P3), EP-61 (Catalog & QC browser page)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **`meta.*` names** (EP-29):
+> reuse `meta.tables` / `meta.columns` (`null_pct`, `approx_distinct`, `unit_hint`,
+> `is_identifier`, `is_free_text`) / `meta.row_counts` / `meta.itemids`; `is_dictionary_coded`
+> derives from the contract plus EP-39's `meta.item_dictionary`. (2) **Defect injection
+> targets a fixture lake copy** (carried P3C-11): a copied fixture *catalog* holds views over
+> absolute-path Parquet for every subject-keyed table, so injecting rows into the copy changes
+> nothing — item 6's tests copy the fixture **lake** instead (`tests/conftest.py`'s
+> `fixture_lake_settings`, or a `tmp_path` lake root with `Settings.lake_root("fixture")`
+> semantics), rewrite the affected `part-0.parquet` with Polars (ids >= 90 000 000), rebuild the
+> catalog against that root (`mwh build --tier fixture --select catalog`) and then profile — or
+> materialize the table into the temp DuckDB first. (3) **Spec discovery** (ledger P3C-2, EP-37):
+> `dag/specs/qc.yaml` is merged by `dag.spec.load_dag()`; `python` steps through
+> `dag.runner.STEP_HANDLERS`; no `--spec`. (4) Sessions read `meta.qc_*` through `safe_query`
+> (`meta.*` is a registry exemption — EP-33 B1c; `mimiciv_derived`/`marts` reads are
+> subject-keyed — P3C-5); the profile SQL runs on the build connection
+> (`engine.open_duckdb("build", ...)`), never on a raw `duckdb.connect`. (5) Job peeks: `mwh jobs
+> --job qc-full --tail 20`; `run.bench` -> `BenchmarkLine(kind="query")` (EP-35 amendment), read
+> with `mwh runs benchmarks --kind query`. (6) Report error/detail text follows the DKB-2
+> sanitization rule (EP-43 amendment (e)); file names follow `docs/committed-text.md`
+> (`qc_report.md`, never `qc_report_<run_id>.md`).
+
 ## Context
 
 Capability 1 (inventory & quality profiling) has the inventory half (EP-10 raw manifest, EP-29

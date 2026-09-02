@@ -2,6 +2,29 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-46 (Cohort spec + registry), EP-35 (Provenance run ledger) · **Blocks:** EP-48 (Attrition diagram renderer), EP-54 (Re-plan P3), EP-71 (Cross-sectional EDA module + page (Table 1)), EP-75 (Endpoints A: binary/continuous/count/ordinal), EP-102 (Model-ready dataset A: feature spec, windows, normalization, indicators)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **Acceptance query** (ledger
+> P3C-4): the acceptance sentence "`mwh sql "SELECT id, version, tier, rows FROM marts.cohorts
+> ORDER BY 1,2,3"` lists the builds" now reads: *`uv run mwh sql "SELECT id, version, tier,
+> rows FROM marts.cohorts ORDER BY 1,2,3" --tier dev` lists the builds — the statement has no
+> count-family column and is admitted only because `marts.cohorts` is pre-registered in
+> `safe.REGISTRY_TABLES` (EP-33 B1c, beside `REGISTRY_SCHEMAS = {meta, information_schema}` and
+> the contract dims via `is_registry_ref`); the table must therefore keep a registry shape —
+> one row per build, no subject-level columns, label values <= 64 chars, `path` relative to the
+> data root.* No second registration mechanism is added (EP-46 amendment). (2) The
+> `marts.cohort_<id>_v<major>` views and `cohort.parquet` are non-registry, subject-keyed reads
+> under `safe_query` (P3C-5); `attrition_sql`'s `count(*)` / `count(DISTINCT subject_id)` pairs
+> are real count-family nodes (EP-33 B1 — an alias alone never satisfies the rule). (3) Layout
+> per EP-37's convention: `layout["lake_marts"] / <tier> / cohorts / <id>@<version>/` (the
+> Context's "tier segment"), registered by the `catalog` step's discovery walker;
+> `manifest.json` via `fsio.atomic_write_text`; directory publish via `publish.swap_dir(new,
+> dest)` with `publish.new_path_for`/`old_path_for` (`mimicwarehouse.paths` is gone); the
+> `--force` refusal mirrors the stage-level rule that `--tier dev --force` never replaces a
+> full-complete artifact (EP-33 LDR-1). (4) `run.bench` -> `BenchmarkLine(kind="mart",
+> run_id=...)` (EP-35 amendment); the background launch reuses `dag.jobs.launch` (as `mwh build
+> --background` does) with `mwh jobs --job ep47-cohort-full` as the peek — or the build is a
+> `python` step reached through spec discovery (`--select cohort.<id>`), whichever is lighter;
+> state the choice in the completion note. Refusals print on stderr via `console.fail`.
+
 ## Context
 
 EP-46 defined `CohortSpec`; this brief makes it executable (DESIGN §9): a compiler that emits a

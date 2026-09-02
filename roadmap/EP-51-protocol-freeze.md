@@ -2,6 +2,20 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-35 (Provenance run ledger), EP-46 (Cohort spec + registry) · **Blocks:** EP-52 (Backup of non-reproducible state (`mwh backup`)), EP-54 (Re-plan P3), EP-95 (Target-trial emulation harness), EP-110 (Signature #1: first-24h → in-hospital mortality), EP-128 (Protocol Freezer page + amendments UI), EP-129 (Temporal holdout runner)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. Ledger and registry writes use the
+> EP-33 canons: `runs/protocols.jsonl` is appended only through `fsio.append_jsonl` and read
+> through `fsio.read_jsonl`/`iter_jsonl` (one torn trailing line tolerated); the frozen copy
+> under `layout["runs"] / protocols / <hash>.yaml` is written with `fsio.atomic_write_text`
+> (then the read-only attribute) — no module-local `O_APPEND`/rename code; the `runs.protocols`
+> view is added inside `safe.build_runs_db` (published by `publish.swap_file`, ATTACHed by
+> `engine.attach_read_only`). Refusals (`mwh protocol run` on an unknown/modified/unfrozen
+> hash; the confirmatory/causal-without-hash policy in `run.py`) exit with
+> `console.EXIT_REFUSED` via `console.fail` on stderr, usage errors with `EXIT_USAGE`.
+> `runs.*` is **not** a safe-query registry exemption (checkpoint decision): a session lists
+> protocols with `mwh protocol list` (rich table over the ledger) or a count-family `mwh sql`
+> over `runs.protocols`. Hashes and `run_id`s may appear in ledger content and completion
+> notes, never in committed file names (`docs/committed-text.md` rule 3).
+
 ## Context
 
 Capability 37 (prospective-style inquiry over retrospective data) rests on D-25: a YAML protocol

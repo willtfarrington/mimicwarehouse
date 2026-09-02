@@ -1,6 +1,37 @@
 # EP-50 — Events spine (MEDS-compatible) ⏱
 
-**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-54) · **Core/Stretch:** core · **Depends on:** EP-19 (DAG runner `mwh build`) · **Blocks:** EP-54 (Re-plan P3), EP-83 (Event-sequence / care-pathway analysis)
+**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-54) · **Core/Stretch:** core · **Depends on:** EP-19 (DAG runner `mwh build`), EP-34 (Time semantics + unit-of-analysis registry) · **Blocks:** EP-54 (Re-plan P3), EP-83 (Event-sequence / care-pathway analysis)
+
+> **EP-33 amendment (2026-09-01).** **Depends-on changed** (carried P3C-8): now EP-19 and
+> **EP-34** — the spine's `MEDS_BIRTH` synthetic-birth time, the `dod` horizon caveat on
+> `MEDS_DEATH`, the diagnosis-at-`dischtime` rule and `AGE_CAP` cite `timesem` instead of
+> re-deriving them; the roadmap README row is updated in the same session. EP-37 (spec
+> discovery, derived layout) and EP-35 (`run.bench`) are prerequisites by the linear order
+> (README "How to use": shared services). (1) **Spec discovery** (ledger P3C-2):
+> `dag/specs/spine.yaml` is merged into the one graph by `dag.spec.load_dag()` (EP-37
+> implements the merge; the shared `catalog` step is deduplicated with `depends_on` unioned),
+> so `mwh build --tier <t> --tag spine` and `--select spine.<source>` work with no `--spec`;
+> item 2's `union` step is a second `python` step in the same file. (2) **Step kind**: the
+> shipped `python` kind — `callable: mimicwarehouse.spine:build_source`, called with `(step,
+> ctx)`, returning `dag.runner.StepOutcome(rows=..., bytes_out=..., files=...)` — registered
+> through `dag.runner.STEP_HANDLERS`; write on the build connection (`engine.open_duckdb(
+> "build", ...)`), read sources via `loader.paths.read_parquet_sql`, publish each source
+> directory with `publish.swap_dir` (`new_path_for`/`old_path_for`), manifests/snapshot ids via
+> `dag.snapshot`, `run.bench` -> `BenchmarkLine(kind="mart", run_id=...)`. The layout
+> `layout["lake_derived"]/<tier>/spine/source=<source>/subject_bucket=NN/` is the one bucketed
+> exception to EP-37's single-file rule, registered by the `union` step. (3) **Size (EP-33 D3
+> re-estimate; DESIGN §3 note)**: from staging's measured 13.8x CSV-to-Parquet compression the
+> full spine is re-estimated at **2.5–4 GB** Parquet (not 5–8 GB); temp behaviour is bounded
+> by the largest single-source sort (`labevents`), so the DESIGN §6 `memory_limit` stands.
+> (4) **Vitals-subset question** (DESIGN §21): whether a curated `chartevents` vitals subset
+> (EP-39's `curated=True` itemids only) joins the spine is decided at EP-54 with the measured
+> full size in hand — v1 still excludes raw `chartevents`; record the D3-vs-actual delta in the
+> completion note. (5) `validate` already refuses `text_value` > 64 chars; because
+> `mimiciv_derived.spine` is a non-registry, subject-keyed read under `safe_query` (P3C-5),
+> that same 64-char rule is what lets sessions aggregate over `code`/`text_value` (an
+> exactly-64-char value is admitted — the heuristic refuses only strictly longer values).
+> (6) `--tier dev --force` never replaces a full-complete spine source (EP-33 LDR-1); peek jobs
+> with `mwh jobs --job spine-full --tail N`; refusals print on stderr via `console.fail`.
 
 ## Context
 

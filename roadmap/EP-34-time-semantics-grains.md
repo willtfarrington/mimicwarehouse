@@ -1,6 +1,32 @@
 # EP-34 — Time semantics + unit-of-analysis registry
 
-**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-46 (Cohort spec + registry), EP-49 (Event-aligned timeline API), EP-54 (Re-plan P3), EP-68 (Prevalence/incidence/event-rate module), EP-75 (Endpoints A: binary/continuous/count/ordinal)
+**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-21 (Catalog builder (per-tier .duckdb)) · **Blocks:** EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱), EP-46 (Cohort spec + registry), EP-49 (Event-aligned timeline API), EP-50 (Events spine (MEDS-compatible) ⏱), EP-54 (Re-plan P3), EP-68 (Prevalence/incidence/event-rate module), EP-75 (Endpoints A: binary/continuous/count/ordinal)
+
+> **EP-33 amendment (2026-09-01).** Header facts unchanged; shorthand per the README notation
+> table. (1) **Absorbs the tracer's age-band / era inlining** (EP-33 D1 queue). EP-31 inlined
+> an age-band `CASE` (`tracer._age_band_case`), the era covariate (`anchor_year_group`) and the
+> age rule (`anchor_age + year(event) - anchor_year`, cap 91) directly in `tracer.py` and
+> `sql/tracer_first_icu_mortality.sql` as a stopgap. Item 1 lifts them into `timesem` as the
+> registry's first two entries — the era axis (`ERAS`/`era_of`/`sql_era_index`) and the age
+> rule (`age_at`/`AGE_CAP`/`sql_age_at`, plus a named age-band fragment with the tracer's cut
+> points; exact name at the implementer's discretion) — and this brief regenerates the tracer
+> SQL to cite them: **no restage, no change to the tracer's numbers** (a count-for-count
+> comparison of the tracer descriptives on dev before/after is the acceptance). (2) **Shipped
+> names to code against.** Catalogs open through `mimicwarehouse.catalog.connect.open_catalog(
+> tier, *, settings=None, role=None, path=None)` (READ_ONLY, hardening SQL, `meta.catalog_info`
+> checks); item 5's `CATALOG_EXTENSIONS` hook is added to `catalog.build.build_catalog`, which
+> the `catalog` step (`dag.runner.STEP_HANDLERS["catalog"]`) already calls on the build
+> connection from `mimicwarehouse.engine.open_duckdb("build", ...)` — extensions receive that
+> connection and never open their own; the rebuild-and-swap of the catalog file is
+> `publish.swap_file` (`catalog.build.swap_catalog` is removed by EP-33). (3) `meta.grains`
+> joins the EP-29 `meta.*` family (`meta.tables`, `meta.columns`, `meta.row_counts`,
+> `meta.itemids`, `meta.catalog_info`, `meta.catalog_tables`) and is listed by `mwh catalog
+> info`. (4) Item 6's dev assertion (`SELECT era_index, count(*) ... GROUP BY 1`) runs through
+> `safe_query`/`mwh sql` (`safe_query(sql, *, tier=None, k=None, ...)` — tier/k default from
+> settings since EP-33 B1) and already carries the mandatory real count-family node; the
+> `mimiciv_derived.*` views are non-registry reads (subject-keyed for the 64-char free-text
+> check — ledger P3C-5), so `icd_versions` stays a short label. Fixture counts in tests come
+> from `tests/fixtures/manifest.json` (EP-33 TST-2), not literals.
 
 ## Context
 

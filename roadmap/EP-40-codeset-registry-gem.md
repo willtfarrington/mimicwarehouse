@@ -8,6 +8,23 @@
 > flat `ext\vocab\gem\` [FC-24]. (2) `mwh codeset gem fetch` (public CMS zip) needs no
 > `MWH_ALLOW_REMOTE` gate — that gate covers text modules only (GOVERNANCE §9) [FC-22].
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **GEM landing** (EP-33 retro
+> ledger item; D-36 precursor): the download / manual-placement target is spelled through the
+> layout key — `settings.layout["ext"] / "vocab" / "gem" / <version>/` (the EP-170 path, not
+> `%MWH_DATA_ROOT%`) — with a `source.yaml` beside it per EP-14's landing template; the EP-22
+> demo register (`layout["ext_demo"] / source.yaml`: name, url, sha256, license, accessed,
+> files) is the shipped precedent to copy field-for-field. (2) `meta.codesets`,
+> `meta.codeset_members` and `meta.gem_*` join the EP-29 `meta.*` family under
+> `lake/meta/<tier>/<table>.parquet`, written by `python` steps (`dag.runner.STEP_HANDLERS`)
+> and registered by the `catalog` step; any spec file is discovered by `dag.spec.load_dag()`
+> per EP-37 (no `--spec`). (3) Dictionary validation reads (`d_icd_diagnoses`,
+> `d_icd_procedures`, `meta.itemids`) are contract dims / `meta.*` registry exemptions under
+> `safe_query` (EP-33 B1c), so `mwh codeset validate` may print declared/matched/unmatched
+> freely; the acceptance's members query already has a real `count(*)`. (4)
+> `CodeSetFrozenError` refusals exit through `console.fail(..., code=console.EXIT_REFUSED)` on
+> stderr; registry index and review-file writes use `fsio.atomic_write_text` /
+> `publish.swap_file`, never ad-hoc rename code.
+
 ## Context
 
 Phenotypes (EP-41/42) and cohort specs (EP-46) reference diagnosis, procedure, itemid, drug and

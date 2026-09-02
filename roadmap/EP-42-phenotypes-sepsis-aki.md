@@ -12,6 +12,18 @@
 > Alternatively the owner may move EP-43 before EP-42 — an owner call recorded at EP-33
 > (Re-plan P2), which amends the P3 briefs anyway.
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. The EP-170 disclosure-ordering
+> resolution above (write `phenotype_prevalence.md` through `safe.SUPPRESSOR`, keep it under
+> `runs/` with a "sidecar pending EP-43" header, EP-43 checks it retroactively — a wording
+> fix, no table move) **stands at EP-33** (D4a, confirmed at the checkpoint); EP-43's
+> amendment carries the matching retroactive-check line. The `SUPPRESSOR` hook contract is
+> `(df, k, count_columns) -> (df, rows_suppressed)` (fixed by safe.py; EP-43 swaps the
+> implementation). Phenotype views are non-registry, subject-keyed reads under `safe_query`
+> (EP-41 amendment, ledger P3C-5); the sepsis-3 vs explicit 2x2 and the stage distribution
+> are `count(*) FILTER (WHERE ...)` aggregates (EP-33 B1). Full-tier compile jobs peek via
+> `mwh jobs --job phenotypes-full --tail N`; `--tier dev --force` never replaces a
+> full-complete derived table (EP-33 LDR-1).
+
 ## Context
 
 The two phenotypes most of the later representative workflows lean on (D-5 themes: sepsis-3 for

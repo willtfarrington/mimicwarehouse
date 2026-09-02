@@ -2,6 +2,26 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-29 (Catalog & data dictionary (meta.*)) · **Blocks:** EP-44 (Data-quality profiling), EP-54 (Re-plan P3), EP-55 (Latency marts A: first-day features + itemid rollups ⏱), EP-138 (Concept/unit mapping guide + mapping YAML)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged; shorthand per the README notation
+> table. (1) **Shipped `meta.*` names** (EP-29): the dictionary view is `meta.itemids`
+> (`d_items` tagged `'icu'` UNION ALL `d_labitems` tagged `'hosp'`), the profiles are
+> `meta.tables`/`meta.columns`/`meta.row_counts`, and `meta.columns` already carries
+> `unit_hint` from the units seed (`mwh catalog dictionary` renders it) — item 3's
+> `meta.item_dictionary` joins `meta.itemids` and must not redefine `unit_hint`;
+> `meta.catalog_info`/`meta.catalog_tables` list the new tables. (2) **Spec discovery**
+> (ledger P3C-2, implemented by EP-37): `dag/specs/units.yaml` is merged into the one graph by
+> `dag.spec.load_dag()`, so `mwh build --tier dev --tag units` needs no `--spec`; the steps are
+> the `python` kind (`module:function`, `(step, ctx) -> StepOutcome`) via
+> `dag.runner.STEP_HANDLERS`, writing `lake/meta/<tier>/<table>.parquet` (EP-29's convention,
+> registered by the `catalog` step). (3) The `mwh_harmonize` macro is installed by a
+> `CATALOG_EXTENSIONS` entry (EP-34's hook) on the build connection (`engine.open_duckdb(
+> "build", ...)`); sessions verify itemids with `mwh sql` against `meta.itemids` (`meta.*` is a
+> registry exemption — EP-33 B1c). (4) The variants aggregate uses `count(*)` (with `FILTER
+> (WHERE ...)` where needed) as its count-family node — an alias alone never satisfies the
+> rule (EP-33 B1); rows < 11 are suppressed by the `safe.SUPPRESSOR` hook until EP-43 swaps
+> in `disclose.suppress`. (5) `mwh units report` errors go to stderr via `console.fail`; new
+> CLI strings stay ASCII (degree/micro signs spelled out or routed through the console helper).
+
 ## Context
 
 `d_items` (chartevents/inputevents/outputevents/procedureevents/datetimeevents itemids) and

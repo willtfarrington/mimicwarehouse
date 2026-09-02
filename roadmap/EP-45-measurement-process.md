@@ -2,6 +2,19 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-44 (Data-quality profiling) · **Blocks:** EP-54 (Re-plan P3), EP-72 (Missing-data views)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. **Spec discovery** (ledger P3C-2,
+> implemented by EP-37): `dag/specs/measurement.yaml` is merged into the one graph by
+> `dag.spec.load_dag()`, so `mwh build --tier dev --tag measurement` needs no `--spec`; steps
+> are the `python` kind via `dag.runner.STEP_HANDLERS` (`module:function`, `(step, ctx) ->
+> StepOutcome`). **`meta.*` names** are EP-29's (`meta.itemids`, `meta.tables`, `meta.columns`
+> with `unit_hint`) plus EP-39's `meta.item_units`/`meta.item_dictionary`; the `meta.mp_*`
+> tables land as `lake/meta/<tier>/<table>.parquet` and are registered by the `catalog` step.
+> The mortality-rate arms are `count(*) FILTER (WHERE ...)` aggregates under `safe_query`
+> (EP-33 B1); the rate ratio and its CI are computed in Python from the released counts, not in
+> SQL (arithmetic over aggregates stays refused — final-roadmap DIS-3). Job peeks via `mwh jobs
+> --job measurement-full --tail N`; `run.bench` writes `BenchmarkLine` rows (EP-35 amendment),
+> read with `mwh runs benchmarks --kind query`; the report obeys `docs/committed-text.md`.
+
 ## Context
 
 In ICU data, *whether* something was measured carries information (informative presence), and

@@ -14,6 +14,20 @@
 > mismatches item 5 surfaces that execution success alone cannot see. The patch
 > mechanism (item 2) is unchanged — it exists for semantic ports either way.
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) Item 1's ledger pull is
+> `mwh runs benchmarks --kind concept` — the shipped EP-32 verb; `mwh runs bench` never
+> existed (ledger P3C-6) — reading `dag.benchmarks.BenchmarkLine` rows (with EP-35's optional
+> `run_id`/`disk_delta_mb`). (2) Charter in one sentence: the executability half of Risk 2 is
+> retired by the D2 smoke (65/65 clean on DuckDB 1.5.5), so this brief's substance is the
+> count-pin comparison plus the upstream concept-logic PR ports (SIRS `wbc`, lab `valueuom`,
+> Charlson, APS-III) through the patch mechanism — no "failed on 1.5.x" list is expected.
+> (3) Patched rebuilds obey the EP-33 stage-level rule that `--tier dev --force` never
+> replaces a full-complete table (LDR-1): patched concepts are rebuilt per tier and `--tier
+> full --force` is the only destructive path; `--select concept.<group>.<name>` is reachable
+> through EP-37's spec discovery (no `--spec`); job peeks via `mwh jobs --job ... --tail N`.
+> (4) Count-pin comparisons may use `safe_query` set operations (EP-33 B1); demo pins < 11
+> stay `"<11"` until EP-43; refusals print on stderr via `console.fail`.
+
 EP-37 ran the vendored mimic-code concepts per tier and launched the full-tier build as a
 background job; it recorded, but did not fix, concepts that fail on DuckDB 1.5.x or lag upstream.
 D-19 says: adopt, port fixes, count-pin, and record every local deviation as a patch with its

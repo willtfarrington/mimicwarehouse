@@ -2,6 +2,31 @@
 
 **Size:** S · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** EP-34 (Time semantics + unit-of-analysis registry), EP-35 (Provenance run ledger), EP-36 (Seed/determinism policy + resource logger), EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱), EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-39 (Itemid dictionary curation + unit harmonization), EP-40 (Code-set registry + ICD-9→10 GEM utility), EP-41 (Phenotype engine + T2DM phenotype), EP-42 (Phenotypes: sepsis-3 + KDIGO AKI stage), EP-43 (Disclosure primitives (`disclose` module)), EP-44 (Data-quality profiling), EP-45 (Measurement-process summaries), EP-46 (Cohort spec + registry), EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-48 (Attrition diagram renderer), EP-49 (Event-aligned timeline API), EP-50 (Events spine (MEDS-compatible) ⏱), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-52 (Backup of non-reproducible state (`mwh backup`)), EP-53 (Capstone #1: concepts/QC case study) · **Blocks:** —
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) Item 5's command is
+> `uv run poe roadmap-check --strict` (= `mwh verify --roadmap --strict`; retro FC-20, README
+> notation table) — there is no `python roadmap_check.py` at the workspace root; `--strict`
+> exits 0 since EP-164. (2) **Retro convention inherited from EP-33**: `roadmap/retro-p3.md`
+> (planned-vs-actual, timings, surprises) plus — if P3 runs a discovery audit — a findings
+> ledger `roadmap/retro-p3-findings.md` in the `retro-p2-findings.md` shape (verified index
+> with a triage outcome per row, carried-low index, per-finding evidence limited to id / area /
+> file:line / class / severity / evidence / fix direction, no reproduction recipes, id bands
+> written `1xxxxxxx`-style). (3) **Re-examine the EP-33 carried-low findings** parked in
+> `final-roadmap.md` § Cross-cutting (the `next-replan` rows of `retro-p2-findings.md`'s
+> carried-low index — e.g. DAG-5/6/8/9, DKB-3..7, LDR-7..9, LGR-6, SGT-4..6, CTR-5..7,
+> CLI-5/8 — and the `next-replan` verified rows: CTR-1 closed by EP-41's regeneration, DAG-3/
+> DAG-4 landed at EP-33, SGT-3's arithmetic half = DIS-3, P3C-* as amended into the P3 briefs):
+> each gets fix-now / allocate (EP-172+ S brief) / park / reject with reason. (4) **Replace the
+> D3 estimates with measurements**: record the real full-tier sizes of the derived layer
+> (`lake/derived/full/` concepts + phenotypes), `lake/derived/full/spine/` and `lake/marts/
+> full/`, and the `layout["tmp_duckdb"]` high-water mark observed during the concept/spine
+> jobs, against EP-33 D3's re-estimates (spine 2.5–4 GB; DESIGN §3 note) and Risk 6; decide the
+> chartevents vitals-subset question for the spine (DESIGN §21; EP-50 amendment). (5) Ledger
+> pulls use `mwh runs benchmarks --kind mart|concept|query --format md` (the EP-32 verb);
+> `runs.*` reads through `mwh sql` need a count-family column (not a registry exemption).
+> (6) Header/table reconciliation: EP-33 changed the Depends-on of EP-37 (+EP-34, EP-35), EP-49
+> (+EP-30) and EP-50 (+EP-34) — confirm the README rows and the Blocks lists still match before
+> the ☑ pass.
+
 ## Context
 
 Every phase closes with a re-plan (D-8): retro, timings, decision addenda, ☑ reconciliation and

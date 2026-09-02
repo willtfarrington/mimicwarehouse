@@ -365,6 +365,58 @@ checkpoint.
 - `mwh guard` sweeps clean (A7 + F5); `mwh doctor` free space ≥ 100 GB recorded in the
   retro.
 
+## Parked → final-roadmap.md
+
+- The 38 carried-low audit findings not swept in-session (ids in `retro-p2-findings.md`
+  § "Index - carried low findings") — mirrored as `final-roadmap.md` § Cross-cutting
+  **AUDIT-1**, re-examined by EP-54.
+- Set-operation support is **no longer parked** (DIS-2 closed by B1b); arithmetic over
+  aggregates stays parked (DIS-3, with the bare-cast case moved out of it).
+
+> **Retro (2026-09-01).** Executed over three sessions (2026-08-30 aborted by a safeguard
+> refusal; 2026-08-31 audit-complete, stopped at usage limits; 2026-09-01 resumed at the
+> owner triage checkpoint and landed Workstreams B–F): the record is
+> [`retro-p2.md`](retro-p2.md) (baselines, planned-vs-actual, wall-time table, lake/temp
+> measurements, the `dev-first` verdict, the D3 re-estimates, § Renames, § Worklist
+> outcomes, § Checkpoint minutes, § Workstream F results, § Commit series) and the ledger
+> [`retro-p2-findings.md`](retro-p2-findings.md) (46 verified findings, every one with a
+> recorded triage outcome; 60 carried-low; 69/69 re-checks of the 2026-08-18 ledger).
+> Headline numbers, thousands-separated per `inventory.fmt_int`: the fixture suite grew
+> 720 → **832** tests (`poe check` 248 s, now with the format gate); the 42-brief verify
+> loop 0 failures (486 s); catalogs rebuilt on all three tiers (31 cataloged, 0 missing,
+> `core/full` snapshot unchanged); the tracer re-runs reproduce EP-31 exactly (dev n =
+> 3,208 / AUC 0.744; full n = 65,366 / AUC 0.731); canary OK (179 / 229 MB/s); guard sweeps
+> clean; D2's 65/65 concepts re-confirmed at 2.2 s while measuring D3 (derived + spine
+> ≈ 4–6 GB, marts ≈ 1–2 GB against the 15–30 / 5–15 GB planning lines). Decisions: D-45
+> plus addenda under D-17/D-20/D-24/D-31/D-42/D-44; DESIGN consolidated to as-built with
+> a status index added to DECISIONS. **Sizing:** the L sizing failed for one session as
+> written (three sessions, of which the audit was the budget hog at ≈ 8.4 M subagent
+> tokens); the implementation session alone fit its L. **Owner review points** are in the
+> completion note below.
+
+> **Completion note (2026-09-01).** All six workstreams landed; no EP-172+ brief was
+> allocated (every spillable finding found a P3 amendment or the parked list). Full-tier
+> work was catalog rebuilds and tracer re-runs only (jobs `catalog-full-ep33` 4 s,
+> `tracer-full-ep33` 5 s; run ids `20260902T030011-full-84d9d8d`, `20260902T030040-full`);
+> the lake was never rewritten. Earlier-EP test modules touched (roadmap README § CMP-6
+> rule), all owner-approved at the checkpoint: test_ep02/06/09/11/12 (import-budget
+> doctrine; chain pin), test_ep08 (`.sh` now scanned — SGD-3), test_ep17/18/19/21/23–28
+> (publish renames; `pid_alive` stub; fixture counts from `manifest.json`), test_ep30/31
+> (counts from `manifest.json`; set-op case; fit pinned), test_ep164 (nine-path pin),
+> test_ep165 (selfcheck/emit paths), test_ep167 (console identity asserts). **Owner review
+> points:** (1) **B7 session-guard package** — reviewed diff files under the session
+> scratchpad (`b7-*.diff`, see § Commit series in `retro-p2.md`) for the owner to apply
+> interactively; until then SGD-1/SGD-2 stay open (recorded as roadmap Risk 16) and the
+> `tests/fixtures/**` Read allowance is not in force. (2) **CLI errors moved to stderr**
+> with a `mwh <cmd>:` prefix (D-45 item 8) — any owner shell recipe that grepped stdout
+> for `refused:` must read stderr; exit codes are unchanged. (3) **EP-33's acceptance
+> spans five test files** (`test_ep33*.py`, one per workstream area, all marker `ep_33`)
+> — recorded in `tests/README.md` as the one exception to one-module-per-brief; merging
+> them was judged pure churn. (4) **`DATA-DICTIONARY.md` regenerated** — only its two
+> provenance lines changed (build id, timestamp). (5) The fixture-suite wall grew with the
+> test count (0.30 s/test unchanged). (6) `ruff format --check` was already clean; the
+> gate adds ≈ 1 s to `poe check`.
+
 ## Aborted attempt (2026-08-30) — model-safeguard refusal
 
 > **Addendum (2026-08-30, written after the reverted first attempt).** The first

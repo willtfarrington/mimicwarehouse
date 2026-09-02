@@ -6,6 +6,18 @@
 > addendum) — item 3 imports it, no dependency change [FC-9]; `pynvml` stays optional as
 > written. Shorthand per the README notation table; header facts unchanged.
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. Ledger writes use the one JSONL
+> canon: `fsio.append_jsonl(path, payload)` is the only ledger writer (any resource-log sample
+> line and the ledger line EP-35's `Run` appends) and `fsio.read_jsonl`/`iter_jsonl` the reader
+> (one torn trailing line tolerated with a warning, `TornLedgerError` otherwise) — no
+> module-local `os.open(..., O_APPEND)` writer (EP-33 LGR-2/LGR-4); manifest rewrites use
+> `fsio.atomic_write_text` (the former `inventory._atomic_write_text`). `ResourceLog.measure`
+> feeds `run.bench`, which emits `dag.benchmarks.BenchmarkLine` rows (EP-35 amendment — no
+> `BenchmarkRecord`). The `usage:` audit convention (EP-33 B1d: `usage: `-prefixed
+> `refusal_reason` for argument errors, exit 2, vs gate refusals, exit 3) applies to any
+> `safe_query` a test here wraps; `mwh runs show` errors go to stderr via `console.fail`.
+> Nothing else changes: `psutil` core (EP-170 note), `pynvml` optional.
+
 ## Context
 
 EP-35 gave every run a manifest with `seeds` and `resources` slots left optional. This brief

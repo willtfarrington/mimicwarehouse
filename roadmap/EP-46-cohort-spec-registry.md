@@ -2,6 +2,27 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-34 (Time semantics + unit-of-analysis registry), EP-40 (Code-set registry + ICD-9→10 GEM utility) · **Blocks:** EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-54 (Re-plan P3)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **Level-degeneracy policy**
+> (EP-31 lesson; EP-31's amendment names EP-46 and EP-79 as the two homes): EP-31's
+> `tracer.fit` probes every categorical covariate level for zero-event / all-event cells,
+> excludes those rows and **names** the excluded levels in `model.json` and the report — never
+> silently drops them, never fits through them. This brief owns the spec-level half: the
+> `CohortSpec` gains an optional probe block (e.g. `degeneracy_probe`: categorical columns to
+> probe against the follow-up outcome, defaulting to the tracer's four — `gender`,
+> `admission_type`, `first_careunit`, `anchor_year_group`; exact field name at the
+> implementer's discretion), `mwh cohort validate --tier <t>` reports as suppressed aggregates
+> which levels would be zero-/all-event for the spec's outcome, and `docs/methods/cohorts.md`
+> states the policy; EP-79 inherits the model-side half. (2) **`marts.cohorts` is
+> pre-registered** in `safe.REGISTRY_TABLES` (EP-33 B1c: `REGISTRY_SCHEMAS = {meta,
+> information_schema}`, `REGISTRY_TABLES = {marts.cohorts}`, plus contract dims via
+> `is_registry_ref`), so the registry index this brief defines (`meta.cohort_specs`, a `meta.*`
+> read) and EP-47's `marts.cohorts` are readable by sessions without a count-family column —
+> EP-46/47 add **no second exemption mechanism**; every other `marts.*`/`mimiciv_derived.*`
+> read stays subject-keyed (ledger P3C-5). (3) `meta.cohort_specs` lands as
+> `lake/meta/<tier>/cohort_specs.parquet` (EP-29 convention); frozen-version and validation
+> refusals exit via `console.fail(..., code=console.EXIT_REFUSED)` on stderr; the YAML writer
+> uses `fsio.atomic_write_text`.
+
 ## Context
 
 Capability 2 (reproducible cohort construction) needs a declarative, versioned cohort

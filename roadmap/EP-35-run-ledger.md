@@ -1,6 +1,6 @@
 # EP-35 — Provenance run ledger
 
-**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-36 (Seed/determinism policy + resource logger), EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-52 (Backup of non-reproducible state (`mwh backup`)), EP-54 (Re-plan P3), EP-59 (Export primitives), EP-106 (Model registry + model cards), EP-124 (Simulation / ablation / benchmark harness), EP-134 (Runs & Provenance browser + Reports page / export gallery)
+**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-36 (Seed/determinism policy + resource logger), EP-37 (Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱), EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-52 (Backup of non-reproducible state (`mwh backup`)), EP-54 (Re-plan P3), EP-59 (Export primitives), EP-106 (Model registry + model cards), EP-124 (Simulation / ablation / benchmark harness), EP-134 (Runs & Provenance browser + Reports page / export gallery)
 
 > **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
 > table. (1) `psutil` is a **core** dependency since EP-19 (D-15 addendum) — no dependency
@@ -11,6 +11,43 @@
 > with the `antivirus` warn expected on this host; a doctor invocation costs seconds (three
 > PowerShell probes, ledger CFG-16), so capture it once per run, never per step. (4)
 > `runs.duckdb` rebuilds use the rename-aside two-step (DESIGN §6 note, D-43 item 6).
+
+> **EP-33 amendment (2026-09-01).** Header facts unchanged; overrides items 2–3 where they
+> differ. (a) **No second model** (ledger P3C-6): `dag.benchmarks.BenchmarkLine` (frozen
+> pydantic, `extra="forbid"`; fields `ts, build_id, tier, step, kind, phase, wall_s,
+> peak_rss_mb, rows, bytes_in, bytes_out, files, duckdb_version, git_sha, host: HostInfo, ok,
+> error`; `kind` is already a plain `str`, no widening needed) is the ledger schema — extend it
+> with optional `run_id` and `disk_delta_mb` (default `None`, so older lines still validate)
+> instead of adding `BenchmarkRecord`; `run.bench(kind, name, **fields)` builds a
+> `BenchmarkLine` and calls `dag.benchmarks.append` (still the only writer). The reporting verb
+> is the shipped `mwh runs benchmarks [--tier full|all] [--kind stage|all] [--format table|md]
+> [--out]` (EP-32) — this brief adds the `concept|mart|query|bench` kind values (and `list`/
+> `show` as planned); **`mwh runs bench` never existed** and is not added. (b) **Audit ledger
+> convention** (EP-33 B1d): `runs/audit.jsonl` lines carry a `usage: `-prefixed
+> `refusal_reason` for argument/usage errors (`SafeQueryError`, exit 2) as distinct from gate
+> refusals (`SafeQueryRefused`, exit 3); environment errors (`CatalogOpenError`) are unaudited.
+> `runs.audit` keeps EP-30's definition and the ledger views this brief adds separate refusals
+> from usage errors deliberately (`refusal_reason LIKE 'usage: %'`) rather than lumping them.
+> (c) **`runs` is not a registry exemption** (checkpoint decision): `runs.*` reads through
+> `safe_query` stay under the aggregate-only rules, so GROUP BYs over `runs.audit`/
+> `runs.benchmarks`/`runs.ledger` need a real count-family node (an alias alone never
+> satisfies it — EP-33 B1). Ledger label columns whose values legitimately exceed 64 chars
+> (`refusal_reason`, `error`) are added to `safe.LABEL_COLUMN_NAMES` by this brief (the shipped
+> set is `{description, short_description}`) so the free-text result check admits them.
+> (d) **Builders and readers**: `runs.duckdb` is built by `safe.build_runs_db` and published
+> with `publish.swap_file` (the one publish primitive; the EP-170 item 4 wording "rename-aside
+> two-step" now names `publish.swap_file`; `mimicwarehouse.paths` is gone); `mwh runs refresh`
+> calls it; readers ATTACH it through `engine.attach_read_only(con, path, alias)` (`ATTACH IF
+> NOT EXISTS ... READ_ONLY`). Every JSONL append (`runs/ledger.jsonl` included) goes through
+> `fsio.append_jsonl` (O_APPEND, short-write check, fsync — EP-33 LGR-2/LGR-4) and reads through
+> `fsio.read_jsonl`/`iter_jsonl` (one torn trailing line tolerated — LGR-1); `run.py` has no
+> local `O_APPEND` writer, and manifests are written with `fsio.atomic_write_text`. (e) **The
+> `run_id` form stands** (ledger P3C-1, rejected with reason): `YYYYMMDDTHHMMSSZ-<6 hex>` is
+> safe in ledger *content* because guard `ID_TOKEN` cannot match a digit run abutting `T`; it
+> must never appear in a committed **file name** (`docs/committed-text.md` rule 3, the EP-32
+> lesson) — `run.reproduction_block` quotes it inline only. (f) CLI errors go to stderr via
+> `console.fail` with `console.EXIT_USAGE`/`EXIT_REFUSED`; `--json` output via
+> `console.emit_json` (raw ints, never pasted into tracked files).
 
 ## Context
 

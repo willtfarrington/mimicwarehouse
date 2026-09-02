@@ -2,6 +2,13 @@
 
 **Size:** M · **Tier:** fixture+demo · **Core/Stretch:** core · **Depends on:** EP-49 (Event-aligned timeline API), EP-58 (App shell B: row-view gate + app-side small-cell enforcement) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-33 rename (2026-09-01).** `safe.owner_rows` (item 2) does not exist at EP-33 (ledger
+> P3C-3): EP-49 item 4 now defines the owner gate for `stay_events` (`open_catalog(role=
+> "owner")` + an audited `row_view:` line via `fsio.append_jsonl`/`safe.AuditLine`), and EP-58
+> adds the app-side `owner_rows()` wrapper over it — read the reference as EP-58's
+> `owner_rows()` over EP-49's gate. Mechanical only (D5); substantive re-amendment stays with
+> EP-54.
+
 ## Context
 
 Capability 8 (event-aligned timeline queries) exists as code: EP-49's anchors (hospital admit,

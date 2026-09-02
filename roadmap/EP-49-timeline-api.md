@@ -1,6 +1,33 @@
 # EP-49 — Event-aligned timeline API
 
-**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-34 (Time semantics + unit-of-analysis registry) · **Blocks:** EP-54 (Re-plan P3), EP-67 (Patient-safe timeline viewer), EP-82 (Longitudinal trajectories (+ trajectory groups)), EP-86 (Exposure-response / treatment patterns)
+**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-30 (Safe-query wrapper + audit log), EP-34 (Time semantics + unit-of-analysis registry) · **Blocks:** EP-54 (Re-plan P3), EP-67 (Patient-safe timeline viewer), EP-82 (Longitudinal trajectories (+ trajectory groups)), EP-86 (Exposure-response / treatment patterns)
+
+> **EP-33 amendment (2026-09-01).** **Depends-on changed** (carried P3C-8): now EP-30 (the
+> audit seam) and EP-34; the roadmap README row is updated in the same session. (1)
+> **`safe.owner_rows` does not exist** (ledger P3C-3, confirmed): safe.py defers owner row
+> viewing to EP-58's app path, and EP-58 follows this brief in the linear order. Item 4
+> therefore **defines its own owner gate** — the recommended option, chosen over deferring
+> item 4 behind an EP-58 dependency because EP-67 needs `stay_events` and EP-58 can wrap this
+> gate rather than re-derive it: `stay_events(stay_id, sources, *, conn)` requires a connection
+> opened as `catalog.connect.open_catalog(tier, role="owner")` (raises `PermissionError` for
+> any other role, including the default `agent`; `MWH_ROLE` stays unset in Claude sessions, so
+> the gate is closed there by construction) and writes one audit line through the public seam
+> EP-33 exposes — `fsio.append_jsonl(<audit path>, safe.AuditLine(actor="owner",
+> allowed=True, statement_sha256=sha256("row_view:" + canonical request), ...).model_dump())`,
+> the `row_view:` statement_sha256 convention marking row-view events in `runs.audit` without
+> recording the row selection itself (remaining fields filled as for a query; the audit path is
+> the one `safe_query` uses). EP-58 reuses this gate for the app (its `owner_rows()` wraps
+> `stay_events`-style calls with the gate token + TTL); read the Context's "(`safe.owner_rows`,
+> EP-30)" as "(the owner gate of item 4)". Tests stay fixture-only; the `PermissionError` test
+> passes a `role="agent"` connection. (2) Every aggregate the API returns to a session goes
+> through `safe_query` (or the `SUPPRESSOR` seam for in-process frames): `population_summary`
+> reads `mimiciv_derived.*` views, which are non-registry, subject-keyed reads (P3C-5) — keep
+> `code`/`valueuom` values <= 64 chars. (3) Benchmarks: `run.bench` -> `BenchmarkLine(kind=
+> "query", run_id=...)` (EP-35 amendment; no `BenchmarkRecord`), read with `mwh runs benchmarks
+> --kind query`; `mwh timeline bench --background --job ...` delegates to `dag.jobs.launch`
+> as `mwh build --background` does, peek via `mwh jobs --job ... --tail N`. (4) Exports follow
+> `docs/committed-text.md` (no run ids in file names — `timeline_labs_icu_in_48h.parquet` is
+> fine) and EP-43's sidecar path; refusals print on stderr via `console.fail`.
 
 ## Context
 

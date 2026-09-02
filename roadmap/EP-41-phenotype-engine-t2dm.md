@@ -2,6 +2,27 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-40 (Code-set registry + ICD-9→10 GEM utility) · **Blocks:** EP-42 (Phenotypes: sepsis-3 + KDIGO AKI stage), EP-54 (Re-plan P3)
 
+> **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **The fixture 0.3.0
+> regeneration folds in three things**: the vocab extension + T2DM inputs this brief already
+> plans; the **outcome enrichment** (EP-33 D4e — EP-31 found 5 degenerate zero-event levels
+> among the 66 fixture first ICU stays; seed enough deaths per `gender` / `admission_type` /
+> `first_careunit` / `anchor_year_group` level that the tracer's `fit` excludes no level on
+> fixture); and the **NULLS LAST alignment** of the Polars fixture writer/check with DuckDB's
+> `ORDER BY` (ledger CTR-1; DuckDB NULLS LAST is the canonical placement — D-17 addendum at
+> EP-33), so the committed fixture equals what the loader would sort. Bump `generator_version`
+> to `0.3.0` in `tests/fixtures/manifest.json`; since EP-33 (TST-2) `test_ep21/22/30` read
+> their counts from that manifest, so the count change does not ripple into earlier tests.
+> (2) **Phenotype views are non-registry reads** (ledger P3C-5; EP-33 B1c rule): every
+> `safe_query` read outside the EP-9 contract that is not `meta.*` / `information_schema` /
+> `marts.cohorts` / a contract dim is treated **subject-keyed**, so the 64-char free-text
+> result check applies to `mimiciv_derived.phenotype_<id>` — keep `evidence_json` values
+> <= 64 chars or aggregate/omit them in anything a session selects; item 4's `summary` selects
+> counts and shares only (`count(*) FILTER (WHERE flag)` — a real count-family node). (3)
+> Materialization follows EP-37's convention: `layout["lake_derived"]/<tier>/phenotypes/
+> <id>@<version>/part-0.parquet` (single file), registered by the `catalog` step's discovery
+> walker; runs record via EP-35 (`BenchmarkLine.run_id`). (4) Frozen-version refusals use
+> `console.fail(..., code=console.EXIT_REFUSED)` on stderr.
+
 ## Context
 
 Capability 3 (computable clinical phenotypes, versioned) needs an engine that turns a declarative
