@@ -323,4 +323,4 @@ a one-line `EP-33 rename` block — D5).
 - `00a7e50` — `docs(mimicwarehouse): DESIGN as-built consolidation, DECISIONS D-45 + status index, README/CLAUDE refresh (EP-33)` *(Workstream C)*
 - `3e2f872` — `docs(roadmap): EP-33 checkpoint minutes, triage outcomes, P3 amendments, D3 re-estimates, retro and risks (EP-33)` *(Workstreams A-close, D; the F record)*
 - the `docs(roadmap): record EP-33 commit hashes` commit that follows — ticks the row with the seven-hash series and carries the per-commit guard sweep over `45f1c84` → HEAD (F5, below).
-- **B7 owner-applied package** (D-45 item 4): reviewed diff files written to the session scratchpad after the series (`b7-settings.diff`, `b7-hook.diff`, `b7-tests.diff` + `b7-README.md`), not committed by the session.
+- **B7 owner-applied package** (D-45 item 4): reviewed diff files written to the session scratchpad after the series (`b7-hook.diff`, `b7-tests.diff` + `b7-README.md`), applied by the owner as `1d6abcf` (hook + test_ep165; no settings.json change was needed, so there is no b7-settings.diff).

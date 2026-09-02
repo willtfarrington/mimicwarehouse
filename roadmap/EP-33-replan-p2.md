@@ -407,7 +407,7 @@ checkpoint.
 > points:** (1) **B7 session-guard package** — reviewed diff files under the session
 > scratchpad (`b7-*.diff`, see § Commit series in `retro-p2.md`) for the owner to apply
 > interactively; until then SGD-1/SGD-2 stay open (recorded as roadmap Risk 16) and the
-> `tests/fixtures/**` Read allowance is not in force. (2) **CLI errors moved to stderr**
+> `tests/fixtures/**` Read allowance is not in force. — *applied by the owner, `1d6abcf`.* (2) **CLI errors moved to stderr**
 > with a `mwh <cmd>:` prefix (D-45 item 8) — any owner shell recipe that grepped stdout
 > for `refused:` must read stderr; exit codes are unchanged. (3) **EP-33's acceptance
 > spans five test files** (`test_ep33*.py`, one per workstream area, all marker `ep_33`)
