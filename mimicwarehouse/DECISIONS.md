@@ -9,6 +9,46 @@ and add new numbered decisions at the end; nothing is rewritten.
 
 Format: **D-n Title.** Decision. *Why.* *Alternatives considered.*
 
+## Status index (maintained by hand at re-plan EPs; added at EP-33, 2026-09-01)
+
+State: **settled** (no addenda) · **refined at EP-k** (addenda narrow or record how it
+shipped, decision unchanged) · **superseded by D-m** (none yet). The last column is the
+latest addendum's date and EP.
+
+| D-n | Title (short) | State | Last addendum |
+|---|---|---|---|
+| D-1 | Tie-breaker = portfolio / employability | settled | — |
+| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44) | — |
+| D-3 | MIMIC-IV-Note = optional late track | settled | — |
+| D-4 | ED enters via the Linkage Wizard | refined at EP-33 (demo ED fetched, not staged) | 2026-08-30, EP-33 |
+| D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
+| D-15 | uv-managed CPython 3.13, one venv | refined at EP-7, EP-166 (wheel rule, psutil) | 2026-08-28, EP-166 |
+| D-16 | CPU-first, GPU opt-in | settled | — |
+| D-17 | DuckDB + Parquet lake canonical | refined at EP-9, EP-166, EP-169, EP-17, EP-33 (engine facts; NULLS LAST canonical) | 2026-09-01, EP-33 |
+| D-18 | Tiers fixture / demo / dev / full | refined at EP-166, EP-33 (dev-first ordering) | 2026-08-30, EP-33 |
+| D-19 | mimic-code vendored at a pin | refined at EP-8 (pin recorded) | 2026-08-17, EP-8 |
+| D-20 | Custom `mwh build` runner | refined at EP-33 (⏱ job standard; lock identity; dry-run rule) | 2026-09-01, EP-33 |
+| D-21 … D-23 | Streamlit app · marimo scratch only · Jinja2/Typst reporting | settled | — |
+| D-24 | JSONL ledgers + `runs.duckdb` views | refined at EP-166, EP-33 (ledger practice; `fsio` canon) | 2026-09-01, EP-33 |
+| D-25 | Protocol freeze by content hash | settled | — |
+| D-26 | Raw provenance = local manifest | refined at EP-10, EP-166, EP-16 | 2026-08-28, EP-16 |
+| D-27 | Synthetic fixture generator | refined at EP-9, EP-166, EP-16 (id floors, 0.2.0, regen protocol) | 2026-08-28, EP-16 |
+| D-28 | ≤ 5 s latency via marts | settled | — |
+| D-29 | Data placement (repo, data root, never G:/D:) | refined at EP-3, EP-7 | 2026-08-17, EP-7 |
+| D-30 | Plain CSVs untouched | settled | — |
+| D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy) | 2026-09-01, EP-33 |
+| D-32 … D-34 | owner row view in-app · small cells n < 11 · MIT + `gpl` group | settled | — |
+| D-35 | Vocabularies: free first | refined at EP-16 (register) | 2026-08-28, EP-16 |
+| D-36, D-37 | future data via wizard · hupsim roadmap format | settled | — |
+| D-38 | Owner-side Windows tuning | refined at EP-0, EP-6/7, EP-164, EP-165, EP-166 (two AV products, nine-path allow list) | 2026-08-28, EP-166 |
+| D-39 | Enforcement chain for the Claude data policy | refined at EP-7, EP-165 (five layers) | 2026-08-28, EP-165 |
+| D-40 | Remote content = code + docs + gated aggregates | refined at EP-166 (owner reading) | 2026-08-28, EP-166 |
+| D-41 | MIT now; public at v1.0.0 | refined 2026-08-18 (public early, as governed WIP) | 2026-08-18, owner |
+| D-42 | Endpoint security stays two products | refined at EP-165, EP-171, EP-33 (retry/publish canon) | 2026-09-01, EP-33 |
+| D-43 | Retro consolidation of P0 + P1a | refined at EP-165, EP-166 (shipped), EP-33 (B9 repair) | 2026-08-31, EP-33 |
+| D-44 | EP-33 = consolidation re-plan of P0–P2 | refined at EP-33 (executed over three attempts; checkpoint outcomes = D-45) | 2026-09-01, EP-33 |
+| D-45 | EP-33 triage-checkpoint decisions | settled 2026-09-01 | — |
+
 ---
 
 ## Purpose & scope
@@ -194,6 +234,17 @@ native only; pandas primary.
 > rebuilds + a DESIGN §6 version note. Measured at EP-28 for the record: the typed-Parquet
 > layer compresses the 97.19 GB raw CSVs to 7.05 GB (13.8×, ZSTD-3, sorted).
 
+> **Addendum (2026-09-01, EP-33 — null placement under sort keys; ledger CTR-1).** The
+> staged lake sorts with DuckDB's bare `ORDER BY` over the contract `sort_keys`, which is
+> **NULLS LAST**; the Polars fixture writer and check sort nulls first. Decision: DuckDB's
+> NULLS LAST is the canonical placement (the lake is never restaged for this); the fixture
+> writer/check align at EP-41's 0.3.0 regeneration (amended there), and tests that assert
+> sortedness on nullable keys compare `(col IS NULL, col)` pairs. Also recorded: every
+> `duckdb.connect` in `src/` now goes through `mimicwarehouse.engine.open_duckdb(profile)`
+> (`build` / `app`, a required positional), pinned by a grep guard; the engine gotchas
+> (`10**9` binds DOUBLE, path-keyed instance cache → `ATTACH IF NOT EXISTS`) live in
+> DESIGN §6.1 and `docs/gotchas.md`.
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
@@ -261,6 +312,25 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > necessity. In-process heartbeat rss/ctypes probes read 0 for minutes on this host — the
 > supervisor's psutil sampler is the trustworthy number (EP-23/EP-24 notes).
 
+> **Addendum (2026-09-01, EP-33 — runner hardening from the P2 audit; ledger DAG-1/2/3,
+> LDR-1/3/4, WIN-1).** (1) The build lock is created with `O_CREAT|O_EXCL` and records
+> pid **and** process `create_time`; liveness is both, so a recycled pid reads as stale
+> and `--break-lock` can clear it (job state files carry the same identity; pre-EP-33
+> files fall back to pid-only). (2) `mwh build --background --dry-run` is refused — a dry
+> run needs the foreground console. (3) **Owner decision (checkpoint):** a partitioned
+> stage refuses a bucket request that is a strict subset of the table's recorded coverage
+> (`StageCoverageError`); `mwh build --tier full --force` is the only path that rewrites a
+> complete table — the runner's `--force` bypasses the completeness *skip*, never this
+> guard (dev and full share one lake root; before this, `--tier dev --force` over a
+> full-complete table silently discarded 95 partitions). (4) Pass 2 appends a bucket's
+> manifest line **before** recording it sorted, and `_progress.json` records the source's
+> identity (`source_sha256` or a name/size/mtime fingerprint) and the resolved `sort_by`,
+> which a resume must match (old progress files without the fields resume as before).
+> (5) `DIAGNOSTIC_COMMANDS` stays an explicit allow-list (the six commands that never touch
+> the data root: `doctor`, `paths`, `guard`, `verify`, `schema`, `fixtures`), pinned by
+> `test_ep167`; the EP-16 question of retiring it structurally is closed — the list *is*
+> the rule's statement.
+
 **D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
 *Alternatives:* marimo apps (ranked first by the research panel for a solo builder —
@@ -292,6 +362,22 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > rename-aside swap — app and CLI read the views, never the JSONL directly. The committed
 > renderer for benchmark tables is `mwh runs benchmarks [--format table|md] [--out PATH]`
 > (EP-32; `inventory.fmt_int` separation, raw ints only in `--json`).
+
+> **Addendum (2026-09-01, EP-33 — one ledger canon; ledger LGR-1/2/4, DAG-4).** Every
+> JSONL ledger (audit, benchmarks, the lake's build manifests) is written through
+> `mimicwarehouse.fsio.append_jsonl` / `append_jsonl_lines` — one canonical line, a single
+> `os.write` whose byte count is checked (a short write raises instead of leaving a torn
+> line the next append would merge into), `O_APPEND|O_BINARY` (exact `\n`; the earlier
+> writers let Windows write CRLF), fsync — and read through `fsio.read_jsonl` /
+> `iter_jsonl`, which tolerate exactly one malformed **trailing** line (warn and skip) and
+> treat any other malformed line as corruption. Concurrency is **single-writer by
+> sequencing**, not OS locking: the benchmarks ledger has two sanctioned writers (the
+> runner and EP-28's full-tier verify test, which appends `kind: verify` lines) that never
+> run at once; `msvcrt` locking was considered and rejected (worst case is one torn line
+> in telemetry). `runs.duckdb`'s audit view reads with `ignore_errors = true` and filters
+> the all-NULL record DuckDB 1.5.5 emits for a torn line. Audit lines gained a second
+> `allowed=false` class: `refusal_reason` starting `usage: ` for argument errors (see the
+> D-31 addendum); EP-35's ledger views filter refusals vs usage deliberately.
 
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
@@ -454,6 +540,40 @@ same access as the owner.
 > `count(*) FILTER (WHERE flag = 1)` pattern is the sanctioned way to count flagged rows
 > (`sum()` returns HUGEINT and the cast a HUGEINT needs trips the closed-set walk; the
 > EP-33 worklist item B1 revisits that cast case).
+
+> **Addendum (2026-09-01, EP-33 — B1 robustness and the checkpoint's governance
+> calls; ledger DKB-1/SGT-1, DKB-2, SGT-2, SGT-3, P3C-4/5).** The gate only tightened:
+> (1) the mandatory count-family column must be a **real** count-family node (`count`,
+> `count_star`, `approx_count_distinct`, possibly cast-wrapped) — an alias matching the
+> count pattern never satisfies it, and a count-named alias on a non-count expression
+> (`avg(x) AS n`) is **refused**, so the row-wise suppressor only ever tests true group
+> sizes (the pre-EP-33 alias rule let a below-k group through whenever the aliased
+> value fell outside 1…k−1); (2) a `CAST` directly around one closed-set aggregate now
+> verifies (the `sum()`/HUGEINT case), arithmetic over aggregates stays refused
+> (final-roadmap DIS-3); (3) set operations UNION / UNION ALL / EXCEPT / INTERSECT verify
+> with the full select-list checks per leaf, matching widths and count-family positions
+> across branches, suppression over the combined frame (`UNION BY NAME` refused;
+> DIS-2 closed); (4) the registry exemptions are named — `REGISTRY_SCHEMAS` (`meta`,
+> `information_schema`), `REGISTRY_TABLES` (`marts.cohorts`, pre-registered for EP-47)
+> and the contract dims via `is_registry_ref`; **`runs` deliberately does not join** (owner,
+> checkpoint) — EP-35 allow-lists its long label columns instead; every non-registry read
+> outside the EP-9 contract (P3's derived/marts surfaces) is treated as subject-keyed for
+> the 64-char free-text result check; (5) execution errors are **sanitized** before they
+> reach the refusal message or the audit line (first line, quoted literals → `'...'`,
+> digit runs → `#`, 120 chars) — DuckDB quotes offending cell values in conversion errors;
+> (6) the three-way taxonomy: refusal = exit 3 (`SafeQueryRefused`, audited), usage =
+> exit 2 (`SafeQueryError` for `k < 1`, `row_cap < 1`, unknown tier — audited with a
+> `usage: ` reason), environment = exit 2 (`CatalogOpenError`, unaudited), shared by
+> `mwh sql`, `mwh tracer` and every future caller via `catalog.cli.safe_cli_errors`;
+> `tier`/`k` default from `settings.default_tier` / `settings.k_suppression`.
+> **Owner decision (checkpoint, SGT-2):** extreme-value aggregates (min/max/mode/median/
+> quantile) over subject-keyed columns stay admitted — with (1) every row that carries
+> one is gated by a real count column, so such values are released only inside
+> k-suppressed rows (dates are patient-shifted); EP-43 decides any per-column tightening
+> in the `disclose` module (amended there). *Alternatives:* refusing extreme-value
+> aggregates on subject-keyed reads now (rejected: the tracer's descriptives and P3's QC
+> need them; the k-row gate is the standard release condition), or a separate brief
+> (rejected: nothing to build until EP-43's module exists).
 
 **D-32 Row display allowed in-app for the owner** behind an explicit toggle with audit
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
@@ -828,6 +948,23 @@ uv-managed CPython / MSYS2 binaries).
 > 2.29 GB sequential Parquet, DuckDB defaults; floors, generation cost included), 13.3 s
 > total (EP-171 completion note; roadmap Risk 12).
 
+> **Addendum (2026-09-01, EP-33 — the publish/retry canon; ledger CLI-1/LDR-2,
+> WIN-2/3/4).** The I/O adaptations of (2)/(3) are now one module: `mimicwarehouse.publish`
+> holds the rename-aside two-step for directories (`swap_dir`, tables) and single files
+> (`swap_file`, catalogs and `runs.duckdb`) over one retry core — every rename/remove of
+> project-written files retries the transient `PermissionError` (AV/indexer holds,
+> ~10 s linear back-off) through `retry_permission` / `rmtree` / `unlink` / `replace`;
+> `FileNotFoundError` is tolerated **only** on remove/restore operations, so a `.new` that
+> vanishes at the publish rename (a quarantine) rolls the previous live copy back and
+> raises instead of reading as success (the pre-EP-33 swap would have deleted the only
+> live copy); a `.old` that still cannot be removed after publish is deferred to the next
+> swap's sweep, never a failed stage; the file variant fails fast on a plain (non
+> `FILE_SHARE_DELETE`) handle with a hint naming the remedy. The EP-171 canary keeps its
+> verbatim raw-OS sequence as the canon's sanctioned exception (owner, checkpoint) so its
+> baselines stay comparable. Session-guard precision work (`.claude/settings.json`, the
+> PreToolUse hook) is handled as an owner-applied diff package (D-45), never edited by a
+> session in the same turn as the analysis motivating it.
+
 **D-43 Retrospective consolidation of P0 + P1a (2026-08-18) — owner decisions, to be
 distributed as addenda by EP-166.** After EP-12 the owner paused the roadmap for an adversarial
 retrospective review of EP-0 … EP-12 (ten lenses, one verifier per material finding, completeness
@@ -996,3 +1133,57 @@ re-plan and allocate separate retro briefs (the D-43 vehicle — rejected: more 
 boundaries and the debt compounds through P3); an audit-only session followed by
 implementation sessions (rejected: the owner wants one session); deferring consolidation to
 EP-54 (rejected: P3 would code against the un-consolidated surfaces).
+
+> **Addendum (2026-09-01, EP-33 — how it actually ran).** Three sessions, not one: the
+> first attempt (2026-08-30) was aborted by a model-safeguard refusal while editing the
+> session guard alongside the audit's governance findings; the second (2026-08-31)
+> adopted the recorded tunings, ran with no refusal, completed Workstream A, D2 and the
+> full discovery audit, and was stopped at usage limits with its outputs salvaged; the
+> third (2026-09-01) resumed at the owner triage checkpoint and landed B–F. The
+> "audit-only session → owner triage → implementation session" shape the first addendum
+> proposed is therefore what happened in practice, and item 8's "must-land in-session"
+> held for the implementation session. The checkpoint's decisions are **D-45**; the
+> record is `roadmap/retro-p2.md` and `roadmap/EP-33-replan-p2.md`.
+
+**D-45 EP-33 triage-checkpoint decisions (2026-09-01, owner).** Two rounds of four
+questions, the recommended option taken in every case:
+
+1. *Triage.* All 45 pending verified findings of `roadmap/retro-p2-findings.md` triaged
+   as proposed — 36 fix-now (folded into Workstreams B/C/D), SGD-1/SGD-2 to the B7
+   owner-applied diff package, LGR-3 / P3C-1 / TST-3 rejected with reasons, SGT-2
+   accepted as policy (D-31 addendum) with an EP-43 amendment; the 60 carried-low
+   findings swept where B/C touched the file and otherwise parked in
+   `final-roadmap.md` (AUDIT-1) for EP-54. **No new EP-172+ brief was allocated** — every
+   spillable item found a home in a P3 amendment or the parked list.
+2. *LDR-1.* Stage-level refusal of a strict-subset bucket request over a wider table
+   (D-20 addendum); `mwh build --tier full --force` is the only rewrite path.
+3. *SGT-2.* Extreme-value aggregates stay admitted, released only inside k-gated rows;
+   EP-43 owns any per-column tightening (D-31 addendum).
+4. *B7.* Session-guard precision changes (SGD-1, SGD-2, a Read allowance for the committed
+   synthetic `tests/fixtures/**`, path-aware checks for repo-internal `.csv`/`.duckdb`
+   mentions) are authored **last** as reviewed diff files in the session scratchpad and
+   applied by the owner interactively — never by the session (the first attempt's
+   lesson); `mwh guard --selfcheck` and `test_ep165` updates ride in the same package.
+5. *Renames.* `mimicwarehouse.paths` → `mimicwarehouse.publish` (paths.py deleted;
+   `catalog.build.swap_catalog` absorbed as `publish.swap_file`); `mimicwarehouse.console`
+   is the single home of `EXIT_OK/EXIT_FINDINGS/EXIT_USAGE/EXIT_REFUSED` (re-exported by
+   `safe`, `catalog.cli`, `verify`); `inventory.open_connection` is an alias over
+   `engine.open_duckdb("build")`; `inventory._atomic_write_text` an alias of
+   `fsio.atomic_write_text`. The full ledger: `roadmap/retro-p2.md` § Renames.
+6. *`runs` schema.* Not a safe-query registry exemption; EP-35 allow-lists its label
+   columns.
+7. *Earlier-EP test edits.* test_ep12's exact `check`-chain pin relaxed; the duplicate
+   import-budget tests in test_ep06/11/12 deleted (test_ep02 canonical, test_ep09 keeps
+   the lazy-contract clause); fixture counts read from `manifest.json` in
+   test_ep21/22/30 — all under the EP-168 churn rule (the coupling was the bug).
+8. *B8.* CLI errors go to **stderr** as `mwh <cmd>: …` via `console.fail` (stdout stays
+   machine output); the AV canary keeps its verbatim raw-OS sequence.
+
+Routine calls made at the checkpoint without objection: the D4 defaults a–g kept (b now
+backed by D2's 65/65 measurement); the gotchas home is `docs/gotchas.md` with a DESIGN
+§6.1 pointer subsection and the hygiene canon at `docs/committed-text.md`; the engine
+canon module is `mimicwarehouse.engine` (`loader/engine.py` keeps its name); `fmt_int`
+stays in `inventory.py`; no agent round over the completeness critique's ten gaps.
+*Why:* each option preserves functionality and architecture while removing a duplicate
+paradigm or a defect class; the owner's D-44 goal. *Alternatives considered:* per item,
+recorded in the checkpoint questions (`roadmap/retro-p2.md` § Checkpoint minutes).

@@ -1,12 +1,22 @@
 # mimicwarehouse — DESIGN
 
 Architecture of the local MIMIC-IV data lab. This document is the "why and how"; the
-roadmap (`../roadmap/README.md`) is the "when". Every module below is marked with the
-EP brief that builds it — as of 2026-08-16 nothing here existed as code; the P0/P1a
-modules (EP-1 … EP-12, EP-164, EP-165) have since shipped — the living inventory is the
-workspace `README.md` § "State of the workspace" (D-43 item 13), the history is the dated
-notes below. Sessions update this file when an EP changes a design fact (append a dated
-note; do not rewrite history).
+roadmap (`../roadmap/README.md`) is the "when". Every module is marked with the EP brief
+that built or will build it; the living inventory of what exists is the workspace
+`README.md` § "State of the workspace" (D-43 item 13).
+
+> **Consolidated at EP-33 (2026-09-01).** Every section below is rewritten to as-built
+> truth as of the close of P2 (EP-0 … EP-33, EP-164 … EP-171; D-44 item 4). The 54 dated
+> `> **Note (…)**` blocks that P0–P2 sessions appended were folded into their sections'
+> bodies wherever they corrected or completed the 2026-08-16 planning text, and the
+> planning prose that shipped code superseded was dropped — **git history is the archive**
+> (this file at any commit before the EP-33 docs commit holds the dated notes verbatim).
+> Each section ends with a *History* line naming the EPs whose completion notes and tests
+> hold the evidence. Sections about phases not yet built (§8–§10, §13, §14, §16–§19) remain
+> *design*, lightly reconciled with the shipped surfaces they will call. §21 stays a live
+> open-questions list. From here on, sessions append dated notes again as before: when an
+> EP changes a design fact, add a `> **Note (date, EP-n).**` under the section — do not
+> rewrite history between consolidations.
 
 Owner decisions are cited as **D-n** (see [`DECISIONS.md`](DECISIONS.md)). Safety and
 licensing rules live in [`GOVERNANCE.md`](GOVERNANCE.md) and override anything here.
@@ -27,620 +37,756 @@ conversion, an R toolchain, a JS front-end, and any analysis that requires row-l
 to leave this machine. All of these are catalogued in
 [`../roadmap/final-roadmap.md`](../roadmap/final-roadmap.md).
 
+**What P2 proved.** The first end-to-end proof (D-8) is the tracer bullet (EP-31, §15):
+first-ICU-stay adults → in-hospital mortality, attrition and descriptives through
+`safe_query`, a logistic fit, a run folder that passes the committed-text canon — run on
+every tier including full.
+
+*History:* planning text (2026-08-16); EP-31 added the tracer paragraph; consolidated at EP-33.
+
 ## 2. Machine & constraints (verified 2026-08-16)
 
 | Resource | Value | Design consequence |
 |---|---|---|
-| CPU | Intel Core Ultra 9 285H, 16 cores | DuckDB `threads=12`, Polars threads 12; leave headroom for the UI |
-| RAM | 64 GB | DuckDB `memory_limit` 36–40 GB; never `pandas.read_csv` a large table |
+| CPU | Intel Core Ultra 9 285H, 16 cores | DuckDB `threads=12` in both profiles; leave headroom for the UI |
+| RAM | 64 GB | `memory_limit` **36 GB** (`build` profile) / **12 GB** (`app` profile), `Settings.duckdb_*`; never `pandas.read_csv` a large table |
 | GPU | RTX PRO 2000 Blackwell laptop, 8 GB VRAM, sm_120 | CPU-first; GPU is an opt-in dependency group (D-16); batch sizes ≤ 6 GB working set |
-| Disk | one 954 GB NVMe, ~415 GB free | see §3 budget; keep ≥ 100 GB free during builds |
+| Disk | one 954 GB NVMe; **392.8 GB free after P2 staging** (EP-28; 414.9 GB at EP-7) | see §3 budget; keep ≥ 100 GB free during builds |
 | OS | Windows 11 Pro, PowerShell 7 | native Windows (D-14); `spawn` multiprocessing; MAX_PATH; `.gitattributes` for CRLF |
 | Python | uv-managed CPython 3.13 (D-15) | system 3.14 untouched (`python-preference = only-managed`) |
 | Encryption | BitLocker on C: | required by the DUA; recorded by `mwh doctor` |
 | Cloud | GoogleDriveFS (G:), Cryptomator (D:) mounted | nothing warehouse-related may live on G:/D: (file locks, sync = redistribution) |
+| Endpoint security | Windows Defender **and** Malwarebytes 5.1 Premium, both real-time (D-42) | every long writer is resumable and logs progress; sessions write files through the Write/Edit tools, never shell heredocs or burst copy/delete loops; `mwh doctor` reports both products |
 
-> **Note (2026-08-17, EP-1).** Toolchain installed: **uv 0.12.5** (winget, user scope;
-> `%LOCALAPPDATA%\Microsoft\WinGet\Links\uv.exe`; cache `%LOCALAPPDATA%\uv\cache`; managed
-> interpreters under `%APPDATA%\uv\python` — all on C:) and **uv-managed CPython 3.13.15**
-> (`mimicwarehouse/.python-version` = `3.13`; `.venv` in the workspace). System CPython
-> 3.14.7 untouched. Resolved core stack: pandas 3.0.5 · numpy 2.5.2 · scipy 1.18.0 ·
-> polars 1.43.2 · pyarrow 24.0.0 · statsmodels 0.14.6 · lifelines 0.30.0 ·
-> scikit-learn 1.9.0 · altair 6.2.2 · pydantic 2.13.4; `ui`: Streamlit 1.61.1
-> (`pyarrow<25,>=7.0`). pyarrow 25.0.1 exists on PyPI, but uv unified both resolver
-> forks on 24.0.0 (one version satisfies core and `ui`), so a single venv serves both
-> today; the `[tool.uv] conflicts` fork machinery is in place for when they diverge. Only
-> sdist-only package in the lock: `autograd-gamma 0.5.0` (pure Python, lifelines
-> transitive) — see the EP-1 completion note.
+**Toolchain (EP-1, re-verified EP-7).** uv 0.12.5 (winget, user scope; cache and managed
+interpreters on C:) and uv-managed CPython 3.13.15 (`.python-version` = `3.13`, `.venv` in
+the workspace). Resolved core stack: pandas 3.0.5 · numpy 2.5.2 · scipy 1.18.0 ·
+polars 1.43.2 · pyarrow 24.0.0 · statsmodels 0.14.6 · lifelines 0.30.0 · scikit-learn 1.9.0 ·
+altair 6.2.2 · pydantic 2.13.4 · psutil (core since EP-19); `ui`: Streamlit 1.61.1
+(`pyarrow<25,>=7.0`). uv unified both resolver forks on pyarrow 24.0.0, so one venv serves
+core and `ui` today; the `[tool.uv] conflicts` fork machinery is in place for when they
+diverge. The only sdist-only package in the lock is `autograd-gamma 0.5.0` (pure Python).
 
-> **Note (2026-08-17, EP-7).** Two machine facts the table above did not carry. (1) **Endpoint
-> security is two real-time products**, Windows Defender *and* Malwarebytes 5.1 Premium (D-38
-> addenda, D-42, roadmap Risk 12): Malwarebytes' Ransomware Protection judges processes by I/O
-> pattern and quarantined the unsigned Git `bash.exe` during a burst file operation; the owner
-> allow-lists the toolchain (Git, uv, uv's CPython, the workspace `.venv`, pre-commit's hook
-> venvs) and both data locations in Malwarebytes and excludes `C:\mimicdata` in Defender, and keeps
-> both products on. Design consequences: every long writer (loader EP-17/18, fixture generators
-> EP-11/12, inventory EP-10) is resumable and logs progress; sessions write files through the
-> Write/Edit tools, not shell heredocs; the §21 bucket-count question ("Defender/NTFS overhead")
-> now reads "Defender + Malwarebytes/NTFS overhead"; `mwh doctor` gains an `antivirus` check at
-> EP-164 that names the products it can see (neither exclusion list is readable non-elevated).
-> (2) **Console code page**: the shells that run `mwh` may be cp1252 — CLI output must stay ASCII
-> or pass through `verify._console_safe` (roadmap Risk 13); JSON outputs are unaffected. Versions
-> re-verified at EP-7: unchanged from the EP-1 note; `mwh doctor` 8 pass · 5 info; 414.9 GB free.
+**Console.** `.claude/settings.json` sets `PYTHONUTF8=1` for both tool shells (EP-165,
+D-43 item 2), so `mwh` run from a session has UTF-8 stdio; other hosts (a plain
+PowerShell, Task Scheduler) may still be cp1252. The `mwh` entry point is
+`mimicwarehouse.console:run`, which reconfigures stdout/stderr to UTF-8 with
+`errors="replace"` before the typer app runs (EP-167); new CLI strings stay ASCII or pass
+through `console.console_safe`; JSON outputs end in plain `\n`. Roadmap Risk 13 points here.
 
-> **Note (2026-08-28, EP-166 — console, updating the EP-7 note's item (2)).** Since EP-165,
-> `.claude/settings.json` sets `PYTHONUTF8=1` for both tool shells (D-43 item 2), so `mwh` run
-> from a Claude session gets UTF-8 stdio and the cp1252 crash class is gone *there*; other hosts
-> (a plain PowerShell, Task Scheduler) may still be cp1252. The standing rule is unchanged: new
-> CLI strings stay ASCII or pass through the console helper — EP-167 replaces the per-module
-> `_console_safe` with one shared `mimicwarehouse/console.py` and a UTF-8 entry point (D-43
-> item 12). Roadmap Risk 13 is now a two-line pointer to this note.
->
-> *Shipped (2026-08-28, EP-167):* `mimicwarehouse/console.py` (`console`, `err_console`,
-> `console_safe`) and the `mwh = "mimicwarehouse.console:run"` entry point, which reconfigures
-> stdout/stderr to UTF-8 with `errors="replace"` before running the app; every command module
-> imports the shared consoles; JSON outputs end in plain `\n` (never `\r\r\n`).
+**Host diagnostics.** `mwh doctor` runs 15 checks (`python uv duckdb settings disk_free
+data_root temp_dir cloud_mounts defender antivirus deny_coverage bitlocker power_scheme gpu
+longpaths`); on this host it ends 9 pass · 1 warn · 0 fail · 5 info, the warn being the
+`antivirus` row by design (a non-Defender product is *listed*; its exclusion list is not
+readable non-elevated). The owner toggles the Windows power mode off between sessions —
+`power_scheme` must read Best performance before compute-heavy work (D-38).
+
+*History:* built by EP-1, EP-7, EP-164, EP-165, EP-166, EP-167 (completion notes); consolidated at EP-33.
 
 ## 3. Layers & disk budget
 
 ```
 raw        source material/<dataset>/<module>/*.csv      immutable, gitignored, never edited (D-30)
   │  EP-17/18 loader (typed COPY → Parquet, subject buckets)
-lake       C:\mimicdata\lake\core\<schema>\<table>\subject_bucket=NN\*.parquet   canonical typed snapshot
+lake       <lake_root(tier)>\core\<schema>\<table>\…      canonical typed snapshot (lake\ for dev/full; lake\fixture, lake\demo for the synthetic/ODbL tiers)
   │  EP-21 catalog builder
-catalog    C:\mimicdata\warehouse\{demo,dev,full}.duckdb  views over the lake + small materialized tables
+catalog    warehouse\{fixture,demo,dev,full}.duckdb       views over the lake + materialized dims + meta.*; runs.duckdb = views over the JSONL ledgers
   │  EP-19 DAG runner (mwh build) · EP-37 concept runner
-derived    lake\derived\<concept|phenotype|spine>\…       mimic-code concepts, phenotypes, events spine
+derived    lake\derived\<concept|phenotype|spine>\…       mimic-code concepts, phenotypes, events spine (P3)
   │  EP-47 cohort compiler · EP-55/56 marts
-marts      lake\marts\…  + studies\<study_id>\…            cohorts, feature matrices, latency marts
+marts      lake\marts\…  + studies\<study_id>\…            cohorts, feature matrices, latency marts (P3/P4)
 ```
 
 Everything below `raw` is **rebuildable from raw + code**, so the honest backup of the
 warehouse is a tested rebuild recipe (`mwh init`, EP-158). Non-reproducible state (run
 ledger, protocol registry, audit) is backed up separately (EP-52).
 
-Disk budget (estimates to be measured in P2 and recorded in the benchmark ledger):
-raw CSV 98 GB (kept) · core lake ~18–25 GB · derived + spine 15–30 GB · marts 5–15 GB ·
-notes lake + FTS + embeddings 5–15 GB (P10 only) · models ≤ 10 GB · build temp peak
-60–100 GB · uv cache + venv ~15 GB · OS hiberfil/pagefile 25–40 GB. Rule: **never below
-100 GB free**; `mwh doctor` and `mwh build` refuse to start under that.
+**The data-root tree** is fixed by `Settings.layout` (`config.py`, `LAYOUT_KEYS`; **18
+keys**, created idempotently by `mwh paths --create`, which also writes a `README.txt`
+warning never to sync the folder). Layout keys in brackets — briefs reference the keys,
+never literal paths:
 
-> **Note (2026-08-17, EP-3).** The data-root tree is fixed by `Settings.layout`
-> (`config.py`; 15 keys, created idempotently by `mwh paths --create`, which also writes a
-> `README.txt` warning never to sync the folder). Owners of each directory in brackets:
->
-> ```
-> C:\mimicdata\                          MWH_DATA_ROOT (D-29; local fixed NTFS/ReFS only)
-> ├── README.txt                         "managed by mimicwarehouse; never sync"
-> ├── lake\                              lake            Parquet layers (§5)
-> │   ├── core\                          lake_core       typed snapshot of raw (EP-17/18)
-> │   ├── derived\                       lake_derived    concepts, phenotypes, spine (EP-37+/50)
-> │   ├── marts\                         lake_marts      cohorts, features, latency marts (EP-47/55)
-> │   └── manifests\                     lake_manifests  <build_id>.jsonl → snapshot ids (EP-19)
-> ├── warehouse\                         warehouse       {demo,dev,full}.duckdb catalogs (EP-21) — catalog_path(tier)
-> ├── runs\                              runs            ledger.jsonl · audit.jsonl · benchmarks.jsonl · <run_id>\ (EP-30/35)
-> │   └── jobs\                          runs_jobs       background ⏱ job logs + progress files (EP-19+)
-> ├── models\                            models          model registry artefacts (P7)
-> ├── notes\                             notes           segregated notes lake + notes.duckdb (EP-148, owner-only)
-> ├── ext\                               ext             external sources <source>\source.yaml (§19)
-> │   └── demo\                          ext_demo        MIMIC-IV Demo 2.2 + ED Demo (EP-22)
-> ├── studies\                           studies         study workspaces <study_id>\ (§3 marts)
-> └── tmp\                               tmp             scratch
->     └── duckdb\                        tmp_duckdb      DuckDB temp_directory (§6; MWH_DUCKDB_TEMP_DIR overrides, same volume)
-> ```
->
-> `Settings` refuses a data root that is not on a local `DRIVE_FIXED` NTFS/ReFS volume, whose
-> volume label matches a sync client (Google Drive, OneDrive, Dropbox, Box, Cryptomator,
-> iCloud), that lies under `%OneDrive%`, or whose drive letter is in `forbidden_drives`
-> (default G:, D:); the temp dir must share the data-root volume; `mwh paths --create` and
-> (from EP-19) `mwh build` additionally require `min_free_gb` (100) free. On this machine
-> the probes see C: = fixed NTFS "Windows", D: = remote cryptoFs "Google Cryptomator",
-> G: = fixed FAT32 "Google Drive" — the last two are refused by label, filesystem and letter.
+```
+C:\mimicdata\                          MWH_DATA_ROOT (D-29; local fixed NTFS/ReFS only)
+├── README.txt                         "managed by mimicwarehouse; never sync"
+├── lake\                              lake            Parquet layers (§5); the dev/full lake root
+│   ├── core\                          lake_core       typed snapshot of raw (EP-17/18; 31 hosp + icu tables staged full-tier)
+│   ├── derived\                       lake_derived    concepts, phenotypes, spine (EP-37+/50)
+│   ├── marts\                         lake_marts      cohorts, features, latency marts (EP-47/55)
+│   ├── manifests\                     lake_manifests  raw\<dataset-dir>.jsonl + raw_snapshot.json (EP-10) · <build_id>.jsonl · status.json · snapshots.json (EP-17/19)
+│   ├── fixture\                       lake_fixture    the fixture tier's own lake root (core\, manifests\, rejects\ beneath it)
+│   ├── demo\                          lake_demo       the demo tier's own lake root
+│   ├── rejects\                       lake_rejects    <schema>\<table>\<build_id>.parquet reject rows (EP-17; dev/full)
+│   └── meta\                                          <tier>\profile_*.parquet (EP-29; module-created, not a key)
+├── warehouse\                         warehouse       {fixture,demo,dev,full}.duckdb (EP-21) · runs.duckdb (EP-30) · .build.lock (EP-19)
+├── runs\                              runs            audit.jsonl (EP-30) · benchmarks.jsonl (EP-19) · tracer\<run>\ (EP-31) · ledger.jsonl + <run_id>\ (EP-35)
+│   └── jobs\                          runs_jobs       <name>.json state files + <name>.log of detached jobs (EP-19)
+├── models\                            models          model registry artefacts (P7)
+├── notes\                             notes           segregated notes lake + notes.duckdb (EP-148, owner-only)
+├── ext\                               ext             external sources <source>\source.yaml (§19)
+│   └── demo\                          ext_demo        MIMIC-IV Demo 2.2 + ED Demo 2.2 + source.yaml (EP-22)
+├── studies\                           studies         study workspaces <study_id>\ (§3 marts)
+└── tmp\                               tmp             scratch (canary\ = the EP-171 write canary tree)
+    └── duckdb\                        tmp_duckdb      DuckDB temp_directory (§6; MWH_DUCKDB_TEMP_DIR overrides, same volume)
+```
 
-> **Note (2026-08-28, EP-166 — tree entries decided by the 2026-08-18 retro; code EP-167+).**
-> The EP-3 tree above grows as follows, so P2 briefs stop inventing paths ad hoc (D-43 items
-> 6–7; ledger ARCH-3, ARCH-12): under `lake\` the **per-tier lake roots** `fixture\`
-> (`lake_fixture`) and `demo\` (`lake_demo`) — the fixture/demo tiers never write into the
-> credentialed `lake\core` — plus `rejects\` (`lake_rejects`, EP-17's per-table reject
-> Parquet); under `lake\manifests\` the EP-10 `raw\<dataset-dir>.jsonl` + `raw_snapshot.json`
-> (already real) and EP-17/19's `status.json`, `snapshots.json` and `<build_id>.jsonl`; under
-> `warehouse\` the catalogs become `{fixture,demo,dev,full}.duckdb` plus `runs.duckdb`
-> (EP-30/35 views over the JSONL ledgers) and the `.build.lock` (EP-19). `Settings.layout`
-> goes 15 → **18** keys (`lake_fixture`, `lake_demo`, `lake_rejects`) at EP-167, which bumps
-> the `test_ep03` pin once and updates `mwh paths`; briefs reference the layout keys, not
-> literal paths.
+`Settings` refuses a data root that is not on a local `DRIVE_FIXED` NTFS/ReFS volume, whose
+volume label matches a sync client (Google Drive, OneDrive, Dropbox, Box, Cryptomator,
+iCloud), that lies under `%OneDrive%`, or whose drive letter is in `forbidden_drives`
+(default G:, D:); the temp dir must share the data-root volume. On this machine the probes
+see C: = fixed NTFS "Windows", D: = remote cryptoFs "Google Cryptomator", G: = fixed FAT32
+"Google Drive" — the last two are refused by label, filesystem and letter. Fixture and demo
+builds resolve to their own lake roots (`Settings.lake_root(tier)`) and hard-refuse the
+credentialed `lake\core` (`assert_not_credentialed_lake`, EP-167), so a stray
+`mwh build --tier fixture` can never pollute the real lake or its `status.json`.
 
-> **Note (2026-08-29, EP-28 — core lake measured; P2 staging complete).** With all 31
-> hosp + icu tables staged full-tier, `lake\core` measures **7,046,156,578 bytes ≈ 7.0 GB**
-> — 2.6–3.6× under the 18–25 GB estimate above — from 97,190,431,138 bytes of raw CSV
-> (**13.8× overall compression**; per table 2.1× on the tiny dims up to 22.9× on
-> chartevents; the ledger's `kind: verify` lines carry the per-table numbers). Build-temp
-> peak: **no spill observed** across the five ⏱ jobs (`tmp_duckdb` = 0 at every 60 s
-> heartbeat sample); staging peak RSS high-water 24,563 MB (emar_detail, EP-24) against
-> the 36 GB build `memory_limit`. Free space after P2 staging: **392.8 GB** — the 100 GB
-> floor was never approached. The derived/spine/marts/notes budget lines above remain
-> estimates for the later phases; the P3 re-plan (EP-33) inherits these measurements via
-> `dag.benchmarks.summarize()` and the EP-32 capstone note.
+**Disk budget.** Rule: **never below 100 GB free** (`min_free_gb`); `mwh paths --create`,
+`mwh build`, `mwh inventory build` and `mwh canary write` refuse to start under it
+(`require_free_space`; the guard is per tier — `min_free_gb_for("fixture")` is 1 GB).
+Measured at the close of P2 (EP-28; the ledger's `kind: verify` lines carry the per-table
+numbers): raw CSV 97,190,431,138 bytes (kept) · **core lake 7,046,156,578 bytes ≈ 7.0 GB**
+for all 31 hosp + icu tables (13.8× overall compression, 2.1× on the tiny dims up to 22.9×
+on chartevents — 2.6–3.6× under the 18–25 GB planning estimate) · build-temp peak **no
+spill observed** across the five ⏱ staging jobs (`tmp_duckdb` = 0 at every heartbeat;
+staging RSS high-water 24,563 MB on emar_detail against the 36 GB build `memory_limit`).
+Re-estimated for P3 (EP-33 item D3; Risk 6's open half — re-estimates, not measurements;
+EP-37/EP-50's ⏱ jobs record the real sizes and EP-54 replaces these numbers): the 65
+vendored `concepts_duckdb` files executed on a throwaway copy of the ODbL demo catalog in
+2.2 s and re-encoded to 131,517 rows / 1,824,855 bytes of ZSTD Parquet at demo scale
+(140 ICU stays); the concepts are ICU-stay-keyed and scale ≈ 675× (94,458 / 140), so
+**derived concepts ≈ 90 M rows, 0.8–1.5 GB**; the MEDS-shaped spine (EP-50; ≈ 262 M
+non-chartevents rows at ≈ 10 bytes/row plus an optional vitals subset) **2.5–4 GB**;
+phenotypes and cohorts negligible; first-day / hourly-bin marts (EP-55/56) **≤ 1–2 GB**.
+Revised lines: derived + spine ≈ 4–6 GB (was 15–30) · marts ≈ 1–2 GB (was 5–15) · notes lake
++ FTS + embeddings 5–15 GB (P10 only) · models ≤ 10 GB · uv cache + venv ≈ 15 GB · OS
+hiberfil/pagefile 25–40 GB. Concept builds are per-concept aggregations over the
+chartevents/labevents views; a worst-case single pass over all 433 M chartevents rows needs
+≈ 17 GB of hash/sort state, so spill is possible but bounded (≤ 20–40 GB) under the 150 GB
+`max_temp_directory_size` cap; expected free space after P3 ≈ 380 GB.
+
+*History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3 (completion notes); consolidated at EP-33.
 
 ## 4. Tiers & sampler spec (D-18, D-27)
 
 | Tier | What | Where | Used for |
 |---|---|---|---|
-| `fixture` | synthetic mini-MIMIC generated by `mimicwarehouse.fixtures` (EP-11/12); **all ids ≥ 90 000 000** so the guard can recognise synthetic rows; committed to `mimicwarehouse/tests/fixtures/` | repo | pytest default; CI-like runs without credentials |
-| `demo` | MIMIC-IV Clinical Database Demo 2.2 + MIMIC-IV-ED Demo 2.2 (ODbL, 100 subjects), downloaded on demand by `mwh demo fetch` (EP-22), passed through the 2.2 → 3.1 column map | `C:\mimicdata\ext\demo\` → `demo.duckdb` | screenshots, cloner path, concept count-pinning, showcase |
-| `dev` | deterministic 5 % of full: `subject_id % 100 IN (0,1,2,3,4)` — a partition filter over the same lake, so it cannot drift from full | `dev.duckdb` | every EP's development + tests |
+| `fixture` | synthetic mini-MIMIC generated by `mimicwarehouse.fixtures` (EP-11/12); **all ids ≥ 90 000 000** so the guard can recognise synthetic rows; sources committed to `mimicwarehouse/tests/fixtures/` | repo (sources) · `lake\fixture` + `warehouse\fixture.duckdb` when built for keeps | pytest default; CI-like runs without credentials; `mwh sql --tier fixture` and row-view development (GOVERNANCE §6) |
+| `demo` | MIMIC-IV Clinical Database Demo 2.2 + MIMIC-IV-ED Demo 2.2 (ODbL, 100 subjects), fetched by `mwh demo fetch` (EP-22), passed through the 2.2 → 3.1 column map | `ext\demo\` → `lake\demo` → `demo.duckdb` | screenshots, cloner path, concept count-pinning, showcase |
+| `dev` | deterministic 5 % of full: `subject_bucket IN settings.dev_buckets` (default `[0, 1, 2, 3, 4]`) — a partition filter over the same lake, so it cannot drift from full | `dev.duckdb` | every EP's development + tests |
 | `full` | all subjects | `full.duckdb` | recorded full-tier runs; scale-contract EPs |
 
-`subject_bucket = subject_id % 100` (MIMIC subject_ids are 10 000 000–19 999 999) is the
-single partitioning key for subject-keyed tables; dims are unpartitioned. Tables without
-`subject_id` (e.g. `d_*`, `provider`, `caregiver`) exist identically in every tier.
+`subject_bucket = subject_id % 100` (`loader.buckets.NUM_BUCKETS`; MIMIC subject_ids are
+10 000 000–19 999 999) is the single partitioning key for subject-keyed tables; dims are
+unpartitioned. Tables without `subject_id` (`d_*`, `provider`, `caregiver`) exist
+identically in every tier. The dev buckets live in `settings.dev_buckets` — no separate
+constant (D-43 item 14); a catalog records the buckets it was built with and warns on drift.
+Dev and full share one lake root: a table is `dev_ready` as soon as the dev buckets are
+sorted and `tier_complete: "full"` once all 100 are (§5), so the dev catalog attaches
+early during a full ⏱ pass and a dev rebuild can never discard the other 95 partitions
+(the coverage guard, §5).
 
 **Demo tier vs demo mode.** *Demo tier* = the ODbL dataset loaded as a tier. *Demo mode*
 = the app (EP-159) launched with `--tier demo` and export/row-view features enabled,
-because that data is redistributable. Never confuse the two in briefs.
+because that data is redistributable. Never confuse the two in briefs. Demo ids sit inside
+the real MIMIC bands, so the guard treats demo rows as real: the data lives only under the
+data root, never in git.
 
 Every brief states its tier using the vocabulary in the roadmap README (`fixture` /
 `fixture+dev` / `fixture+dev+full` / `fixture+dev (full ⏱ → verified by EP-n)` / `demo` /
 `n/a`).
 
-> **Note (2026-08-18, EP-11).** The `fixture` tier is real for `hosp`: `mimicwarehouse.fixtures`
-> (`mwh fixtures build [--out DIR] [--seed N] [--subjects N] [--no-check] [--json]`) writes
-> `mimicwarehouse/tests/fixtures/mimic-iv-3.1/hosp/<table>.csv` (22 tables, contract column order,
-> raw-layout paths so EP-17 can point `--source tests/fixtures/mimic-iv-3.1` at it) plus
-> `tests/fixtures/manifest.json` (per file: sha256, bytes, rows, seed, generator version; plus the
-> spec, `contract_hash`, totals) and `tests/fixtures/README.md`. Defaults = the committed fixture:
-> seed 2026, **120 subjects** with consecutive ids from 90 000 000 (so `subject_id % 100` spans
-> buckets 0–99 and the dev filter `< 5` keeps exactly 10), 186 admissions, 75 ICU segments
-> (`plan.icu_segments` → EP-12 `icustays`), 27,954 rows / 2.91 MiB (budget ≤ 6 MB hosp, ≤ 10 MB
-> total after EP-12). Regeneration is byte-identical for the same spec/generator version
-> (`tests/ep/test_ep11.py::test_fixture_drift`); the fixture is regenerated by code changes, never
-> edited by hand. EP-12 adds `mimic-iv-3.1/icu/` from the same plan and extends the manifest.
+**Fixture tier as built (EP-11/12, EP-169).** `mwh fixtures build [--out DIR] [--seed N]
+[--subjects N] [--no-check] [--json]` writes `tests/fixtures/mimic-iv-3.1/{hosp,icu}/<table>.csv`
+(22 + 9 tables, contract column order, raw-layout paths so the loader can point
+`--source tests/fixtures/mimic-iv-3.1` at it), `manifest.json` (per file sha256 / bytes /
+rows / seed / generator version; the spec; `contract_schema_hash` = `Contract.structural_hash()`,
+load-relevant facts only, so a comment-only contract edit never forces a regeneration;
+numpy/polars/python versions as provenance) and `README.md`. Defaults = the committed
+fixture: seed 2026, **120 subjects** with consecutive `subject_id`s from 90 000 000 (so
+`subject_id % 100` spans every bucket and the dev filter keeps exactly 10), 186 admissions,
+75 ICU stays (`icustays` = `plan.icu_segments` verbatim, so it agrees with `transfers` by
+construction), **50,974 rows / 5.12 MiB** (budget ≤ 10 MB; chartevents ≤ 3 MB). Id floors
+are **disjoint per id space** (`first_subject_id 90_000_000`, `first_hadm_id 91_000_000`,
+`first_stay_id 92_000_000`, `first_event_id 93_000_000`, `first_caregiver_id 93_900_000`;
+enforced by `fixtures.check`, none an 8-digit real-band token) so a wrong-key join can
+never match by accident (D-27 addendum). `GENERATOR_VERSION` is **0.2.0**; regeneration is
+byte-identical for the same spec/generator (`test_ep11::test_fixture_drift`) and is a
+deliberate, versioned act — never a hand edit (EP-41 extends the vocabulary and
+regenerates as 0.3.0). Planted signal (AKI creatinine rise, sepsis culture → antibiotics →
+norepinephrine, T2DM code + insulin + glucose) and the MIMIC caveats (ages ≥ 89 → 91,
+shifted years, ICD-9/10 by era, `dod` rules) are mirrored; real itemids in `d_items` /
+`d_labitems` come from public docs, and fixture-only 2401xx / 2402xx items back the
+`datetimeevents` / `ingredientevents` tables no vendored concept reads. Which vendored
+concepts are empty or partial on the fixture is documented in `tests/fixtures/COVERAGE.md`
+(hand-maintained). Tests read the tree two ways: the in-memory
+`fixtures.catalog.build_fixture_catalog()` (app profile, the 31 contract tables via
+`read_csv(columns=<contract types>, ignore_errors=false)` in ≈ 0.6 s; EP-12's
+`fixture_catalog` session fixture) and, since EP-21, the runner-built
+`fixture_lake_catalog` (a fixture lake + `fixture.duckdb` in a temp root, built without a
+tag filter so it grows with the DAG spec).
 
-> **Note (2026-08-18, EP-12).** The `fixture` tier is complete for `hosp` + `icu`: the same
-> `mwh fixtures build` now also writes `mimicwarehouse/tests/fixtures/mimic-iv-3.1/icu/<table>.csv`
-> (9 tables — `icustays` = the 75 `plan.icu_segments` verbatim, so it agrees with `transfers` by
-> construction; `chartevents` 20,125 rows / 1.96 MB, `outputevents` 1,857, `ingredientevents` 364,
-> `inputevents` 285, `procedureevents` 136, `datetimeevents` 116, `d_items` 47, `caregiver` 15) and
-> one `manifest.json` (`modules: [hosp, icu]`, 31 files) + `README.md` for both modules — **50,974
-> rows / 5,370,674 bytes = 5.12 MiB** in total (budget ≤ 10 MB; chartevents ≤ 3 MB). The hosp
-> bytes did not move (per-table child generators). Tests read the tree through
-> `mimicwarehouse.fixtures.catalog.build_fixture_catalog()` — an in-memory DuckDB (app profile of
-> `Settings.duckdb_settings`) with the 31 contract tables loaded by `read_csv(columns=<contract
-> types>, ignore_errors=false)` in ≈ 0.6 s — until EP-21 builds a real `fixture.duckdb` from the
-> same CSVs with the loader. Real itemids in `d_items` are typed from public docs; the
-> `datetimeevents` / `ingredientevents` items, which no vendored concept reads, carry fixture-only
-> 2401xx / 2402xx ids on purpose.
+**Demo tier as built (EP-22).** `mwh demo fetch [--force]` (`mimicwarehouse.demo`)
+downloads both demos from physionet.org (open access, ODbL 1.0; the only network-touching
+command in P2 — not a text module, so `MWH_ALLOW_REMOTE` does not apply) into
+`ext\demo\mimic-iv-demo-2.2\{hosp,icu}\` and `ext\demo\mimic-iv-ed-demo-2.2\ed\`:
+`SHA256SUMS.txt` + `LICENSE.txt` first, then every listed file sha256-verified (mismatch =
+delete + refuse; verified files are skipped on rerun); the result is recorded in
+`ext\demo\source.yaml`, the D-36 licensing-register precursor `mwh demo status` prints.
+`mwh build --tier demo` resolves the raw root to `ext\demo\mimic-iv-demo-2.2`, strips the
+leading dataset dir from each step's `source` (`Step.demo_relative_source`; an explicit
+`demo_source` overrides where a name differs — currently nowhere) and applies the
+`demo_2_2` column map — the identity for every staged table except `icu.procedureevents`,
+whose 2.2 header ships uppercase `ORIGINALAMOUNT`/`ORIGINALRATE` (a lossless rename). The
+lossy-map machinery (`map_notes` in manifest lines / `status.json` / `meta.catalog_tables`,
+shown by `mwh catalog info`) ships dormant. The **ED demo is fetched and verified but not
+staged** — `mimiciv_ed` enters through the Linkage Wizard (EP-142, D-4); there is no note
+demo. Attribution: `docs/resources/datasets.md` § Demo tier.
 
-> **Note (2026-08-28, EP-166 — fixture/demo lake roots; decided 2026-08-18, D-43 item 7;
-> code EP-167).** The `fixture` tier's *sources* stay committed in the repo (the table
-> above), but a fixture tier **built for keeps** through the loader/DAG lives under the data
-> root like every other tier: lake root `lake\fixture` (`Settings.lake_root("fixture")`),
-> catalog `warehouse\fixture.duckdb` (`catalog_path` is already uniform across all four
-> tiers), and likewise `lake\demo` for the demo tier. Fixture/demo builds **hard-refuse**
-> resolving to the credentialed `lake\core`, so a stray `mwh build --tier fixture` can never
-> pollute the real lake or its `status.json`. Consequence: the app and `mwh sql` may target
-> `--tier fixture` (GOVERNANCE §6 row-view development no longer depends on the demo tier
-> alone). Tests keep building into temp roots via `--data-root`. Code lands in EP-167
-> (`lake_root(tier)`, layout keys, runner refusal); EP-12's in-memory
-> `build_fixture_catalog()` remains the test-time path until EP-21.
-
-> **Note (2026-08-28, EP-169 — disjoint fixture id floors + regeneration 0.2.0; decided at
-> the 2026-08-18 retro, D-27 addendum, ledger FXT-1/FXT-2/FXT-4).** `FixtureSpec` now
-> defaults to **one floor per id space**: `first_subject_id 90_000_000`, `first_hadm_id
-> 91_000_000`, `first_stay_id 92_000_000`, `first_event_id 93_000_000` (labevent/specimen/
-> microevent/micro_specimen/transfer/pharmacy/order ids) and `first_caregiver_id
-> 93_900_000` — pairwise disjoint (enforced by `fixtures.check`), all ≥ the guard floor,
-> none an 8-digit 1/2/3 token, so a wrong-key join can never match by accident. The
-> regeneration is `GENERATOR_VERSION` **0.2.0** (same totals: 50,974 rows / 5.12 MiB); the
-> manifest now records numpy/polars/python versions (provenance, deliberately unpinned)
-> and pins the contract by `contract_schema_hash` = `Contract.structural_hash()`
-> (load-relevant facts only; the full `content_hash()` stays informational, so a
-> comment-only contract edit no longer forces a regeneration). Which vendored concepts are
-> empty/partial on the fixture is documented in `tests/fixtures/COVERAGE.md`
-> (hand-maintained; EP-41 extends the vocab and regenerates as 0.3.0).
-
-> **Note (2026-08-29, EP-22 — demo tier shipped).** `mwh demo fetch [--force]`
-> (`mimicwarehouse.demo`) downloads the MIMIC-IV Clinical Database Demo 2.2 and the
-> MIMIC-IV-ED Demo 2.2 from physionet.org (open access, ODbL 1.0; the only
-> network-touching command in P2 — not a text module, so `MWH_ALLOW_REMOTE` does not
-> apply) into `ext\demo\mimic-iv-demo-2.2\{hosp,icu}\` and `ext\demo\mimic-iv-ed-demo-2.2\ed\`:
-> `SHA256SUMS.txt` + `LICENSE.txt` first, then every listed file, each sha256-verified
-> (mismatch = delete + refuse; verified files are skipped on rerun). The result is recorded
-> in `ext\demo\source.yaml` — the D-36 licensing-register precursor `mwh demo status`
-> prints. `mwh build --tier demo` resolves the raw root to `ext\demo\mimic-iv-demo-2.2`
-> and the lake root to `lake\demo` (never the credentialed `lake\core`;
-> `assert_not_credentialed_lake`), strips the leading dataset dir from each step's
-> `source` (`Step.demo_relative_source`; an explicit `demo_source` overrides where a file
-> name differs — currently nowhere) and applies the EP-9 `demo_2_2` column map — verified
-> **identity** for every staged table except `icu.procedureevents`, whose real 2.2 header
-> ships uppercase `ORIGINALAMOUNT`/`ORIGINALRATE` (a lossless rename found by the first
-> demo build; dated note in the map YAML). The lossy-map machinery (`map_notes` in
-> manifest lines / `status.json` / `meta.catalog_tables`, shown by `mwh catalog info`)
-> ships dormant and stays empty until a genuinely lossy 2.2→3.1 difference appears. The **ED demo is
-> fetched and verified but not staged** — `mimiciv_ed` enters through the Linkage Wizard
-> (EP-142, D-4). There is no note demo. Demo ids sit inside the real MIMIC bands, so the
-> guard treats demo rows as real: the data lives only under the data root, never in git
-> (screenshots in demo *mode* are the EP-159 feature). Attribution/citations:
-> `docs/resources/datasets.md` § Demo tier.
+*History:* built by EP-11, EP-12, EP-21, EP-22, EP-166, EP-167, EP-169 (completion notes); consolidated at EP-33.
 
 ## 5. Lake physical layout
 
-Hive-partitioned Parquet: `lake/core/<schema>/<table>/subject_bucket=NN/part-*.parquet`,
-sorted by the contract `sort_keys` (`subject_id`, the time column, then a same-table
-id/sequence tie-break since EP-169), ZSTD level 3, ~1 M-row row groups, statistics on.
-Schema names mirror mimic-code: `mimiciv_hosp`, `mimiciv_icu`, `mimiciv_ed` (from EP-142),
-`mimiciv_derived`; plus `meta` (catalog/profiles/dictionaries), `marts`, `runs`
-(views only — see §11). Every Parquet file has a manifest line
-(`sha256, bytes, rows, schema_hash, writer version, source manifest id`) in
-`lake/manifests/<build_id>.jsonl`; the **snapshot id** of a layer is the hash of its
-manifest.
+**Partitioned (subject-keyed) tables** — `loader/buckets.py`, EP-18:
+`<lake_root>/core/<schema>/<table>/subject_bucket=<n>/part-0.parquet`, un-padded DuckDB
+partition names, the partition column **not** written into the files, rows sorted
+`(subject_id, <sort_by>)` where `sort_by` = the contract `sort_keys` tail (the time
+column, then a same-table id/sequence tie-break since EP-169, so the per-bucket sort and
+the "sha256 stable across two runs" determinism tests are well-defined under ties),
+ZSTD level 3, ~1 M-row row groups, statistics on. **Unpartitioned (dim) tables** —
+`loader/stage.py`, EP-17: one file `<lake_root>/core/<schema>/<table>/part-0.parquet`, no
+`subject_bucket=` level. Readers see only `subject_bucket=*/part-*.parquet`
+(`loader.paths.partition_glob`, pinned), so in-progress `raw_*` files are never visible to
+a catalog view. Schema names mirror mimic-code: `mimiciv_hosp`, `mimiciv_icu`, `mimiciv_ed`
+(from EP-142), `mimiciv_derived`; plus `meta` (catalog / profiles / dictionaries), `marts`
+and `runs` (views only — §11).
 
-Large tables (`chartevents` 40 GB, `labevents` 17.5 GB, `emar_detail` 8.3 GB) use a
-two-pass load (EP-18): stream `COPY … (PARTITION_BY subject_bucket)` with
-`preserve_insertion_order=false`, then sort each bucket file; resumable per bucket via a
-progress file. Small tables load in one pass (EP-17). Loader accepts `.csv` and `.csv.gz`
-and applies column maps (demo 2.2 → 3.1).
+**Stage coverage is 31 tables.** The P2 stage steps (`dag/specs/stage.yaml`: 31 `stage`
+steps + the `meta.profile` `python` step + the `catalog` step) cover exactly the
+`mimiciv_hosp` (22) + `mimiciv_icu` (9) contract tables; `mimiciv_ed` (6) has no stage step
+until EP-142 and `mimiciv_note` (4) none until EP-148 — note tables go to the segregated
+notes lake (§18), **never** `lake/core`. Coverage tests assert the negative too.
 
-> **Note (2026-08-28, EP-166 — directory swap on Windows + scope; decided 2026-08-18,
-> ledger ARCH-2/ARCH-12/ARCH-14; code EP-17/18).** Three corrections to the section above,
-> settled by the retro's probes (evidence in the ledger; no data touched):
->
-> 1. **Restage over an existing table directory.** `os.replace(dest.new → dest)` fails on
->    Windows with `PermissionError [WinError 5]` whenever `dest` exists (empty or not), and
->    renaming a directory that holds an open file fails the same way — so the one-line
->    "swaps `.new` → `dest` atomically" recipe only covers a *first* stage. EP-17 ships
->    `paths.swap_dir(new, dest)` implementing the **rename-aside two-step**: restore a stale
->    `<table>.old` if `dest` is missing (crash recovery) / `rmtree` a stale `.old` /
->    `os.rename(dest → dest.old)` / `os.rename(new → dest)` / `rmtree(dest.old)` with a
->    PermissionError retry loop — crash-safe, **not** atomic. A table under (re)stage is
->    unavailable in every tier; readers must be closed first (even the rename fails while
->    any handle is open inside the directory), which matters because `dev.duckdb`'s views
->    point at the **same files** a full-tier restage rewrites — a dev rebuild while the app
->    is open needs the same courtesy as the catalog swap (§6 note). Pass-1 progress travels
->    in `<dest>.new/_progress.json` so the crash window between swap and progress-write is
->    closed, and `partition_glob` is pinned to `subject_bucket=*/part-*.parquet` so
->    in-progress `raw_*` files are never visible to a catalog view.
-> 2. **"Large" is the contract's word.** The three-table list above predates EP-9: two-pass
->    = every contract table with `load_class: large` (13 today; 12 after EP-169 moves
->    `microbiologyevents` to `small` — rule of thumb CSV > 1 GB).
-> 3. **Stage coverage is 31 tables.** The P2 stage steps cover exactly the `mimiciv_hosp`
->    (22) + `mimiciv_icu` (9) contract tables; `mimiciv_ed` (6) has no stage step until
->    EP-142 and `mimiciv_note` (4) none until EP-148 — and note tables go to the segregated
->    notes lake (§18), **never** `lake/core`. Coverage tests assert the negative too.
->
-> The manifest-line field "source manifest id" above is two fields since the retro:
-> per-file `source_sha256` **plus** the 41-file `raw_snapshot_id` — see the §11 glossary
-> note (D-43 item 11).
+**Two load paths, one contract word.** Two-pass = every contract table with
+`load_class: large` (**13**; rule of thumb CSV > 1 GB, with `microbiologyevents` kept
+large by the owner as a deliberate exception, D-17 addendum): pass 1 streams
+`COPY … (PARTITION_BY subject_bucket)` with `preserve_insertion_order=false` and no
+`ORDER BY` into `raw_*` files (`sweeps=N` splits it into N sequential bucket-range
+statements under `OVERWRITE_OR_IGNORE` — DuckDB's `APPEND` demands a `{uuid}` filename
+pattern; the memory fallback EP-26 used), publishes, then pass 2 sorts one bucket at a time
+(dev buckets first) from the raws (`hive_partitioning=false`, or DuckDB writes the partition
+column into the sorted file) into `_sorting.tmp` → `part-0.parquet`, appending a manifest
+line per finished bucket. **Small** tables (CSV ≤ ~1 GB) load in one partitioned `COPY`
+with a global `ORDER BY subject_bucket, subject_id, <sort_by>` under
+`preserve_insertion_order=true`; dims in one plain `COPY`. The loader reads with the
+contract's declared types (`columns=`, no sniffing), accepts `.csv` and `.csv.gz`, applies
+column maps (demo 2.2 → 3.1) and accounts rejects per table
+(`<lake_root>/rejects/<schema>/<table>/<build_id>.parquet`, `Settings.rejects_root(tier)`;
+a reject threshold fails the stage). A `load_class: large` stage reports both pass walls to
+the runner (`pass1_wall_s` is `None` when a resume skipped pass 1) — the `phase: pass1` /
+`pass2` benchmark lines of §11.
 
-> **Note (2026-08-28, EP-169).** Correction to item 2 of the note above: the owner kept
-> `microbiologyevents` at `load_class: large` (D-17 addendum — a deliberate exception to
-> the "> 1 GB" rule of thumb; its raw CSV is 909 MB), so two-pass = the contract's **13**
-> `large` tables, unchanged. The contract `sort_keys` now end in a same-table id/sequence
-> tie-break (EP-169, ledger ARCH-4), so EP-18's per-bucket sort and its "sha256 stable
-> across two runs" determinism tests are well-defined under ties.
+**Publish protocol — once, in `mimicwarehouse.publish` (EP-33 B2).** `os.replace(new →
+dest)` fails on Windows whenever `dest` is an existing directory, and renaming a directory
+that holds an open file fails the same way, so every table publish is
+`publish.swap_dir(new, dest)`: the **rename-aside two-step** — restore a stale `<dest>.old`
+beside a *missing* `dest` (crash recovery) / remove a stale `.old` beside a live `dest` /
+`os.rename(dest → dest.old)` / `os.rename(new → dest)` and verify `dest` exists (a `.new`
+that vanished at the publish rename — quarantine — rolls `.old` back and raises
+`SwapError`) / remove `dest.old`. Every rename/remove retries on the transient Windows
+`PermissionError` (AV/indexer holds; `retry_permission`, linear back-off, ~10 s at the
+defaults); `FileNotFoundError` is tolerated **only** on remove/restore operations; a `.old`
+that still cannot be removed after the retry budget is **deferred** to the next swap's
+sweep with a warning, never a failed stage. The swap is crash-safe, **not** atomic: a table
+under (re)stage is unavailable in every tier and readers must be closed first, which
+matters because `dev.duckdb`'s views point at the **same files** a full-tier restage
+rewrites. The same module's `rmtree` / `unlink` / `replace` helpers cover every other
+rename/remove of freshly written files (pass-2 publish, stale-`.new` sweeps); the EP-171
+canary keeps its verbatim raw-OS write sequence as the canon's one sanctioned exception.
 
-> **Note (2026-08-29, EP-17 — shipped layout facts of the unpartitioned stage).** Three
-> specifics the section above left open, fixed by the EP-17 code: (1) an **unpartitioned**
-> (dim) table is one file, `<lake_root>/…/<schema>/<table>/part-0.parquet` — no
-> `subject_bucket=` level (the Hive pattern above applies to partitioned tables only), and
-> restages publish through `paths.swap_dir` exactly as the 2026-08-28 note prescribes;
-> (2) manifests and status are **per lake root**: `<lake_root(tier)>/manifests/<build_id>.jsonl`
-> and `…/manifests/status.json`, so a fixture/demo build's manifests live under
-> `lake/fixture/` / `lake/demo/` beside its Parquet, never in the credentialed
-> `lake/manifests/` (for dev/full, `lake_root` = `lake/`, i.e. exactly the path above);
-> rejects follow the same rule (`<lake_root>/rejects/<schema>/<table>/<build_id>.parquet` ≡
-> `Settings.rejects_root(tier)` for the standard roots). (3) `status.json` is
-> `{"steps": {"<schema>.<table>": {tier_complete, dev_ready, build_id, rows, bytes, files,
-> rejects, finished_at}}}` — the shape the EP-168 `dev_ready(step)` test fixture reads;
-> EP-17 writes the count fields and leaves `tier_complete: null` / `dev_ready: false` to
-> the EP-18/19 orchestration. Manifest lines carry the §11 provenance pair
-> (`source_sha256` + `raw_snapshot_id`) plus a per-table `schema_hash` (sha256 of the
-> ordered `(name, type)` list) and `writer_version` (package + DuckDB versions).
+**Resume state — `<dest>/_progress.json`** (written into `<dest>.new` during pass 1, so
+the swap publishes data and progress together): `{build_id, pass1_done, buckets_requested,
+sorted_buckets, dev_ready, complete, started, updated, rejects, source_sha256,
+source_fingerprint (<name>:<size>:<mtime_ns>), sort_by}` — the last three since EP-33
+(LDR-4); `read_progress` tolerates unknown and missing keys so the full lake's pre-EP-33
+files still load. A stage **resumes** only when the recorded `buckets_requested` equal the
+new request, `complete` is false and — when recorded — the source identity and the resolved
+`sort_by` match; anything else (a different source file, a **full** request over a
+`tier_complete: "dev"` table) restages the whole table. The per-bucket order in pass 2 is
+**publish before delete**: `os.replace(_sorting.tmp → part-0.parquet)` → append the manifest
+line → record the bucket in `_progress.json` → delete the `raw_*` files, so a crash at any
+point leaves either the raws (the bucket re-sorts; a re-appended manifest line is harmless —
+newest `ts` wins per path) or a recorded bucket whose line is already in the manifest,
+never a bucket without a complete source (WIN-1/LDR-3). When the dev buckets are all
+sorted the stage logs `dev-ready <schema>.<table>` and writes `status.json`
+`dev_ready: true` *before* the final `complete` / `tier_complete` update.
 
-> **Note (2026-08-29, EP-18 — shipped facts of the partitioned stage).** Four specifics
-> fixed by the code (`loader/buckets.py`, `loader/paths.py`): (1) the per-bucket sort's
-> order of operations is **publish-before-delete** — `os.replace(_sorting.tmp →
-> part-0.parquet)`, record the bucket in `_progress.json`, *then* delete the `raw_*` files
-> (the brief's "delete the raws and replace" read literally would let a crash between the
-> two lose a bucket's only complete copy; a stale `_sorting.tmp` is deletable precisely
-> because the raws still exist). (2) Pass 2 reads the raws with `hive_partitioning=false`:
-> DuckDB's auto-detection on a `subject_bucket=<n>/` path would otherwise synthesise the
-> partition column **into** the sorted file (caught by the small≡large sha256 test).
-> (3) Resume applies only when the recorded `buckets_requested` equal the new request and
-> `complete` is false; any other progress state — including a **full** request over a
-> `tier_complete: "dev"` table — restages the whole table. Pass-1 sweeps write disjoint
-> bucket ranges into the same `.new` root under `OVERWRITE_OR_IGNORE` (DuckDB's `APPEND`
-> demands a `{uuid}` filename pattern, which would break the deterministic `raw_{i}`
-> names). (4) `status.json` semantics: `dev_ready: true` as soon as `settings.dev_buckets`
-> are all sorted (logged `dev-ready <schema>.<table>` before `complete`);
-> `tier_complete` = `"full"` when all 100 buckets were requested, `"dev"` when the request
-> covers the dev buckets, otherwise left unchanged.
+**Coverage guard (EP-33 LDR-1, owner decision).** Before pass 1 replaces `dest`, a request
+whose bucket set is a **strict subset** of what `dest` already holds (its recorded
+`buckets_requested`, or `tier_complete: "full"` in `status.json`) raises
+`StageCoverageError` and leaves the lake untouched — `mwh build --tier dev --force` can
+never discard the 95 non-dev partitions of a complete table. Equal or wider requests
+proceed; `mwh build --tier full --force` is the only path that rewrites a complete table,
+and the runner's `--force` only bypasses the skip, never this guard.
+
+**Manifests and status are per lake root** (`<lake_root(tier)>/manifests/`, so a
+fixture/demo build's manifests live beside its Parquet, never in the credentialed
+`lake/manifests/`; for dev/full `lake_root` = `lake/`). Every published Parquet file has a
+`ManifestLine` in `manifests/<build_id>.jsonl`, appended through `fsio.append_jsonl`:
+`{schema, table, path (lake-relative posix), sha256, bytes, rows, schema_hash (sha256 of the
+ordered (name, type) list), writer_version (package + DuckDB versions), source_sha256,
+raw_snapshot_id, map_notes, build_id, ts}` — the §11 provenance pair, with `sha256`
+integrity-only. `manifests/status.json` is `{"steps": {"<schema>.<table>": {tier_complete,
+dev_ready, build_id, rows, bytes, files, rejects, finished_at}}}` (`tier_complete` =
+`"full"` when all 100 buckets were requested, `"dev"` when the request covers the dev
+buckets, otherwise unchanged; the runner completes dims as `"full"` / `dev_ready: true`
+directly). `manifests/snapshots.json` is the snapshot-id history (§11). Restaged tables
+contribute their latest line per path (newest `ts` across every build's jsonl).
+
+*History:* built by EP-17, EP-18, EP-23 … EP-28, EP-166, EP-169, EP-33 B2/B7 (completion notes); consolidated at EP-33.
 
 ## 6. DuckDB configuration & the single-writer rule
 
-Explicit in every build/analysis process (never rely on defaults): `memory_limit`
-(36–40 GB builds; 8–16 GB app), `threads` (12), `temp_directory`
-(`C:\mimicdata\tmp\duckdb`), `max_temp_directory_size` (explicit, e.g. 150 GB),
-`preserve_insertion_order=false` for bulk loads. Pin **one** DuckDB version across the
-Python client and any CLI (storage format changes between 1.4 and 1.5); record it in
-every run manifest.
+**One connection factory.** Every `duckdb.connect` in `src/` goes through
+`mimicwarehouse.engine.open_duckdb(profile, *, database=None, read_only=False,
+settings=None, memory_limit=None, retry_missing_s=0.0)` (EP-33 B3; pinned by a grep guard
+in `tests/ep/test_ep33.py`). The profile is a **required positional** so callers choose
+consciously: `build` = `memory_limit` 36 GB, `threads` 12, `temp_directory`
+`layout["tmp_duckdb"]`, `max_temp_directory_size` 150 GB, `preserve_insertion_order=false`;
+`app` = the same with a 12 GB limit and insertion order kept (`Settings.duckdb_settings
+(profile)`, string values for `duckdb.connect(config=…)`). The factory creates the
+temp-directory parent on every connect (DuckDB creates a missing leaf but raises on first
+spill when the parent is missing) and, with `retry_missing_s > 0`, polls while a file is
+transiently absent — the swap window below. `engine.attach_read_only(con, path, alias)` is
+the one attach (`ATTACH IF NOT EXISTS … (READ_ONLY)`). DuckDB is pinned to
+**`duckdb==1.5.5`** (exact pin; `test_ep01` asserts the installed version, so a bump is a
+deliberate one-line change + re-lock + note here); no DuckDB CLI is installed or permitted
+(GOVERNANCE §4), so the "one version across every process" rule has a single moving part;
+every catalog and benchmark line records the version.
 
-DuckDB allows one read-write process **or** many read-only processes per file. Therefore:
-`mwh build` is the only writer; it writes `<tier>.duckdb.new` and atomically swaps; the app,
-notebooks and analyses open `access_mode='READ_ONLY'`. Anything that must be written while
-readers are open (audit, run ledger, benchmark ledger) goes to **append-only JSONL** under
-`C:\mimicdata\runs\` and is exposed through `runs.duckdb` views rebuilt on demand (§11).
+**Single writer.** DuckDB allows one read-write process **or** many read-only processes
+per file. `mwh build` is the only writer of the lake and the catalogs and runs under the
+build lock `warehouse/.build.lock` (`dag/runner.py`): created with `O_CREAT | O_EXCL` (two
+builds racing the same data root cannot both pass an existence check), payload
+`{pid, create_time, build_id, started}`; liveness = the recorded pid **with** the recorded
+process creation time (a pid Windows has recycled reads as dead; a pre-EP-33 lock without
+`create_time` falls back to the pid-only test); a live lock always refuses, a stale one
+yields only to `--break-lock`. Hence **one build-profile connection per machine at a
+time** (ARCH-11); tests and ad-hoc readers use the app profile. Anything that must be
+written while readers are open (audit, run ledger, benchmark ledger) goes to
+**append-only JSONL** under `runs\` through `fsio` and is exposed through `runs.duckdb`
+views rebuilt on demand (§11).
 
-> **Note (2026-08-17, EP-1).** DuckDB is pinned to **`duckdb==1.5.5`** in
-> `pyproject.toml` (exact pin; `tests/ep/test_ep01.py` asserts the installed version equals
-> the pin, so bumping it is a deliberate one-line change + re-lock + version note here). No
-> DuckDB CLI is installed or permitted (GOVERNANCE §4); the Python client is the only
-> engine, so the "one version across every process" rule has a single moving part.
+**Catalog publish.** The catalog builder writes `<tier>.duckdb.new`, `CHECKPOINT`s, closes
+and publishes through `publish.swap_file` — the §5 two-step for a single file, differing in
+two places: the aside rename `os.rename(<tier>.duckdb → .old)` *succeeds* under DuckDB
+READ_ONLY readers (`FILE_SHARE_DELETE`; Windows keeps `.old` delete-pending until they
+close) but is **not retried** — a plain, non-sharing handle is not transient — and fails
+fast with `SwapBlockedError`, reported as "close the app/notebooks and rerun `mwh build
+--tier <t> --select catalog`" with the old catalog intact; and the publish is a bare
+`os.replace` with a sub-millisecond no-file window that `catalog.connect.open_catalog`
+covers by opening with `retry_missing_s = 0.5`. Open readers keep serving the old snapshot
+until they reconnect; because the instance cache is path-keyed (§6.1 b), readers close
+before a rebuild and the app (EP-57) will cache **results, not connections**, dropping its
+handle when `meta.catalog_info.build_id` changes. The same scheme publishes
+`warehouse/runs.duckdb` (`safe.build_runs_db`, `mwh runs refresh`), which the app may hold
+ATTACHed. The fallback, if rename-aside misbehaves in practice, is versioned catalog files
++ a `.current` pointer (D-43 alternatives).
 
-> **Note (2026-08-28, EP-166 — catalog reader/writer protocol; owner decision 2026-08-18,
-> D-43 item 6; ledger ARCH-1; code EP-21/30/35/57).** The paragraph above says the writer
-> "atomically swaps" — on Windows it cannot: `os.replace(<tier>.duckdb.new → <tier>.duckdb)`
-> raises `PermissionError [WinError 5]` while **any** process holds `<tier>.duckdb` open
-> (verified with duckdb 1.5.5 READ_ONLY handles; probe in the ledger). The adopted protocol
-> is the **rename-aside two-step**: `os.rename(<tier>.duckdb → <tier>.duckdb.old)` — this
-> *succeeds* with readers open, because DuckDB opens files with `FILE_SHARE_DELETE` — then
-> `os.replace(.new → <tier>.duckdb)`, then `os.remove(.old)` (Windows holds it
-> delete-pending while a reader lives). Open readers keep serving the old snapshot until
-> they reconnect. Caveats the implementing EPs own: (a) the swap is *not* atomic — there is
-> a sub-millisecond window with no `<tier>.duckdb`, so `open_catalog` (EP-21) retries on
-> `FileNotFoundError`; (b) DuckDB's in-process instance cache is keyed on **path** — a
-> process that still holds an old connection and re-connects to the same path gets the OLD
-> instance, so it must close first (the EP-57 app clears its cached connection when
-> `meta.catalog_info.build_id`/mtime changes; cross-process readers are unaffected);
-> (c) the same scheme covers `warehouse/runs.duckdb` (EP-30/35 `mwh runs refresh`), which
-> the app may hold ATTACHed. The app **caches results, not connections** (EP-57), so a
-> rebuild while the Lab app is open no longer fails. Two companion rules from the same
-> review: **one build-profile (36 GB / 12-thread) connection per machine at a time** — the
-> EP-19 build lock covers `mwh build`; tests and ad-hoc readers use the app profile
-> (ledger ARCH-11) — and **catalogs are derived and disposable**: they embed absolute lake
-> paths and assert the DuckDB version on open, so after a data-root move or a DuckDB pin
-> bump the fix is `mwh build --select catalog` per tier, never surgery (ledger ARCH-16).
-> The fallback, if rename-aside misbehaves in practice, is versioned catalog files + a
-> `.current` pointer (D-43 alternatives).
+**Readers.** `catalog.connect.open_catalog(tier, *, settings=None, role=None, path=None)`
+is the one way any reader (tests, the app, `safe_query`, notebooks) attaches a tier
+catalog: `read_only=True` on the app profile, then the hardening `SET`s
+(`autoinstall_known_extensions = false`, `autoload_known_extensions = false`,
+`disabled_filesystems = 'HTTPFileSystem'` — a catalog reader never installs extensions or
+touches the network); it refuses a `.new` path (an unpublished build), asserts the
+catalog's recorded DuckDB version equals the running one and warns when
+`settings.dev_buckets` drifts from the recorded ones. `role` defaults to `Settings.role`
+(`MWH_ROLE`) — `agent` in every session, `owner` only in the owner's own shell. **Catalogs
+are derived and disposable**: they embed absolute lake paths and assert the version on
+open, so after a data-root move or a pin bump the fix is `mwh build --tier <t> --select
+catalog` per tier, never surgery (ARCH-16).
+
+*History:* built by EP-1, EP-19, EP-21, EP-30, EP-166, EP-167, EP-33 B2/B3 (completion notes); consolidated at EP-33.
+
+### 6.1 Engine gotchas (EP-33; the full list lives in `docs/gotchas.md` § 1)
+
+The DuckDB 1.5.5 facts that shape code in this repository, each learned once in P2 and
+now pinned by tests or by the canon modules: (a) **`10**9` binds as DOUBLE** — spell
+large integer literals out; (b) **the in-process instance cache is path-keyed** —
+reconnecting to a path any connection still holds returns the old instance, an `ATTACH`
+is instance-wide, so every attach is `engine.attach_read_only` (`ATTACH IF NOT EXISTS`)
+and readers close before a rebuild; (c) **`COPY … APPEND` forces `{uuid}` names** —
+pass-1 sweeps use `OVERWRITE_OR_IGNORE` over disjoint bucket ranges; (d) **pass-2 reads
+set `hive_partitioning=false`** or the partition column is written into the file;
+(e) **`sum()` returns HUGEINT** — a cast directly around one closed-set aggregate verifies
+since EP-33 B1a, `count(*) FILTER` stays the sanctioned event count, arithmetic over
+aggregates stays refused; (f) **READ_ONLY handles share delete, plain handles do not**,
+and `os.replace` onto an existing directory fails — the two `publish` variants exist for
+exactly these two cases; (g) **an in-memory connection spills only into a pre-created
+temp-directory parent** — `engine.open_duckdb` creates it on every connect; (h) the
+`duckdb` executable is never installed or run — driver files are executed from Python.
+Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb`
+(profile `build` or `app`, a required positional), pinned by a grep guard in
+`tests/ep/test_ep33.py`.
+
+*History:* written at EP-33 (item C4) from the EP-18, EP-21, EP-30, EP-31, EP-167 completion notes; consolidated at EP-33.
 
 ## 7. Schema, keys, time semantics, unit of analysis
 
-- **Schema contract** (EP-9): repo YAML transcribed from mimic-code `create.sql` (hosp,
-  icu, ed, note) — column names, DuckDB types, nullability, PK/FK in `keys.yaml`, unit
-  expectations. The loader reads CSVs with declared types (no sniffing 40 GB); the
-  catalog applies `COMMENT`s from the same YAML.
-- **Keys**: natural keys only (`subject_id`, `hadm_id`, `stay_id`, `emar_id`,
-  `pharmacy_id`, `poe_id`, `itemid`, …); integrity tests per tier (EP-28/44).
+- **Schema contract** (EP-9, package data under `src/mimicwarehouse/schema/tables/`):
+  `mimiciv_hosp.yaml` (22 tables), `mimiciv_icu.yaml` (9), `mimiciv_ed.yaml` (6),
+  `mimiciv_note.yaml` (4), `keys.yaml`, `units.yaml`, `column_maps/demo_2_2_to_3_1.yaml` —
+  transcribed from the vendored mimic-code `create.sql` / `constraint.sql` (EP-8) and kept
+  honest by `mwh schema check`, which re-parses the DDL at the pin and reports any table /
+  column / order / type / nullability / PK / FK difference as a finding (exit 1). The
+  pydantic models (`schema/contract.py`, frozen, `extra="forbid"`) are `Column(name, type,
+  nullable, comment, identifier, free_text, unit_of, upstream_type, upstream_nullable)`,
+  `Table(schema, name, dataset, csv_path, columns, primary_key, uniqueness_hint,
+  subject_keyed, time_column, sort_keys, partitioned, load_class, expected_rows_source)`,
+  `ForeignKey`, `ColumnMap`, `UnitsSpec` and `Contract` (`content_hash()` informational,
+  `structural_hash()` = the load-relevant facts the fixture manifest pins);
+  `load_contract()` is cached. Type map: `INTEGER/SMALLINT/BIGINT` unchanged,
+  `VARCHAR(n)/TEXT/CHAR(n)` → `VARCHAR`, `TIMESTAMP(n)` → naive `TIMESTAMP`, `DATE`,
+  `DOUBLE PRECISION`/`FLOAT` → `DOUBLE`, `REAL` → `FLOAT`, `NUMERIC(p,s)` → `DECIMAL(p,s)`,
+  unbounded `NUMERIC` → `DOUBLE`. Deliberate deviations are recorded on the column
+  (`upstream_type` / `upstream_nullable`) and the drift check compares those — three
+  exist: `microbiologyevents.spec_type_desc` and `prescriptions.drug` nullable (the data
+  holds zero-length strings DuckDB loads as NULL; upstream's own `build_mimic.sh` relaxes
+  the same two) and `mimiciv_ed.vitalsign.resprate` as `DOUBLE`. The loader reads CSVs
+  with the declared types (no sniffing); the catalog applies `COMMENT`s from the same YAML
+  (descriptions live in the YAML, never in code). The demo 2.2 → 3.1 column map is the
+  identity for all 37 hosp/icu/ed tables (D-27 addendum), so the demo build only validates
+  headers (`ColumnMap.check`).
+- **Keys are metadata**: `Table.duckdb_ddl()` never emits `PRIMARY KEY` / `FOREIGN KEY`
+  (an ART index over 400 M rows; upstream duplicates in `chartevents`). PKs are exactly
+  `constraint.sql`'s (none for `drgcodes`, `emar_detail`, `omr`, `provider`, `caregiver`,
+  `chartevents`, `ingredientevents`, nor any ED / Note table — those carry a
+  `uniqueness_hint`); FKs are the 51 upstream ones plus 13 documented ED/Note ties marked
+  `source: docs`. Natural keys only (`subject_id`, `hadm_id`, `stay_id`, `emar_id`,
+  `pharmacy_id`, `poe_id`, `itemid`, …); integrity tests per tier (EP-28 full-tier verify
+  shipped; EP-44 extends).
+- **Sort keys and flags** (EP-17, EP-169): every subject-keyed table's `sort_keys` is
+  `(subject_id, <time column>, <same-table id or sequence tie-break>)`, so per-bucket sorts
+  are total under ties. **NULLS LAST (DuckDB `ORDER BY`) is the canonical null placement;
+  the Polars fixture writer aligns at EP-41's 0.3.0** (CTR-1, D-17 addendum). Columns carry
+  the `identifier` and `free_text` flags stamped from `keys.yaml` (EP-17) — the GOVERNANCE
+  §4 sets `safe_query` and the run-folder sweeps read, surfaced by `meta.columns` as
+  `is_identifier` / `is_free_text` (EP-29) — and `unit_of` stamped from `units.yaml`.
 - **Time semantics** (EP-34): PhysioNet's shifted timestamps are stored as naive
   `TIMESTAMP` exactly as shipped; `anchor_year_group` (2008–2010 … 2020–2022) is the only
   cross-patient temporal axis (temporal holdouts split on it); analyses use within-patient
   relative times (`hours_since_icu_intime`, etc.); `dod` is available ~1 year after the
   last discharge → explicit censoring rule per outcome; ICD-9 → ICD-10 switch (~2015) →
-  dual code sets everywhere; ages ≥ 89 appear as 91.
+  dual code sets everywhere; ages ≥ 89 appear as 91. The tracer's inlined age/era logic
+  (EP-31) moves here.
 - **Unit-of-analysis registry** (EP-34): `subject`, `hadm`, `icustay`, `edstay` (P9),
   `icu_day`, `hour_bin`, `person_time`, `note` (P10) — each with its key, time anchor and
   default index-event rule; every cohort spec, mart and model dataset declares its grain.
 
-> **Note (2026-08-17, EP-9).** The schema contract shipped as package data under
-> `src/mimicwarehouse/schema/tables/` — `mimiciv_hosp.yaml` (22 tables), `mimiciv_icu.yaml` (9),
-> `mimiciv_ed.yaml` (6), `mimiciv_note.yaml` (4), `keys.yaml`, `units.yaml`,
-> `column_maps/demo_2_2_to_3_1.yaml` — transcribed from the EP-8 vendored DDL and kept honest by
-> `mwh schema check` (re-parses `create.sql` / `constraint.sql` at the pin; any table / column /
-> order / type / nullability / PK / FK difference is a finding and exit 1). Type map as shipped:
-> `INTEGER/SMALLINT/BIGINT` unchanged, `VARCHAR(n)/TEXT/CHAR(n)` → `VARCHAR`, `TIMESTAMP(n)` →
-> `TIMESTAMP` (naive), `DATE`, `DOUBLE PRECISION`/`FLOAT` → `DOUBLE`, `REAL` → `FLOAT` (4-byte),
-> `NUMERIC(p,s)` → `DECIMAL(p,s)`, unbounded `NUMERIC` → `DOUBLE`. **Deliberate deviations are
-> recorded on the column** (`upstream_type` / `upstream_nullable`) and the drift check compares
-> those against the DDL instead — three exist: `microbiologyevents.spec_type_desc` and
-> `prescriptions.drug` are nullable (upstream `NOT NULL`, but the data holds zero-length strings
-> that DuckDB's CSV reader loads as NULL; upstream's own `build_mimic.sh` relaxes the same two),
-> and `mimiciv_ed.vitalsign.resprate` is `DOUBLE` (upstream `NUMERIC(10, 4)`, kept alongside its
-> DOUBLE siblings). **Keys are metadata**: `Table.duckdb_ddl()` never emits `PRIMARY KEY` /
-> `FOREIGN KEY` (an ART index over 400 M rows; upstream duplicates in `chartevents`); PKs are
-> exactly `constraint.sql`'s (none for `drgcodes`, `emar_detail`, `omr`, `provider`, `caregiver`,
-> `chartevents`, `ingredientevents`, nor for any ED / Note table — those carry a
-> `uniqueness_hint` for EP-28/EP-44 to test), FKs are the 51 upstream ones plus 13 documented
-> ED/Note ties marked `source: docs`. `Column.unit_of` is stamped from `units.yaml`. The **demo
-> 2.2 → 3.1 column map is the identity** for all 37 hosp/icu/ed tables (D-27 addendum): the
-> provider/caregiver tables and `*_provider_id`/`caregiver_id` columns are part of v2.2, so EP-22
-> only has to validate headers (`ColumnMap.check`) — no NULL-filling or renames.
+*History:* built by EP-8, EP-9, EP-17, EP-22, EP-28, EP-29, EP-169 (completion notes); EP-34 planned; consolidated at EP-33.
 
 ## 8. Concepts, code sets & phenotypes
 
-- **mimic-code concepts** (EP-8, 37, 38): `concepts_duckdb/` vendored at a pinned commit
-  (MIT, attributed in `NOTICE`), executed per tier into `mimiciv_derived`; count-pinning
-  tests on demo/dev; local fixes recorded as patches with the upstream issue/PR reference.
+- **mimic-code concepts** (EP-8 vendored; EP-37/38 run): `src/mimicwarehouse/concepts/vendor/mimic-code/`
+  holds an allow-listed slice of MIT-LCP/mimic-code (MIT, attributed in the repo-root
+  `NOTICE` + the JAMIA 2018 citation) at the pinned commit
+  `8bcbd190ca75670cd5281f9ead3611ae1cefb73e` (upstream `main` of 2026-08-10) — 144 files,
+  upstream-relative paths, LF: the Postgres `buildmimic` DDL for hosp/icu/ed/note (the
+  contract's source), `mimic-iv/concepts_duckdb/**` (66 files incl. the `duckdb.sql`
+  driver — what EP-37 executes) and `mimic-iv/concepts/**` (65 BigQuery sources, the
+  reference for EP-38). `vendor/VENDOR.json` records sha, commit date, per-file
+  `sha256_lf`, `known_upstream_issues`, `excluded` trees and two `local_edits` (a
+  `guard_pragma` on `validate.sql`'s row-count lines; an `id_redaction` of two upstream
+  debugging comments in `treatment/ventilation.sql` that carried real-band tokens).
+  `concepts.vendor_info()` / `vendored_path(rel)` / `vendor_manifest()` expose the pin
+  through `importlib.resources`; `poe vendor-mimic-code --sha <sha>` re-vendors from the
+  clone's git object store (never a working tree), applies both edit kinds through the
+  guard's own regex and fails on any violation.
+  **All 65 `concepts_duckdb` files execute cleanly on DuckDB 1.5.5** (EP-33 D2, on a
+  throwaway copy of the demo catalog, driver order, 2.2 s) — the `.print` / `.read` lines
+  are CLI dialect, so EP-37 executes the files from Python by parsing the `.read` lines and
+  writes `mimiciv_derived` per tier under `lake\derived`; count-pinning tests on demo/dev;
+  local fixes recorded as patches beside `vendor/` with the upstream issue/PR reference.
   ED and Note concepts do not exist upstream and are ours.
 - **Code-set registry** (EP-40): `codesets/*.yaml` (ICD-9/10 dual sets, itemid sets,
   drug-name/RxNorm sets, ATC classes) with semver + definition hash, compiled to
-  `meta.codeset_members`; ICD-9→10 GEM utility.
+  `meta.codeset_members`; ICD-9→10 GEM utility. The `meta.itemids` view (EP-29; `d_items`
+  as `source='icu'` UNION ALL `d_labitems` as `source='hosp'` under one 9-column shape) is
+  the base EP-39 curates.
 - **Phenotype engine** (EP-41/42): `phenotypes/*.yaml` combining diagnoses, procedures,
   medications, lab thresholds, microbiology, device/ventilation events and temporal logic
   → SQL; versioned like code sets; first three: T2DM, sepsis-3 (via concept), KDIGO AKI
-  stage.
+  stage. The fixture plants all three traits (§4) and EP-41 regenerates it as 0.3.0.
 
-> **Note (2026-08-17, EP-8).** mimic-code vendored at **`8bcbd190ca75670cd5281f9ead3611ae1cefb73e`** (upstream `main` of
-> 2026-08-10, "Docker mimic iv postgres (#1757)") on 2026-08-17 under
-> `src/mimicwarehouse/concepts/vendor/mimic-code/` — 144 files, upstream-relative paths, LF:
-> `LICENSE`; `mimic-iv/buildmimic/postgres/{create,load,constraint,index,validate}.sql`;
-> `mimic-iv/buildmimic/duckdb/build_mimic.sh` (EP-17 loader precedent: resumable progress table);
-> `mimic-iv-ed/buildmimic/postgres/{create,load,index,validate}.sql`;
-> `mimic-iv-note/buildmimic/postgres/{create,load}.sql`; `mimic-iv/concepts_duckdb/**/*.sql` (66,
-> incl. the `duckdb.sql` driver — what EP-37 executes); `mimic-iv/concepts/**/*.sql` (65 BigQuery
-> sources, reference for EP-38). The pin (`vendor/VENDOR.json`) records the sha, commit date,
-> `mimic_iv_version_targeted = 3.1` (from the `validate.sql` header — upstream has no
-> `mimic-iv/CHANGELOG`), ED v2.2, the DuckDB README's "1.4.x LTS (currently 1.4.5)" against our
-> 1.5.5 pin, per-file `sha256_lf`, `local_edits`, `known_upstream_issues` and `excluded` (READMEs,
-> notebooks, `concepts_postgres/`, `mimic-iii/`, `concept_map/*.csv` → EP-138, docker trees, with
-> upstream URLs). `poe vendor-mimic-code --sha <sha>` re-vendors (no-op at the same sha; EP-9
-> reuses the blobless clone left at `%TEMP%\mimic-code`). Two `local_edits`, both recorded with
-> upstream and vendored hashes and line numbers: `mimic-iv/buildmimic/postgres/validate.sql`
-> (kind `guard_pragma`: three expected-row-count lines carry ` -- mwh-guard: allow (row count,
-> not an id)`) and — a delta from the brief — `mimic-iv/concepts/treatment/ventilation.sql` (kind
-> `id_redaction`: two upstream *debugging comments* of the form `stay_id = <8 digits>` had their
-> real-band tokens replaced in place by `<mwh: id redacted>`, because they *are* identifiers and
-> GOVERNANCE §3 forbids committing them; the row-count pragma is reserved for `validate.sql`
-> files). No ED / Note concepts exist upstream. Attribution: repo-root `NOTICE` (+ the JAMIA 2018
-> citation); `docs/resources/repos.md` does not exist yet → EP-13 picks the entry up.
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2 (completion notes); EP-37 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
 Pydantic model / YAML (EP-46): `grain`, `inclusion`, `exclusion`, `index_event`,
 `observation_window`, `washout`, `follow_up`, `era_filter`, references to code sets and
 phenotypes by version. Compiler (EP-47) emits a deterministic CTE chain, one step per
-criterion, materialises the cohort table under `marts/cohorts/<cohort_id>@<version>/`,
-records per-step attrition counts, and writes a run record. Attrition diagram (EP-48)
-renders from the attrition table (Mermaid primary, Altair fallback), disclosure-aware.
+criterion (the tracer's `base → first_stay → adult → complete → cohort` chain in
+`sql/tracer_first_icu_mortality.sql` is the shipped precedent: identifiers only inside the
+chain, never in a final select list), materialises the cohort table under
+`marts/cohorts/<cohort_id>@<version>/`, registers it in `marts.cohorts` (already a
+`safe.REGISTRY_TABLES` member, so the registry reads need no count column), records
+per-step attrition counts through `safe_query` (a suppressed step comes back `None`, as in
+the tracer) and writes a run record. Level-degeneracy policy (rare factor levels with zero
+outcomes — real on every tier, EP-31) belongs here and in the model engines (EP-79), not in
+each analysis. Attrition diagram (EP-48) renders from the attrition table (Mermaid
+primary, Altair fallback), disclosure-aware.
+
+*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 … EP-48 planned; consolidated at EP-33.
 
 ## 10. Events spine (MEDS-compatible)
 
 EP-50 materialises a long table `(subject_id, hadm_id, stay_id, time, code, numeric_value,
 text_value, source_table)` under `lake/derived/spine/` covering admissions, transfers,
 diagnoses, procedures, labs, microbiology, prescriptions/emar, ICU inputs/outputs/
-procedures — **excluding raw `chartevents`** in v1 (size). The column set matches MEDS
+procedures — **excluding raw `chartevents`** in v1 (size; an optional vitals-only subset
+is the §21 question, sized at ≈ 2.5–4 GB either way in §3). The column set matches MEDS
 0.4 so ACES/MEDS tooling can be used as an optional validation lane; the spine is our own
-build from the catalog, not the external ETL.
+build from the catalog, not the external ETL. It runs as DAG `python` steps under the
+EP-29 handler contract (`callable: module:function`, called with `(step, ctx)`), so it gets
+the build lock, the benchmark lines and the `derived` layer snapshot id for free.
+
+*History:* planning text (2026-08-16), reconciled with EP-29's `python` step handler and EP-33 item D3's sizing; EP-50 planned; consolidated at EP-33.
 
 ## 11. Run ledger, benchmark ledger, audit, snapshot ids
 
-- `mimicwarehouse.run` (EP-35): a context manager that assigns `run_id`, captures git
-  sha, params, generated SQL, code-set/phenotype versions, cohort attrition, snapshot ids,
-  seeds (EP-36), environment lock hash, warnings, wall time, peak RSS, disk delta, and
-  writes `runs/<run_id>/manifest.json` + `sql/`, `tables/`, `figures/`; appends one line
-  to `runs/ledger.jsonl`.
-- Benchmark ledger `runs/benchmarks.jsonl` (EP-19/28): staging, concept and mart builds,
-  page latencies.
+**The JSONL canon (`mimicwarehouse.fsio`, EP-33 B8).** Every ledger is written through
+`fsio.append_jsonl` / `append_jsonl_lines`: one canonical JSON object per line
+(`sort_keys=True`, UTF-8, exactly `\n` — `O_BINARY`, so no CRLF), one `os.write` per line
+on an `O_APPEND` descriptor with the byte count **checked** (`ShortWriteError` on a full
+disk instead of a truncated line the next append would merge into), then `fsync`. Readers
+(`fsio.iter_jsonl` / `read_jsonl`) tolerate exactly **one** malformed *trailing* line (a
+crash mid-append; warn and skip) and raise `TornLedgerError` on any other malformed line.
+`fsio.atomic_write_text` (temp sibling + `os.replace` with the `PermissionError` retry) is
+the one rewrite primitive for `status.json`, `snapshots.json`, `_progress.json`, the raw
+manifests and job state files.
 
-> **Note (2026-08-29, EP-23 — per-phase ledger lines for large stages).** A `load_class:
-> large` partitioned stage now reports its two passes to the runner
-> (`StageResult.pass1_wall_s` / `pass2_wall_s`; `pass1_wall_s` is `None` when a resume
-> skipped pass 1), and the runner appends `phase: pass1` (with `bytes_in`) and
-> `phase: pass2` (with `rows`) benchmark lines before the step's `phase: total` line —
-> the throughput numbers EP-26/EP-28 read. Small/unpartitioned stages keep a single
-> `total` line.
-- Audit `runs/audit.jsonl` (EP-30): every `safe_query`, every row-view toggle, every
-  export attempt.
-- `runs.duckdb` (views over the JSONL, rebuilt by `mwh runs refresh`) is what the app and
-  `mwh runs` read.
-- Snapshot id = hash of the layer manifest; every run cites the snapshot ids it read.
+**Ledgers as built.**
 
-> **Note (2026-08-28, EP-166 — identifier glossary + snapshot-id definition; owner decision
-> 2026-08-18, D-43 item 11; ledger ARCH-5/ARCH-6/INV-3/FC-8; code EP-17/19).** The
-> provenance identifiers, defined once — briefs and modules use these names and no others:
->
-> - **`raw_snapshot_id`** (EP-10, shipped) — sha256 over the sorted `(rel_path, bytes,
->   sha256, rows)` tuples of **all 41** raw CSVs; `None` until all 41 are inventoried.
-> - **`source_sha256`** (EP-17) — the per-file sha256 the EP-10 raw manifest recorded for
->   one source CSV (`None` on the fixture tier). Every lake `ManifestLine` carries **both**
->   `source_sha256` and `raw_snapshot_id` — the EP-17 brief's single `source_manifest_id`
->   and the D-26 addendum's "this id is the source manifest id" each meant a different one
->   of the two; the pair supersedes both wordings (D-26 addendum records the same).
-> - **`build_id`** (EP-19) — one DAG-runner invocation.
-> - **layer `snapshot_id`** (EP-19), one per `{core, derived, marts, notes}` × tier — a
->   **logical** id: sha256 over the sorted JSON of `(schema, table, path, rows,
->   schema_hash, source_sha256 or raw_snapshot_id, sort_keys, writer_version)` per file
->   (the EP-10 pattern above), so it is *stable when raw + contract + code are unchanged*
->   and two identical rebuilds agree. The per-file Parquet `sha256` in the manifest line is
->   **integrity-only**, never part of the snapshot id (file bytes need not be reproducible
->   under non-total sort orders). The **dev** id hashes only manifest lines whose path lies
->   in `settings.dev_buckets` plus unpartitioned tables — it must **not** move when buckets
->   5–99 finish during a full ⏱ pass.
-> - **catalog `build_id` + `core_snapshot_id`** (EP-21, `meta.catalog_info`) — what the
->   catalog was built from; EP-30's audit `snapshot_id` is the queried catalog's
->   `core_snapshot_id`.
-> - **`run_id` / `audit_id`** (EP-35/EP-30) and the **protocol hash** (EP-51). Every run
->   and audit line cites `snapshot_ids` — a `{layer: id}` dict from the EP-19 helpers.
+- **`runs/audit.jsonl`** (EP-30; §12): one `AuditLine` per `safe_query` call — allowed,
+  refused or usage — `{audit_id, ts, actor, tier, statement_sha256, sql_text, allowed,
+  refusal_reason, n_rows, rows_suppressed, k, wall_ms, duckdb_version, snapshot_ids,
+  git_sha}`; never values. Later: every row-view toggle and export attempt (EP-58/59).
+- **`runs/benchmarks.jsonl`** (EP-19; `dag/benchmarks.py`): `BenchmarkLine`
+  `{ts, build_id, tier, step, kind, phase, wall_s, peak_rss_mb, rows, bytes_in, bytes_out,
+  files, duckdb_version, git_sha, host {cpu, ram_gb}, ok, error}`. Two sanctioned writers:
+  the runner appends one line per executed step (`phase: total`; a large partitioned stage
+  adds `pass1` — with `bytes_in`, absent when a resume skipped pass 1 — and `pass2` — with
+  `rows` — before it, EP-23) plus one `kind: build` summary per run, and EP-28's full-tier
+  verify test appends `kind: verify` lines (the per-table sizes and ratios of §3). Appends
+  are **not** atomic between processes on Windows (the CRT implements `O_APPEND` as
+  seek-then-write, DAG-4): the ledger relies on **single-writer-by-sequencing** — builds are
+  serialized by the build lock and a verify run follows the build it verifies — not on OS
+  locking. `read()` goes through `fsio` (one torn line tolerated); `summarize(tier, kind)`
+  pivots per `(tier, step)` on the **latest** `phase: total` line, ordered by `(ts,
+  build_id)` with a stable sort so two lines sharing a one-second `ts` resolve
+  deterministically, joined with the same build's pass walls; `render_markdown` /
+  `replace_marked_block` (EP-32) drive `mwh runs benchmarks [--tier] [--kind]
+  [--format table|md] [--out PATH]`, which splices between `<!-- benchmarks:begin/end -->`
+  markers (first consumer: `docs/analyses/00-staging-benchmark.md`).
+- **`runs/tracer/<yyyymmddThhmmss>-<tier>/`** (EP-31): `manifest.json` (git sha, versions,
+  `core_snapshot_id`, params, cohort n, wall, audit ids) + `attrition.json`,
+  `descriptives.json`, `model.json`, `report.md` — the run-folder shape EP-35 generalises.
+- **`runs/ledger.jsonl` + `runs/<run_id>/`** (EP-35, planned): `mimicwarehouse.run`, a
+  context manager that assigns `run_id`, captures git sha, params, generated SQL, code-set
+  / phenotype versions, cohort attrition, snapshot ids, seeds (EP-36), environment lock
+  hash, `doctor.run_checks(settings)`, warnings, wall time, peak RSS, disk delta, and writes
+  `manifest.json` + `sql/`, `tables/`, `figures/`. The `usage: ` prefix on audit
+  `refusal_reason`s exists so EP-35's ledger views can filter usage errors out.
+- **`runs/jobs/<name>.json` + `.log`** (EP-19): a detached ⏱ job's `{job, pid, argv,
+  started, log, state, exit_code, finished}`, owned by the supervisor (`dag/jobs.py`,
+  `DETACHED_PROCESS`, workspace-venv python, never a `uv` shim), which finalises the state
+  on exit so `state`/`exit_code` are reliable for any argv including crashes and lock
+  refusals; `mwh jobs [--job NAME] [--tail N]` is the only window a session has on a log
+  (INFO counts only — never rows). The supervisor's own `[job] …` lines are plain `print`s
+  into the log — with the canary observer, the sanctioned exception to the logging seam.
+- **`warehouse/runs.duckdb`** (EP-30; EP-35 adds the ledger views): views over the JSONL,
+  rebuilt by `mwh runs refresh` (`safe.build_runs_db`, published via `publish.swap_file`);
+  the `audit` view reads `read_json_auto(…, format = 'newline_delimited', ignore_errors =
+  true)` — DuckDB 1.5.5 turns a torn line into an all-NULL record rather than skipping it,
+  so the view filters `audit_id IS NOT NULL` whenever the ledger holds a parseable record.
+  `safe_query` attaches it read-only as `runs` when present; `runs` is deliberately **not**
+  a registry schema (§12).
+
+**Identifier glossary** (D-43 item 11) — briefs and modules use these names and no others:
+
+- **`raw_snapshot_id`** (EP-10) — sha256 over the sorted `(rel_path, bytes, sha256, rows)`
+  tuples of **all 41** raw CSVs (`lake/manifests/raw/<dataset-dir>.jsonl` +
+  `raw_snapshot.json`); `None` until all 41 are inventoried. `inventory.raw_snapshot_id()`
+  / `RawManifest.for_table(table)` are the readers.
+- **`source_sha256`** (EP-17) — the per-file sha256 the raw manifest recorded for one
+  source CSV (`None` on the fixture tier). Every lake `ManifestLine` carries **both**
+  `source_sha256` and `raw_snapshot_id` (the pair supersedes the EP-17 brief's single
+  `source_manifest_id`; D-26 addendum).
+- **`build_id`** (EP-19) — one DAG-runner invocation: `<UTC yyyymmddThhmmss>-<tier>-<git
+  short sha>`.
+- **layer `snapshot_id`** (EP-19, `dag/snapshot.py`), one per `{core, derived, marts,
+  notes}` × tier — a **logical** id: sha256 over the sorted canonical JSON of `(schema,
+  table, path, rows, schema_hash, source_sha256 or raw_snapshot_id, sort_keys,
+  writer_version)` per published file, so it is *stable when raw + contract + code are
+  unchanged* and two identical rebuilds agree. The per-file Parquet `sha256` is
+  **integrity-only**, never part of it (file bytes need not be reproducible under non-total
+  sort orders). Scope: only tables `complete_for_tier` (`tier_complete == "full"`;
+  `"dev"`/`dev_ready` suffice for dev — the same predicate the runner's skip logic and the
+  catalog's admission use); the **dev** id hashes only manifest lines whose path lies in
+  `settings.dev_buckets` plus unpartitioned tables, so it does **not** move when buckets
+  5–99 finish during a full ⏱ pass; a restaged table contributes its latest line per
+  path. Every build appends `{layer, tier, snapshot_id, build_id, ts}` to
+  `lake/manifests/snapshots.json`; `table_file_stats` sums the same lines into the
+  no-scan row counts of `meta.tables` / `meta.row_counts`.
+- **catalog `build_id` + `core_snapshot_id`** (EP-21, `meta.catalog_info`) — what the
+  catalog was built from; the audit `snapshot_ids` is `{"core": core_snapshot_id}` of the
+  queried catalog.
+- **`run_id` / `audit_id`** (EP-35 / EP-30) and the **protocol hash** (EP-51). Every run
+  and audit line cites `snapshot_ids` — a `{layer: id}` dict.
+
+*History:* built by EP-10, EP-17, EP-19, EP-23, EP-28, EP-29, EP-30, EP-31, EP-32, EP-166, EP-33 B8 (completion notes); EP-35/36 planned; consolidated at EP-33.
 
 ## 12. Safe-query (D-31, D-32)
 
-`mimicwarehouse.safe` (EP-30) is the choke point for anything an agent or an export can
-see: `safe_query(sql, k=11)` opens the tier catalog read-only, refuses statements outside
-an allow-list (no `COPY TO`, no `ATTACH`, no note tables), applies a row cap, and refuses
-to return result sets that contain identifier columns or free text or any count below k
-without suppression. Owner-only row viewing in the app goes through a separate,
-audited `owner_rows()` path that is never reachable from the CLI used by Claude sessions.
-Enforcement is layered: code (this module) + `CLAUDE.md` + repo `.claude/settings.json`
-deny rules (D-39).
+`mimicwarehouse.safe` (EP-30; hardened EP-33 B1) is the choke point for anything an agent
+or an export can see: from this module on, every result a Claude session sees comes
+through `safe_query(sql, *, tier=None, k=None, row_cap=200, timeout_s=120, actor=None,
+settings=None) -> SafeResult` or the `mwh sql` CLI built on it. Owner-only row viewing in
+the app goes through a separate, audited `owner_rows()` path (EP-58) that is never
+reachable from the CLI; this module behaves the same for every role. Enforcement is
+layered: this code + `CLAUDE.md` + the repo `.claude/settings.json` deny rules and PreToolUse
+hook (D-39, EP-165).
 
-> **Note (2026-08-29, EP-30 — safe_query shipped; the final rule set).**
-> `safe_query(sql, *, tier="dev", k=11, row_cap=200, timeout_s=120, actor=None,
-> settings=None) -> SafeResult` pipelines: (1) **parse** via DuckDB
-> `json_serialize_sql` (the statement is a bound parameter, never executed) — exactly
-> one SELECT (CTEs allowed) or `DESCRIBE <schema.table>` / `SHOW TABLES` /
-> `SHOW ALL TABLES`; set operations (UNION/…) are refused (parked); (2) **allow-list**
-> — no file/env/SQL-indirection functions (`read_*`, `parquet_*`, `scan_*`, `sniff_*`,
-> `glob`, `getenv`, `current_setting`, `duckdb_settings`, plus `query`/`query_table`,
-> which would bypass the static walk); schemas limited to `mimiciv_hosp, mimiciv_icu,
-> mimiciv_derived, meta, marts, runs, information_schema` (+ `duckdb_tables()` /
-> `duckdb_columns()`); unqualified names must be CTEs; (3) **aggregate-only** on the
-> outermost select list — aggregates from a closed set with no value-collecting members
-> (no `string_agg`/`list`/`histogram`/`arg_min`…), GROUP BY keys (structural, positional,
-> by alias, or `GROUP BY ALL`) or constants; identifier columns only inside
-> count/count(DISTINCT)/approx_count_distinct; ≥ 1 count-family column unless the
-> statement reads only `meta.*`, dims (`Table.is_dim`) or `information_schema` (EP-170
-> amendment 1); (4) **execute** on `open_catalog(tier)` with `runs.duckdb` ATTACHed
-> READ_ONLY when present and a `threading.Timer → con.interrupt()` at `timeout_s`;
-> (5) **result checks** — output columns named like identifiers or contract `free_text`
-> columns are refused by name; the 64-char/newline VARCHAR heuristic applies only to
-> statements reading a subject-keyed table, with `description`/`short_description`
-> allow-listed as label columns (ARCH-10/FC-18); post-suppression rows ≤ `row_cap`;
-> (6) **suppression** via the module-level `safe.SUPPRESSOR` hook (default: drop rows
-> with any count-family value in 1…k−1; EP-43 swaps in `disclose.suppress`); `k < 11`
-> refused on dev/full, lowerable on fixture/demo. Every call appends one line to
-> `runs/audit.jsonl` (`O_APPEND`+fsync): `{audit_id, ts, actor, tier, statement_sha256,
-> sql_text, allowed, refusal_reason, n_rows, rows_suppressed, k, wall_ms,
-> duckdb_version, snapshot_ids ({layer: id}, here {"core": core_snapshot_id}; ARCH-6),
-> git_sha}` — never values. `safe.build_runs_db()` publishes `warehouse/runs.duckdb`
-> (view `audit` over the JSONL) by the §6 rename-aside swap; `mwh runs refresh` calls
-> it. `mwh sql` (final body) routes free-form statements and `--tables`/`--describe`/
-> `--count` through `safe_query`, prints the `k=… · audit … · tier … · snapshot …`
-> footer, thousands-separates table/CSV integers via `inventory.fmt_int` (FC-16; JSON
-> keeps raw ints) and exits 3 on refusal. `CatalogOpenError` (no catalog) propagates
-> unaudited — an environment error, not a statement verdict.
+**The rule set as built**, in pipeline order:
+
+1. **Parse** via DuckDB `json_serialize_sql` (the statement is a bound parameter, never
+   executed; DESCRIBE/SHOW serialize as `SELECT_NODE` + `SHOW_REF`, so no regex pre-pass):
+   exactly one statement — a SELECT (CTEs allowed) or `DESCRIBE <schema.table>` /
+   `SHOW TABLES` / `SHOW ALL TABLES`; set operations **UNION / UNION ALL / EXCEPT /
+   INTERSECT** of SELECTs are allowed since EP-33 B1b, with the full select-list checks per
+   leaf, matching widths and count-family **positions** across branches (the output takes
+   branch 1's names and the combined frame is suppressed as one); `UNION BY NAME` and
+   everything else (COPY, ATTACH, INSTALL, LOAD, PRAGMA, SET, DDL/DML, EXPORT/IMPORT, CALL,
+   BEGIN, multi-statement) is refused. AST node shapes are pinned by tests, never assumed.
+2. **Allow-list**: no file/env/SQL-indirection functions (`FORBIDDEN_FUNCTION_NAMES`:
+   `glob`, `getenv`, `current_setting`, `duckdb_settings`, `query`, `query_table`,
+   `checkpoint`, `force_checkpoint`; prefixes `read_`, `parquet_`, `scan_`, `sniff_`);
+   every qualified table in `ALLOWED_SCHEMAS` = `mimiciv_hosp, mimiciv_icu, mimiciv_derived,
+   meta, marts, runs, information_schema` (notes schemas never exist in these catalogs);
+   `duckdb_tables()` / `duckdb_columns()` admitted; unqualified names must be CTEs.
+3. **Aggregate-only** on every leaf's select list: each column is an aggregate from the
+   closed `AGGREGATE_FUNCTIONS` set (no value-collecting members — `string_agg`, `list`,
+   `histogram`, `first`, `arg_min`, …), optionally one `CAST` / `TRY_CAST` directly around it
+   (B1a; a cast around arithmetic or a bare column does not verify — arithmetic over
+   aggregates stays refused, DIS-3), a GROUP BY key (structural, positional, by alias, or
+   `GROUP BY ALL`) or a constant; identifier columns (the contract `identifier` flag) appear
+   **only** inside count-family calls (`count`, `count_star`, `approx_count_distinct`),
+   never as output, inside arithmetic or in MIN/MAX/string aggregates. A **real**
+   count-family node is mandatory — an alias alone never satisfies it, a count-shaped alias
+   (`COUNT_ALIAS_RE`: `n`, `n_*`, `*_count`, `cnt`, …) on a non-count expression is refused,
+   and a cast-wrapped count must be aliased — unless the read is **registry-only**
+   (`is_registry_ref`: `REGISTRY_SCHEMAS` = `meta`, `information_schema`; `REGISTRY_TABLES`
+   = `marts.cohorts`; contract dims) or metadata functions. `runs` deliberately does not
+   join the registry (owner, 2026-09-01): `runs.audit` carries statement text.
+4. **Execute** on `open_catalog(tier)` (READ_ONLY, app profile, hardened) with
+   `warehouse/runs.duckdb` attached as `runs` when present (`engine.attach_read_only`),
+   under a `threading.Timer → con.interrupt()` at `timeout_s`. Any DuckDB error before or
+   during execution — the snapshot read and the attach included — is refused with a
+   **sanitized** message (`sanitize_error_text`: first line, quoted literals → `'...'`,
+   standalone digit runs masked, 120 chars) before it reaches the refusal and the audit line
+   (DuckDB quotes the offending cell value in conversion errors, DKB-2).
+5. **Result checks**: output columns named like identifiers or like contract `free_text`
+   columns are refused by name (ARCH-10/FC-18); the free-text value heuristic (any VARCHAR
+   value over `FREE_TEXT_MAX_CHARS` = 64 characters or containing a newline) applies to every
+   statement that is not registry-exempt — `mimiciv_derived` and non-registry `marts` reads
+   are scanned too (B1c) — with `LABEL_COLUMN_NAMES` (`description`, `short_description`)
+   allow-listed; post-suppression rows ≤ `row_cap`.
+6. **k-suppression** through the module-level `SUPPRESSOR` hook
+   (`(df, k, count_columns) -> (df, rows_suppressed)`; default `rowwise_suppress` drops every
+   row with any real count column in 1…k−1; EP-43 assigns `disclose.suppress`), over the
+   real count columns only. `tier` / `k` default to `settings.default_tier` /
+   `settings.k_suppression`; `k < K_FLOOR` (11) is refused on the credentialed tiers
+   (`dev`, `full`) and lowerable on `fixture`/`demo`. Extreme-value aggregates (`min` /
+   `max` / `mode` / `median` / quantiles) stay admitted and are released only inside
+   k-gated rows (owner, EP-33).
+
+**Error taxonomy (B1d).** `SafeQueryRefused` = a governance verdict, exit
+`EXIT_REFUSED` (3), raised **after** auditing; `SafeQueryError` = a usage error (`k < 1`,
+`row_cap < 1`, unknown tier), exit `EXIT_USAGE` (2), audited with a `usage: ` reason;
+`CatalogOpenError` (no catalog, `.new` path, version mismatch) = an environment error, exit
+2, unaudited. **Every call** — allowed, refused or usage — appends one `AuditLine` (§11)
+through `fsio.append_jsonl`. `safe.build_runs_db()` publishes `warehouse/runs.duckdb` via
+`publish.swap_file` (§11). **`mwh sql "<stmt>" [--tier t] [--k n] [--row-cap n]
+[--format table|csv|json] [--tables] [--describe SCHEMA.TABLE] [--count SCHEMA.TABLE]`**
+routes free-form statements and the three helper forms through `safe_query`, prints the
+`k=… · audit … · tier … · snapshot …` footer, thousands-separates table/CSV integers via
+`inventory.fmt_int` (JSON keeps raw ints), sends errors to stderr via `console.fail` and
+exits 3 on refusal (`--describe` prints the contract comment column). The tracer's
+`count(*) FILTER (WHERE flag = 1)` remains the sanctioned event-count pattern (§6.1 e).
+
+*History:* built by EP-21, EP-30, EP-31, EP-170, EP-33 B1 (completion notes); consolidated at EP-33.
 
 ## 13. Protocol freeze (D-25)
 
 `mimicwarehouse.protocol` (EP-51): pydantic `Protocol` (cohort ref, exposure, outcome,
 covariates, feature windows, analysis plan, temporal holdout, claim type). `mwh protocol
 freeze <yaml>` computes the content hash, appends `{hash, timestamp, git sha, path}` to
-`runs/protocols.jsonl`, and tags the file; `mwh protocol run <hash>` refuses to run an
-unfrozen or modified protocol; amendments append a new hash linked to the previous one.
-The Freezer page (EP-128) and temporal-holdout runner (EP-129) sit on top. Every report
-built from a frozen protocol states that MIMIC-IV analyses remain retrospective.
+`runs/protocols.jsonl` (through `fsio.append_jsonl`, like every ledger), and tags the
+file; `mwh protocol run <hash>` refuses to run an unfrozen or modified protocol; amendments
+append a new hash linked to the previous one. The Freezer page (EP-128) and
+temporal-holdout runner (EP-129) sit on top. Every report built from a frozen protocol
+states that MIMIC-IV analyses remain retrospective.
+
+*History:* planning text (2026-08-16), reconciled with the EP-33 B8 ledger canon; EP-51 planned; consolidated at EP-33.
 
 ## 14. Disclosure primitives (D-33, D-40)
 
-`mimicwarehouse.disclose` (EP-43): `suppress(df, k=11)` with complementary suppression,
-`check(path)` scanning tables/figures/HTML for identifier columns, note text, small cells
-and embedded data arrays, and a `.disclosure.json` sidecar writer. In-app: warn badge at
-n < 11 (EP-58). On export/commit: suppress and require a passing sidecar (EP-59, EP-133).
+`mimicwarehouse.disclose` (EP-43): `suppress(df, k=11)` with complementary suppression —
+installed into `safe.SUPPRESSOR` (§12) so every `safe_query` result and the tracer's
+"n vs n_fit" differences (EP-31) get it without caller changes — `check(path)` scanning
+tables/figures/HTML for identifier columns, note text, small cells and embedded data
+arrays, and a `.disclosure.json` sidecar writer. In-app: warn badge at n < 11 (EP-58). On
+export/commit: suppress and require a passing sidecar (EP-59, EP-133). Until EP-43,
+nothing derived from real data enters `docs/` or git except manifests of hashes / counts /
+schema (GOVERNANCE §3); the two P2 exceptions that carry telemetry only —
+`DATA-DICTIONARY.md` (EP-29; distinct counts below k render `<11`) and
+`docs/analyses/00-staging-benchmark.md` (EP-32) — get retroactive sidecars at EP-43.
+
+*History:* planning text (2026-08-16), reconciled with EP-29/31/32's pending-sidecar consumers and EP-30's hook; EP-43 planned; consolidated at EP-33.
 
 ## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
+The shipped-vs-planned map as of EP-33. Shipped rows name the EPs that built and last
+changed them; planned rows keep their EPs. The workspace README § State of the workspace
+carries the per-module CLI/test columns.
+
 ```
 mimicwarehouse/                    uv project root (nested, hupsim-style)
-├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text
+├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2 shipped   `mwh` (typer) — shipped: doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer; planned: protocol disclose backup app init
-│   ├── console.py                 EP-167 shipped shared rich consoles + UTF-8 `mwh` entry point
-│   ├── config.py                  EP-3 shipped   pydantic-settings; MWH_DATA_ROOT layout; safety checks
-│   ├── guard.py                   EP-4 shipped   pre-commit data-leak guard (G1/G4 hardened EP-165)
-│   ├── theme.py                   EP-5 shipped   palette, Altair/Streamlit themes
-│   ├── verify.py                  EP-6 shipped   `mwh verify EP-n`; roadmap_check
-│   ├── schema/                    EP-9 shipped   YAML contract loader; keys; column maps
-│   ├── inventory.py               EP-10 shipped  raw manifest
-│   ├── fixtures/                  EP-11/12 shipped synthetic generator
-│   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal)
-│   ├── paths.py                   EP-17 shipped  swap_dir (rename-aside directory publish)
-│   ├── loader/                    EP-17/18 shipped (engine, csv, stage, manifest — typed CSV→Parquet, unpartitioned; buckets — partitioned stage, per-bucket sort, resume; paths — reader glob/fragment)
-│   ├── dag/                       EP-19 shipped  (spec, runner, snapshot, benchmarks, jobs, cli — `mwh build` / `mwh jobs`)
-│   ├── catalog/                   EP-21/29 tier catalogs, meta.*, data dictionary
-│   ├── demo.py                    EP-22
-│   ├── safe.py                    EP-30 shipped  safe_query, audit JSONL, runs.duckdb (+ runs_cli.py: `mwh runs refresh`; EP-32 adds `mwh runs benchmarks`)
-│   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql): attrition/descriptives via safe_query, logit, report; `mwh tracer`
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer; lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
+│   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
+│   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
+│   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
+│   ├── guard.py                   EP-4, EP-165, EP-33 shipped   pre-commit data-leak guard G1–G5 (index blobs, path tokens, notebook/script scans)
+│   ├── theme.py                   EP-5 shipped   palette, Altair/Streamlit themes, brand SVGs
+│   ├── verify.py                  EP-6, EP-167 shipped   `mwh verify EP-n | --list | --roadmap`; roadmap_check
+│   ├── schema/                    EP-9, EP-169 shipped   contract.py, transcribe.py, csv_dialect.py, cli.py; tables/*.yaml package data
+│   ├── inventory.py               EP-10, EP-167 shipped  raw manifest + raw_snapshot_id; fmt_int / fmt_bytes_mb
+│   ├── fixtures/                  EP-11/12, EP-169 shipped   spec, vocab, hosp, icu, check, write, catalog, cli
+│   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal; raw-OS sequence kept on purpose)
+│   ├── fsio.py                    EP-33 shipped  the JSONL ledger canon + atomic_write_text
+│   ├── publish.py                 EP-17/21 → EP-33 shipped   the one rename-aside publish primitive (swap_dir, swap_file, retry helpers); supersedes paths.py and catalog.build.swap_catalog
+│   ├── engine.py                  EP-33 shipped  the one DuckDB connection factory (open_duckdb, attach_read_only)
+│   ├── loader/                    EP-17, EP-18, EP-23 … EP-27, EP-33 shipped   engine (build connection guards), csv, stage, buckets, manifest, paths
+│   ├── dag/                       EP-19, EP-28, EP-29, EP-32, EP-33 shipped   spec (+ specs/stage.yaml), runner, snapshot, benchmarks, jobs, cli
+│   ├── catalog/                   EP-21, EP-29, EP-30, EP-33 shipped   build, connect, profile, dictionary, cli (`mwh catalog`, `mwh sql`)
+│   ├── demo.py                    EP-22 shipped  ODbL demo fetch + source.yaml register
+│   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
+│   ├── runs_cli.py                EP-30, EP-32 shipped   `mwh runs refresh | benchmarks`
+│   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
+│   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
 │   ├── timesem.py                 EP-34  eras, relative time, dod rule, grains
 │   ├── run.py                     EP-35/36 run ledger, seeds, resource log
-│   ├── concepts/                  EP-8 shipped (vendor/ + pin); EP-37/38 runner + patches
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42
@@ -659,609 +805,105 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── report/                    P8     Jinja templates → MD/HTML, Typst PDF, cards
 │   ├── linkage/                   P9     profiler, mapping, validation, wizard backend
 │   └── text/                      P10    notes lake, search, extraction, embeddings
+├── scripts/                       roadmap_check.py (EP-6) · claude_pretool_guard.py (EP-165, the PreToolUse session guard)
 ├── app/                           P4+    Streamlit multipage "Lab" app (pages/…)
 ├── notebooks/                     marimo scratch (zero-output .py; import the package)
-├── tests/                         pytest; tests/ep/test_epNN.py per brief; fixtures/
-├── docs/                          resources/ (P1), analyses/ (capstones), site (P11)
+├── tests/                         pytest; conftest.py + helpers.py (EP-12/168/33); tests/ep/test_epNN.py per brief; fixtures/ (+ COVERAGE.md)
+├── docs/                          resources/ (P1) · analyses/ (capstones, EP-32) · gotchas.md + committed-text.md (EP-33) · brand/ (EP-5) · site (P11)
 ├── DESIGN.md · GOVERNANCE.md · DECISIONS.md · DATA-DICTIONARY.md (generated, EP-29)
 ```
 
-> **Note (2026-08-17, EP-2).** `cli.py` landed as the typer + rich entry point (`app`,
-> shared `console`, eager `--version`, global `--data-root` → `CliState` on `ctx.obj`;
-> commands attach with one `app.command()` / `app.add_typer()` line each; no duckdb /
-> pandas / polars at import time — `mwh --help` ≈ 0.3 s). Its first helper module is
-> **`doctor.py`** (helper of `cli.py`, EP-2): `CheckResult`, eight pure checks (`python`,
-> `uv`, `duckdb`, `disk_free`, `data_root`, `bitlocker`, `gpu`, `longpaths`),
-> `run_checks(data_root)`, `doctor_report()` → the JSON object EP-35 embeds in run
-> manifests, and the `mwh doctor [--json]` command. Later command modules follow the same
-> pattern (`paths` → `config.py` EP-3, `guard.py` EP-4, `verify.py` EP-6).
+**CLI shape (EP-2, EP-167).** Commands live in their own modules and attach to `cli.py`
+with one `app.command()` / `app.add_typer()` line each (the `# --- commands` block is
+authoritative). The callback loads `load_settings(checked=False)` once per invocation
+(`--data-root` > `MWH_*` env > `.env` > `mwh.toml` > defaults; both files and relative paths
+anchored at the workspace root), installs it process-wide (`config.configure`, so
+`get_settings()` agrees with `ctx.obj`) and stores any configuration error as
+`CliState.pending_error`; the first `CliState.settings` access by a non-diagnostic command
+runs the D-29 refusals and exits 2 — so `--help`, `--version` and `no_args_is_help` always
+work over a broken or unsafe configuration. **`DIAGNOSTIC_COMMANDS`** = `{doctor, paths,
+guard, verify, schema, fixtures}` — the rule is stated once, on that constant: *a command is
+diagnostic iff it never touches the data root*; members receive the unchecked settings so
+they can report a bad root; membership is pinned by `test_ep167`. `inventory`, `canary`,
+`build`, `catalog`, `sql`, `demo`, `runs`, `tracer` all touch the data root and validate.
+Background work (`--background --job NAME` on `build` and `tracer`) detaches through
+`dag.jobs.launch`; `verify` passes `MWH_DATA_ROOT=<resolved --data-root>` to its pytest
+child without mutating `os.environ`, and spawned jobs pass the same env.
 
-> **Note (2026-08-17, EP-3).** **`config.py`** landed: `Settings(BaseSettings)` with
-> `MWH_` env · `.env` · `mwh.toml [settings]` · defaults (init kwargs first; `extra="forbid"`;
-> `env_ignore_empty`; both files and any relative path are anchored at the **workspace root**
-> `mimicwarehouse/`, resolved from the package location, so `uv run --project mimicwarehouse mwh …`
-> from the repo root reads the same files) — `layout` (15 keys, §3), `catalog_path(tier)`,
-> `duckdb_settings("build"|"app")` (string values for `duckdb.connect(config=…)`;
-> `preserve_insertion_order=false` only in `build`), `source_of(field)` / `sources()`
-> provenance, `get_settings()` (cached; `configure(**overrides)` installs the CLI
-> `--data-root`; `get_settings.cache_clear()` in tests), `load_settings(checked=False)` for
-> diagnostics. The D-29 refusals run as an `after` model validator
-> (`UnsafeLocationError`, a `RuntimeError` so pydantic propagates it unwrapped) and are
-> callable alone: `drive_info` (ctypes `GetDriveTypeW`/`GetVolumeInformationW`, thread error
-> mode set so an empty card reader never prompts), `location_problem`, `check_local_fixed`,
-> `check_same_volume`, `check_free_space` / `require_free_space` (`DiskGuardError`). **CLI
-> contract:** the `mwh` callback loads settings once per invocation; every command receives
-> *validated* settings (unsafe root → message + exit 2 before the command runs) except the
-> diagnostic commands `doctor` and `paths`, which get the unchecked instance and *report*
-> (`data_root` / `temp_dir` **fail**; `paths` prints the table and exits 2). `paths --create`
-> re-runs the validators + the free-space guard before creating anything. `doctor.py` now has
-> 13 checks (`settings`, `temp_dir`, `cloud_mounts`, `defender`, `power_scheme` added) and
-> takes a `Settings`; `run_checks(settings)` is what EP-35 embeds. `mwh --help` import cost:
-> 0.25 s of module imports (config = 0.12 s, half of it pydantic-settings → asyncio),
-> 0.45 s wall direct / 0.52 s via `uv run` — still inside the ~0.5 s budget; the doctor's
-> `defender` and `bitlocker` PowerShell probes cost ~2 s each at run time.
+**CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
+`EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and
+re-exported where tests import them (`safe`, `catalog.cli`, `verify`); errors as
+`mwh <cmd>: <message>` in bold red on **stderr** through `console.fail` (stdout stays
+machine output; typer's `CliRunner.output` still holds both streams, `result.stdout` /
+`result.stderr` split them); `--json` through `console.emit_json` (`json.dumps(indent=2,
+default=str)` + plain `\n`, **raw integers** — `fmt_int` is for humans only); progress =
+stdlib logging on the `mimicwarehouse` logger through `console.configure_progress_logging
+(to_file=…, quiet=…)`, which is how a background job's log captures the runner's and the
+loader's INFO lines (steps, counts, bytes, wall, rss — never rows).
 
-> **Note (2026-08-17, EP-4).** **`guard.py`** landed as the pre-commit data-leak guard
-> (GOVERNANCE §3): pure rule helpers + `Violation(rule, path, line, detail)`; `scan(paths,
-> repo_root)` (working tree, directories walked), `scan_staged(repo_root)` (paths from
-> `git diff --cached --name-only --diff-filter=ACMR -z`) and `scan_tracked(repo_root, rev=None)`
-> (`git ls-files` / `git ls-tree -r rev` — the per-commit primitive for the EP-163 sweep). The
-> staged/tracked scans read **blobs from the index** (`git cat-file --batch-check` for sizes, one
-> `--batch` for the content the rules need), so an unstaged edit can never hide a staged
-> violation and the hook judges exactly what `git commit` records. Rules as in the EP-4 brief with
-> four small deltas: G1 also lists `.duckdb.tmp` (the EP-21 swap suffix, already gitignored);
-> G3 refuses any path with a `__marimo__` segment (not only under `notebooks/`); G4 reports at
-> most 25 lines per file plus one "… and N more" row (a real CSV would otherwise flood the
-> table); files under `source material/` are refused by name (G2) and **never opened**. G4 detail
-> masks the token (`1*******`), names the band, and never quotes the line. `selfcheck(repo_root)`
-> re-runs the EP-0 `git check-ignore` probe strings, asserts `git check-attr binary` = `set` for
-> `x.csv x.parquet x.duckdb`, and checks that `.pre-commit-config.yaml` carries `mwh-guard` and
-> that the hook is installed (warn-level). CLI: `mwh guard [PATHS…] [--staged] [--all-tracked]
-> [--selfcheck] [--json]`, one mode per call, exit 0 / 1 / 2; `guard` joined
-> `DIAGNOSTIC_COMMANDS` because it never touches the data root and a mis-set `MWH_DATA_ROOT`
-> must not block commits. `.pre-commit-config.yaml` (repo root): `repo: local`/`language: system`
-> `mwh-guard` (`always_run`, `pass_filenames: false`) → `ruff-check` → `ruff-format --check` →
-> `pre-commit/pre-commit-hooks` **v6.0.0** (`check-added-large-files --maxkb=20000`,
-> merge-conflict, yaml, toml, json, end-of-file-fixer, trailing-whitespace
-> `--markdown-linebreak-ext=md`, detect-private-key). Import cost of `guard.py` is stdlib +
-> typer; rich is imported inside the command.
+**Import-budget doctrine (EP-33 B6).** `mwh --help` must stay under ~0.5 s, so the
+**start-up set** = `cli.py`'s eager imports — stdlib, typer, rich, pydantic(-settings),
+yaml — and nothing heavier: duckdb, pandas, polars, pyarrow, numpy (`helpers.HEAVY_MODULES`)
+and expensive project singletons (the schema contract, the vendor pin) load only inside
+function bodies or under `TYPE_CHECKING`. Package `__init__`s take one of three forms:
+docstring-only with no submodule imports (`catalog/`, `dag/`, `concepts/` re-export
+nothing eagerly), lazy re-exports via module `__getattr__` + `__dir__` (`schema/`,
+`fixtures/`, `loader/`), or a self-contained leaf. Every module on the start-up path
+carries an `Import budget:` line in its docstring saying what it defers (`canary`,
+`inventory`, `demo`, `theme`, `tracer`, `catalog/cli`, `runs_cli`, `dag/cli` today).
+Enforcement is `tests/helpers.assert_import_budget(module, *, forbid=HEAVY_MODULES,
+lazy=…)` — import in a fresh interpreter (a `python -c` argv element, never a heredoc or
+stdin script, D-42) and fail naming the offenders; one budget line per future package.
+`tracer.VALUE_MAX_CHARS` mirrors `safe.FREE_TEXT_MAX_CHARS` instead of importing it for the
+same reason (`tracer.py` is on the start-up path, `safe.py` is not; the two are asserted
+equal).
 
-> **Note (2026-08-28, EP-165).** Guard hardening from the 2026-08-18 retro (GOV-4/GOV-5,
-> D-43): G4's `ID_TOKEN` now also matches the float rendering `NNNNNNNN.0` (pandas nullable
-> BIGINT — the realistic aggregate-table leak) and `_`-bordered tokens (`\w` boundaries →
-> `[A-Za-z0-9.]`, with `token_value()` stripping the `.0` tail and `mask()` masking only the
-> digit part); entry **paths** are scanned with the digit-boundary `PATH_ID_TOKEN`
-> (`stay_3xxxxxxx.parquet` / `stay-3xxxxxxx.png`; no pragma escape for names). G1 gained 19
-> extensions (`.tsv .xlsx .xls .zip .7z .tar .tgz .tar.gz .gz .bz2 .zst .xz .sqlite .sqlite3
-> .db .orc .avro .ndjson .hdf5`, mirrored in `.gitignore`/`.gitattributes`), `.tsv` joined
-> `TEXT_EXTENSIONS`, and `selfcheck` verifies the `.claude/settings.json` PreToolUse hook
-> registration (`pretool-hook` row) next to three new ignore probes (root-anchored
-> data-directory patterns, GOV-6). `vendoring.redact_band_ids` consumes the new pattern
-> unchanged via `guard.token_value`. All 430 tracked blobs stay clean under the new rules
-> (one pragma added: the retro ledger's own float-form example).
+**One way per thing (EP-33 B8; the lore behind each rule lives in `docs/gotchas.md`).**
+JSONL is appended only via `fsio.append_jsonl` and read via `fsio.iter_jsonl` (§11);
+files are rewritten only via `fsio.atomic_write_text`; every rename-aside publish is
+`publish.swap_dir` / `publish.swap_file` and every retrying rename/remove is a `publish`
+helper (§5) — the EP-171 canary's verbatim raw-OS sequence is the one sanctioned exception;
+every `duckdb.connect` is `engine.open_duckdb` and every attach `engine.attach_read_only`
+(§6); every catalog read is `catalog.connect.open_catalog`; progress is stdlib logging
+through the console seam (exceptions: the canary's `observer` prints and `dag/jobs`'
+supervisor `[job]` lines); CLI errors, exit codes and JSON go through `console` (above);
+the diagnostic rule is `DIAGNOSTIC_COMMANDS`; integers in human-facing text go through
+`inventory.fmt_int`; the free-space guard is `config.require_free_space` per tier.
 
-> **Note (2026-08-17, EP-6).** **`verify.py`** landed with the two roadmap-driven services
-> DESIGN §15 promised. `verify(ep, pytest_args)` resolves `EP-6` / `ep6` / `6`, finds
-> `../roadmap/EP-<n>-*.md`, and runs `[sys.executable, -m pytest -m ep_<n> -p no:cacheprovider
-> …]` in a **fresh interpreter** with cwd = the workspace root (spawn-safe on Windows); it
-> returns pytest's exit code, except that a docs-only brief (header Tier `n/a`, no
-> `tests/ep/test_ep<NN>.py`) prints "docs-only brief — nothing to run" and returns 0, a code
-> brief without a test module returns 2, and pytest's 5 (nothing collected) becomes 2 with a
-> marker hint. `roadmap_check(roadmap_dir, repo_root, strict)` parses the master tables
-> (`Row`: number, title, link, size, depends, core, ☐/☑ + hashes, enclosing `## Phase …`
-> heading → `charter`/`full`) and every brief (`Brief`: H1, `**Size:** … · **Blocks:** …`
-> header, `> **Charter.**` paragraph → named re-plan EP) into a `Report` of `Finding(level,
-> check, ep, message)` grouped by **parity** / **header** / **hashes** / **charters**; git is
-> touched only through `_run_git` (`cat-file -e <hash>^{commit}`, `log -1 --format=%s`), which
-> tests replace. Deltas from the brief: ☑ cells may carry one **or more** hashes (EP-0 has
-> three); a charter that names an existing EP whose title is not a re-plan is a *warning*;
-> the JSON report also embeds every row (+ brief tier / charter EP) so the re-plan EPs can
-> reconcile without re-parsing. CLI: `mwh verify EP-n [-- <pytest args>]` (extra args reach
-> pytest untouched — `--tier` arrives with EP-12), `mwh verify --list`, `mwh verify --roadmap
-> [--strict] [--json]`; `verify` joined `DIAGNOSTIC_COMMANDS` (it never touches the data root,
-> and a mis-set `MWH_DATA_ROOT` must not hide a roadmap check). `scripts/roadmap_check.py`
-> (poe `roadmap-check`) is a thin wrapper over `roadmap_check_main`. Console output is passed
-> through `_console_safe` (glyphs the active code page cannot encode become `?` — ⏱ in
-> titles, ☑ in messages — instead of crashing rich on cp1252). Import cost: stdlib + typer.
+**Committed-text canon (EP-33 B4; `docs/committed-text.md` is the page).** Six rules, each
+with its enforcer and asserting tests: integers in human-facing text through `fmt_int`
+(so an 8-digit row count can never match guard rule G4); CLI strings ASCII or
+`console_safe`; no compact dates or run ids in committed file names (`guard.PATH_ID_TOKEN`,
+no pragma escape); run-folder contents free of identifier column names and of strings over
+64 characters; the `mwh-guard: allow` pragma carries a rationale; DOIs or stable URLs,
+never bare PMIDs. `mwh guard` (EP-4; G1/G4 hardened at EP-165 and EP-33 — index blobs,
+float renderings, entry paths, notebook source and script types; `selfcheck` verifies the
+PreToolUse hook registration) is the pre-commit enforcer.
 
-> **Note (2026-08-17, EP-7 — P0 re-plan; no code).** The P0 module map is now real:
-> `cli.py` (EP-2), `doctor.py` (EP-2/EP-3, 13 checks: `python uv duckdb settings disk_free
-> data_root temp_dir cloud_mounts defender bitlocker power_scheme gpu longpaths`), `config.py`
-> (EP-3), `guard.py` (EP-4), `theme.py` (EP-5), `verify.py` (EP-6) + `scripts/roadmap_check.py`;
-> `DIAGNOSTIC_COMMANDS = {doctor, paths, guard, verify}` receive unchecked settings, every other
-> command validated ones. Planned change recorded here for the P1 slot: **EP-164** adds
-> `doctor.check_antivirus` (14th check, after `defender`; `root/SecurityCenter2` products via the
-> same `_powershell` seam; warn when a non-Defender real-time product is present) — the JSON
-> shape EP-35 embeds is otherwise unchanged. Convention notes for P1+ authors, all as shipped:
-> tests are `tests/ep/test_ep<NN>.py` with the marker `ep_<n>` (zero-padded file, unpadded
-> marker; `ep_0`…`ep_199` registered in `conftest.py`); `tier(name)` is a placeholder marker
-> until EP-12; `mwh verify EP-n [-- <pytest args>]` runs the marker set in a fresh interpreter and
-> passes extra args through; `poe check` = `lint` + `typecheck` + `test`; `poe roadmap-check
-> [--strict] [--json]`; `Settings.layout[<key>]` (not `paths`) with the 15 keys of §3,
-> `Settings.catalog_path(tier)`, `Settings.duckdb_settings("build"|"app")`, `get_settings()` /
-> `configure()` / `load_settings(checked=False)`; the guard's `mwh-guard: allow` pragma for
-> documented id examples.
-
-> **Note (2026-08-17, EP-164 — P1 toolchain remediation).** `doctor.py` now has **14 checks**:
-> `check_antivirus()` sits after `defender` in `CHECK_IDS` / `run_checks` (D-38 addenda, D-42,
-> roadmap Risk 12). One non-elevated CIM query through the existing `_powershell` seam
-> (`Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object
-> displayName, productState, pathToSignedProductExe | ConvertTo-Json -Compress`, 10 s timeout,
-> ≈ 0.8 s on the owner's host), decoded by `_securitycenter_products()`: `productState`
-> `0xAABBCC` → `enabled` = bit `0x1000` (real-time), `up_to_date` = not bit `0x10`; `value` =
-> `{"products": [{name, state, enabled, up_to_date, exe}], "non_defender": [names],
-> "non_defender_realtime": [names]}` — product names, states and the product's own
-> `pathToSignedProductExe`, nothing else. **Status rule, as shipped:** `warn` when any product
-> other than Defender is *listed* (`_is_defender` = name contains "defender"), detail spelling out
-> the seven-path `D38_ALLOW_LIST` and that the product's exclusion list is unreadable
-> non-elevated; `info` when Defender is the only product, nothing is listed, the query fails
-> (reason in the detail: "SecurityCenter2 not available (…)", "returned no JSON", "lists no
-> antivirus product") or the host is not Windows; never `fail`. The brief's draft rule keyed the
-> warn on the WSC real-time bit; the first real run showed why presence is the right trigger: a
-> third-party product reports "real-time on" only when it is the *registered* Security Center
-> antivirus (which switches Defender off), and Malwarebytes Premium on this host is deliberately
-> not registered that way — it reports `0x060000` ("off") next to Defender's `0x061100` ("on")
-> while its own modules run (they quarantined `bash.exe` the day before). The bit is still
-> decoded and reported per product ("real-time off per Security Center", plus a one-clause
-> caveat in the warn detail). JSON shape of `mwh doctor --json` unchanged apart from the added
-> check object; summary/exit-code rules unchanged (warn never fails); `mwh doctor` on the owner's
-> host now ends **8 pass · 1 warn · 0 fail · 5 info**, exit 0. Elevated exclusion-list reading is
-> parked (`final-roadmap.md` DOC-1). Also under this brief (optional item 6, taken as EP-7
-> recommended): `tests/ep/test_ep06.py` relaxed its EP-0 hash pin from `== 3` to `>= 2` so the
-> pre-convention planning commit could leave the EP-0 ☑ cell → `poe roadmap-check --strict` is
-> green (Risk 14 resolved). Convention reminder for later doctor rows: probes go through `_run` /
-> `_powershell`, tests fake `subprocess.run` keyed on argv[0] / the script text (an unmocked
-> tool is a test failure), Windows-only checks return `info` elsewhere.
-
-> **Note (2026-08-28, EP-167 — Retro C: CLI, settings & inventory consolidation).** The new
-> API surface P2 briefs (EP-17/19/21) build on, all fixture-tier code, ledger ids in EP-167:
-> **console** — `mimicwarehouse/console.py`: shared `console` / `err_console`,
-> `console_safe` (moved from `verify._console_safe`; alias kept), `run()` = the UTF-8 `mwh`
-> entry point (§2 note). **config** — `Settings.layout` 15 → **18** keys (`lake_fixture`,
-> `lake_demo`, `lake_rejects`, §3 note); `Settings.lake_root(tier)` / `rejects_root(tier)`
-> (synthetic rejects live under the synthetic lake roots) / `min_free_gb_for(tier)` (1 GB for
-> `fixture`, `min_free_gb` otherwise); module-level `assert_not_credentialed_lake(tier,
-> lake_root, settings)` — EP-19 calls it before any fixture/demo write; `unknown_env_keys()`
-> (names of stray `MWH_*` env vars, never values — pydantic-settings ignores them silently);
-> `catalog_path(tier)` unchanged for all four tiers. **cli** — validation is now lazy:
-> the callback loads `load_settings(checked=False)`, stores any config error as
-> `CliState.pending_error`, and the first `CliState.settings` access by a non-diagnostic
-> command runs `require_safe()` / surfaces the error with exit 2 — so `--help`, `--version`
-> and `no_args_is_help` always work (retro CFG-5); `DIAGNOSTIC_COMMANDS` stays the authority
-> on who validates (fully lazy validation everywhere is the EP-16 decision); the callback
-> prints one stderr line when `unknown_env_keys()` is non-empty. **doctor** — 15 checks:
-> `deny_coverage` (after `antivirus`; warns when the data root is under no
-> `.claude/settings.json` drive-letter deny prefix, retro GOV-3), `settings` warns on unknown
-> `MWH_*` vars, `temp_dir` distinguishes exists / parent-exists (DuckDB creates the leaf) /
-> parent-missing → warn (DuckDB 1.5.5 IOException on first spill), `longpaths` carries the
-> git version. **DuckDB temp dir** — `Settings.duckdb_settings()` stays side-effect-free; the
-> connection sites (`inventory.open_connection`, `fixtures.catalog.build_fixture_catalog`,
-> and EP-17's `open_build_connection` when it lands) mkdir `layout["tmp_duckdb"]` first
-> (retro CFG-3). **verify** — `verify(ep, …, env=…)` merges extra variables over
-> `os.environ` for the pytest child; the CLI passes `MWH_DATA_ROOT=<resolved --data-root>`
-> (never mutating `os.environ`); spawn/background jobs (EP-19) must pass the same env to
-> their children (retro CFG-4, addendum to the EP-6 note). **inventory** —
-> `rel_path_for(table)` / `RawManifest.for_table(table)` (the one manifest-key builder,
-> retro INV-4); a no-op resume (`todo == []`) keeps the snapshot's job + version block
-> (`versions=None` re-uses `duckdb_version`/`python_version`/`git_sha`/`mimic_code_sha`/
-> `contract_hash`) while still appending a `runs` entry (retro INV-1);
-> `refresh_header_status` re-evaluates stored headers against a changed contract with no
-> file I/O, counted in `BuildResult.refreshed` (snapshot id unchanged — it excludes the
-> header; retro INV-2); `--no-resume` is accepted (alias of the hidden `--force`);
-> `render_docs`' `Generated:` line uses the snapshot's `finished` timestamp so a no-op
-> `reconcile` leaves git clean. `src/mimicwarehouse/concepts/` is now a package: `__init__.py`
-> exposes `vendor_info() -> VendorInfo` (pydantic, frozen: `sha`, `upstream_url`, `commit_date`,
-> `vendored_on`, `mimic_iv_version`, `file_count`, `local_edits`, `root`; `.tree`, `.short_sha`),
-> `vendor_manifest()` (parsed `VENDOR.json`, cached) and `vendored_path(rel)` (upstream-relative
-> posix path → absolute file; `ValueError` on absolute / `..` paths, `FileNotFoundError` when not
-> vendored) — all through `importlib.resources.files("mimicwarehouse.concepts") / "vendor"`, so an
-> installed wheel behaves like the checkout (verified: `uv build` wheel lists all 145 vendor
-> entries; hatchling ships them without an include rule and honours `.gitignore`).
-> `vendoring.py` (`python -m mimicwarehouse.concepts.vendoring --sha <sha> [--src] [--dest]
-> [--vendored-on] [--dry-run]`; poe `vendor-mimic-code`, outside `poe check`) reads blobs from the
-> clone's **git object store at the pinned sha** (`git ls-tree` + `git cat-file --batch`), never
-> the working tree, so `core.autocrlf` cannot leak in; the allow-list is `ALLOW_LIST`
-> (`AllowRule(path, why, tree, suffixes, required)`), refusals are `refusal_reason()` (suffix
-> list incl. bare `.gz`, NUL / non-UTF-8, only `.sql`/`.sh`/`LICENSE`), the two local-edit kinds
-> are `apply_guard_pragma()` (row-count files only) and `redact_band_ids()` (everything else;
-> both driven by `guard.id_band_hits`, so the guard's own regex decides), and after writing it
-> runs `guard.scan()` over the vendor tree and fails on any violation. Repo-root
-> `.pre-commit-config.yaml`: `end-of-file-fixer` and `trailing-whitespace` carry
-> `exclude: ^mimicwarehouse/src/mimicwarehouse/concepts/vendor/` (upstream SQL has trailing
-> whitespace; the fixers would otherwise rewrite it and break `sha256_lf`); `mwh guard`,
-> `check-added-large-files`, `detect-private-key` still cover the tree. Tests: `tests/ep/test_ep08.py`
-> (26, marker `ep_8`, fixture tier; the re-vendor no-op test skips without the clone).
-> `test_ep06::test_mwh_verify_usage_errors` now uses EP-9 as its "code brief without a test module".
-> EP-37 adds the concept runner and EP-38 `patches/` beside `vendor/`.
-
-> **Note (2026-08-17, EP-9).** `src/mimicwarehouse/schema/` is now a package: `contract.py`
-> (pydantic, frozen, `extra="forbid"`: `Column(name, type→duckdb_type, nullable, comment, unit_of,
-> upstream_type, upstream_nullable)`, `Table(schema→schema_name, name, dataset, csv_path, columns,
-> primary_key, uniqueness_hint, subject_keyed, time_column, sort_keys, partitioned, load_class,
-> expected_rows_source, comment)` with validators for every brief rule (subject_keyed ⇔ has
-> `subject_id`, partitioned ⇔ subject_keyed, `sort_keys[0] == subject_id`, time column is
-> TIMESTAMP/DATE, key columns exist), `ForeignKey(table, columns, ref_table, ref_columns, name,
-> source)`, `TableMap` / `ColumnMap.apply | missing | check | table_map`, `ValueUnitPair` /
-> `FixedUnit` / `ImpliedUnit` / `UnitsSpec`, `SchemaInfo`, `Contract.table("s.t" | s, t) |
-> by_schema | by_dataset | subject_keyed | dims | large | foreign_keys_of | column_map |
-> duckdb_schema_ddl | content_hash`; `load_contract()` (cached, `importlib.resources`) and
-> `load_contract_from(root)` for tests). `transcribe.py`: `pg_to_duckdb`, `normalise_pg_type`,
-> `parse_create_sql` (line-oriented, paren-aware, comment-stripping), `parse_constraint_sql`,
-> `draft_schema_yaml`, `check_tables | check_keys | check_contract → list[Drift]`. `cli.py`:
-> `schema_app` (`list [--schema] [--json]`, `show <s.t> [--json]`, `ddl <s.t> | --all
-> [--if-not-exists]`, `check [--json]` → exit 0/1/2, `transcribe --create-sql --schema --out`)
-> attached with one `app.add_typer(schema_app, name="schema")` and **added to
-> `DIAGNOSTIC_COMMANDS`** (`{doctor, paths, guard, verify, schema}`). The package `__init__`
-> re-exports lazily (module `__getattr__`) so `mwh --help` does not import yaml / the models —
-> measured +3 ms; wall unchanged (0.6–0.7 s here, noise-bound). Console output is
-> cp1252-safe (`overflow="fold"`, ASCII-only YAML — a test enforces ASCII, single-document,
-> tag-free, LF, hook-clean, guard-clean). Tests: `tests/ep/test_ep09.py` (46, marker `ep_9`,
-> fixture tier; DDL executed in an in-memory DuckDB opened with `duckdb_settings("app")`; the
-> "edit one type → exit 1" recipe runs in a fresh interpreter over a temp copy).
-> `test_ep06::test_mwh_verify_usage_errors` now uses **EP-10** as its "code brief without a test
-> module". Downstream: EP-10 reads `expected_rows_source`, EP-11/12 generate against
-> `read_csv_columns()`, EP-17/18 use `csv_path` / `sort_keys` / `load_class` / `partitioned`,
-> EP-21/29 apply `comment`s, EP-22 uses `column_map("demo_2_2").check`, EP-28/44 test
-> `primary_key` / `uniqueness_hint` / `foreign_keys`, EP-35 cites `content_hash()`.
-
-> **Note (2026-08-17, EP-10).** **`inventory.py`** landed as the raw-provenance module (D-26)
-> and the `mwh inventory build | show | reconcile` sub-app (`inventory_app`, one
-> `app.add_typer` line; **not** diagnostic — `build` writes under the data root, so it receives
-> validated settings and runs `require_free_space(data_root, min_free_gb)` first). Per file:
-> `inventory_file(path, table, *, rel_path, rowcount, connection, gz_sha256, known_sha256) ->
-> FileRecord` (pydantic, frozen: `dataset, dataset_dir, module, schema_name, table, rel_path,
-> bytes, mtime, mtime_ns, sha256, header, header_matches_contract, missing_columns,
-> extra_columns, rows, rowcount_method ∈ {duckdb, duckdb_serial, skipped, failed},
-> rowcount_error, csv_parallel_fallback, seconds_hash, seconds_rows, physionet_gz_sha256,
-> recorded_at`; `header_status` = ok / order / mismatch) — streaming `hashlib.file_digest`,
-> header from the first line only (`csv.reader`, BOM/CRLF-tolerant), rows from an in-memory
-> DuckDB opened with `duckdb_settings("build")` and `SELECT count(*) FROM read_csv(?,
-> header=true, all_varchar=true, delim=',', quote='"', escape='"')`, retried with
-> `parallel=false` on any `duckdb.Error` (a second failure records `rows=None`, `failed`, the
-> error text, and the build continues with exit 1). Manifest store: `<data_root>/lake/manifests/
-> raw/<dataset-dir>.jsonl` (canonical JSON, one line per file, rewritten atomically after **every**
-> file, sorted by `rel_path`; the `raw/` level is created by the module, `mimic-iv-note-…` uses
-> PhysioNet's long directory name — `DATASET_DIRS` maps contract label → directory) and
-> `raw_snapshot.json` (`raw_snapshot_id` = sha256 of the JSON of the sorted `(rel_path, bytes,
-> sha256, rows)` tuples, `None` below 41 files; `files_expected/_done`, per-dataset totals,
-> `started/finished/last_file/errors/pid/options`, a `runs` history of the last 20 builds, and
-> `duckdb_version / python_version / git_sha / mimic_code_sha / contract_hash`). Public readers:
-> `load_raw_manifest() -> RawManifest(records, snapshot)`, `raw_snapshot_id()`,
-> `compute_snapshot_id(records)`. `build_inventory(...)` walks the contract's `csv_path`s under
-> `settings.source_root`, smallest file first, sequentially; `--resume` (default) skips a file
-> whose `(bytes, mtime_ns)` match its manifest line, and re-uses the hash when only the row
-> count is missing (a `--no-rowcount` pass followed by a full one hashes once); `--force`
-> recomputes; `--max-bytes`, `--dataset` (label or dir, repeatable), `--log <file>` (append-only,
-> ASCII, timestamped, one line per file with MB/s), `--quiet`. `SHA256SUMS.txt` is parsed per
-> dataset (`parse_sha256sums`, names + hashes only) into `physionet_gz_sha256` for the parked
-> `.csv.gz` re-verification. Reconciliation: `parse_validate_sql` (regex over `'tbl' … <int> AS
-> row_count`, case-insensitive, pragma-tolerant), `expected_counts(dataset)` (the vendored files
-> named by the contract's `expected_rows_source`; MIMIC-IV 3.1 → 28 tables, ED → 6, Note → none),
-> `reconcile(manifest) -> [ReconRow]` with `status ∈ {match, mismatch, no-expectation, pending}`
-> (`pending` = file not inventoried / rows not counted yet — a fourth state the brief's three did
-> not need to name); `mwh inventory reconcile` prints the table, writes
-> `docs/resources/raw-inventory.md` (`--no-docs` / `--docs-path`; every integer thousands-
-> separated, hook-clean bytes, no data) and exits 1 on any mismatch. `show [--timing] [--json]`
-> is the only window a Claude session has on the job (deny rules cover the log): table +
-> per-dataset totals + the `raw_snapshot.json` job lines. JSON outputs keep raw integers for
-> machine consumers; every human-readable line is ASCII with thousands separators. Import cost
-> ≈ 9 ms (pydantic model + csv/hashlib; duckdb / contract / vendor pin imported inside
-> functions); `mwh --help` 0.50–0.55 s here (noise-bound). Tests: `tests/ep/test_ep10.py` (28,
-> marker `ep_10`, fixture tier: 41 synthetic CSVs with contract headers under `tmp_path`,
-> ids ≥ 90 000 000 and a sentinel cell value that must never appear in any output).
-> `test_ep06::test_mwh_verify_usage_errors` now uses **EP-11** as its "code brief without a test
-> module". Downstream: EP-16 verifies the full-tier job through `show`, EP-17/18/19 cite
-> `raw_snapshot_id()` as the `source manifest id`, EP-20/28 call `expected_counts`.
-
-> **Note (2026-08-18, EP-11).** `src/mimicwarehouse/fixtures/` is now a package (the `fixture`
-> tier, D-18/D-27; §4 note has the layout). **`spec.py`**: `FixtureSpec` (pydantic, frozen,
-> `extra="forbid"`: `seed=2026, n_subjects=120, first_subject_id/first_hadm_id/first_stay_id/
-> first_event_id=90_000_000` (all `ge` the floor), `admissions_per_subject_mean=1.5`,
-> `icu_fraction=0.4`, `mortality_rate=0.08` (in-hospital deaths / admissions),
-> `dod_fraction=0.15`, `ed_fraction=0.5`, `labs_per_admission=40`, `outpatient_lab_fraction=0.2`,
-> `n_providers=40`, `anchor_year_range=(2110, 2200)`, `anchor_age_range=(18, 88)` + `age_cap_fraction`
-> (91 = the ≥ 89 label), `los_days=(1, 20)` with `los_lognormal=(ln 3.5, 0.7)`,
-> `planted_per_trait=6`; a validator refuses a seed inside the real id band); `build_plan(spec)`
-> → `FixturePlan(subjects, providers)` of frozen dataclasses (`SubjectPlan` → `AdmissionPlan`
-> (`admittime/dischtime/died/icd_version/ed/edregtime/edouttime/admission_type/location/
-> discharge_location/insurance`, the ADT `segments` chain, `icu: IcuSegment | None`, planted
-> `traits ⊆ {aki, sepsis, t2dm}`), `plan.admissions`, `plan.icu_segments` (stay ids consecutive
-> from `first_stay_id`), `plan.admissions_with(trait)`) from **one** `default_rng(seed)`; every
-> table then draws from `table_rng(spec, name)` = `default_rng([seed, crc32(name)])`, so EP-12's
-> icu generators cannot perturb hosp bytes. MIMIC caveats mirrored: ages ≥ 89 → 91, shifted
-> years, `anchor_year_group` from the five real labels, deaths only on a subject's last admission
-> with `dod = deathtime.date()`, otherwise `dod` within 0–365 d of the last discharge for
-> `dod_fraction`, ICD-9 for the 2008–2010 / 2011–2013 groups, ICD-10 from 2017, coin flip inside
-> 2014–2016. **`vocab.py`** + `vocab/*.yaml` (package data, ASCII, hook-clean; hand-typed from
-> public docs): `d_labitems.yaml` (45 real itemids with unit/decimals/sampling range/ref range,
-> `panels` = specimen draws, text-valued and below-detection items), `icd.yaml` (53 ICD-9 + 55
-> ICD-10 diagnoses, 12 + 12 procedures, `tags` for the planted traits), `d_hcpcs.yaml` (12), `drugs.yaml` (36 drugs
-> with formulary/gsn/ndc/strength/form/dose/route/frequency/proc_type/`kind` ∈ once · bolus ·
-> sliding · flush · prn · infusion · fluid, `base` products, tags antibiotic/vasopressor/insulin/
-> sedative), `categories.yaml` (admission types/locations by ED vs not, discharge locations,
-> insurance/language/marital/race, ward + MetaVision ICU careunits, services, HCFA + APR DRGs, OMR
-> result names, micro specimens/organisms/antibiotics/dilutions, poe non-med order types with
-> `poe_detail` fields, emar events, lab comments with commas / quotes / embedded newlines);
-> `Vocab` (frozen) + `load_vocab()` (cached) / `load_vocab_from(root)`. **`hosp.py`**: `HospContext`
-> (plan + vocab + contract + cached cross-table stages `trait_times`, `orders` (poe rows incl. `D/C`
-> chains, `MedOrder`s with `pharmacy_id`, administrations with per-subject `emar_seq`), `labs`,
-> `micro`), `POLARS_TYPES` / `polars_schema(table)` / `to_frame(table, rows)` (typed from the
-> contract, sorted by `sort_keys`, stable), one generator per table in `GENERATORS`
-> (`patients admissions transfers services diagnoses_icd procedures_icd drgcodes hcpcsevents omr
-> labevents microbiologyevents prescriptions pharmacy poe poe_detail emar emar_detail provider
-> d_labitems d_icd_diagnoses d_icd_procedures d_hcpcs`), `build_hosp_frames(plan)`. Shapes:
-> `transfers` = optional `ED` row + `admit`/`transfer` rows = the plan segments verbatim +
-> `discharge` row (NULL careunit/outtime); `labevents` ≈ 40/admission in panel draws (one
-> `specimen_id` per draw, `storetime ≥ charttime`, `flag='abnormal'` outside the item's ref range,
-> `value` text with fixed decimals, `<0.01` below detection, `NEG` text items, 6 % comments) +
-> ~16 % `hadm_id`-NULL draws outside every admission; planted signal: creatinine 0.9 → 2.1 (→ 2.6)
-> within 44 h, blood culture then IV vancomycin + piperacillin-tazobactam started < 13.5 h later
-> (+ norepinephrine in ICU stays), T2DM primary code + insulin + glucose 180–340; `poe_id` =
-> `<subject_id>-<poe_seq>` (meds, `Lab`, `ADT orders` with `poe_detail`, consults, …, ~20 % of med
-> orders discontinued by a `D/C` row), `pharmacy` one row per med order, `prescriptions` `MAIN` +
-> `BASE` rows, `emar_id` = `<subject_id>-<emar_seq>` (`Administered` / `Not Given` / `Flushed` /
-> `Started` / `Rate Change` / `Stopped`), `emar_detail` = summary row (`parent_field_ordinal` NULL)
-> + `1.1` detail row. **`check.py`**: `validate(frames, contract, plan) -> list[str]` /
-> `assert_valid` (`FixtureError`): exact contract columns + dtypes + NOT NULL, `ID_COLUMNS` ≥ the
-> floor and **no integer column anywhere inside 10 000 000–39 999 999** (G4 scans every column),
-> every contract FK inside hosp + `EXTRA_FKS` (emar/pharmacy/prescriptions → poe/pharmacy,
-> provider ids, ICD pairs), declared PKs / uniqueness hints unique, sorted by `sort_keys`,
-> `dischtime > admittime`, `deathtime` ⇔ flag, `dod` ≥ last discharge / ≥ deathtime, `anchor_age`
-> never 89/90, `(subject_id, hadm_id)` pairs = admissions', every ICU segment inside its admission
-> with exactly one matching `transfers` row. **`write.py`**: `frame_to_csv_bytes` (Polars
-> `write_csv`: LF, header, `%Y-%m-%d %H:%M:%S` / `%Y-%m-%d`, `float_scientific=False`, quote only
-> when needed), `check_bytes` (final `\n`, no blank last line, no `\r`, no trailing blanks on any
-> physical line — quoted multi-line values included — and the guard's own `id_band_hits`),
-> `write_fixture` (renders + checks every file **before** the first write), `render_manifest` /
-> `render_readme` / `load_manifest`, `default_out_dir()` (= `workspace_root()/tests/fixtures`),
-> `build_and_write`. **`cli.py`**: `fixtures_app` (`build`), attached with one `app.add_typer` and
-> **added to `DIAGNOSTIC_COMMANDS`** (`{doctor, paths, guard, verify, schema, fixtures}`: it never
-> touches the data root; a mis-set `MWH_DATA_ROOT` must not block regenerating fixtures). Package
-> `__init__` re-exports lazily (`__getattr__`), so `mwh --help` still imports no numpy / polars /
-> duckdb (a test asserts it; 0.45 s wall here). Tests: `tests/ep/test_ep11.py` (43, marker
-> `ep_11`, fixture tier: drift test byte-for-byte vs `manifest.json` and the committed files, all
-> 22 CSVs through DuckDB `read_csv(columns=contract types, header=true, ignore_errors=false)` with
-> the manifest's row counts, era split, multi-line comments, planted signal, guard clean on the
-> directory, hook-clean bytes, ≤ 6 MB, CLI). `test_ep06::test_mwh_verify_usage_errors` now probes
-> **EP-12**. Downstream: EP-12 (`icu` generators from `plan.icu_segments`, `d_items`, extended
-> manifest, `--tier`), EP-17 (`--source tests/fixtures/mimic-iv-3.1`), EP-37/41/42 (real itemids
-> / codes / drug names), EP-22 (same writer discipline for the demo column-map check).
-
-> **Note (2026-08-18, EP-12).** `src/mimicwarehouse/fixtures/` gained **`icu.py`**, **`catalog.py`**
-> and `vocab/d_items.yaml`; `check.py`, `write.py`, `vocab.py`, `spec.py` were extended. **`vocab/
-> d_items.yaml`** (ASCII; `°F` / `°C` as YAML escapes): 47 `d_items` rows typed from public docs —
-> vitals (HR 220045, NBP 220179/80/81, ABP 220050/51/52, RR 220210, SpO2 220277, Temp °F 223761 /
-> °C 223762), GCS (220739 / 223900 / 223901 with the MetaVision text values and scores), FiO2
-> 223835, PEEP set 220339, tidal volume set 224684, ventilator mode 223849, O2 device 226732,
-> admission / daily weight 226512 / 224639, height 226730, finger-stick glucose 225664, vasoactives
-> (norepinephrine 221906, epinephrine 221289, phenylephrine 221749, vasopressin 222315, dopamine
-> 221662), fluids (NaCl 0.9 % 225158, D5W 220949, LR 225828), propofol 222168, insulin 223258,
-> urine (Foley 226559, Void 226560), procedures (invasive ventilation 225792, NIV 225794, arterial
-> line 225752, CRRT 225802, intubation 224385, extubation 227194) and fixture-only `datetimeevents`
-> (2401xx) / `ingredientevents` (2402xx) items — each with `linksto`, `category`, `unitname`,
-> `param_type`, normal bounds and the generator knobs (`role`, `low`/`high`/`decimals`,
-> `text_values`, drip `rateuom` / rate bounds); `Vocab.icu_items` (`IcuItem`), `icu_role(s)`,
-> `icu_linksto`, `icu_weighted`. **`spec.py`**: `n_caregivers=15`, `vent_fraction=0.4`,
-> `vasopressor_fraction=0.25` (icu-only knobs; `build_plan` ignores them, so hosp bytes are
-> unchanged). **`icu.py`**: `IcuContext` (plan + vocab + contract; cached `profiles` — one
-> `StayProfile` per ICU segment: weight / height, severity, ventilation / NIV / arterial-line /
-> CRRT / vasopressor / propofol / insulin **windows**, foley, day + night caregiver — and `inputs`,
-> the inputevents rows plus the fluid rows `ingredientevents` mirrors), one generator per table in
-> `GENERATORS` (`icustays chartevents datetimeevents inputevents ingredientevents outputevents
-> procedureevents caregiver d_items`), `build_icu_frames(plan)`. Shapes: `chartevents` = vitals
-> hourly for 48 h then 4-hourly (ABP where an arterial line is in, NBP otherwise; a 1/400 zero
-> artefact), temperature 6-hourly in one unit per stay, GCS 4-hourly (`No Response-ETT` = 0 while
-> intubated), O2 device 4-hourly (`Endotracheal tube` / `Bipap mask ` / `Non-rebreather` / …), FiO2
-> + PEEP + tidal volume + ventilator mode 4-hourly inside the vent window (`PSV/SBT` before
-> extubation), glucose 6-hourly in half the stays, admission weight / height once + a daily weight,
-> `storetime ≥ charttime`, `warning` on ≈ 4 % of out-of-range values; `inputevents` = titrated drips
-> (`01-Drips`, 1–3 rate segments with new `orderid` and `linkorderid` = the first, `Main order
-> parameter` + `Mixed solution` carrier rows sharing the `orderid`, `patientweight`, bag
-> `totalamount`, `Changed` → `FinishedRunning`/`Stopped`/`Paused`) for norepinephrine (every planted
-> sepsis stay, starting exactly when the hosp prescription starts) / other pressors / propofol under
-> ventilation / insulin, maintenance crystalloids (`02-Fluids (Crystalloids)`, 75–125 mL/h) and
-> boluses (`03-IV Fluid Bolus`; two in each sepsis stay); `ingredientevents` = water + sodium /
-> dextrose per fluid row; `outputevents` = Foley hourly-ish (hourly and oliguric in the planted AKI
-> stays) or Void; `procedureevents` = `Intubation` → `Invasive Ventilation` (minutes) → `Extubation`
-> (not after an ICU death), NIV, `Arterial Line` with a location, `Dialysis - CRRT` in every planted
-> AKI stay; `datetimeevents` = Foley / arterial-line insertion dates and last dialysis. **`check.py`**
-> generalised (`_structural_problems(schema, …)`, contract FKs across schemas) and
-> `validate(hosp, contract, plan, icu=…)` / `assert_valid(…, icu=…)` add: icu columns / dtypes /
-> NOT NULL / id floor / PKs / uniqueness hints / sort keys, icu → hosp + icu → icu contract FKs,
-> `caregiver_id` → caregiver, every `icustays` row inside its admission with exactly one matching
-> `transfers` row and equal to the plan, `los` = window in days, every event inside `[intime − 6 h,
-> outtime + 6 h]` with its stay's `(subject_id, hadm_id)`, `storetime ≥ charttime`, `endtime ≥
-> starttime`, every `itemid` in `d_items` with the table's `linksto`. **`write.py`**:
-> `write_fixture` accepts `{module: {table: frame}}` (or the EP-11 flat form), one manifest (`modules`
-> key) + README for both modules, `build_frames(spec) -> (plan, {"hosp": …, "icu": …})`,
-> `build_and_write` validates hosp + icu together. **`catalog.py`**: `build_fixture_catalog(root=None,
-> *, contract, settings, comments=True) -> duckdb.DuckDBPyConnection` (in-memory, `duckdb_settings
-> ("app")`, schemas `mimiciv_hosp` / `mimiciv_icu`, `CREATE TABLE … AS SELECT * FROM read_csv(…,
-> columns=<contract types>, ignore_errors=false)`, `COMMENT ON` table/columns from the contract),
-> `catalog_tables(con)`, `FixtureCatalogError`. **`tests/conftest.py`** (see §20 note): `--tier` /
-> `PYTEST_TIER`, `tier(name)` semantics, session fixtures `tier` / `contract` / `fixture_root` /
-> `fixture_catalog`, `pytest_plugins = ["pytester"]`. Tests: `tests/ep/test_ep12.py` (marker
-> `ep_12`; icu drift byte-for-byte, all 9 files typed through DuckDB with the manifest row counts,
-> icustays ↔ transfers, event windows, planted signal across hosp + icu, catalog of 31 tables,
-> pytester tier-selection cases, guard / hooks / budgets, CLI) — the two EP-11 assertions that count
-> written files now read 31 (22 hosp + 9 icu) and the drift fixture regenerates the whole tree.
-
-> **Note (2026-08-29, EP-171).** **`canary.py`** landed: the P2 write canary
-> (`run_canary(settings, *, small_files, large_mb, keep, observer)` + `mwh canary write
-> [--small N] [--large-mb N] [--keep] [--json]`). It rehearses, in order and with synthetic
-> bytes only (ids from 90 000 000; DuckDB `COPY` of a delta-encoded id + three `random()`
-> doubles, ~40,000 rows/MB), the five write shapes P2's briefs plan against `C:\mimicdata`:
-> **burst small-file pass** (N ≈ 1 MB Parquet files into Hive `subject_bucket=<n>/` dirs, the
-> EP-18 staging shape), **large sequential pass** (one Parquet of `--large-mb`, default
-> 2,048 MB, cap 8,192 — the EP-23/26 event-table shape; wall time and MB/s recorded per
-> pass), **manifest churn** (append-per-line + `inventory._atomic_write_text` rewrites, the
-> EP-19 ledger shape), **rename-aside swap** (`x.duckdb.new` → rename live aside →
-> `os.replace` → remove `.old`, the §6 catalog protocol) and **cleanup** (the delete-loop
-> shape of the 2026-08-17 ARW kill, D-42). After every phase it re-reads what it wrote
-> (sha256 + size per file) so a silent quarantine is a hard `CanaryError`, and the tree is
-> then **left in place** for the Malwarebytes triage. The canary tree is
-> `layout["tmp"]/canary` (not a layout key — module-created, the EP-10 `raw` precedent);
-> `require_free_space(min_free_gb + projected)` runs first; `canary` is **not** in
-> `DIAGNOSTIC_COMMANDS` (it writes under the data root — the `mwh inventory` precedent) and
-> is deliberately **not a doctor check**: the doctor only reports, the canary writes. Output
-> is counts/bytes/seconds/MB-per-s only (G4 thousands separators; `--json` raw for machines).
-> An `observer(event, path)` seam fires at every step (the tests assert the swap's on-disk
-> state between renames through it). Live baseline on this machine in the EP-171 completion
-> note: burst 191 MB/s, large sequential 239 MB/s (floors — DuckDB defaults, generation cost
-> included), 13.3 s total, both endpoint products live, nothing killed or quarantined.
-
-> **Note (2026-08-29, EP-19).** **`dag/`** landed: `spec.py` (pydantic `DagSpec`/`Step`,
-> kinds `stage|sql|python|catalog`, per-kind field contract, acyclic-graph validation,
-> packaged specs under `dag/specs/` — `stage.yaml` ships three hosp steps + a `catalog`
-> stub whose handler raises `NotImplementedError("EP-21")`), `runner.py` (`run(dag, tier,
-> …)`: build lock `warehouse/.build.lock` — live pid always refuses, a stale lock yields
-> only to `--break-lock`; per-tier free-space guard; raw-root/bucket resolution;
-> skip-when-complete via `status.json` + `--force`; per-step wall/peak-RSS sampling — and
-> the `STEP_HANDLERS[kind]` registry; the stage handler completes **dims** as
-> `tier_complete: "full"` / `dev_ready: true` after `stage_unpartitioned`, closing the gap
-> EP-17 left), `snapshot.py` (the §11 **logical** layer snapshot id + the
-> `lake/manifests/snapshots.json` history; the dev id hashes dev-bucket lines plus
-> unpartitioned tables only), `benchmarks.py` (`runs/benchmarks.jsonl`, `O_APPEND`+fsync,
-> one line per step + a `kind: build` summary; polars `read()`), `jobs.py` and two new
-> `mwh` commands: **`mwh build --tier {fixture,demo,dev,full} [--select a,b] [--tag t]
-> [--force] [--dry-run] [--background --job NAME] [--break-lock]`** (foreground runs print
-> a rich summary table — step, rows, bytes, wall — and the snapshot id) and **`mwh jobs
-> [--job NAME] [--tail N]`**, which lists background jobs or prints one job's state file
-> (`runs/jobs/<name>.json`: job, pid, argv, started, log, state, exit_code, finished) and
-> the last N lines of its log (INFO counts only — never rows). `jobs.launch` spawns a
-> detached supervisor `[sys.executable, -m, mimicwarehouse.dag.jobs, --job-file, …]`
-> (workspace-venv python per the EP-170 amendment, never a `uv` shim) which runs
-> `[sys.executable, -m, mimicwarehouse.cli, …]` into the log and finalises the state file
-> on exit — so `state`/`exit_code` are reliable for any argv, including crashes and lock
-> refusals; `mwh build --job NAME` additionally merges its own outcome into the same file
-> (the brief's child-side rewrite). `psutil` joined the **core** dependency group here
-> (D-15 addendum, D-43 item 14). `mimicwarehouse.dag.__init__` re-exports nothing: the
-> runner's import chain reaches the schema contract, which the `mwh --help` import budget
-> (test_ep09) excludes.
-
-> **Note (2026-08-29, EP-21).** **`catalog/`** landed: `build.py` (`build_catalog(tier,
-> settings, *, lake_root=None, build_id=None)`, registered as the real `catalog` handler in
-> `STEP_HANDLERS` — asserts the EP-1 DuckDB pin, creates schemas `mimiciv_hosp ·
-> mimiciv_icu · mimiciv_derived · meta · marts`, admits tables by `status.json`
-> qualification (`full` needs `tier_complete = "full"`, `dev` accepts `dev_ready` /
-> `tier_complete in ("dev","full")`, `fixture`/`demo` need completeness on their own lake
-> roots), materialises dims as `CREATE TABLE` over `part-0.parquet` and subject-keyed
-> tables as `CREATE VIEW` with the contract columns in order over the EP-18
-> `read_parquet_sql` fragment — `WHERE subject_bucket IN (settings.dev_buckets)` on `dev` —
-> omits unstaged tables (never empty views) and lists all 31 hosp/icu tables in
-> `meta.catalog_tables (schema, table, kind: table|view|missing, status, rows_hint)`;
-> `meta.catalog_info` is one row: `build_id, tier, duckdb_version, package_version,
-> git_sha, core_snapshot_id, lake_root, built_at, k_default, dev_buckets` (the recorded
-> buckets warn on drift at open/build, retro ARCH-8); `CHECKPOINT`, close, then the §6
-> **rename-aside two-step** for a single file — only when even the rename fails does it
-> raise the "close the app/notebooks and rerun `mwh build --tier <t> --select catalog`"
-> message, old catalog intact), `connect.py` (`open_catalog(tier, *, settings=None,
-> role=None, path=None)`: `read_only=True`, app-profile config, `SET
-> autoinstall/autoload_known_extensions = false` + `disabled_filesystems =
-> 'HTTPFileSystem'`, asserts the recorded DuckDB version, refuses `.new` paths, retries the
-> swap's sub-millisecond no-file window; `role` defaults to the **new** `Settings.role` /
-> `MWH_ROLE` — `agent` everywhere, `owner` only in the owner's own shell), and `cli.py`:
-> **`mwh catalog info --tier <t> [--json]`** (both meta tables, metadata only) and **`mwh
-> sql`** registered with its final surface (`--tier`, `--k`, `--format`) but interim-bodied
-> — only `--tables`, `--describe schema.table`, `--count schema.table` (counts `0 < n < k`
-> print suppressed per GOVERNANCE §5); any free-form statement exits 2 with "free-form SQL
-> arrives with safe_query (EP-30)". The test suite gained the session-scoped
-> `fixture_lake_catalog` (a runner-built fixture lake + `fixture.duckdb` in a temp root,
-> built **without** a tag filter so it grows as EP-23…EP-27 add fixture steps); EP-12's
-> in-memory `fixture_catalog` is untouched (EP-170 amendment 4).
-
-> **Note (2026-08-29, EP-29).** The `meta.*` dictionary layer shipped. `catalog/profile.py`
-> (`profile_lake`; DAG `python` step **`meta.profile`** — the runner gained the generic
-> `python` handler, which resolves the step's `callable: module:function` and calls it with
-> `(step, ctx)`; EP-50's spine steps reuse the same contract) scans every status-qualified
-> table once per tier (`dev` = the bucket-filtered lake, so its numbers describe what the
-> dev catalog exposes) and writes `lake/meta/<tier>/profile_tables.parquet` +
-> `profile_columns.parquet`: per table `row_count`; per column `null_pct` (fraction in
-> [0, 1]), `approx_count_distinct`, and VARCHAR-cast min/max for **non-identifier
-> numeric/timestamp columns only** (identifier columns stay NULL; VARCHAR/BOOLEAN are never
-> profiled for extrema; no per-value frequency is ever computed — that is EP-44's suppressed
-> QC territory), plus the provenance triple `build_id, snapshot_id, profiled_at`.
-> `catalog/build.py` now also creates `meta.tables (schema, table, description, kind,
-> partitioned, row_count, bytes, files, build_id, snapshot_id)` and `meta.columns (schema,
-> table, column, ordinal, duckdb_type, nullable, description, is_identifier, is_free_text,
-> unit_hint, null_pct, approx_distinct)` — descriptions transcribed from the EP-9 contract's
-> `comment` fields (add them in the YAML, never in code), `unit_hint` from the units seed —
-> `meta.row_counts (schema, table, tier, rows, source: manifest|profile)` (manifest counts
-> are scan-free via the new `dag.snapshot.table_file_stats`: latest manifest line per
-> published path, dev bucket-filtered, same scope rules as the snapshot id), the
-> **`meta.itemids`** view (`d_items` as `source='icu'` UNION ALL `d_labitems` as
-> `source='hosp'` under one 9-column shape — the base EP-39 curates) and `COMMENT ON
-> TABLE/VIEW/COLUMN` for every cataloged object, so `duckdb_columns()` / `DESCRIBE`
-> tooling and the app surface descriptions (`mwh sql --describe` prints the comment
-> column). `catalog/dictionary.py` + **`mwh catalog dictionary --tier <t> [--out PATH]`**
-> render one catalog's `meta.*` as `mimicwarehouse/DATA-DICTIONARY.md`: header (build id,
-> tier, core snapshot id, DuckDB version, catalog `built_at`, the D-33 caveats paragraph,
-> "disclosure sidecar pending EP-43"), then per table the description, manifest row count,
-> Parquet MB and a column table. Integers go through `inventory.fmt_int`, distinct counts
-> below k = 11 render `<11`, ordering is deterministic and every timestamp comes from
-> `meta.catalog_info` — regeneration from an unchanged catalog is byte-identical.
-
-> **Note (2026-08-30, EP-31).** **`tracer.py`** landed — the first end-to-end proof (D-8)
-> over the tier catalogs, canonical theme D-5. `sql/tracer_first_icu_mortality.sql` is a
-> packaged WITH-clause chain (`base → first_stay → adult → complete → cohort`, one CTE per
-> criterion; identifiers only inside the chain, never in a final select list);
-> `statement(select)` appends the final SELECT. `attrition(tier)` runs one
-> `safe_query("SELECT count(*) AS n FROM <step>", actor="tracer")` per step (a suppressed
-> count comes back `n=None`); `descriptives(tier)` returns mortality by age band × gender
-> and by `first_careunit` — deaths as `count(*) FILTER (WHERE hospital_expire_flag = 1)`,
-> **not** the brief's `sum(...)`: DuckDB's `sum` returns HUGEINT, and a cast around an
-> aggregate trips the safe-query aggregate-only walk, while the FILTER form is a genuine
-> BIGINT count column (row-wise k = 11 applies to deaths too, `rows_suppressed` recorded).
-> `fit(tier)` reads the `cohort` CTE via `open_catalog` (in-process only) into
-> polars → pandas → statsmodels `Logit` (treatment coding, HC1). **Quasi-separation is
-> real on every tier** — a handful of rare `first_careunit`/`admission_type` levels
-> (each < 11 first stays) have zero deaths, so the specified model has no finite ML CIs:
-> `fit` probes zero-cell levels to a fixed point, excludes their rows (exact for the
-> remaining coefficients — their profile likelihood equals the row-excluded likelihood),
-> names the degenerate levels in `model.json`/the report, and never emits an unstable
-> table; a constant outcome records `not_fit (constant outcome)` per the brief.
-> `run_tracer(tier, *, out=None)` writes `runs/tracer/<yyyymmddThhmmss>-<tier>/`
-> (manifest with git sha/versions/`core_snapshot_id`/params/cohort n/wall_s/audit ids +
-> attrition/descriptives/model JSON + `report.md` — claim type **associational
-> (exploratory)**, "MIMIC-IV analyses are retrospective", an explicit does-not-claim list,
-> integers via `fmt_int`, raw ints only in the JSON, no identifier column name and no
-> string value over 64 chars anywhere in the folder — model term labels are normalised to
-> `var=level` and truncated). CLI **`mwh tracer --tier {fixture,demo,dev,full}
-> [--background --job NAME]`** (detach via `dag.jobs.launch`; safe-query refusals exit 3).
-> Lessons queued for the P2 re-plan: level-degeneracy policy belongs in the cohort/model
-> engines (EP-46/79), the age/era inlining moves to EP-34, and complementary suppression
-> of "n vs n_fit" differences is EP-43 territory.
-
-> **Note (2026-08-30, EP-32).** The benchmark ledger grew its case-study renderer:
-> `dag.benchmarks.render_markdown(summary)` (one Markdown row per `summarize()` step —
-> rows/CSV GB/Parquet GB/ratio/files/pass walls/total/MB/s/peak RSS, integers via
-> `inventory.fmt_int`, a totals row whose peak RSS is the high-water) and
-> `replace_marked_block(text, block)`, which swaps only the content between
-> `<!-- benchmarks:begin -->` / `<!-- benchmarks:end -->` markers (exactly one pair
-> required; idempotent). CLI: **`mwh runs benchmarks [--tier full|…|all]
-> [--kind stage|…|all] [--format table|md] [--out PATH]`** (`runs_cli.py`; `--out`
-> splices into an existing marked file, preserving its line endings; empty summary or a
-> missing/marker-less target exits 2). First consumer: `docs/analyses/` — the case-study
-> convention (naming, required sections, claim-type labels, disclosure rule, index) in
-> `docs/analyses/README.md` and the Capstone #0 staging-benchmark note
-> `00-staging-benchmark.md`, whose Results table is generated by the command
-> (telemetry only; disclosure sidecars retroactive at EP-43). EP-35 adds the other
-> `mwh runs` verbs.
+*History:* built by EP-2 … EP-6, EP-8 … EP-12, EP-17 … EP-22, EP-28 … EP-32, EP-164 … EP-171, EP-33 B4/B5/B6/B8 (completion notes); consolidated at EP-33.
 
 ## 16. App structure (D-21)
 
-One Streamlit process, `127.0.0.1` only, `READ_ONLY` catalog connection cached per tier,
-tier switcher (demo/dev/full; default dev), theme from `theme.py`. Pages (each its own EP):
+One Streamlit process, `127.0.0.1` only, tier switcher (fixture/demo/dev/full; default
+dev), theme from `theme.py`. The app opens catalogs through `catalog.connect.open_catalog`
+(READ_ONLY, app profile, `agent` role unless the owner's shell sets `MWH_ROLE=owner`) and
+**caches results, not connections** (§6: it drops its handle when
+`meta.catalog_info.build_id` changes, so a rebuild while the Lab app is open never fails
+the swap); every aggregate it shows comes through `safe_query` (§12), and the owner-only
+row views through the audited `owner_rows()` path (EP-58). Pages (each its own EP):
 Catalog & QC · Cohort Builder · Phenotype Studio · Explorer (linked-brush distributions,
 heatmaps/correlations, cross-tabs) · Timelines (owner-gated) · Prevalence & Rates ·
 Subgroups · Table 1 · Missingness · Analysis (P5) · Survival/Causal (P6) · Models (P7) ·
 Protocol Freezer · Runs & Provenance · Reports · Linkage Wizard (P9) · Text (P10, search
 only). Linked views: Altair selections → server-side DuckDB re-aggregation (VegaFusion for
-large specs); Plotly only for lane/Gantt timelines. All charts read from
-`viz/` spec builders so the same spec renders in reports. Small-cell warnings and the
-row-view gate are shell-level components (EP-58). Latency target ≤ 5 s on full via marts;
-pages default to dev (D-28). The `ui` dependency group is isolated because Streamlit pins
-`pyarrow<25`.
+large specs); Plotly only for lane/Gantt timelines. All charts read from `viz/` spec
+builders so the same spec renders in reports. Small-cell warnings and the row-view gate
+are shell-level components (EP-58). Latency target ≤ 5 s on full via marts; pages default
+to dev (D-28). The `ui` dependency group is isolated because Streamlit pins `pyarrow<25`
+(one venv serves both while the forks resolve to the same pyarrow, §2). Streamlit vs
+marimo for the Freezer/Wizard pages is a §21 question for the P4 re-plan.
+
+*History:* planning text (2026-08-16), reconciled with EP-21/30/166's reader protocol and EP-167's tiers; EP-57 … EP-73 planned; consolidated at EP-33.
 
 ## 17. Reporting pipeline (D-23)
 
@@ -1270,133 +912,132 @@ pages default to dev (D-28). The `ui` dependency group is isolated because Strea
 associational / causal), provenance footer (run ids, snapshot ids, protocol hash, env
 hash) → Jinja2 → Markdown + self-contained HTML; PDF via Typst (EP-131). Model cards,
 methods summaries and executive one-pagers are templates (EP-132). Anything leaving
-`runs/` for `reports/` or git passes `disclose.check` and gets a sidecar (EP-133).
+`runs/` for `reports/` or git passes `disclose.check` and gets a sidecar (EP-133). The
+shipped precedents: the tracer's `report.md` (EP-31 — claim type *associational
+(exploratory)*, "MIMIC-IV analyses are retrospective", an explicit does-not-claim list,
+integers via `fmt_int`) and the `docs/analyses/` case-study convention (EP-32: `NN-slug.md`
+names, required sections, claim-type labels, Reproduction blocks, the `benchmarks:begin/end`
+marked block a command regenerates).
+
+*History:* planning text (2026-08-16), reconciled with EP-31/32's shipped report shapes; P8 planned; consolidated at EP-33.
 
 ## 18. Notes segregation (D-3)
 
 `C:\mimicdata\notes\` lake + `notes.duckdb` (DuckDB FTS) built in EP-148, attached only
-by `mwh … --with-notes` in owner role, never by `safe_query`, never by the app except the
-Text page's aggregate search results (counts, ids only when owner-gated). Note text never
-enters run records, reports, tool output or git.
+by `mwh … --with-notes` in owner role, never by `safe_query` (`mimiciv_note` is outside
+`safe.ALLOWED_SCHEMAS` and no stage step writes note tables into `lake/core` — §5 coverage
+tests assert the negative), never by the app except the Text page's aggregate search
+results (counts, ids only when owner-gated). Note text never enters run records, reports,
+tool output or git.
+
+*History:* planning text (2026-08-16), reconciled with EP-30's allow-list and EP-17's coverage tests; EP-148 planned; consolidated at EP-33.
 
 ## 19. External-data landing & linkage (D-36)
 
 `C:\mimicdata\ext\<source>\` with a `source.yaml` (license, provenance, DUA, keys) written
-by the profiler (EP-137); mapping YAML for concepts/units (EP-138); key validation and
-join-cardinality/coverage report (EP-139); commit into `mimiciv_ed` / `ref.*` schemas via
-the DAG runner. The Linkage Wizard (EP-140/141) drives exactly this sequence; ED (EP-142)
-and a reference table (EP-143) are the v1 test cases. mimic-code `concept_map/*.csv` is a
-head start for itemid → LOINC/SNOMED mapping.
+by the profiler (EP-137) — `ext\demo\source.yaml` from `mwh demo fetch` (EP-22) is the
+shipped precursor of that register; mapping YAML for concepts/units (EP-138; mimic-code
+`concept_map/*.csv`, excluded from the EP-8 vendor slice with its upstream URL recorded, is
+the head start for itemid → LOINC/SNOMED); key validation and join-cardinality/coverage
+report (EP-139); commit into `mimiciv_ed` / `ref.*` schemas via the DAG runner (`stage`
+steps with the contract's six `mimiciv_ed` tables — the ED demo is already fetched and
+verified, never staged, §4). The Linkage Wizard (EP-140/141) drives exactly this sequence;
+ED (EP-142) and a reference table (EP-143) are the v1 test cases.
+
+*History:* planning text (2026-08-16), reconciled with EP-8's exclusions and EP-22's register; P9 planned; consolidated at EP-33.
 
 ## 20. Testing strategy
 
-pytest + hypothesis; `tests/ep/test_epNN.py` per brief with tier markers
-(`@pytest.mark.tier("fixture")` default; `dev`; `full` opt-in); DuckDB data checks
-(row-count pins, key uniqueness, referential integrity, unit plausibility) as first-class
-tests; golden files only for aggregates that pass `disclose.check`; `mwh verify EP-n`
-runs the EP's marker set. Never snapshot real rows into fixtures, cassettes or goldens.
+**Shape.** pytest (+ hypothesis where a property is the point); one `tests/ep/test_ep<NN>.py`
+per brief (zero-padded file, unpadded marker `ep_<n>`; `ep_0` … `ep_199` registered in
+`conftest.py`, `--strict-markers`); DuckDB data checks (row-count pins, key uniqueness,
+referential integrity, unit plausibility) as first-class tests; golden files only for
+aggregates that pass `disclose.check`; never snapshot real rows into fixtures, cassettes
+or goldens. `mwh verify EP-n [-- <pytest args>]` runs the marker set in a **fresh
+interpreter** (spawn-safe; a docs-only brief returns 0 with "nothing to run", a code brief
+without a test module returns 2, "nothing collected" becomes 2 with a marker hint).
+EP-33's acceptance spans `tests/ep/test_ep33*.py` — `test_ep33.py` (foundations),
+`_cli.py`, `_hygiene.py`, `_loader.py`, `_safe.py`, one file per workstream area, all
+marker `ep_33`.
 
-> **Note (2026-08-18, EP-12).** The tier markers are real (`mimicwarehouse/tests/conftest.py`,
-> documented in `tests/README.md`). **Vocabulary:** `@pytest.mark.tier("fixture" | "dev" | "full")`
-> names the data tier a test needs; an unmarked test is `fixture`. `pytest --tier {fixture,dev,full}`
-> (fallback: the **`PYTEST_TIER`** environment variable, then `fixture`) selects the **maximum**
-> tier to run — the ladder is `fixture < dev < full`, `--tier dev` runs fixture + dev, `--tier full`
-> everything. Tests above the selected tier are **deselected**; `dev` / `full` tests inside it are
-> **skipped with a reason** while `get_settings().catalog_path(tier)` (`<data_root>/warehouse/
-> <tier>.duckdb`, EP-21) does not exist, so a fresh checkout is never red for lack of data. The
-> option is deliberately not `MWH_`-prefixed (`Settings` is `extra="forbid"` on that prefix and
-> `test_ep03` asserts `.env.example` parity — a test knob is not a setting), the ladder is the
-> three-step subset of `config.Tier` (`demo` is a data tier for EP-22 / screenshots, never a test
-> tier) and the pytest tier never reads `settings.default_tier`. `--strict-markers` stays on: an
-> unknown marker is a collection error, `tier("<other>")` a usage error. poe tasks: `test`
-> (fixture; unchanged), `test-dev` = `pytest --tier dev`, `test-full` = `pytest --tier full`;
-> `check` = `lint` + `typecheck` + `test` stays fixture-only; `mwh verify EP-n -- --tier dev` passes
-> through EP-6's `--` unchanged. Session fixtures: `tier`, `contract`, `fixture_root`,
-> `fixture_catalog` (in-memory DuckDB over the 31 fixture CSVs — the `fixture` tier's data until
-> EP-21). `pytest_plugins = ["pytester"]` in `tests/conftest.py` backs the marker-selection tests
-> (nested sessions over a copy of the conftest and a throw-away data root). EP-12 adds no dev/full
-> test content beyond two marker-mechanics probes that open the catalog file read-only; the first
-> real dev tests are EP-17's.
+**Tier ladder (EP-12, EP-168; `tests/conftest.py`, documented in `tests/README.md`).**
+`@pytest.mark.tier("fixture" | "dev" | "full", needs="catalog" | "raw" | "lake")` names
+the data a test needs; an unmarked test is `fixture`. `pytest --tier {fixture,dev,full}`
+(fallback the **`PYTEST_TIER`** environment variable, then `fixture`) selects the
+**maximum** tier: the ladder is `fixture < dev < full`, tests above it are **deselected**.
+**Readiness is per need, not one catalog file**: inside the selected ladder a dev/full
+test requests the readiness fixture for exactly the artefact it needs — `dev_catalog`,
+`full_catalog`, `raw_root`, `dev_ready(step)` (reads `lake/manifests/status.json`
+`{"steps": {"<step>": {"dev_ready": true}}}`), `item_tier` — and is **skipped with a
+reason naming the missing path** while it is absent, so a fresh checkout is never red for
+lack of data and "dev green" is never vacuous. **Demo tests are orthogonal opt-in**:
+`@pytest.mark.demo` + `--with-demo` (env `PYTEST_DEMO`), deselected unless opted in,
+skipped while `catalog_path("demo")` is missing — `demo` never joins the ladder. The knobs
+are deliberately not `MWH_`-prefixed (a test knob is not a setting; `Settings` is
+`extra="forbid"` on `.env`/`mwh.toml` lines and `test_ep03` asserts `.env.example` parity),
+and the pytest tier never reads `settings.default_tier`. `pytest_plugins = ["pytester"]`
+backs the marker-selection tests.
 
-> **Note (2026-08-28, EP-166 — tier readiness + demo marker; decided 2026-08-18, D-43
-> item 8; code EP-168).** Two refinements to the EP-12 note, words now so P2 briefs cite
-> them, mechanics in EP-168: (1) **readiness is per-need, not one catalog file** — keying
-> every dev/full skip on `catalog_path(tier)` would leave EP-17…EP-20's dev tests (which
-> need raw data or a lake, not a catalog) skipped and their "dev green" acceptance vacuous
-> (ledger FC-1/VT-1). EP-168 keeps the ladder's deselect rule but replaces the blanket skip
-> with requestable readiness fixtures (`raw_root`, `dev_catalog`, `full_catalog`,
-> `dev_ready(step)`, `item_tier`) and a `tier(name, needs=…)` kwarg, so each test skips on
-> exactly the artefact it needs. (2) **demo tests are orthogonal opt-in** — `demo` never
-> joins the ladder (it is not "between" fixture and dev): EP-168 adds
-> `@pytest.mark.demo` + `--with-demo` (env `PYTEST_DEMO`), deselected unless opted in,
-> skipped while the demo catalog is absent; EP-22's "extend the tier vocabulary with demo"
-> is superseded by this (EP-170 amends the brief). Also a correction to the EP-12 note's
-> `PYTEST_TIER` rationale (ledger CFG-1): a stray `MWH_TEST_TIER` *environment variable*
-> would **not** break `Settings()` — pydantic-settings ignores env vars that match no
-> field; only unknown lines in `.env`/`mwh.toml` are rejected (`extra="forbid"`). The
-> non-`MWH_` prefix is still right — it keeps the test knob out of the `Settings` namespace
-> and the `.env.example` parity test — and `mwh doctor` gains an unknown-`MWH_*`-vars warn
-> at EP-167 (D-43 item 12).
+**Fixtures and helpers.** Session fixtures `tier`, `contract`, `fixture_root`,
+`fixture_catalog` (EP-12's in-memory catalog over the 31 fixture CSVs) and
+`fixture_lake_catalog` (EP-21's runner-built fixture lake + `fixture.duckdb` in a temp
+root). `tests/helpers.py` (importable, not a plugin; `tests/` is on `sys.path` via
+`conftest.py`): `cli_runner()` (COLUMNS=200), `tmp_data_root(monkeypatch, tmp_path)`
+(clears every `MWH_*` / `PYTEST_*` variable, rebuilds the settings cache),
+`fresh_interpreter(argv)`, `assert_import_budget(...)` (§15). Tests build into temp roots
+via `--data-root` / `MWH_DATA_ROOT` and never into the real one; the fixture tier's data is
+the committed tree, byte-identical across sessions (`GENERATOR_VERSION` 0.2.0).
 
-> **Note (2026-08-28, EP-168 — mechanics shipped).** The EP-166 note above is now code
-> (`tests/conftest.py`, documented in `tests/README.md`): readiness fixtures `dev_catalog` /
-> `full_catalog` / `raw_root` / `dev_ready(step)` (each skips the requesting test with a
-> reason naming the missing path) and `item_tier`; the marker form
-> `tier(name, needs="catalog"|"raw"|"lake")` resolved in the collection hook (default
-> `catalog` keeps EP-12 semantics); `@pytest.mark.demo` + `--with-demo` (env `PYTEST_DEMO`),
-> deselected unless opted in, skipped while `catalog_path("demo")` is missing — `TIERS` and
-> the maximum-tier deselection are unchanged. `dev_ready` reads
-> `lake/manifests/status.json` with shape `{"steps": {"<step>": {"dev_ready": true}}}` —
-> EP-23/24/25 write exactly that. Also shipped: `tests/helpers.py` (importable, not a
-> plugin: `cli_runner()`, `tmp_data_root()`, `fresh_interpreter()`), `poe test-fast =
-> pytest -n auto` (`poe test` stays serial, D-42), the tests/README churn rule ("a new EP
-> must not need to edit an earlier `test_ep*.py`"), and the de-coupling of the rolling
-> literals (test_ep06's verify probe now runs on a crafted roadmap; fixture-tree counts are
-> read from the contract/manifest, retro VT-2/VT-3).
+**Churn rule (EP-168; `tests/README.md`).** A new EP must not need to edit an earlier
+`test_ep*.py`: rolling literals (file counts, row totals, the verify probe's "code brief
+without a test module") are read from `tests/fixtures/manifest.json`, the contract,
+`build_plan()` or a crafted roadmap, never pinned. Earlier tests change only for a specific
+consolidation item or to follow a deliberate surface change, with a dated
+`# EP-n: …` comment.
+
+**Gates.** `poe check` = `lint` (ruff check) + `fmt-check` (ruff format --check, the gate
+EP-33 B5 added) + `typecheck` (pyright) + `test` (pytest, fixture tier, serial on purpose —
+D-42's AV heuristics); `test-fast` = `pytest -n auto` (xdist opt-in); `test-dev` /
+`test-full` = `pytest --tier dev|full`; `roadmap-check` = `mwh verify --roadmap`. Tasks run
+from `mimicwarehouse/`, or from the repository root through `poe_tasks.toml`
+(`uv run --project mimicwarehouse --group dev poe check`; deliberately not a root
+`pyproject.toml`, which would enter uv's project discovery). Pre-commit: `mwh guard` →
+`ruff-check` → `ruff-format --check` → `pre-commit-hooks` v6.0.0 (large files ≤ 20 MB,
+merge-conflict, yaml/toml/json, end-of-file, trailing-whitespace, private keys; the
+whitespace fixers exclude the vendored mimic-code tree so `sha256_lf` stays true). Full-tier
+verification (EP-28) runs as `tier("full")` tests that read the ledgers and manifests and
+append `kind: verify` benchmark lines — never rows.
+
+*History:* built by EP-6, EP-7, EP-12, EP-21, EP-28, EP-166, EP-168, EP-33 B5/B6 (completion notes); consolidated at EP-33.
 
 ## 21. Open design questions (to be resolved by the named EP)
 
-*(Heading restored 2026-08-29, EP-18: the EP-166 doc consolidation accidentally deleted
-this section's heading and the first bullet's lead-in, fusing the list into the EP-168
-note above; text below is the original bullet, with the endpoint-security wording as
-amended since.)*
+*(Live list. Settled questions keep their line with a "resolved by" clause so the
+reasoning stays findable; the evidence is in the named EP's completion note.)*
 
-- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3 000 files) vs Defender +
-  Malwarebytes/NTFS overhead (D-42; the ARW module judges write bursts) — measure in
-  EP-18/28.
-
-  > **Note (2026-08-29, EP-18 — first fixture/dev observations; full-scale measurement is
-  > EP-28's).** The partitioned stage exists (loader/buckets.py) and was measured on the
-  > fixture and one small real table; nothing here settles the bucket-count question yet.
-  > Fixture `admissions` (186 rows, all 100 buckets): 100 partition dirs / 100 files in
-  > 0.8 s via the small path, 1.3 s via the two-pass large path (sweeps=2 identical), i.e.
-  > ~5 ms per file-create at burst — consistent with the EP-171 canary's 200-file burst,
-  > no Defender/Malwarebytes stall observed. Real `mimiciv_hosp.admissions` (94 MB CSV,
-  > `buckets=dev` → 5 partitions, 27,263 rows): 0.21 s small path, 0.29 s large path.
-  > Per-bucket ~1 MB files at the dev scale are comfortably below NTFS overhead territory;
-  > the 3 000-file / 40 GB-table regime (chartevents, EP-26) and the file-count vs
-  > Defender measurement stay with EP-28.
-
-  > **Note (2026-08-29, EP-28 — full-scale measurement; question settled for P2).**
-  > The complete core lake holds **2,407 `part-0.parquet` files + 24 `_progress.json`
-  > markers = 2,431 files in 2,433 directories** (24 partitioned tables × 100 buckets
-  > each + 7 single-file dims) — under the ≈ 3,000-file planning estimate because the
-  > dims and the ed/note schemas stay out of the bucket scheme. One `os.scandir` sweep
-  > of the whole tree: **0.091 s**. No AV stall or quarantine was observed across the
-  > five ⏱ staging jobs (Defender excludes `C:\mimicdata` per D-38 — recorded done by
-  > the owner, not readable non-elevated; Malwarebytes runs its own nine-path allow
-  > list, D-38 addenda). At ~2.4 k files the 100-bucket trade-off costs nothing
-  > measurable on this host: **keep 100 buckets**; EP-33 revisits only alongside the
-  > parallel-per-bucket-sort decision (its pass 2 ≥ pass 1 trigger fired broadly —
-  > EP-26/EP-28 completion notes).
+- Exact bucket count trade-off (100 buckets × ~30 tables ≈ 3,000 files) vs Defender +
+  Malwarebytes/NTFS overhead (D-42; the ARW module judges write bursts) — **resolved by
+  EP-28 (2026-08-29), confirmed at EP-33 (D-44 item 3): keep 100 buckets.** The complete
+  core lake holds 2,407 `part-0.parquet` files + 24 `_progress.json` markers in 2,433
+  directories (24 partitioned tables × 100 buckets + 7 single-file dims — under the
+  planning estimate because dims and the ed/note schemas stay out of the scheme); one
+  `os.scandir` sweep of the tree takes 0.091 s; no AV stall or quarantine across the five ⏱
+  staging jobs. Per-bucket ~1 MB files at dev scale (EP-18: 100 files in 0.8–1.3 s on the
+  fixture, ~5 ms per file-create) are below NTFS overhead territory.
+- Whether to parallelise the per-bucket sort of pass 2 (its "pass 2 ≥ pass 1" trigger fired
+  broadly in EP-26/EP-28) — **parked by EP-33 (2026-08-30, D-44 item 3)**: staging is
+  complete and never re-runs in P3; the fired triggers are recorded in
+  `roadmap/final-roadmap.md` and the question is re-examined before P9's ED staging.
 - Whether `dev.duckdb` should materialise (not just view) small tables for app latency —
-  EP-21/55.
-
-  > **Note (2026-08-29, EP-21 — decided for P2).** **Dims are materialized as tables in
-  > every tier; subject-keyed tables are views** over the partitioned lake (Hive pruning
-  > already makes the dev views fast — the dev catalog builds in ~1 s and its views carry
-  > the `subject_bucket IN (0,1,2,3,4)` filter). EP-55 revisits materialization for marts;
-  > until then no per-tier special-casing.
+  **resolved by EP-21 (2026-08-29) for P2: dims are materialized as tables in every tier,
+  subject-keyed tables are views** over the partitioned lake (Hive pruning already makes
+  the dev views fast — the dev catalog builds in ~1 s with its `subject_bucket IN
+  (0,1,2,3,4)` filter). EP-55 revisits materialization for marts; until then no per-tier
+  special-casing.
 - FTS engine for notes if DuckDB FTS build exceeds memory — SQLite FTS5 fallback (EP-148).
-- Whether the events spine should include a chartevents subset (vitals only) — EP-50/re-plan.
-- Streamlit vs marimo-app for the Freezer/Wizard pages if the rerun model bites — re-plan P4.
+- Whether the events spine should include a chartevents subset (vitals only) — EP-50 /
+  the P3 re-plan (EP-54); §3's re-estimate sizes the spine at 2.5–4 GB with or without it.
+- Streamlit vs marimo-app for the Freezer/Wizard pages if the rerun model bites — re-plan P4
+  (EP-74).
+
+*History:* planning text (2026-08-16); answers recorded by EP-18, EP-21, EP-28, EP-33 (completion notes, D-44); consolidated at EP-33.

@@ -56,11 +56,14 @@ style preferences. Read them fully before doing anything.
   `uv run --project mimicwarehouse --group <group> mwh <cmd>` (or `cd mimicwarehouse`
   first). Groups: `dev` (default for tests), `ui` (isolated; pins `pyarrow<25`), `gpu`,
   `gpl`, `text`. `default-groups=["dev"]`, so `uv run mwh` ≡ `uv run --group dev mwh`.
+  `poe` tasks run from `mimicwarehouse/` or from the repo root via `poe_tasks.toml`
+  (EP-33); `poe check` = ruff check + ruff format --check + pyright + pytest.
+- The lore behind these rules lives in `mimicwarehouse/docs/gotchas.md` (EP-33); this
+  file carries only rules.
 - **Session tooling (D-42, Risks 12/13).** Overrides the harness's own suggestion to use
   heredocs/`sed`/stdin scripts:
-  (a) `uv` may be missing from the tool shells' PATH (stale VS Code process; owner
-  restarts VS Code). Fallback, needed before `uv`, `poe`, `pre-commit` **and `git commit`**
-  (the hook shells out to `uv run`): `export PATH="$LOCALAPPDATA/Microsoft/WinGet/Links:$PATH"`
+  (a) `uv` may be missing from a tool shell's PATH. Fallback, needed before `uv`, `poe`,
+  `pre-commit` **and `git commit`**: `export PATH="$LOCALAPPDATA/Microsoft/WinGet/Links:$PATH"`
   (Bash) / `$env:PATH="$env:LOCALAPPDATA\Microsoft\WinGet\Links;$env:PATH"` (PowerShell).
   (b) Bare `python`/`pip` in the tool shells is the system CPython 3.14 — never use or
   `pip install` into it; always `uv run python …` (uv manages CPython 3.13).
@@ -79,14 +82,10 @@ style preferences. Read them fully before doing anything.
 - Set DuckDB `memory_limit`, `threads`, `temp_directory` explicitly (the config module
   does); keep ≥ 100 GB free on C:; nothing on G:/D:.
 - Guard `if __name__ == "__main__":` for any multiprocessing (Windows spawn).
-- **Power mode (2026-08-26).** The roadmap's timings assume the Windows power mode is
-  **Best performance** while plugged in (D-38 and its addenda), but the owner toggles it
-  **off between sessions**. Before any compute-heavy work — builds, test runs, dev/full-tier
-  queries, compiles — confirm it is re-enabled: check the `power_scheme` line of
-  `uv run mwh doctor` (or registry `ActiveOverlayAcPowerScheme` = `ded574b5-…`, readable
-  non-elevated). If it shows Balanced/default, pause and ask the owner to re-enable it
-  (Settings › System › Power & battery › Power mode › Best performance) — do not run the
-  heavy step first, and do not change the power plan yourself.
+- **Power mode.** The owner toggles Windows power mode **off between sessions**; timings
+  assume **Best performance** on AC (D-38). Before any compute-heavy step check the
+  `power_scheme` line of `uv run mwh doctor`; if it reads Balanced, ask the owner to
+  re-enable it (Settings › System › Power & battery) — never change the plan yourself.
 
 ## 4. Doing an EP
 
