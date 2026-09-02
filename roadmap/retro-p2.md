@@ -305,6 +305,7 @@ a one-line `EP-33 rename` block — D5).
 | F3 `mwh tracer --tier full` (job `tracer-full-ep33`) | n = 65,366, fit, AUC 0.731, 7 audited calls, 3.59 s | EP-31: n = 65,366, AUC 0.731, 3.3 s — identical |
 | F4 `mwh canary write` | OK — 5 passes, 203 files, 2,534,564,809 bytes, 13.7 s; small 179 MB/s, large 229 MB/s, swap 1,231 MB/s; every re-read matched, tree removed | EP-171: 191 / 239 MB/s, 13.3 s (the full tracer job ran concurrently) |
 | F5 `mwh guard --all-tracked` · `--selfcheck` | clean (500 files) · passed, `pretool-hook` registered (the selfcheck now resolves the interpreter/script paths — SGD-4) | clean / passed |
+| F5 per-commit sweep `guard.scan_tracked`, `45f1c84` → `3e2f872` (the P2 era + the EP-33 series) | **43 commits · 0 violations** · 13.6 s | A7: 37 commits · 0 · 13.2 s |
 | F6 fixture build (resume over the data-root fixture lake) | 3.4 s | 3.3 s |
 | F6 `mwh --help` (two cold runs) | 582 / 554 ms | 558 ms |
 | F6 fixture-suite wall | 248 s for 832 tests (0.30 s/test) | 219 s for 720 (0.30 s/test) |
@@ -318,4 +319,8 @@ a one-line `EP-33 rename` block — D5).
 - `d88e2b5` — `docs(roadmap): EP-33 workstream A - EP-32 hash, P2 retro, DECISIONS addenda, parked-trigger records (EP-33)`
 - `2aa9e65` — `docs(roadmap): EP-33 second-attempt salvage - audit ledger, scout plans, D2 amendments, brief map, DRF-1 repair (EP-33)` *(per-commit guard sweep re-run over the extended series: 39 commits `45f1c84` → `2aa9e65`, 0 violations)*
 
-*(appended as the series lands)*
+- `8848534` — `feat(mimicwarehouse): P0-P2 consolidation - publish/engine/fsio/console canons, safe-query and loader hardening (EP-33)` *(Workstream B + the B4/B5/B6 docs and tests; 2026-09-02 UTC)*
+- `00a7e50` — `docs(mimicwarehouse): DESIGN as-built consolidation, DECISIONS D-45 + status index, README/CLAUDE refresh (EP-33)` *(Workstream C)*
+- `3e2f872` — `docs(roadmap): EP-33 checkpoint minutes, triage outcomes, P3 amendments, D3 re-estimates, retro and risks (EP-33)` *(Workstreams A-close, D; the F record)*
+- the `docs(roadmap): record EP-33 commit hashes` commit that follows — ticks the row with the seven-hash series and carries the per-commit guard sweep over `45f1c84` → HEAD (F5, below).
+- **B7 owner-applied package** (D-45 item 4): reviewed diff files written to the session scratchpad after the series (`b7-settings.diff`, `b7-hook.diff`, `b7-tests.diff` + `b7-README.md`), not committed by the session.
