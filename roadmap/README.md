@@ -143,7 +143,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-35 | [Provenance run ledger](EP-35-run-ledger.md) | M | EP-30 | core | ☑ `245c308` |
 | EP-36 | [Seed/determinism policy + resource logger](EP-36-seeds-resource-log.md) | S | EP-35 | core | ☑ `fc7aa1f` |
 | EP-37 | [Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱](EP-37-concept-runner.md) | M | EP-8, EP-19, EP-22, EP-34, EP-35 | core | ☑ `3ba1224` |
-| EP-38 | [Concept fixes/ports for DuckDB 1.5.x](EP-38-concept-fixes.md) | M | EP-37 | core | ☐ |
+| EP-38 | [Concept fixes/ports for DuckDB 1.5.x](EP-38-concept-fixes.md) | M | EP-37 | core | ☑ `9465fe2` |
 | EP-39 | [Itemid dictionary curation + unit harmonization](EP-39-itemid-units.md) | M | EP-29 | core | ☐ |
 | EP-40 | [Code-set registry + ICD-9→10 GEM utility](EP-40-codeset-registry-gem.md) | M | EP-21 | core | ☐ |
 | EP-41 | [Phenotype engine + T2DM phenotype](EP-41-phenotype-engine-t2dm.md) | M | EP-40 | core | ☐ |
