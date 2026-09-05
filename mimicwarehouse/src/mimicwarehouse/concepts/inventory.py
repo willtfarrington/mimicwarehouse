@@ -27,9 +27,11 @@ scan (regenerate with ``uv run python -m mimicwarehouse.concepts.inventory``):
 :func:`render_markdown_table` / :func:`sync_doc` keep the human-readable inventory in
 ``docs/resources/concepts.md`` (concept · group · reads · depends on · upstream commit ·
 status on DuckDB 1.5.x) in sync; :data:`KNOWN_FAILURES` is the place EP-38 records a
-concept that fails on 1.5.x with its DuckDB error class (empty at EP-37: the EP-33 D2
-smoke and this brief's demo/dev builds executed all 65). Import budget: stdlib + yaml +
-pydantic + the vendor pin; no DuckDB (the runner imports it).
+concept that fails on 1.5.x with its DuckDB error class (empty at EP-37 and still empty
+at EP-38: the EP-33 D2 smoke and the demo/dev/full builds executed all 65), and the
+status cell of a concept with a registered patch (EP-38, ``concepts/patches``) names the
+patch id and its upstream reference. Import budget: stdlib + yaml + pydantic + the
+vendor pin; no DuckDB (the runner imports it).
 """
 
 from __future__ import annotations
@@ -449,17 +451,37 @@ def load_inventory() -> Inventory:
 # ---------------------------------------------------------------------------
 
 
-def concept_status(name: str, failures: Mapping[str, str] | None = None) -> str:
-    """The "status on DuckDB 1.5.x" cell: :data:`STATUS_OK`, or the recorded error class."""
+def patched_concepts() -> dict[str, str]:
+    """``{concept: "patch_id (short upstream ref)"}`` from the EP-38 patch registry —
+    what the docs table's status column appends for a patched concept."""
+    from mimicwarehouse.concepts.patches import load_registry
+
+    return {p.concept: f"{p.patch_id} ({p.short_ref})" for p in load_registry().patches}
+
+
+def concept_status(
+    name: str,
+    failures: Mapping[str, str] | None = None,
+    patches: Mapping[str, str] | None = None,
+) -> str:
+    """The "status on DuckDB 1.5.x" cell: :data:`STATUS_OK`, or the recorded error class;
+    a registered patch (EP-38) is appended as ``; patched: <patch_id> (<upstream ref>)``."""
     failures = KNOWN_FAILURES if failures is None else failures
-    if name in failures:
-        return f"fails: {failures[name]} (EP-38)"
-    return STATUS_OK
+    patches = patched_concepts() if patches is None else patches
+    text = f"fails: {failures[name]} (EP-38)" if name in failures else STATUS_OK
+    if name in patches:
+        text += f"; patched: `{patches[name]}` (EP-38)"
+    return text
 
 
-def render_markdown_table(inv: Inventory, failures: Mapping[str, str] | None = None) -> str:
+def render_markdown_table(
+    inv: Inventory,
+    failures: Mapping[str, str] | None = None,
+    patches: Mapping[str, str] | None = None,
+) -> str:
     """The inventory as one Markdown table (order · concept · group · reads · depends on ·
     upstream commit · status). ASCII; no integers besides the order column."""
+    patches = patched_concepts() if patches is None else patches
     header = [
         "#",
         "concept",
@@ -483,7 +505,7 @@ def render_markdown_table(inv: Inventory, failures: Mapping[str, str] | None = N
                     reads,
                     deps,
                     f"`{c.upstream_commit[:12]}`",
-                    concept_status(c.name, failures),
+                    concept_status(c.name, failures, patches),
                 ]
             )
             + " |"
@@ -541,6 +563,7 @@ __all__ = [
     "generated_files",
     "inventory_path",
     "load_inventory",
+    "patched_concepts",
     "references",
     "render_inventory_yaml",
     "render_markdown_table",

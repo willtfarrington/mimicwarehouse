@@ -192,6 +192,14 @@ chartevents/labevents views; a worst-case single pass over all 433 M chartevents
 > dev-tier concepts built in 23 s wall as job `concepts-dev`; the full tier runs as job
 > `concepts-full` and EP-38 records its size and timing here.
 
+> **Note (2026-09-05, EP-38 — the full-tier derived layer, measured).** Job
+> `concepts-full` (EP-37 ⏱): 65/65 concepts, **12 min 18 s** wall, concept steps 725.0 s,
+> peak RSS 7,460 MB (`measurement.rhythm`; `score.sofa` 6,467 MB), 95,777,751 derived
+> rows in 65 single ZSTD files = **1,338.0 MB** under `lake\derived\full\mimiciv_derived\`
+> — the low end of the EP-33 D3 "derived + spine ≈ 4–6 GB" estimate before the spine.
+> `sepsis.suspicion_of_infection` alone takes 450 s (62 % of the concept wall). The
+> patched subset (five concepts, § 8 note) rebuilds in well under a minute per tier.
+
 *History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3, EP-37 (completion notes); consolidated at EP-33.
 
 ## 4. Tiers & sampler spec (D-18, D-27)
@@ -581,6 +589,36 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   data root). The human-readable inventory and the 1.5.x status column are
   `docs/resources/concepts.md` (`KNOWN_FAILURES` is EP-38's record of failing concepts —
   empty: all 65 execute on 1.5.5 on demo and dev).
+
+  > **Note (2026-09-05, EP-38 — patches over the vendored tree; D-19 "port fixes").**
+  > `KNOWN_FAILURES` stayed empty (the full tier also built 65/65), so EP-38's substance is
+  > the **patch mechanism** and four upstream concept-logic ports. `concepts/patches/`
+  > holds `patches.yaml` (the registry: `patch_id`, `concept`, `reason`, `upstream_ref`
+  > URL, `applies_to_upstream_commit`, `sql_sha256`, `date`, `status`
+  > `ported-unmerged | ported-merged | local`, `semantics` `changed | unchanged`) and one
+  > `<concept>.sql` full replacement per patched concept in the vendored shape (our header
+  > comment with the MIT attribution and the upstream reference, upstream's header line
+  > kept verbatim, then the body), so `split_header` reads it like a vendored file. The
+  > runner validates the registry once per build before the first concept runs and refuses
+  > to start when an entry's commit is not the vendored pin (re-vendoring forces a review),
+  > a file's sha256 drifted, or a patch equals the vendored body; otherwise
+  > `patches.effective_sql` supplies the patch, the table's manifest `source_sha256` /
+  > status `sql_sha256` become the patch file's sha256 (`vendored_sha256` keeps the
+  > upstream one) and `patch_id` lands in `status.json` and `meta.concept_versions` — read
+  > back from status, so the versions table says what each file was built from, not what
+  > the registry says today. Ported (all upstream PRs open at the pin, hence
+  > `ported-unmerged`, re-checked at EP-54): SIRS `wbc_max` guard (#2146), MCHC / CRP
+  > `valueuom` filters in `complete_blood_count` / `inflammation` (#2141 — the only lab
+  > panels upstream touched; per-itemid units for the rest are EP-39's `meta.item_units`),
+  > Charlson C4A exclusion (#2142, chosen over #2043's C7A/C7B additions as the
+  > Quan-faithful minimum), APS-III equidistant-arm typo (#2137). Two of the four cannot
+  > move a real-data value (SIRS: `wbc_min`/`wbc_max` are null together; APS-III: the arms
+  > are only reached in the equality case) and the demo pin set did not change at all;
+  > the deviations table with per-patch demo effects is `docs/resources/concepts.md`
+  > § Deviations. Rebuilds after a patch are explicit (`mwh build --tier t --select
+  > concept.<g>.<n>,… --force`; the completeness skip does not compare hashes — a stale
+  > table is the operator's call, recorded in the brief), and `--tier full --force` stays
+  > the only destructive path (LDR-1).
 - **Code-set registry** (EP-40): `codesets/*.yaml` (ICD-9/10 dual sets, itemid sets,
   drug-name/RxNorm sets, ATC classes) with semver + definition hash, compiled to
   `meta.codeset_members`; ICD-9→10 GEM utility. The `meta.itemids` view (EP-29; `d_items`
@@ -591,7 +629,7 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   → SQL; versioned like code sets; first three: T2DM, sepsis-3 (via concept), KDIGO AKI
   stage. The fixture plants all three traits (§4) and EP-41 regenerates it as 0.3.0.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37 (completion notes); EP-38 … EP-42 planned; consolidated at EP-33.
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38 (completion notes); EP-39 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -907,7 +945,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
 │   ├── runs_cli.py                EP-30, EP-32, EP-35 shipped   `mwh runs refresh | list | show | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
-│   ├── concepts/                  EP-8, EP-167, EP-37 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, generated), runner.py (concept steps, meta.concept_versions), pins.py (count-pins via safe_query); EP-38 patches/
+│   ├── concepts/                  EP-8, EP-167, EP-37, EP-38 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, generated), runner.py (concept steps, meta.concept_versions, patch preference), pins.py (count-pins via safe_query); patches/ (EP-38: patches.yaml registry + <concept>.sql replacements; `python -m mimicwarehouse.concepts.patches` refreshes/validates)
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed`/`rng`/`spawn_rngs`/`random_state`/`seed_everything`, `Run.seed`) + `ResourceLog` sampler → `ResourceUsage` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization

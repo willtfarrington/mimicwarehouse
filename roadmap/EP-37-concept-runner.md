@@ -261,3 +261,40 @@ shell cap ~10 min → the full run is background-only.
 > (65 Parquet files; the live `lake\derived\dev` and `lake\derived\full` layers untouched);
 > the fixture/demo layout deviation (own lake roots) **accepted as built**; pushing stays
 > with the owner (nothing pushed by the session).
+
+> **Completion note (2026-09-05, EP-38 — verification of the ⏱ full run, item 1 of
+> EP-38).** Job `concepts-full` (supervisor pid 11132, `runs\jobs\concepts-full.log`):
+> `state=done exit=0`, started 2026-09-05T19:38:10Z, finished 19:50:28Z — **12 min 18 s
+> wall** for the whole job, of which the 65 concept steps account for 725.0 s (12 min 5 s)
+> and `meta.concept_versions` 9.4 s + `catalog` 2.1 s for the rest. Build id
+> `20260905T193811-full-062b0d0`, provenance run `20260905T195016Z-61a5cc` (`kind: build`,
+> 65 `concept` refs), derived snapshot recorded, core snapshot `b1fc53134348…`. Verified
+> from the ledgers, never from the data: the full lake carries **65 of 65** derived manifest
+> lines and 65 `status.json` entries complete for `full`; `meta.concept_versions` on
+> `full.duckdb` reads `ok 65` (`patch_id` NULL throughout — the build predates EP-38's
+> patches); `mwh runs benchmarks --kind concept --tier full` has 65 `kind: concept` lines,
+> all `ok`. Per concept group (latest line per step; peak RSS = the group's high-water
+> mark; Parquet MB from the ledger's `bytes_out`):
+>
+> | group | concepts | wall s | peak RSS MB | rows | Parquet MB |
+> |---|---:|---:|---:|---:|---:|
+> | demographics | 5 | 3.2 | 486 | 11,619,064 | 61.5 |
+> | measurement | 18 | 203.8 | 7,459 | 53,822,452 | 877.1 |
+> | organfailure | 4 | 6.0 | 1,675 | 10,133,576 | 152.3 |
+> | comorbidity | 1 | 14.1 | 478 | 546,028 | 4.6 |
+> | medication | 14 | 5.4 | 1,513 | 3,851,347 | 61.7 |
+> | treatment | 5 | 8.9 | 820 | 5,181,433 | 35.0 |
+> | firstday | 10 | 5.1 | 1,513 | 944,580 | 20.0 |
+> | score | 6 | 26.3 | 6,466 | 8,688,074 | 111.8 |
+> | sepsis | 2 | 452.2 | 1,128 | 991,197 | 13.9 |
+> | **total** | 65 | 725.0 | 7,459 | 95,777,751 | 1,338.0 |
+>
+> Disk used by `lake\derived\full\mimiciv_derived\` = the 65 single files' 1,337,955,005
+> bytes (**1,338.0 MB**, ≈ 1.25 GiB), matching the ledger's `total` line (1.34 GB) and
+> inside the EP-33 D3 estimate. Two steps dominate: `sepsis.suspicion_of_infection`
+> (450.4 s — 62 % of the concept wall; the antibiotic × microbiology join) and
+> `measurement.rhythm` (168.6 s, the 7,460 MB peak); `score.sofa` peaks at 6,467 MB in
+> 20.4 s. No failures, nothing blocked, no `KNOWN_FAILURES` entry needed: the "failed
+> but fixable" re-launch of EP-38 item 1 has nothing to re-launch. EP-38's count-pin
+> comparison and the patched rebuild (job `concepts-full-patched`) are recorded in
+> `EP-38-concept-fixes.md`.

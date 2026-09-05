@@ -515,7 +515,12 @@ def test_concept_versions_has_one_row_per_attempted_concept(
     assert [r[0] for r in rows] == sorted(inv.by_name), "one row per attempted concept"
     assert {r[1] for r in rows} == {vendor_info().sha}
     assert {r[2] for r in rows} == {"ok"} and all(r[3] is not None and r[3] >= 0 for r in rows)
-    assert all(r[6] is None for r in rows), "patch_id is EP-38's"
+    # EP-38 (roadmap README CMP-6 rule): patch_id is set exactly for the concepts the patch
+    # registry names; the EP-37 pin "always None" was that brief's placeholder
+    from mimicwarehouse.concepts.patches import load_registry
+
+    patched = set(load_registry().concepts)
+    assert {r[0] for r in rows if r[6] is not None} == patched, "patch_id is EP-38's"
     assert {r[7] for r in rows} == {"fixture"}
     run_ids = {r[4] for r in rows}
     assert len(run_ids) == 1

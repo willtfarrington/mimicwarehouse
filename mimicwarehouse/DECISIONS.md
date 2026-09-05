@@ -296,6 +296,29 @@ adopt as-is untested.
 > future re-vendor that meets a new upstream debugging id handles it the same way and reports it
 > under `local_edits` rather than failing or needing a per-file exclusion.
 
+> **Addendum (2026-09-05, EP-38 — "fixes ported" realised as a patch registry).** (1) A
+> local deviation from the vendored tree is a **patch**, never an edit: `concepts/patches/
+> patches.yaml` (patch id, concept, reason, upstream PR/issue/commit URL,
+> `applies_to_upstream_commit`, file sha256, date, status, semantics) plus a full
+> replacement `<concept>.sql` that keeps the MIT attribution and upstream's header line.
+> The runner refuses to build when a patch was written against another upstream commit
+> than the pin, so a re-vendor (`poe vendor-mimic-code`) is followed by a patch review
+> before anything runs; `meta.concept_versions.patch_id` and `status.json` say what each
+> table was built from. (2) **What was ported** — the four open upstream concept-logic PRs
+> named at EP-8, as they stood on 2026-09-05: SIRS `wbc_max` guard (#2146), MCHC/CRP
+> `valueuom` filters (#2141; the brief's wider panel list has no upstream fix — per-itemid
+> units belong to EP-39), Charlson C4A exclusion (**#2142 chosen over #2043**: the
+> Quan-faithful minimum; #2043's C7A/C7B additions are a semantic extension Quan never
+> defined, recorded as "considered, not ported"), APS-III equidistant-arm typo (#2137).
+> APS-III axillary temperature (#2046) is deferred to EP-39's site/unit curation because it
+> changes an input aggregation, not the score. All four are `status: ported-unmerged`;
+> EP-54 re-checks. (3) `KNOWN_FAILURES` stays empty — no DuckDB 1.5.x breakage existed
+> (D2 smoke, demo/dev/full builds) — so roadmap Risk 2's upstream-lag half is now
+> **managed** (registry + re-plan re-check), not open. (4) Two ports cannot move a
+> real-data value (SIRS: `wbc_min`/`wbc_max` are null together; APS-III: the fixed arms
+> are only reached in the equality case); the demo pin set did not change. Recorded so a
+> later reader does not hunt for a count effect that cannot exist.
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
