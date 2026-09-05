@@ -51,8 +51,9 @@ a sanitised one-line message (never a traceback), and is re-raised.
 | `attrition` | `[{step, label, n_units, n_subjects}]` — one row per criterion |
 | `audit_ids` | the `runs/audit.jsonl` ids of every `safe_query` call made on the run's behalf |
 | `warnings` | `r.warn(...)` lines plus every `warnings.warn` raised inside the block |
-| `wall_s`, `peak_rss_mb`, `disk_delta_mb` | wall time; the coarse process-RSS high-water (start/end; EP-36 adds the sampler); free-space delta of the data-root drive in MB |
-| `seeds`, `resources` | `None` until EP-36 |
+| `wall_s`, `peak_rss_mb`, `disk_delta_mb` | mirrors of the `resources` block (EP-36): wall time; the run-scoped peak RSS; free-space delta of the data-root drive in MB |
+| `seeds` | `{stage: seed}` from `r.seed(stage)` / `r.spawn_rngs(stage, n)` (EP-36) — `{}` for a run without a stochastic stage, `null` only in manifests written before EP-36; the seeds derive from `protocol_id` (frozen) or the `run_id`: [determinism.md](determinism.md) §2 |
+| `resources` | the `ResourceLog` measurement (EP-36): wall, CPU time, run-scoped peak RSS with its method, RSS start/end, the Windows `peak_wset`, disk delta, GPU memory (`null` without `pynvml` and a device), sample counts — [determinism.md](determinism.md) §6; `null` while `status: running` |
 | `protocol_id`, `protocol_hash`, `claim_type` | `None` until a protocol run (EP-51) or the caller states them |
 | `error` | `{type, message}` on failure |
 | `doctor` | the environment block: `mwh doctor`'s fifteen checks reduced to `{id, status, value}` (the machine-readable payloads — versions, paths, product names — never the prose detail), captured once per process because the probes cost seconds |
@@ -133,8 +134,9 @@ The rule the module enforces and later briefs inherit:
 every `docs/analyses/*` case study carries (EP-32 convention): run id, kind, tier, status,
 the command line, git sha and dirty flag, package / DuckDB / Python versions, the
 `uv.lock` hash, snapshot ids, the protocol id + hash (or "none"), the claim type and the
-counts of recorded statements and audited calls. The capstones (EP-53+) call it instead
-of hand-writing the block; the run id is quoted inline only.
+counts of recorded statements and audited calls, the seeds and the resource summary
+(EP-36; every integer through `fmt_int`). The capstones (EP-53+) call it instead of
+hand-writing the block; the run id is quoted inline only.
 
 ## 7. Retention and backup
 
@@ -147,8 +149,9 @@ run folder is an owner action, never a session's.
 
 ## 8. What the later briefs add
 
-EP-36 fills `seeds` and `resources` (seed derivation, the RSS sampler thread) and writes
-`docs/methods/determinism.md`; EP-43 suppresses attrition counts on export and writes the
+EP-36 (shipped 2026-09-05) filled `seeds` and `resources` — the seed-derivation rule and
+the resource sampler are documented in [determinism.md](determinism.md), the policy later
+briefs cite; EP-43 suppresses attrition counts on export and writes the
 `.disclosure.json` sidecars; EP-47 records cohort attrition through `record_attrition`;
 EP-51 fills `protocol_id` / `protocol_hash` for frozen protocols; EP-52 backs `runs/` up;
 EP-134 is the Runs & Provenance browser over the same views.

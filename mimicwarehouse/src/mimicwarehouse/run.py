@@ -42,26 +42,53 @@ run root without manifests still yields a typed, empty view.
 hand-writing one; it quotes the run id inline only (never in a file name, committed-text
 rule 3).
 
-Seeds and the resource sampler (``seeds`` / ``resources``) are EP-36's; the fields are
-optional here. Import budget: not on the ``mwh`` start-up path (``tracer.py`` and
-``runs_cli.py`` import it inside function bodies); psutil, duckdb-adjacent modules and
-``safe`` load lazily.
+**Seeds (EP-36 item 1; prose: ``docs/methods/determinism.md``).** One derivation rule,
+no global state: :func:`derive_seed` (``protocol_id``, ``stage``, ``salt``) → a 32-bit
+seed via sha256; :func:`rng` → the ``numpy.random.Generator`` a stochastic stage receives;
+:func:`spawn_rngs` → ``n`` reproducible child streams for joblib / CV workers;
+:func:`seed_everything` → the global ``random`` / numpy-legacy / (already-imported)
+``torch`` seeds for entry points and tests; :func:`sql_sample_clause` → the DuckDB
+``USING SAMPLE … REPEATABLE (seed)`` clause. ``Run.seed(stage)`` derives from the run's
+``protocol_id`` (a frozen protocol, EP-51) or its ``run_id`` (unfrozen work), records
+``{stage: seed}`` in ``RunManifest.seeds`` (rewriting the manifest at once, so a killed
+run still shows what it seeded) and returns the Generator; ``Run.spawn_rngs`` is the
+worker form.
+
+**Resource log (EP-36 item 3).** :class:`ResourceLog` is a daemon-thread sampler
+(:data:`SAMPLE_INTERVAL_S`) over psutil: process RSS every tick, the Windows
+process-lifetime ``peak_wset``, CPU time, the data-root drive's free-bytes delta and —
+only when ``pynvml`` (``nvidia-ml-py``) imports **and** a device is present — GPU memory,
+else ``None`` without a warning (D-16). ``start()`` runs one per run and stores its
+:class:`ResourceUsage` under ``manifest.resources`` (``wall_s`` / ``peak_rss_mb`` /
+``disk_delta_mb`` mirror it at the top level); ``ResourceLog.measure(fn)`` is the
+standalone form whose :meth:`ResourceUsage.bench_fields` feed :func:`bench` (``run.bench``
+→ ``dag.benchmarks.BenchmarkLine``). The peak-RSS rule: ``peak_wset`` is a
+*process-lifetime* high-water mark (an earlier allocation in the same process keeps it
+high), so the run-scoped value is the sampled maximum, promoted to ``peak_wset`` only when
+that mark **grew** during the run (``peak_rss_method``).
+
+Import budget: not on the ``mwh`` start-up path (``tracer.py`` and ``runs_cli.py`` import
+it inside function bodies); numpy, psutil, pynvml, duckdb-adjacent modules and ``safe``
+load lazily (``test_ep35`` / ``test_ep36`` pin it).
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
+import os
 import platform
 import re
 import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import warnings
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import version as dist_version
@@ -74,6 +101,8 @@ from mimicwarehouse import __version__, config, fsio
 from mimicwarehouse.config import Settings, get_settings
 
 if TYPE_CHECKING:  # pragma: no cover
+    from numpy.random import Generator
+
     from mimicwarehouse.safe import SafeResult
 
 _LOG = logging.getLogger(__name__)
@@ -112,9 +141,32 @@ LEDGER_FIELDS: tuple[str, ...] = (
 #: Longest warning / error text kept in a manifest (after sanitising).
 TEXT_MAX_CHARS = 200
 
+#: A derived seed is the big-endian value of the first :data:`SEED_BYTES` bytes of a
+#: sha256 digest: 32 bits, so it fits numpy's legacy global seed and every
+#: ``random_state`` (sklearn / LightGBM / XGBoost / statsmodels) as it is.
+SEED_BYTES = 4
+SEED_MAX = 2**32 - 1
+#: DuckDB parses ``REPEATABLE (<seed>)`` as an int32 literal (2**31 and above is a syntax
+#: error; probed on 1.5.5), so :func:`sql_sample_clause` folds a seed to ``seed % 2**31``.
+DUCKDB_SEED_MAX = 2**31 - 1
+#: Stage names are one token like recorded SQL / table names (``bootstrap``, ``cv_split``,
+#: ``model_fit.lgbm``); ``|`` is the key separator and can never appear in a part.
+STAGE_RE = NAME_RE
+#: DuckDB sampling methods :func:`sql_sample_clause` accepts.
+SAMPLE_METHODS: tuple[str, ...] = ("reservoir", "bernoulli", "system")
+#: The resource sampler's tick (EP-36 item 3).
+SAMPLE_INTERVAL_S = 0.5
+
+PeakRssMethod = Literal["peak_wset", "sampled"]
+GpuMemMethod = Literal["process", "device"]
+
 
 class RunLedgerError(RuntimeError):
     """A run-ledger usage error (bad tier / name / run id, missing manifest)."""
+
+
+class SeedError(RunLedgerError):
+    """A seed-derivation usage error (empty scope, bad stage name, salt, size or seed)."""
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +207,42 @@ class RunErrorInfo(BaseModel):
     message: str
 
 
+class ResourceUsage(BaseModel):
+    """What one :class:`ResourceLog` measured — the ``resources`` block of a manifest.
+    MB = 2**20 bytes, one decimal; a ``None`` means "not measurable here" (no psutil,
+    no pynvml / GPU, no data root), never an error. ``peak_rss_mb`` is the run-scoped
+    peak (module note: the sampled maximum, promoted to the process-lifetime
+    ``peak_wset`` only when that mark grew during the measurement —
+    ``peak_rss_method`` says which); ``gpu_mem_*`` is this process's GPU memory when the
+    driver reports it per process, else the device-level total (``gpu_mem_method``)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    wall_s: float
+    cpu_time_s: float | None = None
+    peak_rss_mb: float | None = None
+    peak_rss_method: PeakRssMethod | None = None
+    rss_start_mb: float | None = None
+    rss_end_mb: float | None = None
+    peak_wset_mb: float | None = None
+    disk_delta_mb: float | None = None
+    gpu_mem_start_mb: float | None = None
+    gpu_mem_peak_mb: float | None = None
+    gpu_mem_method: GpuMemMethod | None = None
+    samples: int = 0
+    sample_errors: int = 0
+    interval_s: float = SAMPLE_INTERVAL_S
+
+    def bench_fields(self) -> dict[str, Any]:
+        """The fields a benchmark line takes from a measurement — what
+        ``run.bench(kind, name, **usage.bench_fields())`` records."""
+        return {
+            "wall_s": self.wall_s,
+            "peak_rss_mb": self.peak_rss_mb,
+            "disk_delta_mb": self.disk_delta_mb,
+        }
+
+
 class RunManifest(BaseModel):
     """``runs/<run_id>/manifest.json`` — flat; hashes, counts, parameters, paths and
     versions only (module note). ``extra="forbid"`` so a stray field cannot smuggle a
@@ -184,8 +272,11 @@ class RunManifest(BaseModel):
     figures: dict[str, str] = Field(default_factory=dict)
     attrition: list[AttritionRow] = Field(default_factory=list)
     audit_ids: list[str] = Field(default_factory=list)
+    #: ``{stage: seed}`` (EP-36): ``{}`` for a run that seeded nothing; ``None`` only in
+    #: manifests written before EP-36.
     seeds: dict[str, int] | None = None
-    resources: dict[str, Any] | None = None
+    #: The :class:`ResourceLog` measurement (EP-36); ``None`` while ``status: running``.
+    resources: ResourceUsage | None = None
     warnings: list[str] = Field(default_factory=list)
     wall_s: float | None = None
     peak_rss_mb: float | None = None
@@ -390,20 +481,140 @@ def _duckdb_version() -> str:
         return "unknown"
 
 
-def _rss_mb() -> float | None:
-    try:
-        import psutil
-
-        return round(psutil.Process().memory_info().rss / 2**20, 1)
-    except Exception:  # pragma: no cover - psutil unavailable / restricted
-        return None
-
-
 def _free_bytes(path: Path) -> int | None:
     try:
         return shutil.disk_usage(config.nearest_existing(path)).free
     except OSError:  # pragma: no cover
         return None
+
+
+def _mb(value: int | float | None) -> float | None:
+    return None if value is None else round(value / 2**20, 1) + 0.0  # + 0.0: never "-0.0"
+
+
+# ---------------------------------------------------------------------------
+# Seeds (EP-36 item 1; docs/methods/determinism.md)
+# ---------------------------------------------------------------------------
+
+
+def _require_seed_scope(protocol_id: str) -> str:
+    if not isinstance(protocol_id, str) or not protocol_id.strip():
+        raise SeedError("protocol_id (the seed scope) must be a non-empty string")
+    if "|" in protocol_id or "\n" in protocol_id:
+        raise SeedError(f"protocol_id {protocol_id!r} may not contain '|' or a newline")
+    return protocol_id
+
+
+def _require_stage(stage: str) -> str:
+    if not isinstance(stage, str) or not STAGE_RE.match(stage):
+        raise SeedError(
+            f"stage name {stage!r} must be one token (letters, digits, '_', '.', '-'; "
+            "e.g. 'bootstrap', 'cv_split', 'model_fit.lgbm')"
+        )
+    return stage
+
+
+def _require_salt(salt: int) -> int:
+    if isinstance(salt, bool) or not isinstance(salt, int) or salt < 0:
+        raise SeedError(f"salt must be a non-negative int, got {salt!r}")
+    return salt
+
+
+def seed_key(protocol_id: str, stage: str, salt: int = 0) -> str:
+    """The exact string :func:`derive_seed` hashes: ``"<protocol_id>|<stage>|<salt>"``."""
+    return f"{_require_seed_scope(protocol_id)}|{_require_stage(stage)}|{_require_salt(salt)}"
+
+
+def derive_seed(protocol_id: str, stage: str, salt: int = 0) -> int:
+    """The seed of ``stage`` under ``protocol_id`` — a frozen protocol id (EP-51) or a run
+    id for unfrozen work — as ``int.from_bytes(sha256(f"{protocol_id}|{stage}|{salt}")
+    .digest()[:4], "big")``: 0 … 2**32 - 1, the same in every process and on every
+    machine, different for every stage, salt and protocol. ``salt`` names a deliberate
+    variant (a repeat with fresh randomness); everything else is a different stage."""
+    digest = hashlib.sha256(seed_key(protocol_id, stage, salt).encode("utf-8")).digest()
+    return int.from_bytes(digest[:SEED_BYTES], "big")
+
+
+def rng(protocol_id: str, stage: str, salt: int = 0) -> Generator:
+    """``numpy.random.default_rng(derive_seed(protocol_id, stage, salt))`` — the Generator a
+    stochastic stage receives as an argument (the policy's first rule: library code
+    never seeds globals)."""
+    import numpy as np
+
+    return np.random.default_rng(derive_seed(protocol_id, stage, salt))
+
+
+def spawn_rngs(protocol_id: str, stage: str, n: int, salt: int = 0) -> list[Generator]:
+    """``n`` independent, reproducible child Generators for joblib / CV workers:
+    ``SeedSequence(derive_seed(...)).spawn(n)``, spawned on the parent and handed to the
+    workers as arguments (Windows ``spawn`` never inherits module state). The children
+    differ from each other and from :func:`rng`'s stream for the same stage."""
+    import numpy as np
+
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise SeedError(f"spawn_rngs needs n >= 1, got {n!r}")
+    seed = derive_seed(protocol_id, stage, salt)
+    return [np.random.default_rng(child) for child in np.random.SeedSequence(seed).spawn(n)]
+
+
+def seed_everything(seed: int) -> dict[str, bool]:
+    """Seed the **global** generators — ``random``, numpy's legacy ``np.random`` state and
+    ``torch`` *only if it is already imported* (never imported here; ``manual_seed``
+    also seeds every CUDA device). For entry points, notebooks and tests: library code
+    takes a Generator instead (``docs/methods/determinism.md``). Returns
+    ``{library: seeded}`` so a caller can see what it reached."""
+    import random
+
+    import numpy as np
+
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= SEED_MAX:
+        raise SeedError(f"seed must be an int in 0 ... {SEED_MAX}, got {seed!r}")
+    random.seed(seed)
+    np.random.seed(seed)
+    seeded = {"random": True, "numpy": True, "torch": False}
+    torch = sys.modules.get("torch")
+    if torch is not None:
+        torch.manual_seed(seed)
+        seeded["torch"] = True
+    return seeded
+
+
+def sql_sample_clause(
+    seed: int,
+    *,
+    rows: int | None = None,
+    percent: float | None = None,
+    method: str = "reservoir",
+) -> str:
+    """The DuckDB sampling clause of the policy — ``USING SAMPLE <method>(<size>)
+    REPEATABLE (<seed>)`` — for SQL subsampling that must reproduce (a bare ``USING
+    SAMPLE`` never does). ``seed`` is any 32-bit seed (:func:`derive_seed` output), folded
+    to DuckDB's int32 literal range as ``seed % 2**31`` (:data:`DUCKDB_SEED_MAX`; the
+    fold is deterministic and documented, so the clause reproduces from the recorded
+    seed). Exactly one of ``rows`` (a count) or ``percent`` (0 < p ≤ 100); ``reservoir``
+    (default, exact size) takes either, ``bernoulli`` and ``system`` take a percentage
+    only (DuckDB refuses a count for them), and ``system`` samples whole 2,048-row
+    vectors, so a small percentage of a small table returns nothing."""
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= SEED_MAX:
+        raise SeedError(f"seed must be an int in 0 ... {SEED_MAX}, got {seed!r}")
+    duckdb_seed = seed % (DUCKDB_SEED_MAX + 1)
+    if method not in SAMPLE_METHODS:
+        raise SeedError(f"unknown sample method {method!r}; expected {', '.join(SAMPLE_METHODS)}")
+    if (rows is None) == (percent is None):
+        raise SeedError("sql_sample_clause takes exactly one of rows= or percent=")
+    if rows is not None:
+        if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
+            raise SeedError(f"rows must be an int >= 1, got {rows!r}")
+        if method != "reservoir":
+            raise SeedError(f"{method} sampling takes percent=, not rows= (DuckDB rule)")
+        size = str(rows)
+    else:
+        if isinstance(percent, bool) or not isinstance(percent, int | float):
+            raise SeedError(f"percent must be a number in (0, 100], got {percent!r}")
+        if not 0 < percent <= 100:
+            raise SeedError(f"percent must be in (0, 100], got {percent!r}")
+        size = f"{percent:.6f}".rstrip("0").rstrip(".") + "%"
+    return f"USING SAMPLE {method}({size}) REPEATABLE ({duckdb_seed})"
 
 
 def _jsonable(value: Any) -> Any:
@@ -492,12 +703,14 @@ def _require_name(name: str, what: str) -> str:
 
 class Run:
     """One open run (module note). Attributes: ``run_id``, ``dir``, ``manifest``,
-    ``settings``. Everything recorded lands in ``manifest`` and is written on exit."""
+    ``settings``, ``resource_log`` (the live :class:`ResourceLog` while the run is open).
+    Everything recorded lands in ``manifest`` and is written on exit (seeds at once)."""
 
     def __init__(self, manifest: RunManifest, directory: Path, settings: Settings) -> None:
         self.manifest = manifest
         self.dir = directory
         self.settings = settings
+        self.resource_log: ResourceLog | None = None
 
     @property
     def run_id(self) -> str:
@@ -506,6 +719,52 @@ class Run:
     @property
     def tier(self) -> str:
         return self.manifest.tier
+
+    # -- seeds (EP-36) ---------------------------------------------------------------------
+
+    @property
+    def seed_scope(self) -> str:
+        """What this run's seeds derive from: the frozen ``protocol_id`` when the run is
+        under a protocol, else the ``run_id`` (unfrozen work is reproducible from its
+        manifest — ``derive_seed(run_id, stage)`` — not across runs)."""
+        return self.manifest.protocol_id or self.run_id
+
+    def _record_seed(self, stage: str) -> int:
+        seed = derive_seed(self.seed_scope, stage)
+        have = dict(self.manifest.seeds or {})
+        if have.get(stage) != seed:
+            have[stage] = seed
+            self.manifest.seeds = have
+            self.write_manifest()  # persisted before the stochastic work starts
+        return seed
+
+    def seed(self, stage: str) -> Generator:
+        """The Generator of ``stage`` (``rng(seed_scope, stage)``), recorded as
+        ``manifest.seeds[stage]``. Calling it again for the same stage returns the same
+        stream and records nothing new — name distinct stochastic steps distinctly
+        (``bootstrap.auc`` / ``bootstrap.brier``), never reuse one stage for two."""
+        import numpy as np
+
+        return np.random.default_rng(self._record_seed(stage))
+
+    def spawn_rngs(self, stage: str, n: int) -> list[Generator]:
+        """``n`` worker Generators for ``stage`` (:func:`spawn_rngs` on this run's seed
+        scope), the stage's seed recorded like :meth:`seed`."""
+        children = spawn_rngs(self.seed_scope, stage, n)
+        self._record_seed(stage)
+        return children
+
+    # -- resources (EP-36) -----------------------------------------------------------------
+
+    def measure[T](
+        self, kind: str, name: str, fn: Callable[[], T], **fields: Any
+    ) -> tuple[T, ResourceUsage]:
+        """Run ``fn()`` under its own :class:`ResourceLog` and append a benchmark line for
+        it (:meth:`bench` with the measurement's ``wall_s`` / ``peak_rss_mb`` /
+        ``disk_delta_mb``, plus ``fields``); returns ``(result, usage)``."""
+        result, usage = ResourceLog.measure(fn, data_root=self.settings.data_root)
+        self.bench(kind, name, **{**usage.bench_fields(), **fields})
+        return result, usage
 
     # -- recording -------------------------------------------------------------------------
 
@@ -675,6 +934,279 @@ class Run:
 
 
 # ---------------------------------------------------------------------------
+# Resource log (EP-36 item 3)
+# ---------------------------------------------------------------------------
+
+
+class ResourceLog:
+    """A daemon-thread resource sampler (module note): ``start()`` takes a first sample
+    and starts the thread, every :data:`SAMPLE_INTERVAL_S` it samples this process's RSS
+    (and, when NVML is available, GPU memory), ``stop()`` joins the thread, takes the
+    final sample and returns the :class:`ResourceUsage`. Also a context manager, and
+    :meth:`measure` wraps one callable. Every probe is fail-quiet: a psutil / NVML error
+    counts in ``sample_errors`` and leaves the field ``None`` — telemetry never fails a
+    run. ``data_root`` names the drive whose free-bytes delta is measured (``None`` = not
+    measured); ``gpu=False`` skips the NVML probe altogether."""
+
+    def __init__(
+        self,
+        *,
+        data_root: Path | None = None,
+        interval_s: float = SAMPLE_INTERVAL_S,
+        gpu: bool = True,
+    ) -> None:
+        bad_type = isinstance(interval_s, bool) or not isinstance(interval_s, int | float)
+        if bad_type or interval_s <= 0:
+            raise RunLedgerError(f"ResourceLog interval_s must be > 0, got {interval_s!r}")
+        self.interval_s = float(interval_s)
+        self.data_root = Path(data_root) if data_root is not None else None
+        self.gpu_enabled = bool(gpu)
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._proc: Any = None
+        self._nvml: tuple[Any, list[Any]] | None = None
+        self._t0: float | None = None
+        self._cpu0: float | None = None
+        self._free0: int | None = None
+        self._rss_start: int | None = None
+        self._rss_last: int | None = None
+        self._rss_max: int | None = None
+        self._peak_wset_start: int | None = None
+        self._peak_wset_last: int | None = None
+        self._gpu_start: int | None = None
+        self._gpu_last: int | None = None
+        self._gpu_max: int | None = None
+        self._gpu_method: GpuMemMethod | None = None
+        self._samples = 0
+        self._errors = 0
+        self._usage: ResourceUsage | None = None
+
+    # -- lifecycle -------------------------------------------------------------------------
+
+    @property
+    def started(self) -> bool:
+        return self._t0 is not None
+
+    @property
+    def running(self) -> bool:
+        return self._t0 is not None and self._usage is None
+
+    @property
+    def usage(self) -> ResourceUsage | None:
+        """The measurement once :meth:`stop` ran; ``None`` before."""
+        return self._usage
+
+    def start(self) -> ResourceLog:
+        if self._t0 is not None:
+            raise RunLedgerError("ResourceLog.start() called twice — one measurement per log")
+        self._proc = self._open_process()
+        self._nvml = self._open_nvml()
+        self._free0 = _free_bytes(self.data_root) if self.data_root is not None else None
+        self._cpu0 = self._cpu_seconds()
+        self._t0 = time.perf_counter()
+        self.sample()
+        self._rss_start = self._rss_last
+        self._peak_wset_start = self._peak_wset_last
+        self._gpu_start = self._gpu_last
+        self._thread = threading.Thread(target=self._loop, name="mwh-resource-log", daemon=True)
+        self._thread.start()
+        return self
+
+    def _loop(self) -> None:
+        while not self._stop_event.wait(self.interval_s):
+            self.sample()
+
+    def sample(self) -> None:
+        """Take one sample now (the thread calls this every tick; ``start`` / ``stop``
+        call it too, so a measurement always has at least two samples)."""
+        with self._lock:
+            self._sample_memory()
+            self._sample_gpu()
+            self._samples += 1
+
+    def stop(self) -> ResourceUsage:
+        """Stop sampling and return the measurement (idempotent after the first call)."""
+        if self._t0 is None:
+            raise RunLedgerError("ResourceLog.stop() before start()")
+        if self._usage is not None:
+            return self._usage
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.interval_s + 1.0)
+        self.sample()
+        wall = time.perf_counter() - self._t0
+        cpu1 = self._cpu_seconds()
+        free1 = _free_bytes(self.data_root) if self.data_root is not None else None
+        self._close_nvml()
+
+        peak_wset_end = self._peak_wset_last
+        grew = (
+            peak_wset_end is not None
+            and self._peak_wset_start is not None
+            and peak_wset_end > self._peak_wset_start
+        )
+        peak: int | None
+        method: PeakRssMethod | None
+        if self._rss_max is None:
+            peak, method = None, None
+        elif grew and peak_wset_end is not None:
+            peak, method = max(self._rss_max, peak_wset_end), "peak_wset"
+        else:
+            peak, method = self._rss_max, "sampled"
+        cpu = None if self._cpu0 is None or cpu1 is None else round(max(cpu1 - self._cpu0, 0.0), 3)
+        disk = None if self._free0 is None or free1 is None else _mb(self._free0 - free1)
+        self._usage = ResourceUsage(
+            wall_s=round(wall, 6),
+            cpu_time_s=cpu,
+            peak_rss_mb=_mb(peak),
+            peak_rss_method=method,
+            rss_start_mb=_mb(self._rss_start),
+            rss_end_mb=_mb(self._rss_last),
+            peak_wset_mb=_mb(peak_wset_end),
+            disk_delta_mb=disk,
+            gpu_mem_start_mb=_mb(self._gpu_start),
+            gpu_mem_peak_mb=_mb(self._gpu_max),
+            gpu_mem_method=self._gpu_method if self._gpu_max is not None else None,
+            samples=self._samples,
+            sample_errors=self._errors,
+            interval_s=self.interval_s,
+        )
+        return self._usage
+
+    def __enter__(self) -> ResourceLog:
+        return self.start()
+
+    def __exit__(self, *exc: object) -> None:
+        self.stop()
+
+    @classmethod
+    def measure[T](
+        cls,
+        fn: Callable[[], T],
+        *,
+        data_root: Path | None = None,
+        interval_s: float = SAMPLE_INTERVAL_S,
+        gpu: bool = True,
+    ) -> tuple[T, ResourceUsage]:
+        """``fn()`` under a fresh log: ``(result, usage)`` — the standalone form whose
+        ``usage.bench_fields()`` feed :func:`bench` (``run.bench``)."""
+        log = cls(data_root=data_root, interval_s=interval_s, gpu=gpu)
+        log.start()
+        try:
+            result = fn()
+        finally:
+            usage = log.stop()
+        return result, usage
+
+    # -- probes (all fail-quiet) -----------------------------------------------------------
+
+    @staticmethod
+    def _open_process() -> Any:
+        try:
+            import psutil
+
+            return psutil.Process()
+        except Exception:  # pragma: no cover - psutil unavailable / restricted
+            return None
+
+    def _cpu_seconds(self) -> float | None:
+        if self._proc is None:
+            return None
+        try:
+            times = self._proc.cpu_times()
+            return float(times.user) + float(times.system)
+        except Exception:  # pragma: no cover - defensive
+            self._errors += 1
+            return None
+
+    def _sample_memory(self) -> None:
+        if self._proc is None:
+            return
+        try:
+            mem = self._proc.memory_info()
+        except Exception:  # pragma: no cover - defensive
+            self._errors += 1
+            return
+        rss = int(mem.rss)
+        self._rss_last = rss
+        self._rss_max = rss if self._rss_max is None else max(self._rss_max, rss)
+        peak = getattr(mem, "peak_wset", None)  # Windows only; None elsewhere
+        if peak is not None:
+            self._peak_wset_last = int(peak)
+
+    def _open_nvml(self) -> tuple[Any, list[Any]] | None:
+        """``(pynvml, device handles)`` when ``pynvml`` imports, initialises and reports
+        at least one device; else ``None`` — silently (D-16: GPU is opt-in)."""
+        if not self.gpu_enabled:
+            return None
+        try:
+            import pynvml  # type: ignore[import-not-found]  # nvidia-ml-py: gpu group (EP-121)
+        except Exception:
+            return None
+        try:
+            pynvml.nvmlInit()
+        except Exception:
+            return None
+        try:
+            count = int(pynvml.nvmlDeviceGetCount())
+            handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(count)]
+        except Exception:
+            handles = []
+        if not handles:
+            self._shutdown_nvml(pynvml)
+            return None
+        _LOG.debug("resource log: sampling GPU memory over %d NVML device(s)", len(handles))
+        return pynvml, handles
+
+    @staticmethod
+    def _shutdown_nvml(nvml: Any) -> None:
+        with contextlib.suppress(Exception):  # defensive: a shutdown error is not ours
+            nvml.nvmlShutdown()
+
+    def _close_nvml(self) -> None:
+        if self._nvml is not None:
+            self._shutdown_nvml(self._nvml[0])
+            self._nvml = None
+
+    @staticmethod
+    def _gpu_process_bytes(nvml: Any, handles: list[Any], pid: int) -> int | None:
+        """This process's GPU memory summed over devices, or ``None`` when the driver does
+        not attribute memory per process (Windows WDDM reports N/A)."""
+        total = 0
+        seen = False
+        for handle in handles:
+            try:
+                procs = nvml.nvmlDeviceGetComputeRunningProcesses(handle)
+            except Exception:
+                continue
+            for proc in procs:
+                used = getattr(proc, "usedGpuMemory", None)
+                if getattr(proc, "pid", None) == pid and used is not None:
+                    total += int(used)
+                    seen = True
+        return total if seen else None
+
+    def _sample_gpu(self) -> None:
+        if self._nvml is None:
+            return
+        nvml, handles = self._nvml
+        used = self._gpu_process_bytes(nvml, handles, os.getpid())
+        method: GpuMemMethod = "process"
+        if used is None:
+            try:
+                used = sum(int(nvml.nvmlDeviceGetMemoryInfo(h).used) for h in handles)
+            except Exception:
+                self._errors += 1
+                return
+            method = "device"
+        self._gpu_last = used
+        if self._gpu_max is None or used >= self._gpu_max:
+            self._gpu_max = used
+            self._gpu_method = method
+
+
+# ---------------------------------------------------------------------------
 # start()
 # ---------------------------------------------------------------------------
 
@@ -699,9 +1231,11 @@ def start(
 ) -> Iterator[Run]:
     """Open a run (module note): ``with run.start("name", tier="dev", kind="analysis",
     params={...}) as r:``. ``doctor=False`` skips the environment block (tests that open
-    many runs). The manifest is written at entry (``status: running``) and again at exit;
-    the ledger line is appended once, at exit; exceptions mark the run ``failed`` and
-    re-raise."""
+    many runs). The manifest is written at entry (``status: running``, ``seeds: {}``),
+    whenever a stage is seeded, and again at exit with the :class:`ResourceLog`
+    measurement (``resources``; ``wall_s`` / ``peak_rss_mb`` / ``disk_delta_mb`` mirror
+    it); the ledger line is appended once, at exit; exceptions mark the run ``failed``
+    and re-raise."""
     settings = settings or get_settings()
     if tier not in TIERS:
         raise RunLedgerError(f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
@@ -725,6 +1259,7 @@ def start(
         python_version=platform.python_version(),
         package_version=__version__,
         params=_jsonable(dict(params or {})),
+        seeds={},
         protocol_id=protocol_id,
         protocol_hash=protocol_hash,
         claim_type=claim_type,
@@ -732,9 +1267,11 @@ def start(
     )
     run = Run(manifest, directory, settings)
     run.write_manifest()
-    free_before = _free_bytes(settings.data_root)
-    rss_start = _rss_mb()
-    clock = time.perf_counter()
+    # the sampler starts after the environment block (its probes cost seconds and are
+    # not the run's work) and stops before the manifest is finalised
+    log = ResourceLog(data_root=settings.data_root)
+    run.resource_log = log
+    log.start()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
@@ -746,17 +1283,16 @@ def start(
         else:
             manifest.status = "ok"
         finally:
+            usage = log.stop()
+            run.resource_log = None
             for w in caught:
                 text = _sanitized(f"{w.category.__name__}: {w.message}")
                 manifest.warnings = [*manifest.warnings, text]
                 _LOG.warning("run %s: %s", run_id, text)
-            manifest.wall_s = round(time.perf_counter() - clock, 3)
-            rss_end = _rss_mb()
-            samples = [s for s in (rss_start, rss_end) if s is not None]
-            manifest.peak_rss_mb = max(samples) if samples else None
-            free_after = _free_bytes(settings.data_root)
-            if free_before is not None and free_after is not None:
-                manifest.disk_delta_mb = round((free_before - free_after) / 2**20, 1)
+            manifest.resources = usage
+            manifest.wall_s = usage.wall_s
+            manifest.peak_rss_mb = usage.peak_rss_mb
+            manifest.disk_delta_mb = usage.disk_delta_mb
             manifest.finished = datetime.now(UTC).isoformat(timespec="milliseconds")
             run.write_manifest()
             _append_ledger(manifest, settings)
@@ -881,8 +1417,9 @@ def reproduction_block(run_id: str, settings: Settings | None = None) -> str:
     """The Markdown **Reproduction** + **Provenance** block of a ``docs/analyses`` case
     study (EP-32 convention) for ``run_id``: run id, kind, tier, status, the command
     line, git sha (+ dirty flag), versions, the ``uv.lock`` hash, snapshot ids, protocol
-    id + hash (or "none"), claim type, and the counts of recorded SQL statements and
-    audited calls (through ``fmt_int``). ASCII; the run id appears inline only."""
+    id + hash (or "none"), claim type, the counts of recorded SQL statements and audited
+    calls, the seeds (EP-36; every integer through ``fmt_int``, so a seed can never look
+    like an id) and the resource measurement. ASCII; the run id appears inline only."""
     from mimicwarehouse.inventory import fmt_int
 
     m = read_manifest(run_id, settings)
@@ -895,6 +1432,27 @@ def reproduction_block(run_id: str, settings: Settings | None = None) -> str:
         protocol = f"`{m.protocol_id or '-'}` hash `{m.protocol_hash}`"
     else:
         protocol = "none (not run under a frozen protocol; EP-51)"
+    if m.seeds:
+        listed = "; ".join(f"{stage} {fmt_int(seed)}" for stage, seed in sorted(m.seeds.items()))
+        seeds = (
+            f"{listed} - each is derive_seed(`{m.protocol_id or m.run_id}`, stage) "
+            "(docs/methods/determinism.md)"
+        )
+    elif m.seeds is None:
+        seeds = "not recorded (run predates EP-36)"
+    else:
+        seeds = "none (no stochastic stage)"
+    res = m.resources
+    if res is None:
+        resources = "not measured"
+    else:
+        gpu = "-" if res.gpu_mem_peak_mb is None else f"{fmt_int(round(res.gpu_mem_peak_mb))} MB"
+        resources = (
+            f"peak RSS {fmt_int(None if res.peak_rss_mb is None else round(res.peak_rss_mb))} MB "
+            f"({res.peak_rss_method or '-'}); CPU time "
+            f"{'-' if res.cpu_time_s is None else res.cpu_time_s} s; disk delta "
+            f"{'-' if res.disk_delta_mb is None else res.disk_delta_mb} MB; GPU memory peak {gpu}"
+        )
     lines = [
         "## Reproduction",
         "",
@@ -910,6 +1468,7 @@ def reproduction_block(run_id: str, settings: Settings | None = None) -> str:
         f"audited safe-query calls: {fmt_int(len(m.audit_ids))}; "
         f"attrition steps: {fmt_int(len(m.attrition))}.",
         f"- Protocol: {protocol}.",
+        f"- Seeds: {seeds}.",
         f"- Claim type: {m.claim_type or 'not stated'}. MIMIC-IV analyses are retrospective.",
         "",
         "## Provenance",
@@ -918,7 +1477,7 @@ def reproduction_block(run_id: str, settings: Settings | None = None) -> str:
         f"DuckDB `{m.duckdb_version}` - Python `{m.python_version}`.",
         f"- Environment hash (`uv.lock` sha256): `{m.uv_lock_sha256 or '-'}`.",
         f"- Snapshot ids: {snapshots}.",
-        f"- Wall time {m.wall_s if m.wall_s is not None else '-'} s.",
+        f"- Wall time {m.wall_s if m.wall_s is not None else '-'} s; {resources}.",
         "",
     ]
     return "\n".join(lines)
@@ -926,6 +1485,7 @@ def reproduction_block(run_id: str, settings: Settings | None = None) -> str:
 
 __all__ = [
     "BENCHMARK_COLUMNS",
+    "DUCKDB_SEED_MAX",
     "FIGURES_DIRNAME",
     "LEDGER_COLUMNS",
     "LEDGER_FIELDS",
@@ -936,19 +1496,30 @@ __all__ = [
     "RUN_ID_RE",
     "RUN_KINDS",
     "RUN_STATUSES",
+    "SAMPLE_INTERVAL_S",
+    "SAMPLE_METHODS",
+    "SEED_BYTES",
+    "SEED_MAX",
     "SQL_DIRNAME",
+    "STAGE_RE",
     "TABLES_DIRNAME",
     "TEXT_MAX_CHARS",
     "TIERS",
     "AttritionRow",
+    "GpuMemMethod",
+    "PeakRssMethod",
     "RefEntry",
+    "ResourceLog",
+    "ResourceUsage",
     "Run",
     "RunErrorInfo",
     "RunKind",
     "RunLedgerError",
     "RunManifest",
     "RunStatus",
+    "SeedError",
     "bench",
+    "derive_seed",
     "environment_block",
     "git_dirty",
     "git_sha",
@@ -959,8 +1530,13 @@ __all__ = [
     "read_manifest",
     "reproduction_block",
     "require_run_id",
+    "rng",
     "run_dir",
     "runs_db_views",
+    "seed_everything",
+    "seed_key",
+    "spawn_rngs",
+    "sql_sample_clause",
     "start",
     "uv_lock_sha256",
 ]

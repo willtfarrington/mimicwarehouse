@@ -669,6 +669,37 @@ manifests and job state files.
 > and numbers are unchanged. `run.reproduction_block(run_id)` renders the EP-32
 > Reproduction + Provenance block.
 
+> **Note (2026-09-05, EP-36).** The `seeds` / `resources` slots shipped, in
+> `src/mimicwarehouse/run.py` (prose: `docs/methods/determinism.md`). **Seeds:**
+> `derive_seed(protocol_id, stage, salt=0)` = the big-endian first four bytes of
+> `sha256("{protocol_id}|{stage}|{salt}")` — 32-bit, stable across processes; `rng(...)`
+> → `numpy.random.default_rng(seed)`; `spawn_rngs(..., n)` → `SeedSequence(seed).spawn(n)`
+> children for workers; `seed_everything(seed)` → the global `random` / numpy-legacy /
+> already-imported `torch` state (never imports torch); `sql_sample_clause(seed, rows=|
+> percent=, method=)` → `USING SAMPLE <method>(<size>) REPEATABLE (<seed>)` with the
+> 32-bit seed folded to `seed % 2**31` (DuckDB 1.5.5 parses the seed as an int32 literal;
+> `DUCKDB_SEED_MAX`). `Run.seed
+> (stage)` / `Run.spawn_rngs(stage, n)` derive from the run's `protocol_id` (frozen, EP-51)
+> or its `run_id` (unfrozen), record `{stage: seed}` under `manifest.seeds` and rewrite the
+> manifest at once (a killed run keeps its seed record); an open run starts with
+> `seeds: {}` (`null` = pre-EP-36). **Resources:** `ResourceLog` — a daemon thread
+> (0.5 s, psutil) started after the environment block and stopped before the manifest is
+> finalised; `ResourceLog.measure(fn)` standalone, `Run.measure(kind, name, fn)` →
+> `run.bench` — writes a `ResourceUsage` block under `manifest.resources`: `wall_s`,
+> `cpu_time_s`, `peak_rss_mb` + `peak_rss_method`, `rss_start_mb` / `rss_end_mb`,
+> `peak_wset_mb`, `disk_delta_mb` (data-root drive free-bytes delta), `gpu_mem_start_mb` /
+> `gpu_mem_peak_mb` / `gpu_mem_method` (pynvml only when it imports **and** a device
+> answers; per-process when the driver attributes memory, else device-level; `None`
+> otherwise, silently), `samples`, `sample_errors`, `interval_s` — and mirrors `wall_s` /
+> `peak_rss_mb` / `disk_delta_mb` at the top level, replacing EP-35's start/end RSS
+> reading. Measured fact behind `peak_rss_method`: Windows' `peak_wset` is a
+> *process-lifetime* high-water mark (memory freed before the run keeps it high), so the
+> run-scoped peak is the sampled maximum, promoted to `peak_wset` only when the mark grew
+> during the run (`docs/gotchas.md` § 2). The EP-19 runner's per-step `_RssSampler`
+> predates `ResourceLog` and is untouched — EP-54 decides whether the runner adopts it.
+> In the `manifests` view both slots bind as `JSON` (`json_extract(resources,
+> '$.peak_rss_mb')`).
+
 **Identifier glossary** (D-43 item 11) — briefs and modules use these names and no others:
 
 - **`raw_snapshot_id`** (EP-10) — sha256 over the sorted `(rel_path, bytes, sha256, rows)`
@@ -844,7 +875,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
 │   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
-│   ├── run.py                     EP-35 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); EP-36 seeds + resource log
+│   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42

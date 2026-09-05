@@ -161,7 +161,9 @@ def test_run_writes_manifest_and_ledger_line(data_root: Path) -> None:
     assert manifest["duckdb_version"] == "1.5.5" and manifest["python_version"].startswith("3.13")
     assert manifest["package_version"] and manifest["uv_lock_sha256"]
     assert manifest["snapshot_ids"] == {"core": "a" * 64}
-    assert manifest["seeds"] is None and manifest["resources"] is None, "EP-36 fills these"
+    # EP-36: seeds is {} for a run without a stochastic stage and resources is the
+    # ResourceLog block (both were None until EP-36 shipped; test_ep36 pins the shapes)
+    assert manifest["seeds"] == {} and manifest["resources"] is not None
     assert manifest["doctor"] is None, "doctor=False skips the environment block"
     # exactly one ledger line, the LEDGER_FIELDS subset, in the canonical form
     lines = _ledger_lines(settings)

@@ -80,6 +80,13 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   and raises. *(EP-33, ledger CLI-1/LDR-2, WIN-2/3/4.)*
 - **The in-process rss/ctypes probe reads 0 on this host** for minutes; trust the runner's
   psutil sampler. *(EP-23.)*
+- **psutil's `peak_wset` is a process-lifetime high-water mark.** Freed memory lowers
+  `rss` but never the peak, so a sampler that reads `peak_wset` alone attributes an
+  earlier allocation to whatever runs next in the same process (a pytest session, the
+  app). `run.ResourceLog` reports the sampled RSS maximum and promotes it to `peak_wset`
+  only when the mark grew during the measurement (`peak_rss_method`). *(EP-36 probe:
+  30 → 230 MB allocated and freed — `peak_wset` stayed at 230 MB while `rss` fell back
+  to 30 MB; `test_ep36` pins both branches with a stubbed psutil.)*
 - **`os.linesep` through a text-mode stdout yields CR-CR-LF.** JSON emitters write plain
   `\n` (`console.emit_json`). *(EP-167/EP-33.)*
 - **Endpoint security is two products** (Defender + Malwarebytes 5.1 Premium, D-42): the
@@ -150,6 +157,8 @@ deviation is a review finding, not a style choice.
 | Publish a directory or file the project built | `publish.swap_dir` / `publish.swap_file`; every other rename/remove of project-written files through `publish.retry_permission` / `rmtree` / `unlink` / `replace` | the canary's swap rehearsal |
 | Open DuckDB | `engine.open_duckdb(profile, …)` with `build` or `app` spelled out; attach with `engine.attach_read_only`, preceded by `engine.detach` when the file may have been republished under a live instance (`safe_query` on `runs.duckdb`, EP-35) | tests that deliberately probe a raw connection (allow-listed in the grep guard) |
 | Record an analysis run | `run.start(...)` → `runs/<run_id>/manifest.json` + one `runs/ledger.jsonl` line; SQL via `r.record_sql` / `r.safe_query`, outputs via `r.save_table` / `r.save_figure`; benchmark lines via `run.bench` (still `dag.benchmarks.append` underneath); the Reproduction block via `run.reproduction_block` (EP-35, `docs/methods/provenance.md`) | the EP-31 tracer's own `runs/tracer/` report folder (kept; it cites its run id) |
+| Seed a stochastic stage | `Run.seed(stage)` / `Run.spawn_rngs(stage, n)` inside a run — `run.derive_seed` / `rng` / `spawn_rngs` outside one; SQL sampling through `run.sql_sample_clause` (EP-36, `docs/methods/determinism.md`); library code takes the Generator as an argument | `run.seed_everything` for entry points, notebooks and tests only |
+| Measure a run's or a step's resources (wall, CPU, peak RSS, disk delta, GPU memory) | `run.ResourceLog` — inside `run.start` automatically (`manifest.resources`); `ResourceLog.measure(fn)` / `Run.measure(kind, name, fn)` standalone, feeding `run.bench` (EP-36) | the EP-19 runner's per-step `_RssSampler` (predates it; EP-54 decides whether the runner adopts `ResourceLog`) |
 | Report an error from a command | `console.fail("mwh <cmd>", message, code=console.EXIT_*)` — bold red on **stderr**, exit 0/1/2/3 = ok / findings / usage-or-environment / safe-query refusal | `roadmap_check_main` returns its code instead of raising |
 | Emit machine output | `console.emit_json(payload)` — raw ints, `default=str`, plain `\n`; `inventory.fmt_int` is for humans only | — |
 | Progress lines | stdlib `logging` on the `mimicwarehouse` logger through `console.configure_progress_logging` | the canary's observer; `dag/jobs`' child prints (its stdout *is* the job log) |

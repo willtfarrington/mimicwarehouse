@@ -396,6 +396,30 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > so a refresh is never served stale from the path-keyed instance cache. Details in DESIGN §11's
 > EP-35 note and `docs/methods/provenance.md`.
 
+> **Addendum (2026-09-05, EP-36 — seeds and resources as recorded).** Every run manifest
+> now fills the two slots EP-35 left optional. `seeds` = `{stage: seed}` under one
+> derivation rule — `derive_seed(protocol_id, stage, salt)` = the first four bytes of
+> `sha256("{protocol_id}|{stage}|{salt}")`, 32-bit — scoped to the frozen `protocol_id`
+> (D-25) or, for unfrozen work, the `run_id`: a frozen protocol reproduces its numbers
+> across runs, an unfrozen run reproduces from its own manifest. Library code takes a
+> `numpy.random.Generator` and never seeds globals; `docs/methods/determinism.md` is the
+> policy later briefs cite (stage names, `random_state=int(rng.integers(2**31))`, DuckDB
+> `REPEATABLE`, spawned worker streams under `__main__` guards). `resources` = the
+> `ResourceLog` measurement (wall, CPU time, run-scoped peak RSS with its method, RSS
+> start/end, the process-lifetime `peak_wset`, data-root free-space delta, GPU memory only
+> when `pynvml` and a device are present — `None` otherwise, D-16). Two as-built choices
+> recorded: (1) `peak_rss_mb` is the sampled maximum, promoted to Windows' `peak_wset`
+> only when that lifetime mark grew during the run — a probe showed the mark stays at an
+> earlier peak after the memory is freed, so reading it alone (the brief's literal
+> wording) would attribute a previous allocation to the run; (2) a seeded stage rewrites
+> the manifest immediately, so a hard-killed run still shows what it seeded. `seeds: {}`
+> means "no stochastic stage"; `null` marks a pre-EP-36 manifest. *Alternatives
+> considered:* `peak_wset` alone (rejected by the probe); recording seeds only at exit
+> (rejected: lost on a hard kill); a `salt` on `Run.seed` (rejected: two records for one
+> stage name — distinct steps get distinct stage names instead); routing the EP-19
+> runner's per-step sampler through `ResourceLog` now (deferred to EP-54: out of this
+> brief's scope, and the runner is proven by five ⏱ jobs).
+
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
