@@ -117,4 +117,4 @@ never inherited from module state. All work is fixture-tier: no data is read.
 > **Owner decisions at close (session-end prompt, all as recommended):** two-step commit
 > (feat, then the README ☑ record commit) — yes; push — no, the owner pushes; keep
 > `RunManifest.resources` typed (`ResourceUsage`) with `peak_source` — yes; the EP-19 runner's
-> `_RssSampler` merge — deferred to EP-54.
+> `_RssSampler` merge — deferred to EP-54. Feat commit `fc7aa1f`; not pushed.
