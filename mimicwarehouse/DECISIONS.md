@@ -296,29 +296,6 @@ adopt as-is untested.
 > future re-vendor that meets a new upstream debugging id handles it the same way and reports it
 > under `local_edits` rather than failing or needing a per-file exclusion.
 
-> **Addendum (2026-09-05, EP-38 — "fixes ported" realised as a patch registry).** (1) A
-> local deviation from the vendored tree is a **patch**, never an edit: `concepts/patches/
-> patches.yaml` (patch id, concept, reason, upstream PR/issue/commit URL,
-> `applies_to_upstream_commit`, file sha256, date, status, semantics) plus a full
-> replacement `<concept>.sql` that keeps the MIT attribution and upstream's header line.
-> The runner refuses to build when a patch was written against another upstream commit
-> than the pin, so a re-vendor (`poe vendor-mimic-code`) is followed by a patch review
-> before anything runs; `meta.concept_versions.patch_id` and `status.json` say what each
-> table was built from. (2) **What was ported** — the four open upstream concept-logic PRs
-> named at EP-8, as they stood on 2026-09-05: SIRS `wbc_max` guard (#2146), MCHC/CRP
-> `valueuom` filters (#2141; the brief's wider panel list has no upstream fix — per-itemid
-> units belong to EP-39), Charlson C4A exclusion (**#2142 chosen over #2043**: the
-> Quan-faithful minimum; #2043's C7A/C7B additions are a semantic extension Quan never
-> defined, recorded as "considered, not ported"), APS-III equidistant-arm typo (#2137).
-> APS-III axillary temperature (#2046) is deferred to EP-39's site/unit curation because it
-> changes an input aggregation, not the score. All four are `status: ported-unmerged`;
-> EP-54 re-checks. (3) `KNOWN_FAILURES` stays empty — no DuckDB 1.5.x breakage existed
-> (D2 smoke, demo/dev/full builds) — so roadmap Risk 2's upstream-lag half is now
-> **managed** (registry + re-plan re-check), not open. (4) Two ports cannot move a
-> real-data value (SIRS: `wbc_min`/`wbc_max` are null together; APS-III: the fixed arms
-> are only reached in the equality case); the demo pin set did not change. Recorded so a
-> later reader does not hunt for a count effect that cannot exist.
-
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
@@ -353,40 +330,6 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > the data root: `doctor`, `paths`, `guard`, `verify`, `schema`, `fixtures`), pinned by
 > `test_ep167`; the EP-16 question of retiring it structurally is closed — the list *is*
 > the rule's statement.
-
-> **Addendum (2026-09-05, EP-37 — the concept runner as DAG steps; D-19 + D-20 together).**
-> (1) **Concepts are `python` steps, not a `sql` kind.** Each vendored concept is one step
-> `concept.<group>.<name>` (`callable concepts.runner:run_concept`, `target
-> mimiciv_derived.<name>`), generated into `dag/specs/concepts.yaml` from the committed
-> inventory `concepts/concepts.yaml` (`python -m mimicwarehouse.concepts.inventory`); the
-> spec's `sql` kind stays unregistered — the EP-33 amendment allowed a `sql` handler "only if
-> it removes real duplication", and the python body (header strip, in-memory source views,
-> Parquet sink, manifest + status + view registration) has nothing a `sql` kind would
-> factor out. (2) **Spec discovery.** `load_dag()` merges every `dag/specs/*.yaml`; the
-> shared `catalog` step is deduplicated by name with `depends_on`/`tags` unioned (ledger
-> P3C-2); no `--spec` option. (3) **Per-tier derived layout** (DESIGN §3 note; carried
-> P3C-7): `<lake_root(tier)>/derived/<tier>/<schema>/<table>/part-0.parquet` — the amendment's
-> `lake/derived/<tier>/…` for dev and full, `lake/fixture/derived/fixture/…` and
-> `lake/demo/derived/demo/…` for the synthetic tiers (their own roots: EP-167's no-write
-> rule for the credentialed tree and EP-28's "every manifest path resolves under its lake
-> root" invariant both hold) — one ZSTD file, no bucket partitions; derived `status.json`
-> entries carry `layer: derived` and per-tier
-> completeness (`dev_ready` for dev; a full derived table is not a dev one), so a dev
-> rebuild never replaces a full table (LDR-1 inherited) and `--tier full --force` stays the
-> only destructive path. (4) **Runner flags** `--keep-going` (failure recorded, dependents
-> `blocked`, run continues) and `--with-deps` (selection closed over ancestors; `--force`
-> applies to the explicit steps only), plus a generic status-key skip (`Step.status_key`).
-> (5) **Provenance.** `meta.concept_versions` is written under one `run.start("concepts",
-> kind="build")` run per build with a `kind: concept` benchmark line per concept attempted
-> in that build; a derived manifest line's `source_sha256` is the concept SQL's sha256 and
-> its `raw_snapshot_id` the core snapshot read; the derived layer snapshot is recorded by
-> the versions step. (6) **Count-pins** through `safe_query` only (k = 11): the demo set is
-> committed (`tests/ep/pins/concepts_demo.json`; on the demo tier no concept count fell
-> below 11 and `neuroblock` is empty), the dev set lives under the data root as a drift
-> detector until EP-43's `disclose.render_cell` replaces the `"<11"` helper. (7) **Result:**
-> all 65 concepts execute on DuckDB 1.5.5 on fixture, demo and dev (`KNOWN_FAILURES` is
-> empty; Risk 2's executability half confirmed at build time); the full tier runs as job
-> `concepts-full`, verified by EP-38.
 
 **D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
@@ -452,25 +395,6 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > call (`engine.detach` + `engine.attach_read_only`), the one exception to "attach once",
 > so a refresh is never served stale from the path-keyed instance cache. Details in DESIGN §11's
 > EP-35 note and `docs/methods/provenance.md`.
-
-> **Addendum (2026-09-05, EP-36 — seeds and resources as built).** The manifest's `seeds`
-> and `resources` slots are filled by one seed rule and one sampler
-> (`docs/methods/determinism.md`). (1) **Seeds are a pure function of names:**
-> `derive_seed(protocol_id, stage, salt)` = the first four sha256 bytes of
-> `"{protocol_id}|{stage}|{salt}"`, a 32-bit integer with no global state, so a stage is
-> reproducible from a protocol id in any process or `spawn` worker; library code takes a
-> numpy `Generator` argument and never seeds globally, third-party estimators get
-> `random_state(rng)`, SQL sampling uses `REPEATABLE (seed)`, and `seed_everything` seeds
-> torch only when it is already imported (D-16: never imported). Unfrozen work (before
-> EP-51) seeds from the `run_id` — fresh per run, recorded in the manifest, reproducible
-> from the recorded integer. (2) **The peak working set is reported with its provenance:**
-> Windows' `peak_wset` is a process-lifetime mark, so `ResourceUsage.peak_source` says
-> `peak_wset` (exact; the run raised the mark) or `sampled` (the 0.5 s maximum) — a
-> manifest never carries a peak that belongs to an earlier run in the same process.
-> (3) **GPU telemetry degrades silently:** per-pid memory through `pynvml` only when it
-> imports and a device answers; otherwise `null`, no warning, no dependency (`pynvml`
-> arrives with the `gpu` group at EP-121). The EP-19 runner keeps its own `_RssSampler`;
-> merging it into `ResourceLog` is deferred to EP-54 as a routine consolidation.
 
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;

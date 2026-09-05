@@ -139,9 +139,7 @@ def test_every_hosp_icu_table_staged_exactly_once(contract: Contract) -> None:
 
 
 def test_spec_steps_carry_contract_defaults(contract: Contract) -> None:
-    # EP-37 (2026-09-05): load_dag() now merges every spec and the shared catalog step also
-    # depends on the concept steps; this test pins the *stage* spec, so load it by name
-    dag = load_dag("stage")
+    dag = load_dag()
     for step in (s for s in dag.steps if s.kind == "stage"):
         qn = step.qualified_table
         assert qn is not None

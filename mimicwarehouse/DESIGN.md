@@ -164,43 +164,7 @@ chartevents/labevents views; a worst-case single pass over all 433 M chartevents
 ≈ 17 GB of hash/sort state, so spill is possible but bounded (≤ 20–40 GB) under the 150 GB
 `max_temp_directory_size` cap; expected free space after P3 ≈ 380 GB.
 
-> **Note (2026-09-05, EP-37 — the per-tier derived layout, used from here on).** Every
-> layer after `core` is materialised **per tier** under the tier's own lake root:
-> `<lake_root(tier)>\derived\<tier>\<schema>\<table>\part-0.parquet` — for dev and full that
-> is `lake\derived\<tier>\…` (`layout["lake_derived"]`; EP-37 writes `mimiciv_derived.<concept>`,
-> EP-42's phenotypes follow), and `lake\marts\<tier>\<schema>\<table>\part-0.parquet` (EP-47)
-> — **one ZSTD file per table, no bucket partitions** (the planning-era `PARTITION_BY
-> subject_bucket` clause is dropped; DuckDB scans the single file with pushdown, and not
-> every concept carries `subject_id`). The fixture and demo tiers keep the same shape under
-> their own roots (`lake\fixture\derived\fixture\…`, `lake\demo\derived\demo\…`): the EP-33
-> amendment's "same key with its own tier segment" is honoured for the tiers that share
-> `lake\` and bent for the synthetic ones, because a fixture/demo build must never write into
-> the credentialed tree (EP-167/ARCH-3) and every manifest path must resolve under the lake
-> root it is recorded in (EP-28's structural invariant). Dev and full — which share `lake\core`
-> — therefore never share a derived file: a dev rebuild cannot replace a full table (LDR-1
-> inherited). The per-tier files force per-tier completeness: a derived `status.json` entry
-> carries `layer: derived`, the dev tier needs its own `dev_ready` (a full derived table is
-> *not* a dev one — `dag.snapshot.complete_for_tier` branches on the entry's layer), and a
-> layer snapshot hashes only `derived/<tier>/…` manifest lines (`source_sha256` = the concept
-> SQL's sha256, `raw_snapshot_id` = the core snapshot read). `lake\meta\<tier>\<table>.parquet`
-> (EP-29's convention, under the tier's lake root) is the registry
-> layer; the `catalog` step's discovery walker (`catalog.discover`, a `CATALOG_EXTENSIONS`
-> entry) registers every complete derived/marts table as a `<schema>.<table>` view and
-> every meta file as a `meta.<table>` table — the convention all later P3 specs rely on;
-> the bucketed events spine (EP-50) is the one exception, registered by its own `union`
-> step. Measured at EP-37 (demo tier, 65 concepts + `concept_versions`): 12.9 MB catalog;
-> dev-tier concepts built in 23 s wall as job `concepts-dev`; the full tier runs as job
-> `concepts-full` and EP-38 records its size and timing here.
-
-> **Note (2026-09-05, EP-38 — the full-tier derived layer, measured).** Job
-> `concepts-full` (EP-37 ⏱): 65/65 concepts, **12 min 18 s** wall, concept steps 725.0 s,
-> peak RSS 7,460 MB (`measurement.rhythm`; `score.sofa` 6,467 MB), 95,777,751 derived
-> rows in 65 single ZSTD files = **1,338.0 MB** under `lake\derived\full\mimiciv_derived\`
-> — the low end of the EP-33 D3 "derived + spine ≈ 4–6 GB" estimate before the spine.
-> `sepsis.suspicion_of_infection` alone takes 450 s (62 % of the concept wall). The
-> patched subset (five concepts, § 8 note) rebuilds in well under a minute per tier.
-
-*History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3, EP-37 (completion notes); consolidated at EP-33.
+*History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3 (completion notes); consolidated at EP-33.
 
 ## 4. Tiers & sampler spec (D-18, D-27)
 
@@ -574,51 +538,6 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   writes `mimiciv_derived` per tier under `lake\derived`; count-pinning tests on demo/dev;
   local fixes recorded as patches beside `vendor/` with the upstream issue/PR reference.
   ED and Note concepts do not exist upstream and are ours.
-  **Shipped by EP-37 (2026-09-05):** `concepts/inventory.py` scans the tree into the
-  committed, generated `concepts/concepts.yaml` (65 concepts, driver order verified
-  topological over the `mimiciv_derived.*` references) and `dag/specs/concepts.yaml` (one
-  `python` step `concept.<group>.<name>` per concept with `target mimiciv_derived.<name>`,
-  the `meta.concept_versions` step, the shared `catalog` step); `concepts/runner.py` strips
-  the header and sinks each SELECT to the per-tier single file (§3 note) from an in-memory
-  build connection whose `mimiciv_hosp`/`mimiciv_icu` views are the catalog's own DDL over
-  the staged lake; `meta.concept_versions` (concept, group, upstream_commit, sql_sha256,
-  patch_id, rows, bytes, wall_s, status, error, built_at, build_id, run_id, snapshot_id,
-  tier) is written under one `run.start("concepts", kind="build")` run with a
-  `kind: concept` benchmark line per concept; `concepts/pins.py` computes the count-pins
-  through `safe_query` (`tests/ep/pins/concepts_demo.json` committed; dev pins under the
-  data root). The human-readable inventory and the 1.5.x status column are
-  `docs/resources/concepts.md` (`KNOWN_FAILURES` is EP-38's record of failing concepts —
-  empty: all 65 execute on 1.5.5 on demo and dev).
-
-  > **Note (2026-09-05, EP-38 — patches over the vendored tree; D-19 "port fixes").**
-  > `KNOWN_FAILURES` stayed empty (the full tier also built 65/65), so EP-38's substance is
-  > the **patch mechanism** and four upstream concept-logic ports. `concepts/patches/`
-  > holds `patches.yaml` (the registry: `patch_id`, `concept`, `reason`, `upstream_ref`
-  > URL, `applies_to_upstream_commit`, `sql_sha256`, `date`, `status`
-  > `ported-unmerged | ported-merged | local`, `semantics` `changed | unchanged`) and one
-  > `<concept>.sql` full replacement per patched concept in the vendored shape (our header
-  > comment with the MIT attribution and the upstream reference, upstream's header line
-  > kept verbatim, then the body), so `split_header` reads it like a vendored file. The
-  > runner validates the registry once per build before the first concept runs and refuses
-  > to start when an entry's commit is not the vendored pin (re-vendoring forces a review),
-  > a file's sha256 drifted, or a patch equals the vendored body; otherwise
-  > `patches.effective_sql` supplies the patch, the table's manifest `source_sha256` /
-  > status `sql_sha256` become the patch file's sha256 (`vendored_sha256` keeps the
-  > upstream one) and `patch_id` lands in `status.json` and `meta.concept_versions` — read
-  > back from status, so the versions table says what each file was built from, not what
-  > the registry says today. Ported (all upstream PRs open at the pin, hence
-  > `ported-unmerged`, re-checked at EP-54): SIRS `wbc_max` guard (#2146), MCHC / CRP
-  > `valueuom` filters in `complete_blood_count` / `inflammation` (#2141 — the only lab
-  > panels upstream touched; per-itemid units for the rest are EP-39's `meta.item_units`),
-  > Charlson C4A exclusion (#2142, chosen over #2043's C7A/C7B additions as the
-  > Quan-faithful minimum), APS-III equidistant-arm typo (#2137). Two of the four cannot
-  > move a real-data value (SIRS: `wbc_min`/`wbc_max` are null together; APS-III: the arms
-  > are only reached in the equality case) and the demo pin set did not change at all;
-  > the deviations table with per-patch demo effects is `docs/resources/concepts.md`
-  > § Deviations. Rebuilds after a patch are explicit (`mwh build --tier t --select
-  > concept.<g>.<n>,… --force`; the completeness skip does not compare hashes — a stale
-  > table is the operator's call, recorded in the brief), and `--tier full --force` stays
-  > the only destructive path (LDR-1).
 - **Code-set registry** (EP-40): `codesets/*.yaml` (ICD-9/10 dual sets, itemid sets,
   drug-name/RxNorm sets, ATC classes) with semver + definition hash, compiled to
   `meta.codeset_members`; ICD-9→10 GEM utility. The `meta.itemids` view (EP-29; `d_items`
@@ -629,7 +548,7 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   → SQL; versioned like code sets; first three: T2DM, sepsis-3 (via concept), KDIGO AKI
   stage. The fixture plants all three traits (§4) and EP-41 regenerates it as 0.3.0.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38 (completion notes); EP-39 … EP-42 planned; consolidated at EP-33.
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2 (completion notes); EP-37 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -749,28 +668,6 @@ manifests and job state files.
 > run under `ledger_run_id` in its own manifest; its `runs/tracer/<stamp>-<tier>/` folder
 > and numbers are unchanged. `run.reproduction_block(run_id)` renders the EP-32
 > Reproduction + Provenance block.
-
-> **Note (2026-09-05, EP-36).** `seeds` and `resources` are filled (prose:
-> `docs/methods/determinism.md`). **Seeds:** one pure rule, `run.derive_seed(protocol_id,
-> stage, salt=0)` = the first four bytes of `sha256("{protocol_id}|{stage}|{salt}")` — a
-> 32-bit integer, no global state, identical in every process and `spawn` worker;
-> `run.rng` / `run.spawn_rngs` (a `SeedSequence.spawn` per worker or fold) /
-> `run.random_state` (the integer sklearn-style APIs take) / `run.seed_everything` (the
-> globals, torch only if already imported — never imported, D-16) build on it, and
-> `Run.seed(stage)` derives from the run's `protocol_id` (the `run_id` when unfrozen —
-> fresh per run, still recorded) and writes `{stage: seed}` into `manifest.seeds`, so the
-> manifest proves which seed each stochastic stage used. **Resources:** `run.ResourceLog`,
-> a daemon-thread psutil sampler (0.5 s; start + stop samples; `sample()` by hand) whose
-> `ResourceUsage` sits under `manifest.resources` and mirrors `wall_s` / `peak_rss_mb` /
-> `disk_delta_mb` — wall (µs), CPU time, the interval's peak working set with its
-> provenance (`peak_wset` when the run set a new process high-water mark on Windows, else
-> the sampled maximum: `peak_wset` is a lifetime mark, so it is exact only when it rose),
-> start/end RSS, sample count, the data-root drive's free-space delta, and this pid's peak
-> GPU memory through `pynvml` **only if** it imports and a device answers (`null` and
-> silent otherwise). `ResourceLog.measure(fn)` is the standalone form; `run.bench(...,
-> usage=)` turns its usage into a `BenchmarkLine`. The EP-19 runner keeps its own
-> `_RssSampler` (a merge is EP-54's call). `RunManifest.resources` is typed
-> (`ResourceUsage`, `extra="forbid"`); the `manifests` view still binds it as `JSON`.
 
 **Identifier glossary** (D-43 item 11) — briefs and modules use these names and no others:
 
@@ -939,15 +836,15 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── publish.py                 EP-17/21 → EP-33 shipped   the one rename-aside publish primitive (swap_dir, swap_file, retry helpers); supersedes paths.py and catalog.build.swap_catalog
 │   ├── engine.py                  EP-33 shipped  the one DuckDB connection factory (open_duckdb, attach_read_only)
 │   ├── loader/                    EP-17, EP-18, EP-23 … EP-27, EP-33 shipped   engine (build connection guards), csv, stage, buckets, manifest, paths
-│   ├── dag/                       EP-19, EP-28, EP-29, EP-32, EP-33, EP-37 shipped   spec (+ specs/stage.yaml, specs/concepts.yaml; load_dag() merges every spec, shared `catalog` step, `target`/status_key, --with-deps closure), runner (--keep-going: failed + `blocked` statuses; forced set), snapshot (per-tier layers), benchmarks, jobs, cli
-│   ├── catalog/                   EP-21, EP-29, EP-30, EP-33, EP-37 shipped   build (CATALOG_EXTENSIONS + CatalogExtensionContext), discover (derived/marts views + meta.* tables per tier), connect, profile, dictionary, cli (`mwh catalog`, `mwh sql`)
+│   ├── dag/                       EP-19, EP-28, EP-29, EP-32, EP-33 shipped   spec (+ specs/stage.yaml), runner, snapshot, benchmarks, jobs, cli
+│   ├── catalog/                   EP-21, EP-29, EP-30, EP-33 shipped   build, connect, profile, dictionary, cli (`mwh catalog`, `mwh sql`)
 │   ├── demo.py                    EP-22 shipped  ODbL demo fetch + source.yaml register
 │   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
 │   ├── runs_cli.py                EP-30, EP-32, EP-35 shipped   `mwh runs refresh | list | show | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
-│   ├── concepts/                  EP-8, EP-167, EP-37, EP-38 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, generated), runner.py (concept steps, meta.concept_versions, patch preference), pins.py (count-pins via safe_query); patches/ (EP-38: patches.yaml registry + <concept>.sql replacements; `python -m mimicwarehouse.concepts.patches` refreshes/validates)
+│   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
-│   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed`/`rng`/`spawn_rngs`/`random_state`/`seed_everything`, `Run.seed`) + `ResourceLog` sampler → `ResourceUsage` (docs/methods/determinism.md)
+│   ├── run.py                     EP-35 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); EP-36 seeds + resource log
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42
@@ -990,22 +887,6 @@ they can report a bad root; membership is pinned by `test_ep167`. `inventory`, `
 Background work (`--background --job NAME` on `build` and `tracer`) detaches through
 `dag.jobs.launch`; `verify` passes `MWH_DATA_ROOT=<resolved --data-root>` to its pytest
 child without mutating `os.environ`, and spawned jobs pass the same env.
-
-> **Note (2026-09-05, EP-37 — `--keep-going` / `--with-deps`, spec discovery).** `mwh build`
-> gained two runner flags. `--keep-going` records a step failure and continues with the
-> steps that do not depend on it; dependents report the new `blocked` status (never run,
-> no telemetry line) and `BuildResult.ok` is false when anything failed or was blocked —
-> the default stays "stop at the first failure" (EP-19). `--with-deps` closes `--select` /
-> `--tag` over their `depends_on` ancestors; complete ancestors skip, incomplete ones run,
-> and `--force` then applies **only** to the explicitly named steps (a forced concept never
-> re-stages a complete `labevents` behind it). The skip test is generic since EP-37:
-> `Step.status_key` (a stage's `schema.table`, a python/sql step's `target`) against
-> `status.json` through `complete_for_tier`. `load_dag()` merges every packaged
-> `dag/specs/*.yaml` into one graph (`stage.yaml` first; the shared `catalog` step is
-> deduplicated with its `depends_on`/`tags` unioned; cross-file `depends_on` resolve after
-> the merge), so `--tag concepts` and `--select concept.<group>.<name>` work with the shipped
-> CLI and no `--spec` option exists (ledger P3C-2). EP-39/44/45/50/53 add spec files the same
-> way.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

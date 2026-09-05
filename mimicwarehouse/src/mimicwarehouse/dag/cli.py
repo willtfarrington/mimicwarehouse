@@ -7,10 +7,7 @@ immediately — the shape every full-tier brief uses (foreground shells are capp
 
 ``--data-root`` is the **global** ``mwh`` option (EP-167): ``mwh --data-root X build ...``.
 ``--background`` with ``--dry-run`` is refused (EP-33 DAG-1): a dry run prints its plan to
-the foreground console and must never detach a real build. ``--keep-going`` and
-``--with-deps`` (EP-37) reach the runner unchanged (and the detached child's argv). Since
-EP-37 the DAG is every packaged spec merged (``load_dag()``), so ``--tag concepts`` and
-``--select concept.<group>.<name>`` work here without a ``--spec`` option. Errors go through
+the foreground console and must never detach a real build. Errors go through
 :func:`mimicwarehouse.console.fail` (stderr, exit 2); progress logging through
 :func:`mimicwarehouse.console.configure_progress_logging` (EP-33 B8).
 Import budget: heavy modules (duckdb, polars, psutil, the runner) are imported inside
@@ -95,26 +92,8 @@ def build_command(
             help="Take over a stale build lock (dead pid). A live build is never broken.",
         ),
     ] = False,
-    keep_going: Annotated[
-        bool,
-        typer.Option(
-            "--keep-going",
-            help="Record a step failure and continue with the steps that do not depend on "
-            "it (dependents report 'blocked'); default: stop at the first failure (EP-37).",
-        ),
-    ] = False,
-    with_deps: Annotated[
-        bool,
-        typer.Option(
-            "--with-deps",
-            help="Also run the incomplete depends_on ancestors of the selected steps "
-            "(--force then applies to the selected steps only) (EP-37).",
-        ),
-    ] = False,
 ) -> None:
-    """Run the DAG for one tier (EP-19; the only writer of the lake, DESIGN 6) — every
-    packaged spec merged into one graph (stage steps, meta.profile, EP-37's concept
-    steps, the shared catalog step)."""
+    """Run the stage DAG for one tier (EP-19; the only writer of the lake, DESIGN 6)."""
     state: CliState = ctx.obj
     if tier not in TIERS:
         fail("mwh build", f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
@@ -145,10 +124,6 @@ def build_command(
             argv.append("--force")
         if break_lock:
             argv.append("--break-lock")
-        if keep_going:
-            argv.append("--keep-going")
-        if with_deps:
-            argv.append("--with-deps")
         assert job is not None
         argv += ["--job", job]
         try:
@@ -190,8 +165,6 @@ def build_command(
             job=job,
             break_lock=break_lock,
             settings=settings,
-            keep_going=keep_going,
-            with_deps=with_deps,
         )
     except (DagError, runner_mod.BuildLockError, config.ConfigError) as exc:
         report_job("failed", 2)
@@ -227,14 +200,6 @@ def build_command(
     console.print(table)
     if result.snapshot_id is not None:
         console.print(f"snapshot core/{result.tier} = {result.snapshot_id}", highlight=False)
-    failed = [s for s in result.steps if s.status == "failed"]
-    blocked = [s for s in result.steps if s.status == "blocked"]
-    if failed or blocked:
-        console.print(
-            f"{len(failed)} step(s) failed, {len(blocked)} blocked behind them; completed "
-            "work stays complete - fix and rerun (a rerun resumes)",
-            highlight=False,
-        )
     report_job("done" if result.ok else "failed", 0 if result.ok else EXIT_FINDINGS)
     if not result.ok:
         raise typer.Exit(code=EXIT_FINDINGS)

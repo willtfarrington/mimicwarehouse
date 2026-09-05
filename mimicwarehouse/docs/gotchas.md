@@ -80,14 +80,6 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   and raises. *(EP-33, ledger CLI-1/LDR-2, WIN-2/3/4.)*
 - **The in-process rss/ctypes probe reads 0 on this host** for minutes; trust the runner's
   psutil sampler. *(EP-23.)*
-- **`peak_wset` is a process-lifetime high-water mark, not an interval's.** psutil's
-  `memory_info().peak_wset` (Windows) never decreases, so inside a long pytest session or
-  the app the second run's "peak" would be the first run's. `run.ResourceLog` reports it
-  as the interval's peak only when it *rose* during the interval (`peak_source:
-  peak_wset`, exact) and falls back to the 0.5 s-sampled RSS maximum otherwise
-  (`sampled`; call `sample()` at a moment worth catching). `pynvml` is probed per pid
-  through the running-process list, never device-wide `used` (the desktop's VRAM is not
-  ours), and every NVML failure degrades to `null` without a warning. *(EP-36.)*
 - **`os.linesep` through a text-mode stdout yields CR-CR-LF.** JSON emitters write plain
   `\n` (`console.emit_json`). *(EP-167/EP-33.)*
 - **Endpoint security is two products** (Defender + Malwarebytes 5.1 Premium, D-42): the
@@ -122,14 +114,6 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `mwh doctor` `power_scheme` before heavy work and ask rather than change it.
 - **Commit messages via `git commit -F <scratch file>`**; never `--no-verify`; no
   AI-attribution trailers.
-- **`python -m mimicwarehouse.<pkg>` needs a `__main__.py`** when `<pkg>` is a package
-  (directory), not a module — a `__name__ == "__main__"` block in `__init__.py` is never
-  reached ("is a package and cannot be directly executed"). `concepts/patches/` (EP-38)
-  is the precedent: `__init__.py` holds `main()`, `__main__.py` calls it.
-- **Quote hash-like scalars in hand-rendered YAML** (`sql_sha256`, commit shas, ids): an
-  all-digit placeholder such as `000…0` loads as an `int` and fails a `str` field;
-  `json.dumps(value)` is a valid YAML double-quoted scalar and stays ASCII (EP-38's
-  registry renderer).
 
 ## 4. Editing the design records (DESIGN.md / DECISIONS.md / briefs)
 
@@ -153,16 +137,6 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
 - `import helpers` (tests/ is on `sys.path` via `conftest.py`); import-budget probes use
   `helpers.assert_import_budget` — heavy libraries stay out of the `mwh --help` path
   (DESIGN §15 doctrine).
-- **A `count(...)` acceptance query whose answer is below k = 11 is suppressed even on a
-  metadata table** (`meta.concept_versions`, `meta.*`): `safe_query` cannot tell "5 patched
-  concepts" from a small patient cell. Phrase the check as the released complement and
-  subtract in Python (`count(*) WHERE patch_id IS NULL` = 60 of 65 → 5), or read the
-  non-data ledger (`status.json`) — EP-38's dev acceptance test does both. Briefs written
-  before EP-30 phrase such checks as the small count; translate, do not widen the gate.
-- **A shipped brief's placeholder pin is a legitimate CMP-6 edit**: EP-37 asserted
-  `patch_id is None` for every concept as "EP-38's"; EP-38 changed it to "set for exactly
-  the registry's concepts" and listed the edit in its completion note. Prefer that over
-  keeping a pin the next brief was written to break.
 
 ## 6. One way to do each thing (the EP-33 B8 canon)
 

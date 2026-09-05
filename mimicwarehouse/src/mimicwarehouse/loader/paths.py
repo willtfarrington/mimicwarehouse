@@ -21,29 +21,11 @@ from mimicwarehouse.loader.buckets import BUCKET_COLUMN
 PARTITION_PATTERN = f"{BUCKET_COLUMN}=*/part-*.parquet"
 #: Layer directory the P2 stages write under (DESIGN §3/§5).
 CORE_LAYER = "core"
-#: The one file of a per-tier layer table (EP-37 amendment 3: single-file ZSTD Parquet,
-#: no bucket partitions; DuckDB scans it with pushdown).
-PART_FILENAME = "part-0.parquet"
 
 
 def table_dir(lake_root: Path | str, schema: str, table: str) -> Path:
     """``<lake_root>/core/<schema>/<table>`` — where a stage's ``dest_dir`` lives."""
     return Path(lake_root) / CORE_LAYER / schema / table
-
-
-def layer_table_dir(layer_root: Path | str, tier: str, schema: str, table: str) -> Path:
-    """``<layer_root>/<tier>/<schema>/<table>`` — the per-tier layout of the layers after
-    ``core`` (``settings.layout["lake_derived"]`` for EP-37's concepts,
-    ``layout["lake_marts"]`` for EP-47): one ``part-0.parquet`` per table, every tier —
-    fixture and demo included — under its own tier segment (DESIGN §3, EP-37 note)."""
-    return Path(layer_root) / str(tier) / schema / table
-
-
-def single_file_sql(path: Path | str) -> str:
-    """``read_parquet('<abs posix path>')`` over one published file (a dim's
-    ``part-0.parquet`` or a per-tier layer table)."""
-    escaped = Path(path).resolve().as_posix().replace("'", "''")
-    return f"read_parquet('{escaped}')"
 
 
 def partition_glob(lake_root: Path | str, schema: str, table: str) -> str:
@@ -74,10 +56,7 @@ def read_parquet_sql(
 __all__ = [
     "CORE_LAYER",
     "PARTITION_PATTERN",
-    "PART_FILENAME",
-    "layer_table_dir",
     "partition_glob",
     "read_parquet_sql",
-    "single_file_sql",
     "table_dir",
 ]

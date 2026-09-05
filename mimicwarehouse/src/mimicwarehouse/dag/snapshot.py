@@ -17,19 +17,6 @@ Scope rules:
 * a table restaged across builds contributes its **latest** line per path (newest
   ``ts`` wins across every ``<lake_root>/manifests/*.jsonl``).
 
-**Per-tier layers (EP-37).** The ``core`` layer is one bucketed file set shared by
-``dev`` and ``full``, so *full-complete implies dev-complete*. Every later layer
-(``derived`` from EP-37, ``marts`` from EP-47) is materialised **per tier** under
-``<lake_root(tier)>/<layer>/<tier>/<schema>/<table>/part-0.parquet`` and its manifest lines
-carry that tier segment (``derived/dev/…`` and ``derived/full/…`` side by side under the
-shared ``lake/``; ``derived/fixture/…`` inside the fixture tier's own lake root, so every
-manifest path still resolves under the root it is recorded in). Two consequences,
-both keyed on the entry's ``layer`` field (``"core"`` when absent): the ``dev`` predicate
-requires ``dev_ready`` / ``tier_complete = "dev"`` (a full derived file is not a dev one),
-and a layer snapshot only hashes lines under ``<layer>/<tier>/``. A derived line's
-``source_sha256`` is the concept SQL's sha256 and its ``raw_snapshot_id`` the core snapshot
-it read — the same provenance pair, one level up.
-
 Every build appends ``{layer, tier, snapshot_id, build_id, ts}`` to
 ``lake/manifests/snapshots.json`` (a history list); EP-21 stores the id in
 ``meta.catalog_info`` and EP-35 cites it in run manifests.
@@ -53,38 +40,16 @@ from mimicwarehouse.loader.manifest import (
 )
 
 SNAPSHOTS_FILENAME = "snapshots.json"
-#: The layer whose files are shared by ``dev`` and ``full`` (bucketed); every other layer
-#: is materialised per tier (module docstring, EP-37).
-CORE_LAYER = "core"
-
-
-def entry_layer(entry: dict[str, Any]) -> str:
-    """The lake layer a ``status.json`` entry belongs to (``"core"`` when unrecorded)."""
-    return str(entry.get("layer") or CORE_LAYER)
 
 
 def complete_for_tier(entry: dict[str, Any], tier: str) -> bool:
-    """Whether a ``status.json`` step entry counts as complete for ``tier``.
-
-    ``core`` entries: ``tier_complete == "full"`` everywhere, with ``dev``/``dev_ready``
-    sufficing for the dev tier (DESIGN §11; the EP-19 skip logic uses the same predicate).
-    Per-tier layers (``layer`` field set, EP-37): the dev tier needs its **own** file —
-    ``dev_ready`` or ``tier_complete == "dev"`` — because a full derived table is a
-    different file; every other tier still needs ``tier_complete == "full"`` (fixture and
-    demo write it on their own lake roots, as their stages do).
-    """
+    """Whether a ``status.json`` step entry counts as complete for ``tier``:
+    ``tier_complete == "full"`` everywhere, with ``dev``/``dev_ready`` sufficing for
+    the dev tier (DESIGN §11; the EP-19 skip logic uses the same predicate)."""
     tc = entry.get("tier_complete")
     if tier == "dev":
-        if entry_layer(entry) == CORE_LAYER:
-            return tc in ("dev", "full") or bool(entry.get("dev_ready"))
-        return tc == "dev" or bool(entry.get("dev_ready"))
+        return tc in ("dev", "full") or bool(entry.get("dev_ready"))
     return tc == "full"
-
-
-def layer_path_prefix(layer: str, tier: str) -> str:
-    """The manifest-path prefix of ``layer``'s files for ``tier``: ``core/`` (shared) or
-    ``<layer>/<tier>/`` (per-tier layers, EP-37)."""
-    return f"{layer}/" if layer == CORE_LAYER else f"{layer}/{tier}/"
 
 
 def _bucket_of(path: str) -> int | None:
@@ -133,10 +98,9 @@ def layer_snapshot(
     from mimicwarehouse.schema.contract import load_contract
 
     contract = load_contract()
-    prefix = layer_path_prefix(layer, tier)
     payload: list[list[Any]] = []
     for line in _latest_lines(lake_root).values():
-        if not line.path.startswith(prefix):
+        if not line.path.startswith(f"{layer}/"):
             continue
         qn = f"{line.schema_name}.{line.table}"
         if qn not in complete:
@@ -176,44 +140,24 @@ def table_file_stats(
     for ``tier`` count, and the ``dev`` numbers keep dev-bucket lines plus unpartitioned
     files, so they describe what the dev catalog exposes."""
     settings = settings or get_settings()
-    stats: dict[str, tuple[int, int, int]] = {}
-    for qn, line in layer_lines(lake_root, tier, layer=layer, settings=settings):
-        rows, size, files = stats.get(qn, (0, 0, 0))
-        stats[qn] = (rows + line.rows, size + line.bytes, files + 1)
-    return stats
-
-
-def layer_lines(
-    lake_root: Path,
-    tier: str = "full",
-    *,
-    layer: str = "core",
-    settings: Settings | None = None,
-) -> list[tuple[str, ManifestLine]]:
-    """``[(schema.table, latest manifest line), ...]`` of the files ``layer`` exposes for
-    ``tier`` — the scope rules of :func:`layer_snapshot` (complete for the tier, the
-    layer's per-tier path prefix, dev-bucket lines only on ``dev``), sorted by path. What
-    :func:`table_file_stats` sums and what EP-37's ``meta.concept_versions`` reads for a
-    derived table's rows / bytes / ``ts`` / ``build_id``."""
-    settings = settings or get_settings()
     lake_root = Path(lake_root)
     status = read_status(lake_root)["steps"]
     complete = {qn for qn, entry in status.items() if complete_for_tier(entry, tier)}
     dev_buckets = set(settings.dev_buckets)
-    prefix = layer_path_prefix(layer, tier)
-    out: list[tuple[str, ManifestLine]] = []
-    for path, line in sorted(_latest_lines(lake_root).items()):
-        if not path.startswith(prefix):
+    stats: dict[str, tuple[int, int, int]] = {}
+    for line in _latest_lines(lake_root).values():
+        if not line.path.startswith(f"{layer}/"):
             continue
         qn = f"{line.schema_name}.{line.table}"
         if qn not in complete:
             continue
         if tier == "dev":
-            bucket = _bucket_of(path)
+            bucket = _bucket_of(line.path)
             if bucket is not None and bucket not in dev_buckets:
                 continue
-        out.append((qn, line))
-    return out
+        rows, size, files = stats.get(qn, (0, 0, 0))
+        stats[qn] = (rows + line.rows, size + line.bytes, files + 1)
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -253,12 +197,8 @@ def record_snapshot(
 
 
 __all__ = [
-    "CORE_LAYER",
     "SNAPSHOTS_FILENAME",
     "complete_for_tier",
-    "entry_layer",
-    "layer_lines",
-    "layer_path_prefix",
     "layer_snapshot",
     "read_snapshots",
     "record_snapshot",

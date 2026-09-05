@@ -19,29 +19,20 @@ in topological order, one tier at a time, as the **only writer** of the lake
   ``settings.lake_root(tier)`` and fixture/demo builds pass
   :func:`~mimicwarehouse.config.assert_not_credentialed_lake` first (EP-170/ARCH-3);
 * the bucket filter: ``dev`` -> ``settings.dev_buckets``, else all 100;
-* a step already complete for the tier in ``status.json`` — keyed by
-  :attr:`~mimicwarehouse.dag.spec.Step.status_key` (a stage's ``schema.table``, a
-  python/sql step's ``target``, EP-37) — is skipped unless ``force``; a failing step
-  stops the run and completed work stays complete (rerun = resume). With ``keep_going``
-  (EP-37, ``mwh build --keep-going``) a failure is recorded and the run continues with
-  the steps that do not depend on it; its dependents report ``blocked`` and never run.
-  With ``with_deps`` (``--with-deps``) the selection is closed over its ancestors and
-  ``force`` applies only to the steps named explicitly — pulled-in ancestors run iff
-  incomplete;
+* a step already complete for the tier in ``status.json`` is skipped unless ``force``;
+  a failing step stops the run and completed work stays complete (rerun = resume);
 * every step runs under a :class:`StepContext` with wall time and peak RSS sampled
   every 2 s by a daemon thread; one :class:`~mimicwarehouse.dag.benchmarks.BenchmarkLine`
   per step plus a ``kind: build`` summary line go to the benchmark ledger;
-* the run ends by appending the ``core`` layer snapshot id to
-  ``lake/manifests/snapshots.json`` (:mod:`~mimicwarehouse.dag.snapshot`); per-tier layers
-  record theirs from their own steps (EP-37's ``meta.concept_versions`` for ``derived``).
+* the run ends by appending the layer snapshot id to ``lake/manifests/snapshots.json``
+  (:mod:`~mimicwarehouse.dag.snapshot`).
 
 Step handlers live in :data:`STEP_HANDLERS` (kind -> handler) so later EPs add kinds
 without touching this module: ``stage`` is implemented here; ``catalog`` is EP-21's
 :func:`~mimicwarehouse.catalog.build.build_catalog`; ``python`` (EP-29) resolves the
 step's ``module:function`` and calls it with ``(step, ctx)`` (EP-29's ``meta.profile``
-is the first; EP-37's concept steps and EP-50's spine use the same contract); ``sql``
-stays unregistered (EP-37 chose the python kind — no duplication to remove). Everything
-returned or logged is counts, schemas, hashes and timings — never a row.
+is the first, EP-50 adds the spine); ``sql`` arrives with EP-37. Everything returned or
+logged is counts, schemas, hashes and timings — never a row.
 """
 
 from __future__ import annotations
@@ -81,8 +72,7 @@ RSS_SAMPLE_S = 2.0
 #: Layer the EP-19 stage steps write (EP-37/EP-50 add derived; EP-148 the notes lake).
 LAYER = "core"
 
-#: ``blocked`` (EP-37): not run because a step it depends on failed under ``keep_going``.
-StepStatus = Literal["planned", "done", "skipped", "failed", "blocked"]
+StepStatus = Literal["planned", "done", "skipped", "failed"]
 
 
 class BuildLockError(RuntimeError):
@@ -158,8 +148,7 @@ class BuildResult:
 
     @property
     def ok(self) -> bool:
-        """No step failed and none was blocked behind a failure (``keep_going``)."""
-        return all(s.status not in ("failed", "blocked") for s in self.steps)
+        return all(s.status != "failed" for s in self.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +247,7 @@ def _run_python(step: Step, ctx: StepContext) -> StepOutcome:
     return outcome if isinstance(outcome, StepOutcome) else StepOutcome()
 
 
-#: kind -> handler (``sql`` is spec-valid but unregistered; EP-37 uses ``python``).
+#: kind -> handler. EP-37 adds ``sql``.
 STEP_HANDLERS: dict[str, Callable[[Step, StepContext], StepOutcome]] = {
     "stage": _run_stage,
     "catalog": _run_catalog,
@@ -453,15 +442,12 @@ def run(
     job: str | None = None,
     break_lock: bool = False,
     settings: Settings | None = None,
-    keep_going: bool = False,
-    with_deps: bool = False,
 ) -> BuildResult:
     """Execute the DAG for one tier (module docstring) and return a :class:`BuildResult`.
 
     ``dry_run`` returns the ordered plan (status ``planned``) without touching the lock,
     the lake or DuckDB. ``job`` only labels the log lines — the state file is owned by
-    :mod:`~mimicwarehouse.dag.jobs`. ``keep_going`` / ``with_deps`` are EP-37's
-    ``--keep-going`` / ``--with-deps`` (module docstring).
+    :mod:`~mimicwarehouse.dag.jobs`.
     """
     if tier not in ("fixture", "demo", "dev", "full"):
         raise DagError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
@@ -471,18 +457,9 @@ def run(
             if data_root is not None
             else config.get_settings()
         )
-    steps = dag.ordered(select=select, tags=tags, tier=tier, with_deps=with_deps)
+    steps = dag.ordered(select=select, tags=tags, tier=tier)
     if not steps:
         raise DagError("the selection matches no steps for this tier")
-    # --force reruns the steps the user named; ancestors --with-deps pulled in run iff
-    # incomplete (a forced concept never re-stages a complete labevents behind it)
-    forced: frozenset[str] = (
-        dag.explicit_selection(select=select, tags=tags)
-        if force and with_deps
-        else frozenset(s.name for s in steps)
-        if force
-        else frozenset()
-    )
 
     build_id = new_build_id(tier)
     result = BuildResult(build_id=build_id, tier=str(tier), dry_run=dry_run)
@@ -537,28 +514,9 @@ def run(
                 buckets=buckets,
                 raw_manifest=raw_manifest,
             )
-            not_run: set[str] = set()  # failed or blocked in this run (keep_going)
             for step in steps:
-                blockers = sorted(set(step.depends_on) & not_run)
-                if blockers:
-                    _LOG.warning(
-                        "%sblocked %s (depends on failed/blocked %s)",
-                        prefix,
-                        step.name,
-                        ", ".join(blockers),
-                    )
-                    result.steps.append(
-                        StepReport(
-                            name=step.name,
-                            kind=step.kind,
-                            status="blocked",
-                            error=f"blocked by {', '.join(blockers)}",
-                        )
-                    )
-                    not_run.add(step.name)
-                    continue
-                qn = step.status_key
-                if qn is not None and step.name not in forced:
+                qn = step.qualified_table
+                if qn is not None and not force:
                     entry = read_status(lake_root)["steps"].get(qn)
                     if entry is not None and complete_for_tier(entry, str(tier)):
                         _LOG.info(
@@ -642,16 +600,6 @@ def run(
                     settings,
                 )
                 if report.status == "failed":
-                    if keep_going:
-                        not_run.add(step.name)
-                        _LOG.error(
-                            "%sstep %s failed: %s — continuing (--keep-going); its "
-                            "dependents are blocked, completed work stays complete",
-                            prefix,
-                            step.name,
-                            report.error,
-                        )
-                        continue
                     _LOG.error(
                         "%sstep %s failed: %s — stopping; completed work stays "
                         "complete (rerun to resume)",
@@ -701,22 +649,12 @@ def run(
                 git_sha=git_sha,
                 host=host,
                 ok=result.ok,
-                error=next((s.error for s in result.steps if s.status == "failed"), None),
+                error=next((s.error for s in result.steps if s.error), None),
             ),
             settings,
         )
-        n_failed = sum(1 for s in result.steps if s.status == "failed")
-        n_blocked = sum(1 for s in result.steps if s.status == "blocked")
         _LOG.info(
-            "%sbuild %s %s wall=%.1fs (%d done, %d skipped, %d failed, %d blocked)",
-            prefix,
-            build_id,
-            "ok" if result.ok else "FAILED",
-            wall_run,
-            len(done),
-            sum(1 for s in result.steps if s.status == "skipped"),
-            n_failed,
-            n_blocked,
+            "%sbuild %s %s wall=%.1fs", prefix, build_id, "ok" if result.ok else "FAILED", wall_run
         )
     finally:
         release_lock(settings, build_id)

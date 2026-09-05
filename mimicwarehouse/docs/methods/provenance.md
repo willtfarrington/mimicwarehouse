@@ -17,7 +17,6 @@ from mimicwarehouse import run
 with run.start("tracer", tier="dev", kind="analysis", params={"k": 11}) as r:
     result = r.safe_query("SELECT ... count(*) AS n ...", name="patients_by_era")
     r.record_attrition([{"step": "base", "label": "all stays", "n_units": 120, "n_subjects": 100}])
-    rng = r.seed("bootstrap")  # EP-36: recorded under manifest.seeds
     r.save_table("by_era", result.df)
 ```
 
@@ -52,9 +51,8 @@ a sanitised one-line message (never a traceback), and is re-raised.
 | `attrition` | `[{step, label, n_units, n_subjects}]` — one row per criterion |
 | `audit_ids` | the `runs/audit.jsonl` ids of every `safe_query` call made on the run's behalf |
 | `warnings` | `r.warn(...)` lines plus every `warnings.warn` raised inside the block |
-| `wall_s`, `peak_rss_mb`, `disk_delta_mb` | mirrors of `resources` for the ledger views: wall time, the interval's peak working set, free-space delta of the data-root drive in MB (EP-36) |
-| `seeds` | `{stage: seed}` per `r.seed(stage)` call — the integer every stochastic stage drew from, derived from the protocol id (or the run id when unfrozen); `None` when nothing was seeded ([determinism.md](determinism.md) §1) |
-| `resources` | the `ResourceUsage` block of the EP-36 sampler thread: `wall_s`, `cpu_time_s`, `peak_rss_mb` + `peak_source`, `rss_start_mb` / `rss_end_mb`, `samples`, `interval_s`, `disk_delta_mb`, `gpu_mem_peak_mb` / `gpu_device` (`null` without `pynvml` + a device) — [determinism.md](determinism.md) §3 |
+| `wall_s`, `peak_rss_mb`, `disk_delta_mb` | wall time; the coarse process-RSS high-water (start/end; EP-36 adds the sampler); free-space delta of the data-root drive in MB |
+| `seeds`, `resources` | `None` until EP-36 |
 | `protocol_id`, `protocol_hash`, `claim_type` | `None` until a protocol run (EP-51) or the caller states them |
 | `error` | `{type, message}` on failure |
 | `doctor` | the environment block: `mwh doctor`'s fifteen checks reduced to `{id, status, value}` (the machine-readable payloads — versions, paths, product names — never the prose detail), captured once per process because the probes cost seconds |
@@ -149,9 +147,8 @@ run folder is an owner action, never a session's.
 
 ## 8. What the later briefs add
 
-EP-36 filled `seeds` and `resources` (the seed rule, `r.seed`, the `ResourceLog` sampler
-thread, `bench(usage=)`) — the policy is [determinism.md](determinism.md); EP-43
-suppresses attrition counts on export and writes the
+EP-36 fills `seeds` and `resources` (seed derivation, the RSS sampler thread) and writes
+`docs/methods/determinism.md`; EP-43 suppresses attrition counts on export and writes the
 `.disclosure.json` sidecars; EP-47 records cohort attrition through `record_attrition`;
 EP-51 fills `protocol_id` / `protocol_hash` for frozen protocols; EP-52 backs `runs/` up;
 EP-134 is the Runs & Provenance browser over the same views.

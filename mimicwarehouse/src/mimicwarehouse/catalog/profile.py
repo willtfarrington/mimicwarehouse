@@ -43,7 +43,7 @@ from mimicwarehouse.config import (
 )
 from mimicwarehouse.dag.snapshot import layer_snapshot
 from mimicwarehouse.loader.manifest import read_status, utc_now_iso
-from mimicwarehouse.loader.paths import PART_FILENAME, read_parquet_sql, single_file_sql, table_dir
+from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -105,16 +105,13 @@ def wants_minmax(column: Column) -> bool:
     return column.duckdb_type in _MINMAX_TYPES or column.duckdb_type.startswith("DECIMAL(")
 
 
-def relation_sql(table: Table, lake_root: Path, buckets: list[int] | None) -> str:
-    """The ``read_parquet`` relation for one staged core table (partitioned glob with the
-    dev bucket filter, or the single dim file — the EP-18/EP-21 reader fragments). Public
-    since EP-37: the concept runner builds its in-memory source views from it."""
+def _relation_sql(table: Table, lake_root: Path, buckets: list[int] | None) -> str:
+    """The ``read_parquet`` relation for one staged table (partitioned glob with the dev
+    bucket filter, or the single dim file — the EP-18/EP-21 reader fragments)."""
     if table.partitioned:
         return read_parquet_sql(lake_root, table.schema_name, table.name, buckets)
-    return single_file_sql(table_dir(lake_root, table.schema_name, table.name) / PART_FILENAME)
-
-
-_relation_sql = relation_sql
+    part = table_dir(lake_root, table.schema_name, table.name).resolve() / "part-0.parquet"
+    return f"read_parquet('{part.as_posix()}')"
 
 
 def _aggregate_sql(table: Table, relation: str) -> str:
@@ -137,18 +134,14 @@ def _publish(tmp: Path, dest: Path) -> None:
     publish.replace(tmp, dest)
 
 
-def write_meta_parquet(
+def _write_parquet(
     con: duckdb.DuckDBPyConnection, dest: Path, ddl_columns: str, rows: list[list[Any]]
 ) -> int:
-    """Write ``rows`` to ``dest`` through a temp table + ``.tmp`` publish; returns bytes.
-    The one writer of ``lake/meta/<tier>/<table>.parquet`` files (EP-29's profiles,
-    EP-37's ``concept_versions``); the catalog discovery walker registers every such file
-    as ``meta.<table>``."""
+    """Write ``rows`` to ``dest`` through a temp table + ``.tmp`` publish; returns bytes."""
     con.execute(f"CREATE OR REPLACE TEMP TABLE _mwh_profile ({ddl_columns})")
     try:
         placeholders = ", ".join("?" for _ in ddl_columns.split(","))
-        if rows:
-            con.executemany(f"INSERT INTO _mwh_profile VALUES ({placeholders})", rows)
+        con.executemany(f"INSERT INTO _mwh_profile VALUES ({placeholders})", rows)
         tmp = dest.with_name(dest.name + ".tmp")
         escaped = tmp.resolve().as_posix().replace("'", "''")
         con.execute(f"COPY _mwh_profile TO '{escaped}' (FORMAT PARQUET, COMPRESSION ZSTD)")
@@ -156,9 +149,6 @@ def write_meta_parquet(
     finally:
         con.execute("DROP TABLE IF EXISTS _mwh_profile")
     return dest.stat().st_size
-
-
-_write_parquet = write_meta_parquet
 
 
 def profile_lake(
@@ -317,8 +307,6 @@ __all__ = [
     "meta_dir",
     "profile_lake",
     "profile_paths",
-    "relation_sql",
     "run_profile",
     "wants_minmax",
-    "write_meta_parquet",
 ]
