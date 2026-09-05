@@ -42,8 +42,12 @@ The three public services and the runner:
 
 Nothing under the run folder may carry an identifier column name or a value longer than
 64 characters — model term labels are normalised to ``<var>=<level>`` and truncated.
-Time-semantics notes for EP-34: the age/era logic (``anchor_age + (year(admittime) -
-anchor_year)``, cap 91; ``anchor_year_group`` as era covariate) is inlined here.
+Time semantics cite :mod:`mimicwarehouse.timesem` since EP-34: the cohort SQL embeds
+``timesem.sql_age_at`` fragments verbatim (the age rule, ``AGE_CAP`` = 91), the
+descriptives band ages with ``timesem.sql_age_band`` over :data:`AGE_BANDS` (now defined
+there and re-exported here), and ``anchor_year_group`` enters the model as the era
+covariate exactly as before — the EP-34 acceptance was count-for-count identity of every
+tracer number on dev.
 
 CLI: ``mwh tracer --tier {fixture,demo,dev,full} [--background --job NAME]`` (attached in
 :mod:`mimicwarehouse.cli`; ``--background`` reuses :func:`mimicwarehouse.dag.jobs.launch`).
@@ -67,6 +71,7 @@ from rich.markup import escape
 
 from mimicwarehouse.config import Settings, Tier, get_settings
 from mimicwarehouse.console import EXIT_USAGE, console, fail
+from mimicwarehouse.timesem import AGE_BANDS, AGE_CAP, sql_age_band
 
 if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.cli import CliState
@@ -77,13 +82,8 @@ ACTOR = "tracer"
 #: CTE steps of ``sql/tracer_first_icu_mortality.sql``, in attrition order.
 STEPS: tuple[str, ...] = ("base", "first_stay", "adult", "complete", "cohort")
 
-#: Age bands of the descriptives (upper bounds exclusive; the cohort floor is 18).
-AGE_BANDS: tuple[tuple[str, int | None], ...] = (
-    ("18-39", 40),
-    ("40-64", 65),
-    ("65-79", 80),
-    ("80+", None),
-)
+# AGE_BANDS (the descriptives' bands: upper bounds exclusive, cohort floor 18) lives in
+# ``timesem`` since EP-34 and is re-exported here for the EP-31 surface.
 
 #: The model formula (treatment coding via C(); age stays linear).
 MODEL_FORMULA = (
@@ -138,16 +138,6 @@ def statement(select: str) -> str:
     return f"{cohort_cte_sql().rstrip()}\n{select}"
 
 
-def _age_band_case() -> str:
-    parts = []
-    for label, upper in AGE_BANDS:
-        if upper is None:
-            parts.append(f"ELSE '{label}'")
-        else:
-            parts.append(f"WHEN age_at_admit < {upper} THEN '{label}'")
-    return "CASE " + " ".join(parts) + " END"
-
-
 # ---------------------------------------------------------------------------
 # Attrition + descriptives (everything through safe_query; D-31)
 # ---------------------------------------------------------------------------
@@ -181,7 +171,7 @@ def descriptives(tier: Tier | str, *, settings: Settings | None = None) -> dict[
     counts = "count(*) AS n, count(*) FILTER (WHERE hospital_expire_flag = 1) AS n_deaths"
     queries = {
         "by_age_gender": statement(
-            f"SELECT {_age_band_case()} AS age_band, gender, {counts} "
+            f"SELECT {sql_age_band('age_at_admit')} AS age_band, gender, {counts} "
             "FROM cohort GROUP BY 1, 2 ORDER BY 1, 2"
         ),
         "by_first_careunit": statement(
@@ -560,7 +550,7 @@ def run_tracer(
         "package_version": __version__,
         "duckdb_version": duckdb.__version__,
         "core_snapshot_id": snapshot_id,
-        "params": {"k": K_FLOOR, "adult_age_min": 18, "age_cap": 91, "actor": ACTOR},
+        "params": {"k": K_FLOOR, "adult_age_min": 18, "age_cap": AGE_CAP, "actor": ACTOR},
         "cohort_n": cohort_n,
         "wall_s": round(time.perf_counter() - started, 2),
         "audit_ids": audit_ids,

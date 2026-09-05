@@ -61,6 +61,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | Group-based trajectory modelling (GBTM), latent class growth, tslearn/DTW clustering | after EP-82 | compute; interpretability | v2 TRAJ-1 |
 | PrefixSpan/SPADE frequent-sequence mining; process-mining (pm4py) | after EP-83 | dependency licenses (pm4py GPL) | v2 PATH-1 |
 | anywidget/D3 timeline component replacing Plotly lanes | polish | JS toolchain (bun) | v2 UI-T1 |
+| Day-resolution guard for `DATE`-grain time columns (`patients.dod`, `procedures_icd` / `hcpcsevents` / `omr.chartdate`, the microbiology `chartdate` fallback): a contract `time_resolution: day\|second` marker honoured by `timesem`'s relative-time builders and the EP-50 spine — parked by EP-34 (2026-09-05; retro ledger ARCH-15); v1 documents the rule in `docs/methods/time-semantics.md` §5 and consumers compare `dod` as a whole day | EP-49/EP-50 derive an hour offset from a `DATE` column, or EP-76's time-to-event endpoints need sub-day precision on `dod` | a contract change moves `structural_hash()` → fixture regeneration (EP-41's 0.3.0 is the natural slot); `DATE` vs `TIMESTAMP` casts inside views | v2 TIME-1 |
 
 ## 11–13 Utilization · Exposure-response · Endpoints
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

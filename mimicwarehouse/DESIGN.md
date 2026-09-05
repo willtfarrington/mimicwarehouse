@@ -482,7 +482,38 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   `icu_day`, `hour_bin`, `person_time`, `note` (P10) — each with its key, time anchor and
   default index-event rule; every cohort spec, mart and model dataset declares its grain.
 
-*History:* built by EP-8, EP-9, EP-17, EP-22, EP-28, EP-29, EP-169 (completion notes); EP-34 planned; consolidated at EP-33.
+> **Note (2026-09-05, EP-34).** Both bullets above shipped as `src/mimicwarehouse/timesem.py`
+> (stdlib-only; on the `mwh` start-up path because `tracer.py` imports it) with the prose
+> twin `docs/methods/time-semantics.md` (its era / censoring / grain tables are rendered
+> from the module's constants by `python -m mimicwarehouse.timesem` and drift-tested). As
+> built: `ERAS` / `Era` / `era_of` / `sql_era_index`; `age_at` / `sql_age_at` (the only
+> calendar reads in the module, pinned by a grep test), `AGE_CAP = 91`, `is_age_capped`
+> (true at and above 91 — a genuine 91 is indistinguishable from the sentinel),
+> `AGE_BANDS` / `sql_age_band` (lifted from the tracer; `tracer.AGE_BANDS` re-exports);
+> `icd_versions_of_hadm` / `sql_icd_versions` (`icd9` / `icd10` / `mixed`, NULL for an
+> admission without diagnosis rows); `sql_hours_since` / `sql_days_since` / `hour_bin`
+> (`[start, end)`, negative bins before the anchor) / `sql_hour_bin` and the three named
+> `RelativeTime` axes; `CensoringRule` + `CENSORING_RULES` (`in_hospital_mortality` with
+> `discharge_alive` competing, `mortality_30d/90d/1y` anchored on `index_time` by default,
+> censored at `min(anchor + horizon, last_dischtime + 365 d)`; the Python twins count
+> whole-second boundaries exactly like `date_diff('second')`); `Grain` / `GRAINS` (eight
+> entries, `edstay` / `note` `available=False`), five `INDEX_RULES` templates
+> (`first_icu_stay` = the tracer's subject-level first stay, ordered `intime, stay_id`;
+> `first_icu_stay_of_first_hadm` = inside the first admission) and `Grain.index_event_sql`
+> (the `icu_day` / `hour_bin` grains expand each stay into numbered `[start, end)` bins
+> with `bin_start` / `bin_end`; `person_time` has no template — EP-68 builds intervals).
+> **Catalog:** `catalog.build.CATALOG_EXTENSIONS` (`(con, tier) -> None`, run after
+> `meta.*` and before `CHECKPOINT`; a failing extension fails the build and removes the
+> `.new`) with `timesem.create_views` registered first — `mimiciv_derived.hadm_era`,
+> `mimiciv_derived.icustay_index` (flags named `first_icu_stay_in_hadm` /
+> `first_icu_stay_of_subject` so neither collides with the rule name) and the
+> `meta.grains` table, views skipped with a warning when their sources are not cataloged
+> (never created empty); `mwh catalog info` lists the non-contract `meta` /
+> `mimiciv_derived` / `marts` objects (`objects` in `--json`). The tracer's SQL and
+> descriptives cite the module and reproduce EP-31 count for count on fixture and dev
+> (`test_ep34` compares against the frozen EP-31 chain through `safe_query`).
+
+*History:* built by EP-8, EP-9, EP-17, EP-22, EP-28, EP-29, EP-169, EP-34 (completion notes); consolidated at EP-33.
 
 ## 8. Concepts, code sets & phenotypes
 
@@ -785,7 +816,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── runs_cli.py                EP-30, EP-32 shipped   `mwh runs refresh | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
 │   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
-│   ├── timesem.py                 EP-34  eras, relative time, dod rule, grains
+│   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35/36 run ledger, seeds, resource log
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility

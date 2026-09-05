@@ -255,19 +255,23 @@ def test_itemids_unions_both_dims(fixture_lake_catalog: duckdb_mod.DuckDBPyConne
 def test_comments_visible_via_duckdb_columns(
     fixture_lake_catalog: duckdb_mod.DuckDBPyConnection, contract: Contract
 ) -> None:
+    # EP-34 (2026-09-05): the contract schemas by name, not `LIKE 'mimiciv_%'` — the
+    # catalog now also carries commented views under mimiciv_derived (timesem's
+    # hadm_era / icustay_index; EP-37's concepts follow), which are not contract tables
+    contract_schemas = f"('{HOSP}', '{ICU}')"
     row = fixture_lake_catalog.execute(
         "SELECT count(*) FROM duckdb_columns() "
-        "WHERE schema_name LIKE 'mimiciv_%' AND comment IS NOT NULL"
+        f"WHERE schema_name IN {contract_schemas} AND comment IS NOT NULL"
     ).fetchone()
     assert row == (sum(len(t.columns) for t in _hosp_icu_tables(contract)),), (
         "every cataloged column carries its contract comment"
     )
     table_comments = fixture_lake_catalog.execute(
-        "SELECT count(*) FROM duckdb_tables() WHERE schema_name LIKE 'mimiciv_%' "
+        f"SELECT count(*) FROM duckdb_tables() WHERE schema_name IN {contract_schemas} "
         "AND comment IS NOT NULL"
     ).fetchone()
     view_comments = fixture_lake_catalog.execute(
-        "SELECT count(*) FROM duckdb_views() WHERE schema_name LIKE 'mimiciv_%' "
+        f"SELECT count(*) FROM duckdb_views() WHERE schema_name IN {contract_schemas} "
         "AND comment IS NOT NULL"
     ).fetchone()
     assert table_comments is not None and view_comments is not None

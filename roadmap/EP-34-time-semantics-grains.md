@@ -107,3 +107,62 @@ registry and `dod` censoring rule listed under "Defaults" in DECISIONS.md.
   ICD version rule, age cap, competing-event note, grain table (generated from `GRAINS`).
 - No calendar-date function (`year(admittime)` used as a cross-patient axis, `strftime` on shifted
   dates) appears in the module except inside `age_at`; a test greps the module for `strftime`.
+
+## Parked → final-roadmap.md
+
+- **Day-resolution guard for `DATE`-grain time columns** (`patients.dod`, `procedures_icd` /
+  `hcpcsevents` / `omr.chartdate`, the microbiology `chartdate` fallback; retro ledger ARCH-15): a
+  contract `time_resolution: day|second` marker that `timesem`'s relative-time builders and the
+  EP-50 spine would honour. v1 documents the rule in `docs/methods/time-semantics.md` §5 (an hour
+  offset from a `DATE` column is meaningless below one day; consumers compare `dod` as a whole
+  day) and does not enforce it — a contract change moves `structural_hash()` and forces a fixture
+  regeneration, so the natural slot is EP-41's 0.3.0 or v2 (mirrored as v2 TIME-1).
+
+> **Completion note (2026-09-05).** Shipped as `src/mimicwarehouse/timesem.py` (stdlib-only;
+> `tracer.py` imports it on the `mwh` start-up path, budget-tested), `docs/methods/time-semantics.md`
+> (its era / censoring / grain tables are rendered from the module by `python -m
+> mimicwarehouse.timesem` and drift-tested), the `catalog.build.CATALOG_EXTENSIONS` hook with
+> `timesem.create_views` registered (`mimiciv_derived.hadm_era`, `mimiciv_derived.icustay_index`,
+> `meta.grains`; a view whose sources are not cataloged is skipped with a warning, never created
+> empty; a failing extension fails the build and removes the `.new`), the `meta / derived / marts
+> objects` block of `mwh catalog info` (`objects` in `--json`), `tests/ep/test_ep34.py` (17 fixture
+> + 2 dev tests) and the DESIGN §7 note / §15 row. **Item 1 (tracer lift):** `sql/tracer_first_icu_
+> mortality.sql` embeds `timesem.sql_age_at(...)` / `sql_age_at(..., cap=True)` verbatim (the
+> WITH clause minus comments is byte-identical to EP-31's, so the audited statement hashes are
+> unchanged), `tracer.descriptives` bands with `timesem.sql_age_band`, `tracer.AGE_BANDS`
+> re-exports `timesem.AGE_BANDS`; acceptance = count-for-count identity on dev: run
+> `20260905T161857-dev` (before) vs `20260905T164312-dev` (after) — cohort n = 3,208, model fit,
+> AUC 0.744, 7 audited calls, as in EP-31; a scratch byte-diff of `attrition.json` /
+> `descriptives.json` / `model.json` differed only in the seven audit ids; `test_ep34` repeats the
+> comparison against the frozen EP-31 chain through `safe_query` on fixture and dev. **Gates:**
+> `poe check` 853 passed (297 s); `mwh verify EP-34` 17 passed (47 s); `pytest -m ep_34 --tier dev`
+> 19 passed (51 s); `mwh verify` EP-21 · EP-29 · EP-30 · EP-31 · EP-33 all exit 0. **Catalogs:**
+> `mwh build --tier {dev,full,demo} --select catalog` 2.8 s / 2.5 s / 2.7 s, 31 cataloged each,
+> core snapshot ids unchanged; the acceptance statement `SELECT era_index, count(*) AS n FROM
+> mimiciv_derived.hadm_era GROUP BY 1 ORDER BY 1` on dev returned exactly five rows (era_index
+> 0–4, 0 rows suppressed, audit `bac8e8d6dc254a9d8843457e4ae04170`). Timings were measured with
+> the Windows power mode at *Better performance* (the owner's Best-performance toggle was off
+> and the session was unattended; nothing here is a long job — the first cold dev tracer run took
+> 10.7 s, the warm one 2.7 s). **Earlier test touched (README acceptance clause):**
+> `tests/ep/test_ep29.py::test_comments_visible_via_duckdb_columns` counted commented objects in
+> every `mimiciv_%` schema and pinned 31; `mimiciv_derived` now carries two commented views (EP-37's
+> concepts will add more), so the filter names the two contract schemas — a dated `# EP-34:` comment
+> marks it. **Judgment calls (owner review):** (1) `icustay_index`'s flags are named
+> `first_icu_stay_in_hadm` / `first_icu_stay_of_subject` rather than the brief's `first_icu_stay` /
+> `first_icu_stay_of_subject`, because the index rule `first_icu_stay` means the subject-level
+> first stay (the tracer's cohort) and a same-named per-admission flag would invert its meaning;
+> (2) `mortality_30d/90d/1y` default to `anchor = "index_time"` (the cohort's index event, the
+> ICU `intime` for a first-stay cohort), `dischtime` variants via `dataclasses.replace`;
+> (3) `is_age_capped` is true at 91 itself (a genuine 91 is indistinguishable from PhysioNet's
+> ≥ 89 sentinel) and `hadm_era.age_at_admit` is the capped value like the tracer's;
+> (4) `hadm_era.icd_versions` is `NULL` for an admission without diagnosis rows; (5) `person_time`
+> is registered `available=True` but has no index-event template (EP-68 builds the intervals);
+> (6) `dag.benchmarks.replace_marked_block` gained optional `begin` / `end` markers instead of a
+> second splice helper; (7) the Python relative-time twins count whole-second boundaries exactly
+> like `date_diff('second')`. Parked: the `DATE`-resolution guard (above; v2 TIME-1).
+> **Owner decisions (2026-09-05, session-end review):** commit as the standard two-step pair
+> (this note included); keep the `first_icu_stay_in_hadm` / `first_icu_stay_of_subject` flag
+> names (judgment call 1); keep `index_time` as the default mortality anchor (2); keep the
+> narrowed `test_ep29` schema filter rather than dropping the view comments. The Windows power
+> mode was *Better performance* for the whole session (FYI, no action taken — never changed by
+> a session).

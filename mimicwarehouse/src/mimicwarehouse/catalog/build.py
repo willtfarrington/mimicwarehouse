@@ -28,6 +28,16 @@ catalog's. Catalogs embed absolute lake paths and assert the DuckDB version on o
 they are **derived and disposable** — after a data-root move or a pin bump the fix is
 ``mwh build --tier <t> --select catalog``, never surgery (ledger ARCH-16).
 
+**Extension hook (EP-34).** :data:`CATALOG_EXTENSIONS` is a list of callables
+``(con, tier) -> None`` that :func:`build_catalog` runs on the build connection after the
+contract tables and the ``meta.*`` dictionary, before ``CHECKPOINT`` — the one place a
+later brief adds derived views or registry tables to **every** tier catalog without
+touching this module: :func:`mimicwarehouse.timesem.create_views` (EP-34:
+``mimiciv_derived.hadm_era`` / ``icustay_index`` + ``meta.grains``) is registered here;
+EP-37 (concept discovery) and EP-39 (item dictionary) append theirs. Extensions receive
+the open connection and never open their own; a failing extension fails the build (the
+old catalog stays intact, the ``.new`` is removed).
+
 Everything created, logged or returned is schema DDL, counts and paths — never a row.
 """
 
@@ -36,6 +46,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -51,6 +62,7 @@ from mimicwarehouse.config import (
 from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot
 from mimicwarehouse.loader.manifest import read_status, utc_now_iso
 from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
+from mimicwarehouse.timesem import create_views as _timesem_create_views
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -72,6 +84,13 @@ CATALOG_SCHEMAS: tuple[str, ...] = (
 #: contract tables; mimiciv_ed has no stage step until EP-142, mimiciv_note none until
 #: EP-148 — DESIGN §5 note).
 STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
+
+#: The extension hook (module docstring; EP-34 item 5): ``(con, tier) -> None`` callables
+#: run in order on the build connection after the contract tables and ``meta.*``, before
+#: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first.
+CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
+    _timesem_create_views,
+]
 
 
 class CatalogBuildError(RuntimeError):
@@ -259,6 +278,9 @@ def build_catalog(
     except duckdb.Error as exc:
         publish.unlink(new)
         raise CatalogBuildError(f"{tier} catalog build failed: {exc}") from exc
+    except Exception:
+        publish.unlink(new)  # EP-34: a failed extension must not leave a stale .new either
+        raise
 
     _publish_catalog(new, dest, str(tier))
     result.bytes = dest.stat().st_size
@@ -284,8 +306,8 @@ def _populate(
     buckets: list[int] | None,
     settings: Settings,
 ) -> None:
-    """Schemas, tables/views, the ``meta`` dictionary tables (EP-21 + EP-29), then
-    ``CHECKPOINT`` + close."""
+    """Schemas, tables/views, the ``meta`` dictionary tables (EP-21 + EP-29), the
+    :data:`CATALOG_EXTENSIONS` (EP-34), then ``CHECKPOINT`` + close."""
     import duckdb
 
     tier = result.tier
@@ -358,6 +380,19 @@ def _populate(
                 json.dumps(list(settings.dev_buckets)),
             ],
         )
+        # EP-34: derived views / registry tables on the same connection, before the
+        # checkpoint (a duckdb.Error propagates to build_catalog's handler; any other
+        # failure is named after its extension so the log says which one broke)
+        for extension in CATALOG_EXTENSIONS:
+            try:
+                extension(con, str(tier))
+            except duckdb.Error:
+                raise
+            except Exception as exc:
+                name = getattr(extension, "__qualname__", repr(extension))
+                raise CatalogBuildError(
+                    f"{tier} catalog extension {name} failed: {type(exc).__name__}: {exc}"
+                ) from exc
         con.execute("CHECKPOINT")
     finally:
         con.close()
@@ -561,6 +596,7 @@ def _populate_meta(
 
 
 __all__ = [
+    "CATALOG_EXTENSIONS",
     "CATALOG_SCHEMAS",
     "STAGED_SCHEMAS",
     "CatalogBuildError",

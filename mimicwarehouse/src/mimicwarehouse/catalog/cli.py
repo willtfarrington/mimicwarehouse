@@ -1,9 +1,11 @@
 """``mwh catalog info``, ``mwh catalog dictionary`` and the final ``mwh sql``
 (EP-21 item 3, EP-29 item 4, EP-30 item 4; attached in :mod:`mimicwarehouse.cli`).
 
-``catalog info`` prints ``meta.catalog_info`` and ``meta.catalog_tables`` — metadata
-only. ``sql`` routes **everything** — free-form statements and the ``--tables`` /
-``--describe`` / ``--count`` conveniences — through
+``catalog info`` prints ``meta.catalog_info``, ``meta.catalog_tables`` and — since EP-34 —
+the ``meta`` / ``mimiciv_derived`` / ``marts`` objects the catalog holds beyond the
+contract tables (the EP-29 dictionary family, ``meta.grains``, the extension views;
+``objects`` in ``--json``) — metadata only. ``sql`` routes **everything** — free-form
+statements and the ``--tables`` / ``--describe`` / ``--count`` conveniences — through
 :func:`mimicwarehouse.safe.safe_query` (EP-30): read-only, allow-listed, aggregate-only,
 row-capped, k-suppressed, audited. A refusal prints the reason and exits 3
 (GOVERNANCE §4 — sessions see schemas, counts, dictionaries and statistics, never rows).
@@ -135,6 +137,14 @@ def info_command(
             'SELECT "schema", "table", kind, status, rows_hint, map_notes '
             'FROM meta.catalog_tables ORDER BY "schema", "table"'
         ).fetchall()
+        # EP-34: the non-contract objects (the EP-29 meta.* family, meta.grains, the
+        # timesem views, later marts) — information_schema is metadata, never a row
+        objects = con.execute(
+            "SELECT table_schema, table_name, "
+            "CASE WHEN table_type = 'VIEW' THEN 'view' ELSE 'table' END "
+            "FROM information_schema.tables "
+            "WHERE table_schema IN ('meta', 'mimiciv_derived', 'marts') ORDER BY 1, 2"
+        ).fetchall()
     finally:
         con.close()
 
@@ -152,6 +162,7 @@ def info_command(
                 }
                 for s, t, k, st, r, mn in tables
             ],
+            "objects": [{"schema": s, "table": t, "kind": k} for s, t, k in objects],
         }
         sys.stdout.write(json.dumps(payload, indent=2, default=str) + "\n")
         return
@@ -191,6 +202,17 @@ def info_command(
         f"{present} cataloged ({sum(1 for r in tables if r[2] == 'table')} table(s), "
         f"{sum(1 for r in tables if r[2] == 'view')} view(s)), "
         f"{len(tables) - present} missing",
+        highlight=False,
+    )
+    extras = RichTable(title="meta / derived / marts objects", pad_edge=False)
+    for col in ("schema", "table", "kind"):
+        extras.add_column(col)
+    for s, t, k in objects:
+        extras.add_row(escape(s), escape(t), k)
+    console.print(extras)
+    console.print(
+        f"{len(objects)} registry/derived object(s) beyond the contract tables "
+        "(EP-29 meta.*, EP-34 meta.grains + mimiciv_derived views)",
         highlight=False,
     )
 

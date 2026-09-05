@@ -3,13 +3,17 @@
 -- final SELECT (attrition counts, descriptives, the model's cohort read), so this file
 -- holds the WITH clause only and is not executable on its own.
 --
--- MIMIC caveats baked in (brief EP-31): age at admission is derived from
--- anchor_age/anchor_year (ages >= 89 appear as 91, so age_at_admit is capped at 91);
--- anchor_year_group is an era covariate, never a calendar axis; hospital_expire_flag is
--- the outcome (discharge alive is the competing state; dod is not needed); ICU length of
--- stay is post-index and deliberately not carried. Identifier columns appear only inside
--- the chain (joins, the first-stay window) and never in any final select list
--- (GOVERNANCE section 4).
+-- MIMIC caveats baked in (brief EP-31), cited from mimicwarehouse.timesem since EP-34:
+-- the age rule is timesem.sql_age_at("anchor_age", "anchor_year", "admittime") in the
+-- `adult` step and the same with cap=True (least(..., timesem.AGE_CAP = 91), because ages
+-- >= 89 are shipped as 91) in `cohort` -- both fragments are embedded verbatim and pinned
+-- by test_ep34; the first-stay window is timesem's `first_icu_stay` index rule (first
+-- ICU stay of the subject, ordered intime, stay_id); anchor_year_group (timesem.ERAS) is
+-- an era covariate, never a calendar axis; hospital_expire_flag is the outcome (discharge
+-- alive is the competing state, timesem.IN_HOSPITAL_MORTALITY; dod is not needed); ICU
+-- length of stay is post-index and deliberately not carried. Identifier columns appear
+-- only inside the chain (joins, the first-stay window) and never in any final select
+-- list (GOVERNANCE section 4).
 WITH base AS (
     SELECT
         i.subject_id,

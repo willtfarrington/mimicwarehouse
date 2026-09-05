@@ -292,18 +292,21 @@ def render_markdown(summary: polars.DataFrame) -> str:
     return "\n".join(lines) + "\n"
 
 
-def replace_marked_block(text: str, block: str) -> str:
-    """``text`` with the content between :data:`MARK_BEGIN` and :data:`MARK_END`
+def replace_marked_block(
+    text: str, block: str, *, begin: str = MARK_BEGIN, end: str = MARK_END
+) -> str:
+    """``text`` with the content between the ``begin`` and ``end`` markers (default
+    :data:`MARK_BEGIN` / :data:`MARK_END`; EP-34's methods page passes its own pairs)
     replaced by ``block`` — markers kept, narrative untouched, idempotent for the
     same ``block``. Raises :class:`ValueError` unless exactly one well-ordered
     marker pair exists."""
-    if text.count(MARK_BEGIN) != 1 or text.count(MARK_END) != 1:
-        raise ValueError(f"the target needs exactly one {MARK_BEGIN!r} and one {MARK_END!r} marker")
-    start = text.index(MARK_BEGIN) + len(MARK_BEGIN)
-    end = text.index(MARK_END)
-    if end < start:
-        raise ValueError(f"{MARK_END!r} precedes {MARK_BEGIN!r} in the target")
-    return text[:start] + "\n" + block.rstrip("\n") + "\n" + text[end:]
+    if text.count(begin) != 1 or text.count(end) != 1:
+        raise ValueError(f"the target needs exactly one {begin!r} and one {end!r} marker")
+    start = text.index(begin) + len(begin)
+    stop = text.index(end)
+    if stop < start:
+        raise ValueError(f"{end!r} precedes {begin!r} in the target")
+    return text[:start] + "\n" + block.rstrip("\n") + "\n" + text[stop:]
 
 
 __all__ = [
