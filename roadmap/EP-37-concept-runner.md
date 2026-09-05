@@ -70,6 +70,67 @@
 > stderr with `console.EXIT_REFUSED`/`EXIT_USAGE`. (7) Fixture: generator 0.2.0 counts read
 > from `tests/fixtures/manifest.json` (EP-33 TST-2); EP-41 regenerates to 0.3.0.
 
+> **EP-37 pickup note (2026-09-05, owner-directed).** This brief runs for the **second
+> time**. The first attempt (`3ba1224` + `2be0990`) was reverted together with EP-36 and
+> EP-38 by `798141c` — the effort level had been set wrong for those sessions and the owner
+> is redoing the three with closer attention (EP-36 shipped again as `8261089`). Execute
+> this brief **fresh from its text**: the reverted implementation stays in history as a
+> reference only (`git show 2be0990:roadmap/EP-37-concept-runner.md` holds its completion
+> note; the hazards below are taken from it) and **nothing from it is cherry-picked or
+> copied without asking the owner first**. Header facts unchanged; shorthand per the README
+> notation table.
+>
+> **Step 0 — finish the data-root cleanup before item 1.** The first attempt's outputs
+> would otherwise make the runner skip every concept as already complete, and the three
+> catalogs still register views over files that no longer exist. The owner has already
+> deleted, by hand on 2026-09-05: `lake\derived\{dev,full,demo}\`, `lake\demo\derived\`,
+> `lake\demo\meta\demo\concept_versions.parquet`, every `lake\manifests\20260905T*.jsonl`
+> and `lake\demo\manifests\20260905T*.jsonl`, `runs\pins\`, `runs\jobs\concepts-*.json` /
+> `.log`, and the nine `runs\<run_id>\` folders of the first attempt's `concepts` build runs
+> (ids in the EP-36 completion note). Paths here are layout keys (`get_settings().layout`,
+> `lake_root(tier)`) and are never typed on a command line — the PreToolUse hook refuses
+> them. The session then:
+> **(0a) verifies, read-only:** `mwh doctor` (`power_scheme` must read *Best performance* on
+> AC before anything heavy — ask, never change it), `mwh paths` (`lake_derived` ≈ 0 MB used),
+> `mwh jobs` (no `concepts-*` rows), `mwh runs list --last 12` (no `concepts` runs; the three
+> EP-35 dev runs and the EP-36 `ep36-acceptance` run remain), `mwh catalog info --tier
+> dev|demo|full` (31 cataloged, 0 missing; the 65 `mimiciv_derived` concept views and
+> `meta.concept_versions` are still listed — expected until the catalogs are rebuilt).
+> **(0b) edits the four manifest files with an approved one-off script** (ask first,
+> CLAUDE.md §6; write it to the session scratchpad and run it as `uv run python <script>`;
+> resolve every path through `get_settings()`; print key counts only; keep a `.bak` copy
+> beside each file until the completion note is written): in `lake\manifests\status.json`
+> and `lake\demo\manifests\status.json` drop every `steps` key that starts with
+> `mimiciv_derived.`, plus `meta.concept_versions` if present, keeping the 31 core entries
+> and `meta.profile`; in `lake\manifests\snapshots.json` and
+> `lake\demo\manifests\snapshots.json` drop every entry whose `layer` is `derived`, keeping
+> `core`. Verify with `mwh build --tier dev --dry-run` and `--tier demo --dry-run` (the
+> status files load; the plan shows only stage, `meta.profile` and `catalog` steps), then
+> `mwh runs refresh`.
+> **(0c) rebuilds nothing separately:** this brief's own `--tag concepts` builds end in the
+> shared `catalog` step, which rebuilds each tier's catalog without the stale views
+> (`meta.concept_versions` is then this brief's own table). Only if a check needs a clean
+> catalog before the first concept build, run `mwh build --tier <t> --select catalog` (full
+> as `--background --job catalog-full-cleanup`). The ledgers (`runs\ledger.jsonl`,
+> `benchmarks.jsonl`, `audit.jsonl`) keep the first attempt's lines — append-only by design;
+> every summary picks the latest line per `(tier, step)`, so this run's lines supersede
+> them. Record step 0's outcome (keys and entries removed per file, the catalog checks) at
+> the top of this brief's completion note.
+>
+> **Hazards the first attempt recorded** (facts from its completion note, not code): the
+> per-tier derived layout is `layout["lake_derived"] / <tier> / …` for dev and full but
+> `lake_root(tier) / derived / <tier> / …` for fixture and demo, which own their lake roots
+> (EP-167) — the first attempt's first demo build wrote into the dev/full root and had to
+> be corrected, because EP-28's structural test requires every manifest path to resolve
+> under the lake root it is recorded in; merging every packaged spec in `load_dag()` broke
+> `test_ep19::test_spec_steps_carry_contract_defaults`, which pins the stage spec's `catalog`
+> dependencies through `load_dag()` — design the merge so the EP-19 assertion still holds,
+> or change that test under the churn rule with a dated comment and say so in the completion
+> note; the full-tier concept pass finished inside its session (65 of 65 concepts,
+> 95,777,751 derived rows in ≈ 1,334 MB of Parquet), so "verified by EP-38" is
+> record-keeping, not a wall-time necessity; `tests/ep/pins/concepts_demo.json` is
+> regenerated by this run, never restored from history.
+
 ## Context
 
 D-19: adopt mimic-code's `concepts_duckdb/` (MIT, ~65 sqlglot-transpiled concepts: demographics
