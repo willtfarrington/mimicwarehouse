@@ -133,3 +133,76 @@ only by `mwh runs refresh` (single-writer rule, DESIGN §6); the app opens it `R
   `SELECT kind, count(*) FROM runs.benchmarks GROUP BY 1` works via `mwh sql`.
 - `docs/methods/provenance.md` exists; DESIGN.md §11 gets a dated note if any field name differs
   from the list there.
+
+> **Completion note (2026-09-05).** Shipped as `src/mimicwarehouse/run.py` (`start` context
+> manager, `RunManifest` + `AttritionRow` / `RefEntry` / `RunErrorInfo`, `Run.record_sql /
+> record_ref / record_attrition / record_snapshot / read_layer / record_audit / safe_query /
+> save_table / save_figure / warn / bench`, `bench`, `runs_db_views`, `reproduction_block`,
+> `list_runs` / `read_manifest`), `docs/methods/provenance.md` (new), `mwh runs list [--tier]
+> [--kind] [--last N] [--json]` + `mwh runs show <run_id> [--json]` in `runs_cli.py`,
+> `safe.build_runs_db` creating the five views (`audit` · `ledger` · `benchmarks` · `manifests` ·
+> `attrition`; `safe.RUNS_DB_VIEWS`), `LABEL_COLUMN_NAMES` += `refusal_reason` / `error`,
+> `safe.identifier_column_names()`, `dag.benchmarks.BenchmarkLine` += optional `run_id` /
+> `disk_delta_mb` + `BENCHMARK_KINDS`, `engine.detach`, the tracer retrofit (`run_tracer` runs
+> inside `run.start`; `descriptive_statements`, `STEP_LABELS`, `MODEL_FRAME_SELECT`), the DESIGN
+> §11 note + §15 rows, the D-24 addendum, two `docs/gotchas.md` entries, the README rows / quick
+> start, and `tests/ep/test_ep35.py` (18 fixture + 2 dev tests). **Judgment calls (owner
+> review):** (1) the manifest embeds the doctor checks as `{id, status, value}` — the
+> machine-readable payloads `CheckResult.value` was designed to carry — not the prose `detail`
+> (paths and product names over 64 chars sit in `value`; the run-folder 64-char rule stays
+> scoped to the analysis artefacts, provenance.md §4), captured **once per process per data
+> root** (`run.environment_block`; the probes cost 5.9 s; `start(..., doctor=False)` skips it);
+> (2) the tracer keeps its `runs/tracer/<stamp>-<tier>/` report folder and cites the run under
+> `ledger_run_id` — EP-31's numbers, `test_ep31` and the `docs/analyses` index that points at that
+> folder are untouched; (3) the manifest carries four fields beyond the brief's list — `command`
+> (the line `reproduction_block` prints; the tracer passes `mwh tracer --tier <t>`), `tables` /
+> `figures` (`{name: relative path}` like `sql`), `audit_ids` (the tracer manifest had them) —
+> and `git_sha` is the **full** sha (the brief's `git rev-parse HEAD` test) while audit /
+> benchmark lines keep the short one; (4) the ledger views bind **explicit column types** via
+> `read_json(..., columns = {...})` (dict fields as `JSON`, `MANIFEST_COLUMNS` pinned to the
+> model's fields by test) rather than `read_json_auto` — a probe showed auto-inference unifies
+> heterogeneous `params` into one wide STRUCT and an empty glob raises, so a run root without
+> manifests gets a typed empty view and older lines read NULL for newer fields; (5) `safe_query`
+> now **detaches before it attaches** `runs.duckdb` (`engine.detach` + `attach_read_only`): the
+> probe confirmed an `ATTACH IF NOT EXISTS` on the path-keyed instance keeps serving the
+> delete-pending pre-refresh file ("view ledger does not exist" after `mwh runs refresh` inside
+> pytest or the app) — the EP-33 test `test_pre_execution_catalog_error_is_refused_and_audited`
+> had already worked around the same fact; a first cut passed `refresh=True` through
+> `attach_read_only` and broke that test's three-argument stub, so the detach is its own engine
+> helper and **no earlier test was edited**; (6) `fsio.append_jsonl`'s `ensure_ascii` default
+> stands over the brief's `ensure_ascii=False` (the canon is the writer; non-ASCII escapes are
+> valid JSON); (7) `BENCHMARK_KINDS` includes the runner's `sql` / `python` / `catalog` step
+> kinds beside the brief's list — the live full-tier ledger already carries `kind: catalog`;
+> `kind` stays a plain `str`; (8) third-party text (exception messages, captured
+> `warnings.warn`) enters a manifest only through `safe.sanitize_error_text` (literals and
+> numbers masked, 200 chars), `r.warn` text is trimmed to one line; `save_table` refuses
+> identifier columns by name; `mwh runs show` validates the id shape before touching a path;
+> (9) `warnings` capture is `warnings.catch_warnings(record=True)` — process-global, so nested
+> or threaded runs share it (documented; EP-36's sampler thread is unaffected); (10) `r.safe_query`
+> (statement + `core` snapshot id + audit id in one call) is a convenience beyond the brief's API
+> list. **Observation (owner FYI):** on dev, `SELECT kind, status, count(*) AS n FROM runs.ledger
+> GROUP BY 1, 2` returned no rows — every run count was below k = 11 and `runs` is not a registry
+> schema (EP-33 checkpoint decision c), so per-run counts through `mwh sql` stay suppressed on
+> the credentialed tiers by design; `mwh runs list` reads the JSONL directly and is the way to
+> see individual runs. **Gates:** `poe check` 871 passed (265 s; ruff check, ruff format --check and pyright
+> clean); `mwh verify EP-35` 18 passed (50 s);
+> `pytest -m ep_35 --tier dev` 20 passed (54 s); `mwh verify` EP-30 33 · EP-31 7 · EP-32 14 ·
+> EP-33 115 · EP-34 17 all exit 0; `poe roadmap-check --strict` 0 errors, 0 warnings; `mwh guard`
+> clean over the new and edited files. **Dev acceptance (real root, sequential):** dev test runs
+> `20260905T180430Z-556846` (one `safe_query` aggregate; `core` snapshot id + `sql/patients_by_era.sql`)
+> and `20260905T180436Z-d7b109` (`read_layer("core")`); the retrofitted tracer run
+> `20260905T180437Z-70028a` (`mwh tracer --tier dev`: cohort n = 3,208, model fit, AUC 0.744,
+> 7 audited calls, wall 2.3 s — identical to EP-31/EP-34; nine `sql/` files, five attrition rows,
+> the `core` snapshot id, claim type recorded); `mwh runs refresh` then `mwh runs list --last 5`
+> shows all three; `mwh runs show 20260905T180437Z-70028a` prints `snapshot_ids`, `sql`,
+> `attrition`, `git_sha`, `duckdb_version` and no row-level content; `mwh sql "SELECT kind,
+> count(*) FROM runs.benchmarks GROUP BY 1" --tier dev` returned build 37 · catalog 25 · stage 181
+> · verify 64 (1 row suppressed). Windows power mode read *Best performance* on AC for the whole
+> session (`mwh doctor` `power_scheme`). No catalog was rebuilt; core snapshot ids unchanged.
+> Nothing parked.
+> **Owner decisions (2026-09-05, session-end review):** commit as the standard two-step pair
+> (this note included; no push — the owner pushes); keep the reduced `{id, status, value}`
+> doctor block captured once per process (judgment call 1); keep the tracer's own report folder
+> beside the run record (2); keep `safe_query`'s detach-before-attach (5); keep `runs` outside the
+> registry exemption — per-run counts stay k-suppressed on credentialed tiers, revisit at the
+> EP-54 re-plan if inconvenient (the observation above).

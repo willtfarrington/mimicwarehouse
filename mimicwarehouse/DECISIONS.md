@@ -379,6 +379,23 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > `allowed=false` class: `refusal_reason` starting `usage: ` for argument errors (see the
 > D-31 addendum); EP-35's ledger views filter refusals vs usage deliberately.
 
+> **Addendum (2026-09-05, EP-35 — the run ledger as built).** `mimicwarehouse.run` is the
+> per-run JSON sidecar + ledger of this decision: `run.start(...)` writes
+> `runs/<run_id>/manifest.json` (a `status: running` record at entry, the final record at
+> exit; hashes, counts, parameters, paths, versions — never rows, never SQL text, which
+> lives in `runs/<run_id>/sql/`) and appends one nine-field line to `runs/ledger.jsonl`
+> through the `fsio` canon; `runs.duckdb` gains the `ledger` / `benchmarks` / `manifests`
+> / `attrition` views beside `audit`, all rebuilt by `mwh runs refresh` and read through
+> `mwh sql` under the aggregate-only rules (`runs` stays a non-registry schema, EP-33
+> checkpoint). Three as-built choices recorded here: (1) the manifest embeds the doctor
+> checks as `{id, status, value}` — the machine-readable payloads, not the prose — once per
+> process (the probes cost ~6 s); (2) the tracer keeps its `runs/tracer/` report folder and
+> cites its run id (`ledger_run_id`), so EP-31's numbers and the docs that point at that
+> folder are unchanged; (3) `safe_query` detaches and re-attaches `runs.duckdb` on every
+> call (`engine.detach` + `engine.attach_read_only`), the one exception to "attach once",
+> so a refresh is never served stale from the path-keyed instance cache. Details in DESIGN §11's
+> EP-35 note and `docs/methods/provenance.md`.
+
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.

@@ -20,6 +20,13 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `engine.attach_read_only` (`ATTACH IF NOT EXISTS`), readers close before a rebuild, and
   the app caches results, not connections. *(EP-30/EP-31, surfaced only in multi-module
   pytest runs; DESIGN §6 note b.)*
+- **`ATTACH IF NOT EXISTS` serves a stale file after a rename-aside swap.** An attached
+  READ_ONLY database lives on the instance; after `publish.swap_file` republishes the file
+  the attach keeps reading the delete-pending old copy (new views "do not exist"). `DETACH
+  DATABASE IF EXISTS <alias>` then `ATTACH` re-opens the current file, instance-wide — that
+  is `engine.detach` followed by `engine.attach_read_only`, which `safe_query` does for
+  `runs.duckdb` so `mwh runs refresh` is visible to the next call in a long-lived process
+  (pytest sessions, the app). *(EP-35; the scratch probe and `test_ep35`'s rebuild test.)*
 - **`COPY … (APPEND)` demands `{uuid}` file-name patterns**, which would break the
   deterministic `part-0.parquet` layout; pass-1 sweeps write `OVERWRITE_OR_IGNORE` over
   disjoint bucket ranges instead. *(EP-18; final-roadmap LOAD-3.)*
@@ -141,7 +148,8 @@ deviation is a review finding, not a style choice.
 | Append a ledger line (audit, benchmarks, build manifests, future run ledgers) | `fsio.append_jsonl` / `append_jsonl_lines`; read with `fsio.read_jsonl` / `iter_jsonl` | the EP-171 canary's manifest-churn pass (it measures the raw write pattern) |
 | Write a small state file atomically | `fsio.atomic_write_text` (`inventory._atomic_write_text` is an alias) | — |
 | Publish a directory or file the project built | `publish.swap_dir` / `publish.swap_file`; every other rename/remove of project-written files through `publish.retry_permission` / `rmtree` / `unlink` / `replace` | the canary's swap rehearsal |
-| Open DuckDB | `engine.open_duckdb(profile, …)` with `build` or `app` spelled out; attach with `engine.attach_read_only` | tests that deliberately probe a raw connection (allow-listed in the grep guard) |
+| Open DuckDB | `engine.open_duckdb(profile, …)` with `build` or `app` spelled out; attach with `engine.attach_read_only`, preceded by `engine.detach` when the file may have been republished under a live instance (`safe_query` on `runs.duckdb`, EP-35) | tests that deliberately probe a raw connection (allow-listed in the grep guard) |
+| Record an analysis run | `run.start(...)` → `runs/<run_id>/manifest.json` + one `runs/ledger.jsonl` line; SQL via `r.record_sql` / `r.safe_query`, outputs via `r.save_table` / `r.save_figure`; benchmark lines via `run.bench` (still `dag.benchmarks.append` underneath); the Reproduction block via `run.reproduction_block` (EP-35, `docs/methods/provenance.md`) | the EP-31 tracer's own `runs/tracer/` report folder (kept; it cites its run id) |
 | Report an error from a command | `console.fail("mwh <cmd>", message, code=console.EXIT_*)` — bold red on **stderr**, exit 0/1/2/3 = ok / findings / usage-or-environment / safe-query refusal | `roadmap_check_main` returns its code instead of raising |
 | Emit machine output | `console.emit_json(payload)` — raw ints, `default=str`, plain `\n`; `inventory.fmt_int` is for humans only | — |
 | Progress lines | stdlib `logging` on the `mimicwarehouse` logger through `console.configure_progress_logging` | the canary's observer; `dag/jobs`' child prints (its stdout *is* the job log) |

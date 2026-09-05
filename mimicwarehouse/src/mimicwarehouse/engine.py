@@ -90,4 +90,14 @@ def attach_read_only(con: duckdb.DuckDBPyConnection, path: Path, alias: str) -> 
     con.execute(f"ATTACH IF NOT EXISTS '{escaped}' AS {alias} (READ_ONLY)")
 
 
-__all__ = ["RETRY_MISSING_SLEEP_S", "Profile", "attach_read_only", "open_duckdb"]
+def detach(con: duckdb.DuckDBPyConnection, alias: str) -> None:
+    """``DETACH DATABASE IF EXISTS <alias>`` — the one detach (EP-35). Because an attach
+    lives on the path-keyed instance, a file republished by the rename-aside swap while
+    the instance lived (``runs.duckdb`` after ``mwh runs refresh``) would otherwise keep
+    being served from the stale, delete-pending handle; ``detach`` then
+    :func:`attach_read_only` re-opens the current file, instance-wide — fine for a store
+    that only one caller attaches."""
+    con.execute(f"DETACH DATABASE IF EXISTS {alias}")
+
+
+__all__ = ["RETRY_MISSING_SLEEP_S", "Profile", "attach_read_only", "detach", "open_duckdb"]

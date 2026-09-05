@@ -49,8 +49,10 @@ From this module on, *every* result a Claude session or an export can see comes 
    newline) applies to every statement that is **not** registry-exempt (EP-33 B1c: reads
    of ``mimiciv_derived`` and non-registry ``marts`` are scanned too, P3C-5); dims and
    ``meta.*`` are exempt, and the label columns :data:`LABEL_COLUMN_NAMES`
-   (``drgcodes.description``, ``hcpcsevents.short_description``) are allow-listed
-   (EP-170 amendment 1); the post-suppression row count must not exceed ``row_cap``.
+   (``drgcodes.description``, ``hcpcsevents.short_description``; since EP-35 also the
+   ledger columns ``refusal_reason`` and ``error``, whose values legitimately exceed 64
+   characters) are allow-listed (EP-170 amendment 1); the post-suppression row count
+   must not exceed ``row_cap``.
 6. **k-suppression** via :data:`SUPPRESSOR` (see below) over the real count columns
    only; on ``dev``/``full`` a ``k`` below 11 is refused (D-31/D-33); on
    ``fixture``/``demo`` (synthetic / ODbL) the caller may lower it. Extreme-value
@@ -72,9 +74,16 @@ GOVERNANCE §8): never result values, only the statement text/hash, counts and p
 (``snapshot_ids`` is a ``{layer: id}`` dict per the DESIGN §11 glossary — here
 ``{"core": <core_snapshot_id>}`` of the queried catalog). :func:`build_runs_db` exposes
 the file as the ``audit`` view of ``warehouse/runs.duckdb`` (published with
-:func:`mimicwarehouse.publish.swap_file`; ``mwh runs refresh`` calls it, EP-35 adds the
-ledger views); the view reads with ``ignore_errors = true`` so a torn trailing line
-(LGR-1) skips instead of breaking every query.
+:func:`mimicwarehouse.publish.swap_file`; ``mwh runs refresh`` calls it) beside the EP-35
+ledger views ``ledger`` / ``benchmarks`` / ``manifests`` / ``attrition``
+(:func:`mimicwarehouse.run.runs_db_views`); the views read with ``ignore_errors = true``
+so a torn trailing line (LGR-1) skips instead of breaking every query. ``safe_query``
+detaches (:func:`mimicwarehouse.engine.detach`) before it attaches the store, so a rebuild
+published while this process holds the catalog instance is visible to the next call
+(DESIGN §6.1 b).
+``runs`` is deliberately **not** a registry schema (EP-33 checkpoint): GROUP BYs over the
+ledger views need a real count-family column like any subject-level read, and a
+``refusal_reason LIKE 'usage: %'`` predicate separates argument errors from refusals.
 
 **Suppression hook contract**: :data:`SUPPRESSOR` is a module-level
 ``Callable[[polars.DataFrame, int, list[str]], tuple[polars.DataFrame, int]]`` —
@@ -204,8 +213,12 @@ COUNT_NAME_PREFIXES: tuple[str, ...] = ("count", "approx_count_distinct")
 FREE_TEXT_MAX_CHARS = 64
 #: Label columns exempt from the value heuristic (EP-170 amendment 1: legitimate dim-like
 #: labels on subject-keyed tables — ``drgcodes.description``,
-#: ``hcpcsevents.short_description``).
-LABEL_COLUMN_NAMES: frozenset[str] = frozenset({"description", "short_description"})
+#: ``hcpcsevents.short_description``; EP-35 amendment c: the ledger label columns
+#: ``runs.audit.refusal_reason`` and ``runs.benchmarks.error``, whose values legitimately
+#: exceed 64 characters and are project-authored, never data).
+LABEL_COLUMN_NAMES: frozenset[str] = frozenset(
+    {"description", "short_description", "refusal_reason", "error"}
+)
 
 #: The k floor on credentialed tiers (D-31/D-33).
 K_FLOOR = 11
@@ -293,6 +306,13 @@ def _contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
     free_text = frozenset(c.name for t in contract.tables for c in t.columns if c.free_text)
     dims = frozenset(t.qualified_name for t in contract.dims())
     return identifiers, free_text, dims
+
+
+def identifier_column_names() -> frozenset[str]:
+    """The contract's identifier column names (``subject_id``, ``hadm_id``, ``stay_id``,
+    ``note_id``, …) — what the result check refuses by name and what ``run.save_table``
+    refuses in a run folder (EP-35)."""
+    return _contract_names()[0]
 
 
 def is_registry_ref(schema: str, table: str) -> bool:
@@ -834,7 +854,7 @@ def safe_query(
     assert analysis is not None
 
     from mimicwarehouse.catalog.connect import open_catalog
-    from mimicwarehouse.engine import attach_read_only
+    from mimicwarehouse.engine import attach_read_only, detach
 
     con = open_catalog(resolved_tier, settings=settings)
     try:
@@ -846,6 +866,9 @@ def safe_query(
                 snapshot_ids["core"] = snapshot_id
             runs_db = runs_db_path(settings)
             if runs_db.is_file():
+                # EP-35: a `mwh runs refresh` published while this process still held the
+                # catalog instance must not be served from the stale attach (DESIGN §6.1 b)
+                detach(con, "runs")
                 attach_read_only(con, runs_db, "runs")
         except duckdb.Error as exc:
             raise refuse(
@@ -918,8 +941,12 @@ def safe_query(
 
 
 # ---------------------------------------------------------------------------
-# runs.duckdb (item 3) — the audit view store; EP-35 adds the ledger views
+# runs.duckdb (item 3) — the audit view store + the EP-35 ledger views
 # ---------------------------------------------------------------------------
+
+#: The views ``build_runs_db`` creates, in creation order (``attrition`` reads
+#: ``manifests``): EP-30's ``audit`` plus the EP-35 ledger views.
+RUNS_DB_VIEWS: tuple[str, ...] = ("audit", "ledger", "benchmarks", "manifests", "attrition")
 
 
 def _ledger_has_record(path: Path) -> bool:
@@ -938,20 +965,24 @@ def _ledger_has_record(path: Path) -> bool:
 
 
 def build_runs_db(settings: Settings | None = None) -> Path:
-    """Build ``warehouse/runs.duckdb.new`` with the ``audit`` view over
-    ``runs/audit.jsonl`` and publish it with :func:`mimicwarehouse.publish.swap_file`
-    (rename-aside; a reader holding the live file raises
-    :class:`~mimicwarehouse.publish.SwapBlockedError` naming ``mwh runs refresh`` as the
-    remedy). Readers open it read-only. Creates ``runs/`` and an empty ``audit.jsonl``
-    when missing (the view then reads 0 rows).
+    """Build ``warehouse/runs.duckdb.new`` with the :data:`RUNS_DB_VIEWS` — the ``audit``
+    view over ``runs/audit.jsonl`` (EP-30) and the EP-35 ``ledger`` / ``benchmarks`` /
+    ``manifests`` / ``attrition`` views (:func:`mimicwarehouse.run.runs_db_views`) — and
+    publish it with :func:`mimicwarehouse.publish.swap_file` (rename-aside; a reader
+    holding the live file raises :class:`~mimicwarehouse.publish.SwapBlockedError` naming
+    ``mwh runs refresh`` as the remedy). Readers open it read-only; nothing else ever
+    writes it (single-writer rule, DESIGN §6). Creates ``runs/`` and the empty ledgers
+    when missing (the views then read 0 rows).
 
-    The view is ``read_json_auto(..., ignore_errors = true)`` (LGR-1): DuckDB 1.5.5 turns a
-    torn trailing line — or the merged line a later append leaves behind it — into an
-    all-NULL record instead of skipping it, so the view filters ``audit_id IS NOT NULL``
+    The audit view is ``read_json_auto(..., ignore_errors = true)`` (LGR-1): DuckDB 1.5.5
+    turns a torn trailing line — or the merged line a later append leaves behind it — into
+    an all-NULL record instead of skipping it, so the view filters ``audit_id IS NOT NULL``
     (every real line carries one). An empty ledger binds as a single ``json`` column, so
-    the filter is added only once the ledger holds a parseable record."""
+    the filter is added only once the ledger holds a parseable record. The EP-35 views
+    bind explicit column types instead, so they are typed even over an empty file."""
     from mimicwarehouse import publish
     from mimicwarehouse.engine import open_duckdb
+    from mimicwarehouse.run import runs_db_views
 
     settings = settings or get_settings()
     audit = audit_path(settings)
@@ -964,9 +995,12 @@ def build_runs_db(settings: Settings | None = None) -> Path:
     escaped = audit.resolve().as_posix().replace("'", "''")
     source = f"read_json_auto('{escaped}', format = 'newline_delimited', ignore_errors = true)"
     torn_filter = " WHERE audit_id IS NOT NULL" if _ledger_has_record(audit) else ""
+    views = [("audit", f"SELECT * FROM {source}{torn_filter}"), *runs_db_views(settings)]
+    assert tuple(name for name, _ in views) == RUNS_DB_VIEWS
     con = open_duckdb("app", database=new, settings=settings)
     try:
-        con.execute(f"CREATE VIEW audit AS SELECT * FROM {source}{torn_filter}")
+        for name, select in views:
+            con.execute(f"CREATE VIEW {name} AS {select}")
         con.execute("CHECKPOINT")
     finally:
         con.close()
@@ -992,6 +1026,7 @@ __all__ = [
     "REGISTRY_SCHEMAS",
     "REGISTRY_TABLES",
     "RUNS_DB_FILENAME",
+    "RUNS_DB_VIEWS",
     "SUPPRESSOR",
     "AuditLine",
     "SafeQueryError",
@@ -999,6 +1034,7 @@ __all__ = [
     "SafeResult",
     "audit_path",
     "build_runs_db",
+    "identifier_column_names",
     "is_registry_ref",
     "rowwise_suppress",
     "runs_db_path",

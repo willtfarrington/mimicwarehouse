@@ -642,6 +642,33 @@ manifests and job state files.
   `safe_query` attaches it read-only as `runs` when present; `runs` is deliberately **not**
   a registry schema (§12).
 
+> **Note (2026-09-05, EP-35).** The run ledger shipped as `src/mimicwarehouse/run.py`
+> (prose: `docs/methods/provenance.md`). As built, against the planned bullet above: the
+> manifest (`run.RunManifest`, flat, `extra="forbid"`) carries the brief's field list plus
+> `command` (the line to repeat), `tables` / `figures` (what `save_table` / `save_figure`
+> produced, `{name: relative path}` like `sql`), `audit_ids` (the audit lines of the
+> `safe_query` calls made on the run's behalf) and `doctor` — `doctor.run_checks` reduced
+> to `{id, status, value}` per check (the `value` payloads `CheckResult` was designed to
+> carry, never the prose `detail`), captured **once per process per data root** because the
+> PowerShell probes cost ~6 s; `seeds` / `resources` stay `None` until EP-36. The
+> `runs/ledger.jsonl` line is the nine-field subset `run_id, name, kind, tier, status,
+> started, wall_s, git_sha, protocol_hash` through `fsio.append_jsonl` (the canon's
+> `ensure_ascii` default stands over the brief's `ensure_ascii=False`). Third-party text
+> (exception messages, captured `warnings.warn`) enters a manifest only through
+> `safe.sanitize_error_text`; `save_table` refuses identifier columns by name. The
+> `runs.duckdb` views `ledger` / `benchmarks` / `manifests` / `attrition` bind **explicit
+> column types** (dict fields as `JSON`) rather than `read_json_auto` — older lines and
+> manifests without a newer field read as NULL, an empty file is a typed empty view, a
+> torn line is the all-NULL row the `IS NOT NULL` filter drops; the audit view keeps its
+> EP-30 form. A refresh must be visible to a process that already holds the catalog
+> instance, so `engine.detach(con, alias)` (`DETACH DATABASE IF EXISTS`) is the one detach
+> and `safe_query` calls it before the attach (§6.1 b). `dag.benchmarks.BenchmarkLine` gained optional
+> `run_id` / `disk_delta_mb` and the `BENCHMARK_KINDS` vocabulary; `run.bench` builds a
+> line and calls `dag.benchmarks.append`. The tracer runs inside `run.start` and cites the
+> run under `ledger_run_id` in its own manifest; its `runs/tracer/<stamp>-<tier>/` folder
+> and numbers are unchanged. `run.reproduction_block(run_id)` renders the EP-32
+> Reproduction + Provenance block.
+
 **Identifier glossary** (D-43 item 11) — briefs and modules use these names and no others:
 
 - **`raw_snapshot_id`** (EP-10) — sha256 over the sorted `(rel_path, bytes, sha256, rows)`
@@ -813,11 +840,11 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── catalog/                   EP-21, EP-29, EP-30, EP-33 shipped   build, connect, profile, dictionary, cli (`mwh catalog`, `mwh sql`)
 │   ├── demo.py                    EP-22 shipped  ODbL demo fetch + source.yaml register
 │   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
-│   ├── runs_cli.py                EP-30, EP-32 shipped   `mwh runs refresh | benchmarks`
+│   ├── runs_cli.py                EP-30, EP-32, EP-35 shipped   `mwh runs refresh | list | show | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
 │   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
-│   ├── run.py                     EP-35/36 run ledger, seeds, resource log
+│   ├── run.py                     EP-35 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); EP-36 seeds + resource log
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42

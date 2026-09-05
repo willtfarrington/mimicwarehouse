@@ -11,7 +11,17 @@ implements ``O_APPEND`` as seek-then-write, DAG-4): the ledger relies on
 single-writer-by-sequencing — builds are serialized by the build lock and a verify run
 follows the build it verifies — not on OS-level locking. :func:`read` tolerates one torn
 trailing line (LGR-1). EP-28/EP-32 read it. Distinct from the analysis run ledger
-(``runs/ledger.jsonl``, EP-30/EP-35).
+(``runs/ledger.jsonl``, EP-35).
+
+EP-35 formalises :class:`BenchmarkLine` as **the** benchmark-ledger schema (ledger P3C-6:
+no second model): it gains the optional ``run_id`` (the analysis run a line belongs to)
+and ``disk_delta_mb`` (default ``None``, so every older line still validates), and the
+``kind`` vocabulary is :data:`BENCHMARK_KINDS` — ``stage`` / ``build`` (the runner),
+``verify`` (EP-28), ``concept`` / ``mart`` / ``query`` / ``page`` / ``bench`` (EP-35+;
+written through :func:`mimicwarehouse.run.bench`, which builds a line and calls
+:func:`append` — this module stays the only writer). ``kind`` stays a plain ``str`` so a
+later brief can add a value without a schema change. ``mwh runs benchmarks [--kind]``
+(EP-32) and the ``runs.benchmarks`` view (``mwh runs refresh``, EP-35) read it.
 
 EP-32 adds the case-study renderer over :func:`summarize`: :func:`render_markdown`
 (one Markdown row per step, integers via ``inventory.fmt_int`` — guard G4) and
@@ -38,6 +48,23 @@ if TYPE_CHECKING:  # pragma: no cover
 BENCHMARKS_FILENAME = "benchmarks.jsonl"
 
 Phase = Literal["pass1", "pass2", "total"]
+
+#: The ``kind`` vocabulary (EP-35 item 2): the runner's step kinds (``dag.spec.Kind`` —
+#: ``stage`` / ``sql`` / ``python`` / ``catalog``) and its per-run ``build`` summary,
+#: EP-28's full-tier ``verify`` lines, and the analysis-side kinds ``run.bench`` writes.
+BENCHMARK_KINDS: tuple[str, ...] = (
+    "stage",
+    "sql",
+    "python",
+    "catalog",
+    "build",
+    "verify",
+    "concept",
+    "mart",
+    "query",
+    "page",
+    "bench",
+)
 
 
 class HostInfo(BaseModel):
@@ -71,6 +98,10 @@ class BenchmarkLine(BaseModel):
     host: HostInfo
     ok: bool
     error: str | None = None
+    #: EP-35: the analysis run this line belongs to (None for runner / verify lines).
+    run_id: str | None = None
+    #: EP-35: free-space delta of the data-root drive over the step (MB; None = unmeasured).
+    disk_delta_mb: float | None = None
 
 
 def host_info() -> HostInfo:
@@ -311,6 +342,7 @@ def replace_marked_block(
 
 __all__ = [
     "BENCHMARKS_FILENAME",
+    "BENCHMARK_KINDS",
     "MARK_BEGIN",
     "MARK_END",
     "RENDER_COLUMNS",

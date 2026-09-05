@@ -39,6 +39,14 @@ The three public services and the runner:
   ``report.md``. Raw-int JSON stays under ``runs/`` (FC-16); the report's integers go
   through :func:`mimicwarehouse.inventory.fmt_int`. Claim type: **associational
   (exploratory)**; retrospective; no prediction claim (that is P7, EP-110).
+  Since EP-35 the whole run is wrapped in :func:`mimicwarehouse.run.start` (``name``
+  ``tracer``, ``kind`` ``analysis``): the provenance run ledger records every statement
+  the tracer issued (``sql/attrition_<step>.sql``, ``sql/by_age_gender.sql``,
+  ``sql/by_first_careunit.sql``, ``sql/model_frame.sql``), the attrition table, the
+  ``core`` snapshot id, the audit ids and the claim type, and the tracer manifest cites the
+  run under ``ledger_run_id``. The tracer's own folder and every number are unchanged
+  (the EP-35 acceptance): the report artefacts stay under ``runs/tracer/``, the formal run
+  record lives under ``runs/<run_id>/``.
 
 Nothing under the run folder may carry an identifier column name or a value longer than
 64 characters — model term labels are normalised to ``<var>=<level>`` and truncated.
@@ -51,8 +59,8 @@ tracer number on dev.
 
 CLI: ``mwh tracer --tier {fixture,demo,dev,full} [--background --job NAME]`` (attached in
 :mod:`mimicwarehouse.cli`; ``--background`` reuses :func:`mimicwarehouse.dag.jobs.launch`).
-Import budget: duckdb / polars / pandas / statsmodels are imported inside the function
-bodies (cli.py rule).
+Import budget: duckdb / polars / pandas / statsmodels and :mod:`mimicwarehouse.run` are
+imported inside the function bodies (cli.py rule).
 """
 
 from __future__ import annotations
@@ -81,6 +89,21 @@ ACTOR = "tracer"
 
 #: CTE steps of ``sql/tracer_first_icu_mortality.sql``, in attrition order.
 STEPS: tuple[str, ...] = ("base", "first_stay", "adult", "complete", "cohort")
+
+#: Human labels of the steps for the EP-35 attrition record (one row per criterion).
+STEP_LABELS: dict[str, str] = {
+    "base": "ICU stays joined to their admission and patient",
+    "first_stay": "first ICU stay per subject",
+    "adult": "age at admission >= 18",
+    "complete": "complete covariates",
+    "cohort": "analysis cohort",
+}
+
+#: The covariate frame the model reads in-process (recorded as ``sql/model_frame.sql``).
+MODEL_FRAME_SELECT = (
+    "SELECT age_at_admit, gender, admission_type, first_careunit, "
+    "anchor_year_group, hospital_expire_flag FROM cohort"
+)
 
 # AGE_BANDS (the descriptives' bands: upper bounds exclusive, cohort floor 18) lives in
 # ``timesem`` since EP-34 and is re-exported here for the EP-31 surface.
@@ -162,14 +185,11 @@ def attrition(tier: Tier | str, *, settings: Settings | None = None) -> list[dic
     return rows
 
 
-def descriptives(tier: Tier | str, *, settings: Settings | None = None) -> dict[str, Any]:
-    """Suppressed mortality tables (module docstring): ``by_age_gender`` and
-    ``by_first_careunit``, each ``{rows, rows_suppressed, audit_id}``; plus ``k``."""
-    from mimicwarehouse.safe import K_FLOOR, safe_query
-
-    settings = settings or get_settings()
+def descriptive_statements() -> dict[str, str]:
+    """The two descriptive statements by table name (what :func:`descriptives` runs and
+    what the EP-35 run record stores under ``sql/``)."""
     counts = "count(*) AS n, count(*) FILTER (WHERE hospital_expire_flag = 1) AS n_deaths"
-    queries = {
+    return {
         "by_age_gender": statement(
             f"SELECT {sql_age_band('age_at_admit')} AS age_band, gender, {counts} "
             "FROM cohort GROUP BY 1, 2 ORDER BY 1, 2"
@@ -178,6 +198,15 @@ def descriptives(tier: Tier | str, *, settings: Settings | None = None) -> dict[
             f"SELECT first_careunit, {counts} FROM cohort GROUP BY 1 ORDER BY 1"
         ),
     }
+
+
+def descriptives(tier: Tier | str, *, settings: Settings | None = None) -> dict[str, Any]:
+    """Suppressed mortality tables (module docstring): ``by_age_gender`` and
+    ``by_first_careunit``, each ``{rows, rows_suppressed, audit_id}``; plus ``k``."""
+    from mimicwarehouse.safe import K_FLOOR, safe_query
+
+    settings = settings or get_settings()
+    queries = descriptive_statements()
     out: dict[str, Any] = {"k": K_FLOOR}
     for name, sql in queries.items():
         result = safe_query(sql, tier=tier, actor=ACTOR, settings=settings)
@@ -212,12 +241,7 @@ def fit(tier: Tier | str, *, settings: Settings | None = None) -> dict[str, Any]
     settings = settings or get_settings()
     con = open_catalog(tier, settings=settings)
     try:
-        frame = con.execute(
-            statement(
-                "SELECT age_at_admit, gender, admission_type, first_careunit, "
-                "anchor_year_group, hospital_expire_flag FROM cohort"
-            )
-        ).pl()
+        frame = con.execute(statement(MODEL_FRAME_SELECT)).pl()
     finally:
         con.close()
 
@@ -518,60 +542,97 @@ def run_tracer(
     tier: Tier | str, *, out: Path | None = None, settings: Settings | None = None
 ) -> TracerResult:
     """One full tracer run (module docstring): attrition + descriptives via
-    ``safe_query``, the in-process model, five files under the run folder."""
+    ``safe_query``, the in-process model, five files under the run folder — inside an
+    EP-35 provenance run (``run.start``) that records the statements, the attrition, the
+    snapshot id and the audit ids without changing a number."""
     import duckdb
 
     from mimicwarehouse import __version__
+    from mimicwarehouse import run as run_mod
     from mimicwarehouse.dag.runner import git_short_sha
     from mimicwarehouse.safe import K_FLOOR
 
     settings = settings or get_settings()
-    started = time.perf_counter()
-    att = attrition(tier, settings=settings)
-    desc = descriptives(tier, settings=settings)
-    model = fit(tier, settings=settings)
-
-    if out is not None:
-        out_dir = Path(out)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        run_id = out_dir.name
-    else:
-        run_id, out_dir = _new_run_dir(str(tier), settings)
-
-    audit_ids = [row["audit_id"] for row in att] + [
-        desc[name]["audit_id"] for name in ("by_age_gender", "by_first_careunit")
-    ]
-    snapshot_id = _snapshot_of_last_call(settings, audit_ids)
-    cohort_n = att[-1]["n"]
-    manifest = {
-        "run_id": run_id,
-        "tier": str(tier),
-        "git_sha": git_short_sha(),
-        "package_version": __version__,
-        "duckdb_version": duckdb.__version__,
-        "core_snapshot_id": snapshot_id,
-        "params": {"k": K_FLOOR, "adult_age_min": 18, "age_cap": AGE_CAP, "actor": ACTOR},
-        "cohort_n": cohort_n,
-        "wall_s": round(time.perf_counter() - started, 2),
-        "audit_ids": audit_ids,
-        "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-    }
-    report = render_report(
-        run_id=run_id,
+    params = {"k": K_FLOOR, "adult_age_min": 18, "age_cap": AGE_CAP, "actor": ACTOR}
+    with run_mod.start(
+        "tracer",
         tier=str(tier),
-        snapshot_id=snapshot_id,
-        att=att,
-        desc=desc,
-        model=model,
-        manifest=manifest,
-    )
-    _write_json(out_dir / "manifest.json", manifest)
-    _write_json(out_dir / "attrition.json", {"steps": att})
-    _write_json(out_dir / "descriptives.json", desc)
-    _write_json(out_dir / "model.json", model)
-    from mimicwarehouse.fsio import atomic_write_text
+        kind="analysis",
+        params=params,
+        settings=settings,
+        command=f"mwh tracer --tier {tier}",
+        claim_type=CLAIM_TYPE,
+    ) as r:
+        started = time.perf_counter()
+        att = attrition(tier, settings=settings)
+        desc = descriptives(tier, settings=settings)
+        model = fit(tier, settings=settings)
 
-    atomic_write_text(out_dir / "report.md", report)
+        if out is not None:
+            out_dir = Path(out)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            run_id = out_dir.name
+        else:
+            run_id, out_dir = _new_run_dir(str(tier), settings)
+
+        audit_ids = [row["audit_id"] for row in att] + [
+            desc[name]["audit_id"] for name in ("by_age_gender", "by_first_careunit")
+        ]
+        snapshot_id = _snapshot_of_last_call(settings, audit_ids)
+        cohort_n = att[-1]["n"]
+
+        # EP-35: the formal run record — statements, attrition, snapshot id, audit ids
+        for step in STEPS:
+            r.record_sql(f"attrition_{step}", statement(f"SELECT count(*) AS n FROM {step}"))
+        for name, sql in descriptive_statements().items():
+            r.record_sql(name, sql)
+        r.record_sql("model_frame", statement(MODEL_FRAME_SELECT))
+        r.record_attrition(
+            [
+                {
+                    "step": row["step"],
+                    "label": STEP_LABELS[row["step"]],
+                    "n_units": row["n"],
+                    # one row per subject from first_stay on; base is one row per stay
+                    "n_subjects": None if row["step"] == "base" else row["n"],
+                }
+                for row in att
+            ]
+        )
+        if snapshot_id:
+            r.record_snapshot("core", snapshot_id)
+        r.record_audit(*audit_ids)
+
+        manifest = {
+            "run_id": run_id,
+            "ledger_run_id": r.run_id,
+            "tier": str(tier),
+            "git_sha": git_short_sha(),
+            "package_version": __version__,
+            "duckdb_version": duckdb.__version__,
+            "core_snapshot_id": snapshot_id,
+            "params": params,
+            "cohort_n": cohort_n,
+            "wall_s": round(time.perf_counter() - started, 2),
+            "audit_ids": audit_ids,
+            "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        report = render_report(
+            run_id=run_id,
+            tier=str(tier),
+            snapshot_id=snapshot_id,
+            att=att,
+            desc=desc,
+            model=model,
+            manifest=manifest,
+        )
+        _write_json(out_dir / "manifest.json", manifest)
+        _write_json(out_dir / "attrition.json", {"steps": att})
+        _write_json(out_dir / "descriptives.json", desc)
+        _write_json(out_dir / "model.json", model)
+        from mimicwarehouse.fsio import atomic_write_text
+
+        atomic_write_text(out_dir / "report.md", report)
     return TracerResult(
         run_id=run_id,
         tier=str(tier),
@@ -690,14 +751,17 @@ __all__ = [
     "AGE_BANDS",
     "CLAIM_TYPE",
     "MODEL_FORMULA",
+    "MODEL_FRAME_SELECT",
     "RETROSPECTIVE_SENTENCE",
     "SQL_FILENAME",
     "STEPS",
+    "STEP_LABELS",
     "VALUE_MAX_CHARS",
     "TracerError",
     "TracerResult",
     "attrition",
     "cohort_cte_sql",
+    "descriptive_statements",
     "descriptives",
     "fit",
     "render_report",
