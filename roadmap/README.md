@@ -139,7 +139,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 
 | # | Brief | Size | Depends on | Core | Done |
 |---|-------|------|-----------|------|------|
-| EP-34 | [Time semantics + unit-of-analysis registry](EP-34-time-semantics-grains.md) | M | EP-21 | core | ☐ |
+| EP-34 | [Time semantics + unit-of-analysis registry](EP-34-time-semantics-grains.md) | M | EP-21 | core | ☑ `9ec6916` |
 | EP-35 | [Provenance run ledger](EP-35-run-ledger.md) | M | EP-30 | core | ☐ |
 | EP-36 | [Seed/determinism policy + resource logger](EP-36-seeds-resource-log.md) | S | EP-35 | core | ☐ |
 | EP-37 | [Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱](EP-37-concept-runner.md) | M | EP-8, EP-19, EP-22, EP-34, EP-35 | core | ☐ |
