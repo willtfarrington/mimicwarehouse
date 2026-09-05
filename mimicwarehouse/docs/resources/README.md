@@ -16,3 +16,4 @@ same commit.
 | [reading.md](reading.md) | Reading list: ≥ 1 cited, link-checked entry per capability category (all 38), anchored on the MIMIC-IV papers and the methods canon each representative workflow stands on | EP-15 |
 | [datasets.md](datasets.md) | Open companion datasets register: demo family, eICU, Synthea, imaging/waveform links — license, access class, size and a may-it-enter-git verdict per row | EP-15 |
 | [methods-notes.md](methods-notes.md) | MIMIC caveats catalogue (12 entries), the default analytic choices (D-n), and the how-to-cite-runs stub EP-32 extends | EP-15 |
+| [concepts.md](concepts.md) | mimic-code `concepts_duckdb` inventory as the warehouse runs it: concept · group · reads · depends on · upstream commit · status on DuckDB 1.5.x (generated block from `concepts/concepts.yaml`; `KNOWN_FAILURES` is EP-38's record) | EP-37 |

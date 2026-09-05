@@ -331,6 +331,40 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > `test_ep167`; the EP-16 question of retiring it structurally is closed — the list *is*
 > the rule's statement.
 
+> **Addendum (2026-09-05, EP-37 — the concept runner as DAG steps; D-19 + D-20 together).**
+> (1) **Concepts are `python` steps, not a `sql` kind.** Each vendored concept is one step
+> `concept.<group>.<name>` (`callable concepts.runner:run_concept`, `target
+> mimiciv_derived.<name>`), generated into `dag/specs/concepts.yaml` from the committed
+> inventory `concepts/concepts.yaml` (`python -m mimicwarehouse.concepts.inventory`); the
+> spec's `sql` kind stays unregistered — the EP-33 amendment allowed a `sql` handler "only if
+> it removes real duplication", and the python body (header strip, in-memory source views,
+> Parquet sink, manifest + status + view registration) has nothing a `sql` kind would
+> factor out. (2) **Spec discovery.** `load_dag()` merges every `dag/specs/*.yaml`; the
+> shared `catalog` step is deduplicated by name with `depends_on`/`tags` unioned (ledger
+> P3C-2); no `--spec` option. (3) **Per-tier derived layout** (DESIGN §3 note; carried
+> P3C-7): `<lake_root(tier)>/derived/<tier>/<schema>/<table>/part-0.parquet` — the amendment's
+> `lake/derived/<tier>/…` for dev and full, `lake/fixture/derived/fixture/…` and
+> `lake/demo/derived/demo/…` for the synthetic tiers (their own roots: EP-167's no-write
+> rule for the credentialed tree and EP-28's "every manifest path resolves under its lake
+> root" invariant both hold) — one ZSTD file, no bucket partitions; derived `status.json`
+> entries carry `layer: derived` and per-tier
+> completeness (`dev_ready` for dev; a full derived table is not a dev one), so a dev
+> rebuild never replaces a full table (LDR-1 inherited) and `--tier full --force` stays the
+> only destructive path. (4) **Runner flags** `--keep-going` (failure recorded, dependents
+> `blocked`, run continues) and `--with-deps` (selection closed over ancestors; `--force`
+> applies to the explicit steps only), plus a generic status-key skip (`Step.status_key`).
+> (5) **Provenance.** `meta.concept_versions` is written under one `run.start("concepts",
+> kind="build")` run per build with a `kind: concept` benchmark line per concept attempted
+> in that build; a derived manifest line's `source_sha256` is the concept SQL's sha256 and
+> its `raw_snapshot_id` the core snapshot read; the derived layer snapshot is recorded by
+> the versions step. (6) **Count-pins** through `safe_query` only (k = 11): the demo set is
+> committed (`tests/ep/pins/concepts_demo.json`; on the demo tier no concept count fell
+> below 11 and `neuroblock` is empty), the dev set lives under the data root as a drift
+> detector until EP-43's `disclose.render_cell` replaces the `"<11"` helper. (7) **Result:**
+> all 65 concepts execute on DuckDB 1.5.5 on fixture, demo and dev (`KNOWN_FAILURES` is
+> empty; Risk 2's executability half confirmed at build time); the full tier runs as job
+> `concepts-full`, verified by EP-38.
+
 **D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
 *Alternatives:* marimo apps (ranked first by the research panel for a solo builder —

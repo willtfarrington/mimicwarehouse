@@ -28,21 +28,27 @@ catalog's. Catalogs embed absolute lake paths and assert the DuckDB version on o
 they are **derived and disposable** — after a data-root move or a pin bump the fix is
 ``mwh build --tier <t> --select catalog``, never surgery (ledger ARCH-16).
 
-**Extension hook (EP-34).** :data:`CATALOG_EXTENSIONS` is a list of callables
-``(con, tier) -> None`` that :func:`build_catalog` runs on the build connection after the
-contract tables and the ``meta.*`` dictionary, before ``CHECKPOINT`` — the one place a
-later brief adds derived views or registry tables to **every** tier catalog without
-touching this module: :func:`mimicwarehouse.timesem.create_views` (EP-34:
-``mimiciv_derived.hadm_era`` / ``icustay_index`` + ``meta.grains``) is registered here;
-EP-37 (concept discovery) and EP-39 (item dictionary) append theirs. Extensions receive
-the open connection and never open their own; a failing extension fails the build (the
-old catalog stays intact, the ``.new`` is removed).
+**Extension hook (EP-34, EP-37).** :data:`CATALOG_EXTENSIONS` is a list of callables
+that :func:`build_catalog` runs on the build connection after the contract tables and
+the ``meta.*`` dictionary, before ``CHECKPOINT`` — the one place a later brief adds
+derived views or registry tables to **every** tier catalog without touching this module.
+An extension is called as ``(con, tier)`` or — when its signature takes a third
+parameter — ``(con, tier, context)`` with a :class:`CatalogExtensionContext` (settings,
+lake root, build id, tier): :func:`mimicwarehouse.timesem.create_views` (EP-34:
+``mimiciv_derived.hadm_era`` / ``icustay_index`` + ``meta.grains``) is the two-argument
+form; :func:`mimicwarehouse.catalog.discover.register_layers` (EP-37: every complete
+``lake/derived/<tier>/…`` table as a ``mimiciv_derived.*`` view, every
+``lake/meta/<tier>/*.parquet`` as a ``meta.*`` table, ``lake/marts`` for EP-47) takes the
+context; EP-39 (item dictionary) appends its own. Extensions receive the open connection
+and never open their own; a failing extension fails the build (the old catalog stays
+intact, the ``.new`` is removed).
 
 Everything created, logged or returned is schema DDL, counts and paths — never a row.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import time
@@ -52,6 +58,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse import __version__, publish
+from mimicwarehouse.catalog.discover import register_layers as _discover_register_layers
 from mimicwarehouse.config import (
     Settings,
     Tier,
@@ -85,12 +92,52 @@ CATALOG_SCHEMAS: tuple[str, ...] = (
 #: EP-148 — DESIGN §5 note).
 STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 
-#: The extension hook (module docstring; EP-34 item 5): ``(con, tier) -> None`` callables
-#: run in order on the build connection after the contract tables and ``meta.*``, before
-#: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first.
-CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
+#: An extension: ``(con, tier) -> None`` or ``(con, tier, context) -> None`` (EP-37).
+CatalogExtension = Callable[..., None]
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogExtensionContext:
+    """What a three-argument extension receives beside the connection (EP-37): the
+    settings and lake root the catalog is built from (tests build into temp roots, so an
+    extension must never call ``get_settings()``), the build id and the tier."""
+
+    settings: Settings
+    lake_root: Path
+    build_id: str
+    tier: str
+
+
+#: The extension hook (module docstring; EP-34 item 5, EP-37): callables run in order on
+#: the build connection after the contract tables and ``meta.*``, before ``CHECKPOINT``.
+#: Append, never replace — ``timesem.create_views`` stays first, the EP-37 discovery
+#: walker second (it registers the concepts the timesem views must not collide with).
+CATALOG_EXTENSIONS: list[CatalogExtension] = [
     _timesem_create_views,
+    _discover_register_layers,
 ]
+
+
+def _wants_context(extension: CatalogExtension) -> bool:
+    """Whether ``extension`` takes the third ``context`` argument (EP-37 form)."""
+    try:
+        params = list(inspect.signature(extension).parameters.values())
+    except (TypeError, ValueError):  # a builtin / C callable: the two-argument form
+        return False
+    positional = [p for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    return len(positional) >= 3 or any(p.kind == p.VAR_POSITIONAL for p in params)
+
+
+def _call_extension(
+    extension: CatalogExtension,
+    con: duckdb.DuckDBPyConnection,
+    tier: str,
+    context: CatalogExtensionContext,
+) -> None:
+    if _wants_context(extension):
+        extension(con, tier, context)
+    else:
+        extension(con, tier)
 
 
 class CatalogBuildError(RuntimeError):
@@ -383,10 +430,15 @@ def _populate(
         # EP-34: derived views / registry tables on the same connection, before the
         # checkpoint (a duckdb.Error propagates to build_catalog's handler; any other
         # failure is named after its extension so the log says which one broke)
+        context = CatalogExtensionContext(
+            settings=settings, lake_root=Path(lake_root), build_id=build_id, tier=str(tier)
+        )
         for extension in CATALOG_EXTENSIONS:
             try:
-                extension(con, str(tier))
+                _call_extension(extension, con, str(tier), context)
             except duckdb.Error:
+                raise
+            except CatalogBuildError:
                 raise
             except Exception as exc:
                 name = getattr(extension, "__qualname__", repr(extension))
@@ -601,6 +653,8 @@ __all__ = [
     "STAGED_SCHEMAS",
     "CatalogBuildError",
     "CatalogBuildResult",
+    "CatalogExtension",
+    "CatalogExtensionContext",
     "CatalogSwapError",
     "CatalogTableEntry",
     "build_catalog",

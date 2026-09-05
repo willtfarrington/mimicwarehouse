@@ -135,7 +135,13 @@ def read(settings: Settings | None = None) -> polars.DataFrame:
     rows = fsio.read_jsonl(benchmarks_path(settings))
     if not rows:
         return polars.DataFrame()
-    return polars.read_ndjson(b"".join(fsio.encode_line(row) for row in rows))
+    # infer over every line, not polars' first-100 default: a column that is null on the
+    # early runner lines and set later (run_id / disk_delta_mb since EP-35, first seen when
+    # EP-37's kind: concept lines followed them) would otherwise bind NULL-typed and fail
+    # on its first value
+    return polars.read_ndjson(
+        b"".join(fsio.encode_line(row) for row in rows), infer_schema_length=None
+    )
 
 
 def summarize(
