@@ -42,26 +42,46 @@ run root without manifests still yields a typed, empty view.
 hand-writing one; it quotes the run id inline only (never in a file name, committed-text
 rule 3).
 
-Seeds and the resource sampler (``seeds`` / ``resources``) are EP-36's; the fields are
-optional here. Import budget: not on the ``mwh`` start-up path (``tracer.py`` and
-``runs_cli.py`` import it inside function bodies); psutil, duckdb-adjacent modules and
-``safe`` load lazily.
+**Seeds (EP-36).** :func:`derive_seed` (``protocol_id``, ``stage``, ``salt``) is the one
+seed rule — the first four bytes of a sha256 over the three names, so any stochastic stage
+of any protocol is reproducible without global state and across ``spawn`` workers;
+:func:`rng` / :func:`spawn_rngs` build the numpy Generators, :func:`random_state` derives the
+integer sklearn-style APIs take, :func:`seed_everything` is the last resort for third-party
+code paths (never imports torch). ``r.seed(stage)`` derives from the run's protocol id (or
+its run id when the work is unfrozen), records ``{stage: seed}`` in ``manifest.seeds`` and
+returns the Generator. The policy is ``docs/methods/determinism.md``.
+
+**Resources (EP-36).** :class:`ResourceLog` is a daemon-thread sampler (0.5 s, psutil):
+wall time, CPU time, the peak working set (``peak_wset`` on Windows when the run set a new
+process high-water mark, else the sampled RSS maximum), the data-root drive's free-space
+delta and — only when ``pynvml`` imports and a device exists — this process's peak GPU
+memory (``null`` otherwise, no warning). ``start`` runs one per run and stores its
+:class:`ResourceUsage` under ``manifest.resources`` (mirrored into ``wall_s`` /
+``peak_rss_mb`` / ``disk_delta_mb``); ``ResourceLog.measure(fn)`` is the standalone form
+whose usage feeds ``bench(..., usage=)``.
+
+Import budget: not on the ``mwh`` start-up path (``tracer.py`` and ``runs_cli.py`` import
+it inside function bodies); psutil, numpy, duckdb-adjacent modules and ``safe`` load lazily.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import importlib
 import json
 import logging
+import os
 import platform
 import re
 import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import warnings
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import version as dist_version
@@ -74,6 +94,8 @@ from mimicwarehouse import __version__, config, fsio
 from mimicwarehouse.config import Settings, get_settings
 
 if TYPE_CHECKING:  # pragma: no cover
+    from numpy.random import Generator
+
     from mimicwarehouse.safe import SafeResult
 
 _LOG = logging.getLogger(__name__)
@@ -111,6 +133,13 @@ LEDGER_FIELDS: tuple[str, ...] = (
 
 #: Longest warning / error text kept in a manifest (after sanitising).
 TEXT_MAX_CHARS = 200
+
+#: :func:`derive_seed` keeps the first four digest bytes: a 32-bit seed, inside numpy's
+#: legacy ``RandomState`` range and what every ``random_state=`` argument accepts.
+SEED_BYTES = 4
+SEED_MAX = 2 ** (8 * SEED_BYTES) - 1
+#: :class:`ResourceLog` sampling interval (seconds; brief item 3).
+RESOURCE_SAMPLE_S = 0.5
 
 
 class RunLedgerError(RuntimeError):
@@ -155,6 +184,41 @@ class RunErrorInfo(BaseModel):
     message: str
 
 
+class ResourceUsage(BaseModel):
+    """What one :class:`ResourceLog` measured (EP-36): the ``resources`` block of a manifest
+    and the telemetry of a ``bench`` line. Numbers and a device name only.
+
+    ``peak_rss_mb`` is exact when ``peak_source`` is ``peak_wset`` (Windows: the process
+    set a new lifetime working-set high-water mark during the interval, so that mark *is*
+    the interval's peak) and a 0.5 s-sampled maximum (start, ticks, stop) when it is
+    ``sampled`` — elsewhere, or when an earlier interval in the same process peaked higher.
+    ``disk_delta_mb`` is free space consumed on the data-root drive (negative = freed).
+    ``gpu_mem_peak_mb`` / ``gpu_device`` stay ``None`` without ``pynvml`` + a device.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    wall_s: float
+    cpu_time_s: float | None = None
+    peak_rss_mb: float | None = None
+    peak_source: Literal["peak_wset", "sampled"] | None = None
+    rss_start_mb: float | None = None
+    rss_end_mb: float | None = None
+    samples: int = 0
+    interval_s: float = RESOURCE_SAMPLE_S
+    disk_delta_mb: float | None = None
+    gpu_mem_peak_mb: float | None = None
+    gpu_device: str | None = None
+
+    def bench_fields(self) -> dict[str, Any]:
+        """The :class:`dag.benchmarks.BenchmarkLine` telemetry this usage supplies."""
+        return {
+            "wall_s": self.wall_s,
+            "peak_rss_mb": self.peak_rss_mb,
+            "disk_delta_mb": self.disk_delta_mb,
+        }
+
+
 class RunManifest(BaseModel):
     """``runs/<run_id>/manifest.json`` — flat; hashes, counts, parameters, paths and
     versions only (module note). ``extra="forbid"`` so a stray field cannot smuggle a
@@ -184,8 +248,10 @@ class RunManifest(BaseModel):
     figures: dict[str, str] = Field(default_factory=dict)
     attrition: list[AttritionRow] = Field(default_factory=list)
     audit_ids: list[str] = Field(default_factory=list)
+    #: ``{stage: seed}`` per ``r.seed(stage)`` call (EP-36); None when nothing was seeded.
     seeds: dict[str, int] | None = None
-    resources: dict[str, Any] | None = None
+    #: The run's :class:`ResourceUsage` (EP-36); None only in a ``status: running`` manifest.
+    resources: ResourceUsage | None = None
     warnings: list[str] = Field(default_factory=list)
     wall_s: float | None = None
     peak_rss_mb: float | None = None
@@ -390,20 +456,309 @@ def _duckdb_version() -> str:
         return "unknown"
 
 
-def _rss_mb() -> float | None:
-    try:
-        import psutil
-
-        return round(psutil.Process().memory_info().rss / 2**20, 1)
-    except Exception:  # pragma: no cover - psutil unavailable / restricted
-        return None
-
-
 def _free_bytes(path: Path) -> int | None:
     try:
         return shutil.disk_usage(config.nearest_existing(path)).free
     except OSError:  # pragma: no cover
         return None
+
+
+def _mb(value: int | float | None) -> float | None:
+    return None if value is None else round(value / 2**20, 1)
+
+
+# ---------------------------------------------------------------------------
+# Seeds (EP-36 item 1; policy: docs/methods/determinism.md)
+# ---------------------------------------------------------------------------
+
+
+def derive_seed(protocol_id: str, stage: str, salt: int = 0) -> int:
+    """The seed of ``stage`` under ``protocol_id`` (+ ``salt``): the first :data:`SEED_BYTES`
+    of ``sha256(f"{protocol_id}|{stage}|{salt}")`` as a big-endian unsigned integer
+    (``0 .. SEED_MAX``). Pure — no global state, the same integer in every process and on
+    every machine — so any stochastic stage of any protocol is reproducible from its two
+    names. ``|`` is the field separator and may not appear in either name."""
+    if not protocol_id or not stage:
+        raise RunLedgerError("derive_seed needs a protocol id and a stage name")
+    if "|" in protocol_id or "|" in stage:
+        raise RunLedgerError("derive_seed: '|' is the separator and may not appear in a name")
+    digest = hashlib.sha256(f"{protocol_id}|{stage}|{salt}".encode()).digest()
+    return int.from_bytes(digest[:SEED_BYTES], "big")
+
+
+def rng(protocol_id: str, stage: str, salt: int = 0) -> Generator:
+    """``numpy.random.default_rng(derive_seed(protocol_id, stage, salt))`` — the Generator
+    a stochastic stage draws from (library code takes it as an argument, never a global)."""
+    import numpy as np
+
+    return np.random.default_rng(derive_seed(protocol_id, stage, salt))
+
+
+def spawn_rngs(protocol_id: str, stage: str, n: int, salt: int = 0) -> list[Generator]:
+    """``n`` independent, reproducible child Generators for CV folds / joblib workers:
+    ``SeedSequence(derive_seed(...)).spawn(n)``. Hand each worker its child explicitly —
+    Windows ``spawn`` inherits nothing from module state (CLAUDE.md §3)."""
+    if n < 0:
+        raise RunLedgerError(f"spawn_rngs: n must be >= 0, got {n}")
+    import numpy as np
+
+    sequence = np.random.SeedSequence(derive_seed(protocol_id, stage, salt))
+    return [np.random.default_rng(child) for child in sequence.spawn(n)]
+
+
+def random_state(generator: Generator) -> int:
+    """The ``random_state=`` integer sklearn / LightGBM / XGBoost / statsmodels take, drawn
+    from the stage Generator: ``int(generator.integers(2**31))`` (determinism.md rule 3)."""
+    return int(generator.integers(2**31))
+
+
+def seed_everything(seed: int) -> dict[str, bool]:
+    """Seed the *global* generators third-party code falls back to when no Generator is
+    passed — ``random``, numpy's legacy global (``np.random.seed``) and, **only if torch is
+    already imported**, ``torch.manual_seed`` (+ every CUDA device when available). Never
+    imports torch (D-16: the ``gpu`` group is opt-in). Returns which libraries were seeded.
+    A last resort for opaque library paths; project code passes a Generator (rule 1)."""
+    import random
+
+    import numpy as np
+
+    value = int(seed) % (SEED_MAX + 1)
+    random.seed(value)
+    np.random.seed(value)
+    seeded = {"random": True, "numpy": True, "torch": False}
+    torch = sys.modules.get("torch")
+    if torch is not None:
+        torch.manual_seed(value)
+        cuda = getattr(torch, "cuda", None)
+        if cuda is not None and cuda.is_available():
+            cuda.manual_seed_all(value)
+        seeded["torch"] = True
+    return seeded
+
+
+# ---------------------------------------------------------------------------
+# Resource sampler (EP-36 item 3)
+# ---------------------------------------------------------------------------
+
+
+class _GpuProbe:
+    """This process's GPU memory through ``pynvml`` — **only if** it imports and at least
+    one device answers; any failure at any point makes the probe unavailable (``None``
+    fields, no warning: D-16's GPU is opt-in and most runs have none)."""
+
+    def __init__(self) -> None:
+        self._nvml: Any = None
+        self._handles: list[Any] = []
+        self._pid = os.getpid()
+        self.device: str | None = None
+
+    @property
+    def available(self) -> bool:
+        return self._nvml is not None
+
+    def open(self) -> bool:
+        try:
+            nvml = importlib.import_module("pynvml")
+        except Exception:
+            return False
+        try:
+            nvml.nvmlInit()
+            count = int(nvml.nvmlDeviceGetCount())
+            if count < 1:
+                nvml.nvmlShutdown()
+                return False
+            self._handles = [nvml.nvmlDeviceGetHandleByIndex(i) for i in range(count)]
+            name = nvml.nvmlDeviceGetName(self._handles[0])
+            self.device = name.decode("utf-8", "replace") if isinstance(name, bytes) else str(name)
+        except Exception:
+            self._handles = []
+            self.device = None
+            return False
+        self._nvml = nvml
+        return True
+
+    def used_bytes(self) -> int | None:
+        """Bytes this pid holds across every device (0 when it holds none); None when
+        unavailable."""
+        if self._nvml is None:
+            return None
+        try:
+            total = 0
+            for handle in self._handles:
+                for proc in self._nvml.nvmlDeviceGetComputeRunningProcesses(handle):
+                    used = getattr(proc, "usedGpuMemory", None)
+                    if getattr(proc, "pid", None) == self._pid and used is not None:
+                        total += int(used)
+            return total
+        except Exception:
+            return None
+
+    def close(self) -> None:
+        if self._nvml is None:
+            return
+        with contextlib.suppress(Exception):  # driver already gone
+            self._nvml.nvmlShutdown()
+        self._nvml = None
+        self._handles = []
+
+
+class ResourceLog:
+    """A daemon-thread resource sampler (module note): ``start()`` … ``stop()`` →
+    :class:`ResourceUsage`, also a context manager and :meth:`measure` for one callable.
+    Samples every ``interval_s`` seconds plus once at start and once at stop, so a short
+    interval still yields two samples; ``sample()`` may be called by hand at a moment worth
+    recording. ``data_root`` selects the drive whose free-space delta is measured."""
+
+    def __init__(
+        self, *, data_root: Path | None = None, interval_s: float = RESOURCE_SAMPLE_S
+    ) -> None:
+        if interval_s <= 0:
+            raise RunLedgerError(f"ResourceLog: interval_s must be > 0, got {interval_s}")
+        self.interval_s = float(interval_s)
+        self.usage: ResourceUsage | None = None
+        self._data_root = data_root
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._process: Any = None
+        self._gpu = _GpuProbe()
+        self._clock = 0.0
+        self._cpu_start: float | None = None
+        self._free_start: int | None = None
+        self._rss_start: int | None = None
+        self._peak_wset_start: int | None = None
+        self._rss_max = 0
+        self._gpu_peak: int | None = None
+        self._samples = 0
+
+    # -- lifecycle -------------------------------------------------------------------------
+
+    def start(self) -> ResourceLog:
+        if self._thread is not None:
+            raise RunLedgerError("ResourceLog.start: already started")
+        import psutil
+
+        self._process = psutil.Process()
+        self._free_start = _free_bytes(self._data_root) if self._data_root else None
+        info = self._process.memory_info()
+        self._rss_start = int(info.rss)
+        self._peak_wset_start = getattr(info, "peak_wset", None)
+        self._cpu_start = self._cpu_time()
+        self._gpu.open()
+        self._clock = time.perf_counter()
+        self.sample()
+        self._thread = threading.Thread(target=self._loop, name="mwh-resource-log", daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> ResourceUsage:
+        """Stop sampling and return (and keep, as ``usage``) the measurement."""
+        if self._thread is None or self._process is None:
+            raise RunLedgerError("ResourceLog.stop: not started")
+        self._stop_event.set()
+        self._thread.join(timeout=max(2.0, 4 * self.interval_s))
+        self.sample()
+        wall_s = time.perf_counter() - self._clock
+        try:
+            info = self._process.memory_info()
+            rss_end: int | None = int(info.rss)
+            peak_wset = getattr(info, "peak_wset", None)
+        except Exception:  # pragma: no cover - process gone / psutil restricted
+            rss_end, peak_wset = None, None
+        with self._lock:
+            rss_max, samples, gpu_peak = self._rss_max, self._samples, self._gpu_peak
+        if (
+            peak_wset is not None
+            and self._peak_wset_start is not None
+            and int(peak_wset) > self._peak_wset_start
+        ):
+            peak, source = int(peak_wset), "peak_wset"
+        else:
+            peak, source = rss_max, "sampled"
+        cpu_end = self._cpu_time()
+        cpu_time_s = (
+            round(cpu_end - self._cpu_start, 3)
+            if cpu_end is not None and self._cpu_start is not None
+            else None
+        )
+        free_end = _free_bytes(self._data_root) if self._data_root else None
+        disk_delta_mb = (
+            _mb(self._free_start - free_end)
+            if self._free_start is not None and free_end is not None
+            else None
+        )
+        device = self._gpu.device if self._gpu.available else None
+        self._gpu.close()
+        self.usage = ResourceUsage(
+            wall_s=round(wall_s, 6),
+            cpu_time_s=cpu_time_s,
+            peak_rss_mb=_mb(peak) if peak > 0 else None,
+            peak_source=source if peak > 0 else None,  # type: ignore[arg-type]
+            rss_start_mb=_mb(self._rss_start),
+            rss_end_mb=_mb(rss_end),
+            samples=samples,
+            interval_s=self.interval_s,
+            disk_delta_mb=disk_delta_mb,
+            gpu_mem_peak_mb=_mb(gpu_peak) if device is not None else None,
+            gpu_device=device,
+        )
+        return self.usage
+
+    def __enter__(self) -> ResourceLog:
+        return self.start()
+
+    def __exit__(self, *exc: object) -> None:
+        self.stop()
+
+    # -- sampling --------------------------------------------------------------------------
+
+    def sample(self) -> None:
+        """Take one sample now (RSS, GPU); the thread calls this every ``interval_s``."""
+        if self._process is None:
+            return
+        try:
+            rss = int(self._process.memory_info().rss)
+        except Exception:  # pragma: no cover - process gone / psutil restricted
+            return
+        gpu = self._gpu.used_bytes()
+        with self._lock:
+            self._rss_max = max(self._rss_max, rss)
+            self._samples += 1
+            if gpu is not None:
+                self._gpu_peak = max(self._gpu_peak or 0, gpu)
+
+    def _loop(self) -> None:
+        while not self._stop_event.wait(self.interval_s):
+            self.sample()
+
+    def _cpu_time(self) -> float | None:
+        try:
+            times = self._process.cpu_times()
+            return float(times.user + times.system)
+        except Exception:  # pragma: no cover
+            return None
+
+    # -- standalone ------------------------------------------------------------------------
+
+    @classmethod
+    def measure(
+        cls,
+        fn: Callable[..., Any],
+        *args: Any,
+        data_root: Path | None = None,
+        interval_s: float = RESOURCE_SAMPLE_S,
+        **kwargs: Any,
+    ) -> tuple[Any, ResourceUsage]:
+        """``(fn(*args, **kwargs), usage)`` — the standalone snapshot whose usage feeds
+        :func:`bench` (``bench(kind, name, usage=usage, tier=...)``). The measurement is
+        taken even when ``fn`` raises (the exception propagates)."""
+        log = cls(data_root=data_root, interval_s=interval_s).start()
+        try:
+            result = fn(*args, **kwargs)
+        finally:
+            log.stop()
+        assert log.usage is not None
+        return result, log.usage
 
 
 def _jsonable(value: Any) -> Any:
@@ -498,6 +853,9 @@ class Run:
         self.manifest = manifest
         self.dir = directory
         self.settings = settings
+        #: The run's sampler (EP-36); ``start`` sets it so ``r.resource_log.sample()`` can
+        #: mark a moment worth recording.
+        self.resource_log: ResourceLog | None = None
 
     @property
     def run_id(self) -> str:
@@ -665,13 +1023,36 @@ class Run:
         self.manifest.warnings = [*self.manifest.warnings, line]
         _LOG.warning("run %s: %s", self.run_id, line)
 
-    def bench(self, kind: str, name: str, *, wall_s: float, **fields: Any) -> Path:
+    def seed(self, stage: str, *, salt: int = 0) -> Generator:
+        """The stage Generator of this run (EP-36): :func:`derive_seed` of the run's
+        ``protocol_id`` — or its ``run_id`` for unfrozen work, so the seed is fresh per run
+        yet recorded — recorded in ``manifest.seeds`` as ``{stage: seed}`` (``"<stage>@<salt>"``
+        when ``salt`` is non-zero) so ``mwh runs show`` proves which seed every stochastic
+        stage used. Reproduce an unfrozen run by passing the recorded integer to
+        ``numpy.random.default_rng`` directly."""
+        import numpy as np
+
+        seed = derive_seed(self.manifest.protocol_id or self.run_id, stage, salt)
+        key = stage if salt == 0 else f"{stage}@{salt}"
+        self.manifest.seeds = {**(self.manifest.seeds or {}), key: seed}
+        return np.random.default_rng(seed)
+
+    def bench(
+        self,
+        kind: str,
+        name: str,
+        *,
+        wall_s: float | None = None,
+        usage: ResourceUsage | None = None,
+        **fields: Any,
+    ) -> Path:
         """Append a benchmark-ledger line for this run (:func:`bench` with ``run_id`` and
-        ``tier`` filled in)."""
+        ``tier`` filled in); ``usage`` (from :meth:`ResourceLog.measure`) supplies the
+        telemetry when ``wall_s`` is not given."""
         fields.setdefault("run_id", self.run_id)
         fields.setdefault("tier", self.tier)
         fields.setdefault("settings", self.settings)
-        return bench(kind, name, wall_s=wall_s, **fields)
+        return bench(kind, name, wall_s=wall_s, usage=usage, **fields)
 
 
 # ---------------------------------------------------------------------------
@@ -732,9 +1113,8 @@ def start(
     )
     run = Run(manifest, directory, settings)
     run.write_manifest()
-    free_before = _free_bytes(settings.data_root)
-    rss_start = _rss_mb()
-    clock = time.perf_counter()
+    log = ResourceLog(data_root=settings.data_root).start()
+    run.resource_log = log
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
@@ -746,17 +1126,15 @@ def start(
         else:
             manifest.status = "ok"
         finally:
+            usage = log.stop()
             for w in caught:
                 text = _sanitized(f"{w.category.__name__}: {w.message}")
                 manifest.warnings = [*manifest.warnings, text]
                 _LOG.warning("run %s: %s", run_id, text)
-            manifest.wall_s = round(time.perf_counter() - clock, 3)
-            rss_end = _rss_mb()
-            samples = [s for s in (rss_start, rss_end) if s is not None]
-            manifest.peak_rss_mb = max(samples) if samples else None
-            free_after = _free_bytes(settings.data_root)
-            if free_before is not None and free_after is not None:
-                manifest.disk_delta_mb = round((free_before - free_after) / 2**20, 1)
+            manifest.resources = usage
+            manifest.wall_s = usage.wall_s
+            manifest.peak_rss_mb = usage.peak_rss_mb
+            manifest.disk_delta_mb = usage.disk_delta_mb
             manifest.finished = datetime.now(UTC).isoformat(timespec="milliseconds")
             run.write_manifest()
             _append_ledger(manifest, settings)
@@ -771,8 +1149,9 @@ def bench(
     kind: str,
     name: str,
     *,
-    wall_s: float,
     tier: str,
+    wall_s: float | None = None,
+    usage: ResourceUsage | None = None,
     run_id: str | None = None,
     build_id: str | None = None,
     settings: Settings | None = None,
@@ -780,12 +1159,22 @@ def bench(
 ) -> Path:
     """Build one :class:`dag.benchmarks.BenchmarkLine` (``kind`` per
     :data:`dag.benchmarks.BENCHMARK_KINDS`, ``step`` = ``name``) and append it through
-    :func:`dag.benchmarks.append` — the EP-19 module stays the only writer. ``build_id``
-    defaults to ``run_id``, else a fresh runner-shaped id; ``host``, ``ts``,
-    ``duckdb_version``, ``git_sha`` and ``ok`` are filled in unless given."""
+    :func:`dag.benchmarks.append` — the EP-19 module stays the only writer. ``wall_s`` or a
+    :class:`ResourceUsage` (``usage``, from :meth:`ResourceLog.measure`; EP-36) supplies the
+    telemetry — an explicit ``wall_s`` / ``peak_rss_mb`` / ``disk_delta_mb`` wins over the
+    usage's. ``build_id`` defaults to ``run_id``, else a fresh runner-shaped id; ``host``,
+    ``ts``, ``duckdb_version``, ``git_sha`` and ``ok`` are filled in unless given."""
     from mimicwarehouse.dag import benchmarks
     from mimicwarehouse.dag.runner import git_short_sha, new_build_id
 
+    if usage is not None:
+        for key, value in usage.bench_fields().items():
+            if key == "wall_s":
+                wall_s = value if wall_s is None else wall_s
+            else:
+                fields.setdefault(key, value)
+    if wall_s is None:
+        raise RunLedgerError(f"bench({kind!r}, {name!r}): give wall_s or usage=ResourceUsage")
     settings = settings or get_settings()
     fields.setdefault("ts", datetime.now(UTC).isoformat(timespec="seconds"))
     fields.setdefault("host", benchmarks.host_info())
@@ -933,15 +1322,20 @@ __all__ = [
     "MANIFEST_COLUMNS",
     "MANIFEST_FILENAME",
     "NAME_RE",
+    "RESOURCE_SAMPLE_S",
     "RUN_ID_RE",
     "RUN_KINDS",
     "RUN_STATUSES",
+    "SEED_BYTES",
+    "SEED_MAX",
     "SQL_DIRNAME",
     "TABLES_DIRNAME",
     "TEXT_MAX_CHARS",
     "TIERS",
     "AttritionRow",
     "RefEntry",
+    "ResourceLog",
+    "ResourceUsage",
     "Run",
     "RunErrorInfo",
     "RunKind",
@@ -949,18 +1343,23 @@ __all__ = [
     "RunManifest",
     "RunStatus",
     "bench",
+    "derive_seed",
     "environment_block",
     "git_dirty",
     "git_sha",
     "ledger_path",
     "list_runs",
     "manifest_path",
+    "random_state",
     "read_ledger",
     "read_manifest",
     "reproduction_block",
     "require_run_id",
+    "rng",
     "run_dir",
     "runs_db_views",
+    "seed_everything",
+    "spawn_rngs",
     "start",
     "uv_lock_sha256",
 ]

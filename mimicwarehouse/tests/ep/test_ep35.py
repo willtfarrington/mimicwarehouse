@@ -161,7 +161,8 @@ def test_run_writes_manifest_and_ledger_line(data_root: Path) -> None:
     assert manifest["duckdb_version"] == "1.5.5" and manifest["python_version"].startswith("3.13")
     assert manifest["package_version"] and manifest["uv_lock_sha256"]
     assert manifest["snapshot_ids"] == {"core": "a" * 64}
-    assert manifest["seeds"] is None and manifest["resources"] is None, "EP-36 fills these"
+    assert manifest["seeds"] is None, "nothing seeded (EP-36 records {stage: seed} on r.seed)"
+    assert manifest["resources"]["wall_s"] >= 0, "EP-36 fills resources on every run"
     assert manifest["doctor"] is None, "doctor=False skips the environment block"
     # exactly one ledger line, the LEDGER_FIELDS subset, in the canonical form
     lines = _ledger_lines(settings)

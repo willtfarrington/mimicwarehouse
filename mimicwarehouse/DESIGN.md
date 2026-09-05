@@ -669,6 +669,28 @@ manifests and job state files.
 > and numbers are unchanged. `run.reproduction_block(run_id)` renders the EP-32
 > Reproduction + Provenance block.
 
+> **Note (2026-09-05, EP-36).** `seeds` and `resources` are filled (prose:
+> `docs/methods/determinism.md`). **Seeds:** one pure rule, `run.derive_seed(protocol_id,
+> stage, salt=0)` = the first four bytes of `sha256("{protocol_id}|{stage}|{salt}")` — a
+> 32-bit integer, no global state, identical in every process and `spawn` worker;
+> `run.rng` / `run.spawn_rngs` (a `SeedSequence.spawn` per worker or fold) /
+> `run.random_state` (the integer sklearn-style APIs take) / `run.seed_everything` (the
+> globals, torch only if already imported — never imported, D-16) build on it, and
+> `Run.seed(stage)` derives from the run's `protocol_id` (the `run_id` when unfrozen —
+> fresh per run, still recorded) and writes `{stage: seed}` into `manifest.seeds`, so the
+> manifest proves which seed each stochastic stage used. **Resources:** `run.ResourceLog`,
+> a daemon-thread psutil sampler (0.5 s; start + stop samples; `sample()` by hand) whose
+> `ResourceUsage` sits under `manifest.resources` and mirrors `wall_s` / `peak_rss_mb` /
+> `disk_delta_mb` — wall (µs), CPU time, the interval's peak working set with its
+> provenance (`peak_wset` when the run set a new process high-water mark on Windows, else
+> the sampled maximum: `peak_wset` is a lifetime mark, so it is exact only when it rose),
+> start/end RSS, sample count, the data-root drive's free-space delta, and this pid's peak
+> GPU memory through `pynvml` **only if** it imports and a device answers (`null` and
+> silent otherwise). `ResourceLog.measure(fn)` is the standalone form; `run.bench(...,
+> usage=)` turns its usage into a `BenchmarkLine`. The EP-19 runner keeps its own
+> `_RssSampler` (a merge is EP-54's call). `RunManifest.resources` is typed
+> (`ResourceUsage`, `extra="forbid"`); the `manifests` view still binds it as `JSON`.
+
 **Identifier glossary** (D-43 item 11) — briefs and modules use these names and no others:
 
 - **`raw_snapshot_id`** (EP-10) — sha256 over the sorted `(rel_path, bytes, sha256, rows)`
@@ -844,7 +866,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
 │   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
-│   ├── run.py                     EP-35 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); EP-36 seeds + resource log
+│   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed`/`rng`/`spawn_rngs`/`random_state`/`seed_everything`, `Run.seed`) + `ResourceLog` sampler → `ResourceUsage` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42

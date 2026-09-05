@@ -80,6 +80,14 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   and raises. *(EP-33, ledger CLI-1/LDR-2, WIN-2/3/4.)*
 - **The in-process rss/ctypes probe reads 0 on this host** for minutes; trust the runner's
   psutil sampler. *(EP-23.)*
+- **`peak_wset` is a process-lifetime high-water mark, not an interval's.** psutil's
+  `memory_info().peak_wset` (Windows) never decreases, so inside a long pytest session or
+  the app the second run's "peak" would be the first run's. `run.ResourceLog` reports it
+  as the interval's peak only when it *rose* during the interval (`peak_source:
+  peak_wset`, exact) and falls back to the 0.5 s-sampled RSS maximum otherwise
+  (`sampled`; call `sample()` at a moment worth catching). `pynvml` is probed per pid
+  through the running-process list, never device-wide `used` (the desktop's VRAM is not
+  ours), and every NVML failure degrades to `null` without a warning. *(EP-36.)*
 - **`os.linesep` through a text-mode stdout yields CR-CR-LF.** JSON emitters write plain
   `\n` (`console.emit_json`). *(EP-167/EP-33.)*
 - **Endpoint security is two products** (Defender + Malwarebytes 5.1 Premium, D-42): the

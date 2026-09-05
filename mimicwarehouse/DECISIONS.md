@@ -396,6 +396,25 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > so a refresh is never served stale from the path-keyed instance cache. Details in DESIGN §11's
 > EP-35 note and `docs/methods/provenance.md`.
 
+> **Addendum (2026-09-05, EP-36 — seeds and resources as built).** The manifest's `seeds`
+> and `resources` slots are filled by one seed rule and one sampler
+> (`docs/methods/determinism.md`). (1) **Seeds are a pure function of names:**
+> `derive_seed(protocol_id, stage, salt)` = the first four sha256 bytes of
+> `"{protocol_id}|{stage}|{salt}"`, a 32-bit integer with no global state, so a stage is
+> reproducible from a protocol id in any process or `spawn` worker; library code takes a
+> numpy `Generator` argument and never seeds globally, third-party estimators get
+> `random_state(rng)`, SQL sampling uses `REPEATABLE (seed)`, and `seed_everything` seeds
+> torch only when it is already imported (D-16: never imported). Unfrozen work (before
+> EP-51) seeds from the `run_id` — fresh per run, recorded in the manifest, reproducible
+> from the recorded integer. (2) **The peak working set is reported with its provenance:**
+> Windows' `peak_wset` is a process-lifetime mark, so `ResourceUsage.peak_source` says
+> `peak_wset` (exact; the run raised the mark) or `sampled` (the 0.5 s maximum) — a
+> manifest never carries a peak that belongs to an earlier run in the same process.
+> (3) **GPU telemetry degrades silently:** per-pid memory through `pynvml` only when it
+> imports and a device answers; otherwise `null`, no warning, no dependency (`pynvml`
+> arrives with the `gpu` group at EP-121). The EP-19 runner keeps its own `_RssSampler`;
+> merging it into `ResourceLog` is deferred to EP-54 as a routine consolidation.
+
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
