@@ -200,3 +200,21 @@ diagnoses carry no timestamps (assign `dischtime` of the admission), the ICD swi
 > version-addressed read is parked as PHE-6 for EP-43 (rejected: allow-listing the schema
 > in this brief). (4) Defer the full-tier `--tag phenotypes` build to the next full rebuild
 > / EP-42's `phenotypes-full` job (rejected: a background job now).
+
+> **Full-tier record (2026-09-06, after the review; owner-launched).** The owner ran the
+> deferred trio the same evening: `mwh build --tier full --tag units --tag codesets --tag
+> phenotypes --background --job meta-full` (build `20260906T230902-full-46e84a6`, run
+> `20260906T230902Z-cb954b`, log `runs\jobs\meta-full.log`; 7 steps, **87 s** end to end,
+> 23:09:02 → 23:10:29 UTC). The phenotype run `20260906T231017Z-69287e` materialised
+> `t2dm@1.0.0` on full in **1.3 s**; `codesets.compile` 5,433 member rows,
+> `units.variants` 79 variant rows, `units.dictionary` 5,745 rows, catalog 31 tables /
+> views. `mwh phenotype summary t2dm@1.0.0 --tier full` (k = 11, 0 rows suppressed):
+> **364,627 subjects, 49,599 positive, 13.6 %** — the same share as dev; by era through
+> the `_hadm` companion — 2008–2010 227,719 admissions / 72,568 (31.9 %), 2011–2013
+> 114,880 / 29,312 (25.5 %), 2014–2016 91,088 / 21,583 (23.7 %), 2017–2019 69,850 /
+> 15,922 (22.8 %), 2020–2022 42,491 / 9,337 (22.0 %). `mwh units report --tier full`
+> reads the EP-39 table as on dev (63 curated itemids, 16 flagged — the null-unit
+> variants and the two chart glucose items). The full catalog therefore carries
+> `meta.item_*`, `meta.codeset*`, `meta.gem_*`, `meta.phenotype_versions` and
+> `mimiciv_derived.phenotype_t2dm` (+ `_hadm`) from here on; EP-42's `phenotypes-full`
+> job adds sepsis-3 / KDIGO.
