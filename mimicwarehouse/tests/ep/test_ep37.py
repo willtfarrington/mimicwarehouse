@@ -36,9 +36,9 @@ import helpers
 from mimicwarehouse import config
 from mimicwarehouse.cli import app
 from mimicwarehouse.concepts import inventory as inv_mod
+from mimicwarehouse.concepts import patching, vendor_manifest
 from mimicwarehouse.concepts import pins as pins_mod
 from mimicwarehouse.concepts import runner as concepts_runner
-from mimicwarehouse.concepts import vendor_manifest
 from mimicwarehouse.concepts.inventory import (
     DRIVER_FILENAME,
     Concept,
@@ -391,6 +391,10 @@ def test_fixture_lake_carries_every_concept(
     ).fetchall()
     assert [r[0] for r in rows] == sorted(c.name for c in inv.concepts)
     by_name = inv.by_name()
+    # EP-38 (2026-09-06, churn rule EP-168): a concept with a registry patch executes the
+    # patch's SQL, so its row carries the patch id and the patch file's sha256; the rest
+    # keep the vendored hash and a NULL patch_id (EP-37's "NULL until EP-38" pin).
+    patched = patching.load_registry().by_concept()
     lake = fixture_lake_settings.lake_root("fixture")
     derived_ids = {
         e["snapshot_id"]
@@ -412,8 +416,13 @@ def test_fixture_lake_carries_every_concept(
         b,
     ) in rows:
         c = by_name[concept]
-        assert (group, commit, sha) == (c.group, c.upstream_commit, c.sql_sha256)
-        assert patch is None and status == "done" and err is None
+        assert (group, commit) == (c.group, c.upstream_commit)
+        expected_patch = patched.get(concept)
+        if expected_patch is None:
+            assert patch is None and sha == c.sql_sha256
+        else:
+            assert patch == expected_patch.patch_id and sha == expected_patch.sql_sha256
+        assert status == "done" and err is None
         assert n is not None and n >= 0 and built_at and b
         assert snapshot_id in derived_ids
     comment = _scalar(

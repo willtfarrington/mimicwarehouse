@@ -12,7 +12,9 @@ EP-8 vendors an allow-listed slice of MIT-LCP/mimic-code (MIT) at a pinned commi
 
 Everything resolves through :mod:`importlib.resources`, so an installed wheel (hatchling
 ships every non-Python file under the package) behaves like the source checkout. EP-37 adds
-the concept runner and EP-38 the ``patches/`` tree beside ``vendor/``; re-vendoring is
+the concept runner (:mod:`.inventory`, :mod:`.runner`, :mod:`.pins`) and EP-38 the patch
+registry (:mod:`.patching` over the ``patches/`` tree beside ``vendor/``: full-replacement
+ports of upstream fixes, pinned to the vendored commit); re-vendoring is
 ``poe vendor-mimic-code`` (:mod:`mimicwarehouse.concepts.vendoring`).
 """
 

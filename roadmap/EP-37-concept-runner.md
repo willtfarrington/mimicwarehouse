@@ -349,3 +349,39 @@ shell cap ~10 min → the full run is background-only.
 > **Deviations from the brief text.** None beyond the EP-33 amendments; the "failing
 > concepts on 1.5.x" list in `docs/resources/concepts.md` is empty (65 / 65 on fixture,
 > demo and dev). Nothing was cherry-picked from `3ba1224` / `2be0990`.
+
+> **Completion note (2026-09-06, appended by EP-38 — the ⏱ verification of the full run).**
+> Record-keeping, as the pickup note anticipated: the `concepts-full` job (pid 48132) ran
+> 2026-09-06T00:35:09 → 00:47:03 UTC, state `done`, exit 0 (`mwh jobs --job concepts-full
+> --tail 40`: INFO lines only, every concept step `done`), run `20260906T003510Z-9564c0`
+> (`mwh runs show`: kind build, status ok, wall 707.0 s, peak RSS 7,479.6 MB, disk delta
+> 1,427.4 MB, one `concept` ref per table, `derived/full` snapshot `a681ed30d829…`). Every
+> concept has its manifest line and per-tier status entry (65 `kind: concept` ledger lines,
+> all `ok`), and `meta.concept_versions` on `full.duckdb` read `done 65` with `patch_id`
+> NULL for all 65 through `mwh sql` (audit `d244e46e…` / `d6983c82…`) — **no failures,
+> nothing to re-launch**. Per-group table from the benchmark ledger (`mwh runs benchmarks
+> --tier full --kind concept`; wall = the group's summed concept wall, peak RSS = the
+> group's maximum):
+>
+> | group | concepts | wall s | peak RSS MB | rows | Parquet bytes |
+> |---|---:|---:|---:|---:|---:|
+> | comorbidity | 1 | 13.3 | 492 | 546,028 | 4,599,911 |
+> | demographics | 5 | 2.5 | 534 | 11,619,064 | 61,530,604 |
+> | firstday | 10 | 4.2 | 1,613 | 944,580 | 19,958,939 |
+> | measurement | 18 | 192.7 | 7,479 | 53,822,452 | 877,265,027 |
+> | medication | 14 | 4.5 | 635 | 3,851,347 | 61,774,489 |
+> | organfailure | 4 | 5.4 | 1,826 | 10,133,576 | 152,303,216 |
+> | score | 6 | 24.5 | 7,177 | 8,688,074 | 111,629,846 |
+> | sepsis | 2 | 444.4 | 1,195 | 991,197 | 13,916,801 |
+> | treatment | 5 | 8.6 | 1,250 | 5,181,433 | 34,973,763 |
+> | **total** | 65 | 700.1 | 7,479 | 95,777,751 | 1,337,952,596 |
+>
+> The five slowest concepts: `suspicion_of_infection` 442.8 s (peak RSS 1,107 MB, 949,901
+> rows), `rhythm` 159.7 s (7,479 MB, 7,887,354 rows), `sofa` 19.3 s (7,177 MB, 8,215,784
+> rows), `charlson` 13.3 s (492 MB, 546,028 rows), `vitalsign` 10.2 s (3,702 MB,
+> 13,519,533 rows). Disk: `lake/derived/full/mimiciv_derived/` (the as-built layout — the
+> brief's `lake/derived/full/concepts/`) holds 65 files, 1,337,952,596 bytes (1,276.0 MB);
+> with the dev tier's 62,739,879 bytes the `lake_derived` key reads 1,335.8 MB in `mwh
+> paths`, `meta/full/` adds 16,439 bytes in 3 Parquet files, and C: keeps 389.6 GB free.
+> EP-38's patched rebuild of 12 concepts on full followed the same day (its completion
+> note carries that run).

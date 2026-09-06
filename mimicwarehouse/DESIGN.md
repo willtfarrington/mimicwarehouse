@@ -599,7 +599,45 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
 > (fixture, demo, dev; full launched as `concepts-full`, EP-38 verifies); the human-readable
 > inventory and the (empty) failure list are `docs/resources/concepts.md`.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37 (completion notes); EP-38 … EP-42 planned; consolidated at EP-33.
+> **Note (2026-09-06, EP-38) — concept patches.** The vendored `concepts_duckdb` files stay
+> untouched; a local deviation is a **full-replacement** `concepts/patches/<concept>.sql`
+> (the vendored DuckDB body with one upstream fix applied by hand, under the same
+> `DROP TABLE …; CREATE TABLE … AS` header, with a header comment that cites the upstream
+> PR / issue and keeps the MIT attribution) plus one entry in the registry
+> `concepts/patches/patches.yaml` — `patch_id`, `concept`, `reason`, `upstream_ref`,
+> `related_refs`, `applies_to_upstream_commit`, `sql_sha256`, `date`, `status`
+> (`ported-unmerged` / `ported-merged`), `semantics` (`changes-values` / `intent-only`),
+> `demo_effect`. `concepts/patching.py` validates the registry (every entry names a vendored
+> concept, applies to the EP-8 pin, hashes its file, cites its reference and the license,
+> creates the concept it claims, adds no `mimiciv_derived` / core reference the vendored
+> file lacks — the generated spec stays valid; no orphan `.sql`) and the runner checks it
+> once per build: any mismatch — a re-vendor, a drifted or missing file — refuses **every**
+> concept step, so re-vendoring forces a review of each patch before a concept builds again.
+> A validated patch's SQL replaces the vendored file's; the executed SQL's sha256 and the
+> `patch_id` land in the per-tier status entry (`vendored_sha256` kept beside), the manifest
+> line (`source_sha256`), `meta.concept_versions` (`sql_sha256`, `patch_id`), the run's refs
+> (`concept` + `concept_patch`) and the catalog view comment. A patched rebuild is `mwh build
+> --tier <t> --select <list> --force` with the list from `python -m
+> mimicwarehouse.concepts.patching --select-list`: the patched concepts **and** every
+> concept that transitively reads them (`Inventory.dependents_of`, execution order), then
+> `meta.concept_versions` and the catalog. The count-pins carry the patch map (`patches`)
+> beside the upstream commit and `python -m mimicwarehouse.concepts.pins --tier <t>
+> --refresh` re-pins with a before/after record. Five ports at EP-38, all `ported-unmerged`
+> and re-checked at the P4 re-plan: the SIRS `wbc_max` missing-data guard (PR 2146), the
+> MCHC and CRP `valueuom` filters (PR 2141 — `complete_blood_count`, `inflammation`), the
+> Charlson C4A exclusion (PR 2142) and the APS III equidistant arms (PR 2137). The four other
+> lab panels the brief named (`chemistry`, `blood_differential`, `enzyme`, `bg`) have no
+> upstream fix and one unit per itemid on dev / full, so they stay unpatched (EP-39's
+> harmonisation owns unit rules, per its brief). Semantics: the SIRS and APS III ports are
+> intent-only on MIMIC-IV (first-day min / max inputs come in pairs); the MCHC filter nulls
+> the values recorded with `%` (a large minority of MCHC rows), the CRP filter drops rows
+> without a unit, C4A no longer counts as `malignant_cancer`; no demo count-pin moved. The
+> second open APS III PR (2046, axillary temperature + 1 °C) and the wider Charlson PR (2043,
+> mapping C7A / C7B) were evaluated and not ported — semantic changes without maintainer
+> acceptance. Measured sizes of the derived layer: full 1,337,952,596 bytes (1,276.0 MB) in
+> 65 files, dev 62,739,879 bytes, demo 1,821,138 bytes.
+
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38 (completion notes); EP-39 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -924,7 +962,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
 │   ├── runs_cli.py                EP-30, EP-32, EP-35 shipped   `mwh runs refresh | list | show | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
-│   ├── concepts/                  EP-8, EP-167, EP-37 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, the generated dag spec), runner.py (concept steps, meta.concept_versions, catalog discovery walker), pins.py; EP-38 patches/
+│   ├── concepts/                  EP-8, EP-167, EP-37, EP-38 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, the generated dag spec), runner.py (concept steps, meta.concept_versions, catalog discovery walker), pins.py; patching.py + patches/ (patches.yaml registry, five full-replacement <concept>.sql ports of open upstream PRs)
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization

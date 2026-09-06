@@ -79,6 +79,13 @@
     "2": 42,
     "3": 31
   },
+  "patches": {
+    "apsiii": "apsiii-equidistant-arms-pr2137",
+    "charlson": "charlson-c4a-exclusion-pr2142",
+    "complete_blood_count": "complete_blood_count-mchc-unit-pr2141",
+    "inflammation": "inflammation-crp-unit-pr2141",
+    "sirs": "sirs-wbc-guard-pr2146"
+  },
   "sepsis3_true": 62,
   "tier": "demo",
   "upstream_commit": "8bcbd190ca75670cd5281f9ead3611ae1cefb73e"

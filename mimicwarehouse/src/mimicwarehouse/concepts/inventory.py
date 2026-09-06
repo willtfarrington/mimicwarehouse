@@ -39,12 +39,15 @@ import sys
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from mimicwarehouse.concepts import TREE_DIRNAME, vendor_info, vendor_root
+
+if TYPE_CHECKING:  # pragma: no cover
+    from mimicwarehouse.concepts.patching import PatchRegistry
 
 #: Upstream-relative directory of the transpiled concepts (EP-8 allow-list).
 CONCEPTS_DIR = "mimic-iv/concepts_duckdb"
@@ -128,6 +131,22 @@ class Inventory(BaseModel):
         if concept.group != parts[1]:
             raise InventoryError(f"{step_name!r}: concept {parts[2]} belongs to {concept.group}")
         return concept
+
+    def dependents_of(self, names: Sequence[str]) -> tuple[str, ...]:
+        """``names`` plus every concept that transitively reads one of them, in execution
+        order (one pass suffices: the inventory is topological, so a dependent always
+        follows what it reads). Unknown names raise :class:`InventoryError`. EP-38 uses
+        it to re-materialise a patched concept together with everything built on it."""
+        unknown = sorted(set(names) - set(self.by_name()))
+        if unknown:
+            raise InventoryError(f"unknown concept(s) {unknown}")
+        wanted = set(names)
+        out: list[str] = []
+        for c in self.concepts:
+            if c.name in wanted or wanted.intersection(c.depends_on):
+                wanted.add(c.name)
+                out.append(c.name)
+        return tuple(out)
 
 
 # ---------------------------------------------------------------------------
@@ -375,19 +394,35 @@ def write_spec(inventory: Inventory | None = None, path: Path | None = None) -> 
     return target
 
 
-def render_inventory_table(inventory: Inventory) -> str:
+#: The "DuckDB 1.5.5" column of the docs table: every vendored concept executes on the
+#: pinned engine on all four tiers (EP-33 D2 smoke; EP-37 fixture / demo / dev; EP-38 full).
+DUCKDB_STATUS_OK = "ok"
+
+
+def render_inventory_table(inventory: Inventory, registry: PatchRegistry | None = None) -> str:
     """The Markdown inventory table of ``docs/resources/concepts.md`` (generated block):
     order · concept · group · reads (concepts) · sources (core tables) · sql sha256
-    (12 hex). Text only — no counts."""
+    (12 hex) · status on DuckDB 1.5.5 (:data:`DUCKDB_STATUS_OK` for every concept) · the
+    EP-38 patch id (``registry`` defaults to the committed patch registry). Text only —
+    no counts."""
+    if registry is None:
+        from mimicwarehouse.concepts.patching import load_registry
+
+        registry = load_registry()
+    patched = registry.by_concept()
     lines = [
-        "| # | concept | group | reads (concepts) | sources (core tables) | sql sha256 |",
-        "|---:|---|---|---|---|---|",
+        "| # | concept | group | reads (concepts) | sources (core tables) | sql sha256 | "
+        "DuckDB 1.5.5 | patch |",
+        "|---:|---|---|---|---|---|---|---|",
     ]
     for i, c in enumerate(inventory.concepts, start=1):
         reads = ", ".join(f"`{d}`" for d in c.depends_on) or "-"
         sources = ", ".join(f"`{s}`" for s in c.sources) or "-"
+        patch = patched.get(c.name)
+        patch_cell = f"`{patch.patch_id}`" if patch is not None else "-"
         lines.append(
-            f"| {i} | `{c.name}` | {c.group} | {reads} | {sources} | `{c.sql_sha256[:12]}` |"
+            f"| {i} | `{c.name}` | {c.group} | {reads} | {sources} | `{c.sql_sha256[:12]}` | "
+            f"{DUCKDB_STATUS_OK} | {patch_cell} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -466,6 +501,7 @@ __all__ = [
     "CONCEPT_CALLABLE",
     "DERIVED_SCHEMA",
     "DRIVER_FILENAME",
+    "DUCKDB_STATUS_OK",
     "INVENTORY_FILENAME",
     "SPEC_NAME",
     "STAGE_SCHEMAS",

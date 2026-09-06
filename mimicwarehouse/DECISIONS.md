@@ -305,6 +305,27 @@ adopt as-is untested.
 > `docs/resources/concepts.md` are the three committed faces of the pin; the "failing on
 > 1.5.x" list is empty, as the EP-33 D2 smoke predicted.
 
+> **Addendum (2026-09-06, EP-38).** "Fixes ported" is now a mechanism, not an edit: a port
+> is a **full-replacement** `concepts/patches/<concept>.sql` plus a registry entry in
+> `concepts/patches/patches.yaml` that pins it to the vendored commit
+> (`applies_to_upstream_commit`) and to its own bytes (`sql_sha256`) and cites the upstream
+> PR / issue; the runner prefers a validated patch over the vendored file and **refuses every
+> concept build** when the registry does not match the pin or a patch file drifted — a
+> re-vendor therefore forces a review of each patch (DESIGN §8 note). Rules settled here:
+> (1) a concept SQL is patched **only where an upstream fix exists** (EP-39's brief owns unit
+> rules and plausibility bounds; the four lab panels the EP-38 brief listed without an
+> upstream PR — `chemistry`, `blood_differential`, `enzyme`, `bg` — stay unpatched); (2) an
+> unmerged upstream PR is ported as `ported-unmerged` and re-checked at each re-plan (EP-54,
+> EP-74) — when it merges, the next re-vendor drops the patch; (3) `meta.concept_versions`
+> and the manifest line record the sha256 of the SQL that ran (the patch's when patched)
+> beside the `patch_id`, and the count-pins carry the patch map beside the upstream commit,
+> so a pin is comparable only against the same commit **and** patch set; (4) the rebuild
+> after a patch re-materialises the patched concepts and every concept that reads them.
+> Ported at EP-38: SIRS `wbc_max` guard (PR 2146), MCHC / CRP `valueuom` filters (PR 2141),
+> Charlson C4A exclusion (PR 2142), APS III equidistant arms (PR 2137); the MCHC filter is
+> taken verbatim from upstream although it nulls a large minority of MCHC rows recorded
+> with `%` — an owner-reviewed choice (EP-38 completion note).
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.

@@ -60,3 +60,8 @@ rows for the covered items only:
   / `vocab/drugs.yaml` / the ICD vocab and regenerates (GENERATOR_VERSION 0.3.0).
 - ED / Note fixture modules do not exist yet (EP-142 / EP-148 own them); every ED/Note
   concept or query is out of the fixture's reach until then.
+- `measurement/complete_blood_count` under the EP-38 patch (`complete_blood_count-mchc-
+  unit-pr2141`): the vocab records MCHC (itemid 51249) with `valueuom: "%"`, exactly the
+  unit the upstream fix excludes, so `mchc` is NULL on every fixture specimen (the other
+  nine CBC items are unaffected; `inflammation`'s CRP carries `mg/L` and passes). Extend
+  the vocab with a `g/dL` MCHC when a later EP needs a fixture MCHC value.

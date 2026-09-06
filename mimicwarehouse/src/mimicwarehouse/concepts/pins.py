@@ -16,17 +16,24 @@ the string ``"<11"`` — :func:`render_cell` is the one-line helper EP-43 replac
 Two files: ``tests/ep/pins/concepts_demo.json`` (committed — the demo is ODbL and the
 cells are suppressed) and ``<data_root>/runs/pins/concepts_dev.json`` (written on the
 first dev run, compared on later ones — a drift detector, **not** committed because it
-precedes EP-43's disclosure gate). :func:`write_or_compare` implements both.
+precedes EP-43's disclosure gate). :func:`write_or_compare` implements both; with
+``refresh`` it rewrites the file and reports what changed (EP-38's re-pin after a patched
+rebuild — the before/after the completion note records). Since EP-38 the pin document
+also carries ``patches`` (``{concept: patch_id}`` from the registry), so a pin is
+comparable only against the same upstream commit **and** the same patch set;
+``python -m mimicwarehouse.concepts.pins --tier <t> [--refresh] [--path FILE]`` is the CLI.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from mimicwarehouse.concepts.inventory import DERIVED_SCHEMA, Inventory, load_inventory
+from mimicwarehouse.concepts.patching import load_registry, registry_summary
 from mimicwarehouse.config import Settings, get_settings
 
 #: The small-cell threshold (GOVERNANCE §5; ``Settings.k_suppression`` defaults to it).
@@ -167,6 +174,7 @@ def compute_pins(tier: str, settings: Settings | None = None) -> dict[str, Any]:
         "generated_by": GENERATED_BY,
         "tier": tier,
         "upstream_commit": inventory.upstream_commit,
+        "patches": registry_summary(load_registry()),
         "k": K,
         "concepts": len(names),
         "counts": counts,
@@ -180,7 +188,14 @@ def compute_pins(tier: str, settings: Settings | None = None) -> dict[str, Any]:
 # Files
 # ---------------------------------------------------------------------------
 
-_COMPARED_KEYS = ("upstream_commit", "counts", "sepsis3_true", "kdigo_max_stage", "charlson")
+_COMPARED_KEYS = (
+    "upstream_commit",
+    "patches",
+    "counts",
+    "sepsis3_true",
+    "kdigo_max_stage",
+    "charlson",
+)
 
 
 def write_pins(pins: Mapping[str, Any], path: Path) -> Path:
@@ -213,15 +228,58 @@ def compare_pins(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> list
 
 
 def write_or_compare(
-    tier: str, path: Path, settings: Settings | None = None
+    tier: str, path: Path, settings: Settings | None = None, *, refresh: bool = False
 ) -> tuple[dict[str, Any], list[str], bool]:
     """Compute the pins for ``tier``; write them to ``path`` when it does not exist
-    (``created`` True), else compare (``diffs``). Returns ``(pins, diffs, created)``."""
+    (``created`` True), else compare (``diffs``: ``<key>: <new> != <old>``). With
+    ``refresh`` an existing file is rewritten after the comparison, so ``diffs`` is the
+    before/after record of a re-pin. Returns ``(pins, diffs, created)``."""
     pins = compute_pins(tier, settings)
     if not path.is_file():
         write_pins(pins, path)
         return pins, [], True
-    return pins, compare_pins(pins, read_pins(path)), False
+    diffs = compare_pins(pins, read_pins(path))
+    if refresh:
+        write_pins(pins, path)
+    return pins, diffs, False
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """``python -m mimicwarehouse.concepts.pins --tier demo|dev|fixture [--refresh]
+    [--path FILE]``: write / compare / refresh one pin file (module docstring) and print
+    the differences — counts only, every cell already suppressed. Exit 1 when a plain
+    comparison differs."""
+    args = list(sys.argv[1:] if argv is None else argv)
+
+    def value_of(flag: str) -> str | None:
+        return (
+            args[args.index(flag) + 1]
+            if flag in args and args.index(flag) + 1 < len(args)
+            else None
+        )
+
+    tier = value_of("--tier")
+    if tier not in ("fixture", "demo", "dev", "full"):
+        print("usage: --tier demo|dev|fixture|full [--refresh] [--path FILE]")
+        return 2
+    refresh = "--refresh" in args
+    given = value_of("--path")
+    if given is not None:
+        path = Path(given)
+    elif tier == "demo":
+        path = demo_pins_path()
+    elif tier == "dev":
+        path = dev_pins_path()
+    else:
+        print(f"--tier {tier} needs --path FILE (no default pin file)")
+        return 2
+    pins, diffs, created = write_or_compare(tier, path, refresh=refresh)
+    verb = "written" if created else ("refreshed" if refresh else "compared")
+    print(f"pins {tier}: {verb} -> {path}")
+    for d in diffs:
+        print(f"  {d}")
+    print(f"{len(pins['counts'])} concept count(s); {len(diffs)} difference(s)")
+    return 0 if (created or refresh or not diffs) else 1
 
 
 __all__ = [
@@ -237,9 +295,13 @@ __all__ = [
     "counts_statement",
     "demo_pins_path",
     "dev_pins_path",
+    "main",
     "present_concepts",
     "read_pins",
     "render_cell",
     "write_or_compare",
     "write_pins",
 ]
+
+if __name__ == "__main__":
+    sys.exit(main())

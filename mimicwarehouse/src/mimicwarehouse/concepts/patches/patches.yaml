@@ -1,0 +1,104 @@
+# concepts/patches/patches.yaml -- the concept patch registry (EP-38 item 2; D-19, DESIGN section 8).
+# One entry per patched concept: the full-replacement <concept>.sql beside this file ports one
+# upstream mimic-code fix over the vendored (never edited) concepts_duckdb file. The runner
+# prefers the patch when every entry validates -- applies_to_upstream_commit equals the EP-8
+# pin and sql_sha256 equals the file's bytes; any mismatch refuses every concept build until
+# the patch is reviewed (a re-vendor therefore forces that review). Hand-maintained; ASCII;
+# status ported-unmerged is re-checked at the P4 re-plan (EP-54 / EP-74).
+# Validate:      uv run python -m mimicwarehouse.concepts.patching --check
+# Rebuild list:  uv run python -m mimicwarehouse.concepts.patching --select-list
+# Docs table:    uv run python -m mimicwarehouse.concepts.patching --table
+version: 1
+patches:
+  - patch_id: sirs-wbc-guard-pr2146
+    concept: sirs
+    reason: >-
+      The WBC missing-data arm tests COALESCE(wbc_min, wbc_max, bands_max) IS NULL instead of
+      COALESCE(wbc_min, bands_max) IS NULL, so a stay whose only WBC input is a normal wbc_max
+      scores 0 rather than NULL. first_day_lab yields wbc_min and wbc_max together, so the rows
+      do not change on MIMIC-IV; the crafted regression test shows the guard.
+    upstream_ref: https://github.com/MIT-LCP/mimic-code/pull/2146
+    related_refs: []
+    applies_to_upstream_commit: 8bcbd190ca75670cd5281f9ead3611ae1cefb73e
+    sql_sha256: 42d8e6a3a9fd2b16a2ccfc204fc036249a6f1fcb2acf9d076d5163d6b6ea808b
+    date: "2026-09-06"
+    status: ported-unmerged
+    semantics: intent-only
+    demo_effect: >-
+      none -- 140 rows before and after (one per ICU stay) and the same wbc_score values,
+      because first_day_lab yields wbc_min and wbc_max together
+  - patch_id: complete_blood_count-mchc-unit-pr2141
+    concept: complete_blood_count
+    reason: >-
+      MCHC (itemid 51249) is kept only with valueuom = 'g/dL', in the pivoted column and in the
+      WHERE clause; upstream treats the rows recorded with '%' as mis-labelled units (issue
+      1922). MCHC values recorded with '%' become NULL, and a specimen whose only CBC row was
+      such an MCHC disappears from the table; the other nine CBC items are unchanged.
+    upstream_ref: https://github.com/MIT-LCP/mimic-code/pull/2141
+    related_refs:
+      - https://github.com/MIT-LCP/mimic-code/issues/1922
+    applies_to_upstream_commit: 8bcbd190ca75670cd5281f9ead3611ae1cefb73e
+    sql_sha256: b653b0f41088a990877ef8646cef353fec366686ef766e65a9511ed7d68ffaa9
+    date: "2026-09-06"
+    status: ported-unmerged
+    semantics: changes-values
+    demo_effect: >-
+      none on the row count -- 2,959 specimens before and after (no demo specimen consisted
+      of a '%'-labelled MCHC alone); the MCHC values recorded with '%' are NULL from now on
+  - patch_id: inflammation-crp-unit-pr2141
+    concept: inflammation
+    reason: >-
+      CRP (itemid 50889) is kept only with valueuom = 'mg/L' -- rows with a missing or other
+      unit are excluded, in the pivoted column and in the WHERE clause (the second half of the
+      same upstream PR).
+    upstream_ref: https://github.com/MIT-LCP/mimic-code/pull/2141
+    related_refs:
+      - https://github.com/MIT-LCP/mimic-code/issues/1922
+    applies_to_upstream_commit: 8bcbd190ca75670cd5281f9ead3611ae1cefb73e
+    sql_sha256: e6c42a753003e41cc66ec90cd8eeb517bd15f42116534f582ff5700f73c09fd8
+    date: "2026-09-06"
+    status: ported-unmerged
+    semantics: changes-values
+    demo_effect: >-
+      none -- 42 specimens before and after (every demo CRP row carries mg/L); on the dev
+      tier fewer than 11 specimens (CRP rows without a unit) drop out
+  - patch_id: charlson-c4a-exclusion-pr2142
+    concept: charlson
+    reason: >-
+      The ICD-10 malignant_cancer range C45-C58 is split into C45-C49 and C50-C58 so the
+      ICD-10-CM extension C4A (Merkel cell carcinoma), which sorts inside the single range, is
+      excluded as a skin malignancy per Quan et al. (2005); C7A / C7B stay unmapped (upstream's
+      documented, intentional omission -- issue 2017; the wider PR 2043 that maps them is not
+      ported).
+    upstream_ref: https://github.com/MIT-LCP/mimic-code/pull/2142
+    related_refs:
+      - https://github.com/MIT-LCP/mimic-code/issues/2017
+      - https://github.com/MIT-LCP/mimic-code/pull/2043
+    applies_to_upstream_commit: 8bcbd190ca75670cd5281f9ead3611ae1cefb73e
+    sql_sha256: d0c026b9afdc2f71e91e4fd7e462b53e06fe05f5de4e5f6010e49def7df4bb68
+    date: "2026-09-06"
+    status: ported-unmerged
+    semantics: changes-values
+    demo_effect: >-
+      none -- 275 admissions before and after and the mean index 4.66 unchanged (no demo
+      admission carries a C4A code)
+  - patch_id: apsiii-equidistant-arms-pr2137
+    concept: apsiii
+    reason: >-
+      The "equidistant from normal -- pick the larger score" arms for respiratory rate,
+      hematocrit, WBC, sodium, albumin and glucose compared ABS(x_max - mid) with itself; they
+      now compare it with ABS(x_min - mid) like the heart-rate, MBP and temperature arms (Knaus
+      et al. 1991). The tautology was only reached once the two distances were equal, so the
+      rows do not change on MIMIC-IV; the crafted boundary test pins the rule. The second open
+      APS III PR (2046, axillary temperature +1 C) is a further semantic change and is not
+      ported.
+    upstream_ref: https://github.com/MIT-LCP/mimic-code/pull/2137
+    related_refs: []
+    applies_to_upstream_commit: 8bcbd190ca75670cd5281f9ead3611ae1cefb73e
+    sql_sha256: e1b3ccf2d603dbcc982de2bdfea4dc2e4a73543f9da36c1b17916b353d378341
+    date: "2026-09-06"
+    status: ported-unmerged
+    semantics: intent-only
+    demo_effect: >-
+      none -- 140 rows before and after with identical scores (the corrected arms are only
+      reached once the two distances are equal)

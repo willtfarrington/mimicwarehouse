@@ -30,12 +30,20 @@ runner / catalog builder own (this module opens nothing itself):
     error class, appends an ``ok: false`` concept line and re-raises a
     :class:`ConceptError` whose message is **sanitized**
     (:func:`mimicwarehouse.safe.sanitize_error_text`) — engine errors quote cell values.
+    **Patches (EP-38).** The SQL comes through :func:`resolve_concept_sql`: the registry
+    patch (:mod:`.patching`, ``concepts/patches/<name>.sql``) when one exists for the
+    concept, else the vendored file. :func:`checked_registry` validates the registry once
+    per build and refuses every concept step while it does not match the EP-8 pin (a
+    re-vendor forces a review); the executed SQL's sha256 and the ``patch_id`` go into
+    the status entry, the manifest line (``source_sha256``), ``meta.concept_versions``
+    and the run's refs (``concept`` + ``concept_patch``).
 
 :func:`run_concept_versions` (``python`` step ``meta.concept_versions``)
     Writes ``<lake_root>/meta/<tier>/concept_versions.parquet`` (EP-29's meta layout):
     one row per concept **attempted** on the tier — concept, group, upstream_commit,
-    sql_sha256, patch_id (NULL until EP-38), rows, built_at, run_id, snapshot_id (the
-    derived layer's), status (done / failed), error_class, build_id. Failures are
+    sql_sha256 (of the SQL that ran: the patch's when patched), patch_id (the registry
+    id when the concept ran patched, else NULL), rows, built_at, run_id, snapshot_id
+    (the derived layer's), status (done / failed), error_class, build_id. Failures are
     recorded, never hidden.
 
 :func:`register_derived` (``CATALOG_EXTENSIONS`` entry, EP-34 hook)
@@ -63,6 +71,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse import publish
+from mimicwarehouse.concepts import patching
 from mimicwarehouse.concepts.inventory import (
     DERIVED_SCHEMA,
     Concept,
@@ -85,6 +94,7 @@ from mimicwarehouse.loader.manifest import (
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
 
+    from mimicwarehouse.concepts.patching import Patch, PatchRegistry
     from mimicwarehouse.dag.runner import StepContext, StepOutcome
     from mimicwarehouse.dag.spec import Step
 
@@ -110,6 +120,7 @@ _HEADER = re.compile(
 
 _STATE_SOURCES = "concepts.sources"
 _STATE_CORE_SNAPSHOT = "concepts.core_snapshot_id"
+_STATE_REGISTRY = "concepts.patch_registry"
 
 
 class ConceptError(RuntimeError):
@@ -201,8 +212,12 @@ def _record_status(
     rows: int | None = None,
     nbytes: int | None = None,
     error_class: str | None = None,
+    sql_sha256: str | None = None,
+    patch_id: str | None = None,
 ) -> None:
-    """Merge this attempt into the per-tier status entry (module docstring)."""
+    """Merge this attempt into the per-tier status entry (module docstring).
+    ``sql_sha256`` is the executed SQL's (the patch's when ``patch_id`` is set, EP-38);
+    the vendored file's hash is kept beside it as ``vendored_sha256``."""
     qn = concept.qualified_name
     entry = concept_entry(ctx.lake_root, concept.name) or {}
     tiers = dict(entry.get("tiers") or {})
@@ -215,7 +230,9 @@ def _record_status(
         "files": 1 if status == "done" else None,
         "finished_at": utc_now_iso(),
         "error_class": error_class,
-        "sql_sha256": concept.sql_sha256,
+        "sql_sha256": sql_sha256 or concept.sql_sha256,
+        "vendored_sha256": concept.sql_sha256,
+        "patch_id": patch_id,
     }
     fields: dict[str, Any] = {"per_tier": True, "layer": DERIVED_LAYER, "tiers": tiers}
     if status == "done":
@@ -315,6 +332,34 @@ def load_concept_sql(concept: Concept) -> str:
     return data.decode("utf-8")
 
 
+def checked_registry(ctx: StepContext) -> PatchRegistry:
+    """The validated patch registry, once per build connection (cached in ``ctx.state``).
+    A registry that does not validate — an entry whose ``applies_to_upstream_commit``
+    differs from the EP-8 pin, a missing or drifted patch file, an orphan file — refuses
+    the step (and, since every concept step asks, the whole concept build)."""
+    if _STATE_REGISTRY not in ctx.state:
+        try:
+            ctx.state[_STATE_REGISTRY] = patching.check_registry()
+        except patching.PatchError as exc:
+            raise ConceptError(str(exc)) from None
+    registry: PatchRegistry = ctx.state[_STATE_REGISTRY]
+    return registry
+
+
+def resolve_concept_sql(
+    concept: Concept, registry: PatchRegistry | None = None
+) -> tuple[str, str, Patch | None]:
+    """``(sql text, sha256 of that text, patch)``: the registry patch's file when the
+    concept has an entry (EP-38), else the vendored file through
+    :func:`load_concept_sql` with ``patch`` None. ``registry`` defaults to a freshly
+    validated one (:func:`mimicwarehouse.concepts.patching.check_registry`)."""
+    registry = registry if registry is not None else patching.check_registry()
+    patch = registry.for_concept(concept.name)
+    if patch is None:
+        return load_concept_sql(concept), concept.sql_sha256, None
+    return patching.load_patch_sql(patch), patch.sql_sha256, patch
+
+
 def _schema_hash(columns: list[tuple[str, str]]) -> str:
     blob = json.dumps([[n, t] for n, t in columns], separators=(",", ":")).encode()
     return hashlib.sha256(blob).hexdigest()
@@ -345,7 +390,10 @@ def run_concept(step: Step, ctx: StepContext, inventory: Inventory | None = None
 
     inventory = inventory or load_inventory()
     concept = inventory.for_step(step.name)
-    target, body = strip_header(load_concept_sql(concept))
+    registry = checked_registry(ctx)
+    text, sql_sha, patch = resolve_concept_sql(concept, registry)
+    patch_id = patch.patch_id if patch is not None else None
+    target, body = strip_header(text)
     if target != concept.name:
         raise ConceptError(
             f"{concept.path}: header creates {target}, the inventory says {concept.name}"
@@ -378,7 +426,14 @@ def run_concept(step: Step, ctx: StepContext, inventory: Inventory | None = None
 
         publish.rmtree(new)
         error_class = type(exc).__name__
-        _record_status(ctx, concept, status="failed", error_class=error_class)
+        _record_status(
+            ctx,
+            concept,
+            status="failed",
+            error_class=error_class,
+            sql_sha256=sql_sha,
+            patch_id=patch_id,
+        )
         _bench(ctx, step.name, wall_s=0.0, ok=False, error=error_class)
         raise ConceptError(
             f"{concept.name}: {error_class}: {sanitize_error_text(str(exc))}"
@@ -396,13 +451,21 @@ def run_concept(step: Step, ctx: StepContext, inventory: Inventory | None = None
         rows=rows,
         schema_hash=_schema_hash(columns),
         writer_version=writer_version(),
-        source_sha256=concept.sql_sha256,
+        source_sha256=sql_sha,
         raw_snapshot_id=_core_snapshot_id(ctx),
         build_id=ctx.build_id,
         ts=utc_now_iso(),
     )
     append_manifest(ctx.lake_root, ctx.build_id, [line])
-    _record_status(ctx, concept, status="done", rows=rows, nbytes=nbytes)
+    _record_status(
+        ctx,
+        concept,
+        status="done",
+        rows=rows,
+        nbytes=nbytes,
+        sql_sha256=sql_sha,
+        patch_id=patch_id,
+    )
     _bench(
         ctx,
         step.name,
@@ -415,12 +478,18 @@ def run_concept(step: Step, ctx: StepContext, inventory: Inventory | None = None
         files=1,
     )
     if ctx.run is not None:
-        ctx.run.record_ref(
-            "concept", concept.name, version=concept.upstream_commit, hash=concept.sql_sha256
-        )
+        ctx.run.record_ref("concept", concept.name, version=concept.upstream_commit, hash=sql_sha)
+        if patch is not None:
+            ctx.run.record_ref(
+                "concept_patch",
+                patch.patch_id,
+                version=patch.applies_to_upstream_commit,
+                hash=patch.sql_sha256,
+            )
     _LOG.info(
-        "concept %s: %s rows, %s bytes, wall=%.2fs (tier %s)",
+        "concept %s%s: %s rows, %s bytes, wall=%.2fs (tier %s)",
         concept.name,
+        f" [patch {patch_id}]" if patch_id else "",
         f"{rows:,}",
         f"{nbytes:,}",
         usage.wall_s,
@@ -469,7 +538,7 @@ def concept_versions_rows(
                 c.group,
                 c.upstream_commit,
                 attempt.get("sql_sha256") or c.sql_sha256,
-                None,  # patch_id — EP-38
+                attempt.get("patch_id"),
                 attempt.get("rows"),
                 attempt.get("finished_at"),
                 attempt.get("run_id"),
@@ -546,9 +615,16 @@ def _derived_comment(schema: str, table: str, tier: str, entry: dict[str, Any]) 
         except InventoryError:
             c = None
         if c is not None:
+            patch_id = attempt.get("patch_id")
+            patched = (
+                f"; patch {patch_id} applied (executed sql sha256 "
+                f"{str(attempt.get('sql_sha256') or '')[:12]}; EP-38)"
+                if patch_id
+                else ""
+            )
             return (
                 f"mimic-code concept {c.group}/{c.name} (MIT) at upstream "
-                f"{c.upstream_commit[:12]}, sql sha256 {c.sql_sha256[:12]}; {built}; "
+                f"{c.upstream_commit[:12]}, sql sha256 {c.sql_sha256[:12]}{patched}; {built}; "
                 "EP-37 concept runner."
             )
     return f"derived table {schema}.{table}; {built}; EP-37 discovery."
@@ -622,6 +698,7 @@ __all__ = [
     "VERSIONS_COLUMNS",
     "VERSIONS_TABLE",
     "ConceptError",
+    "checked_registry",
     "concept_complete",
     "concept_entry",
     "concept_versions_rows",
@@ -632,6 +709,7 @@ __all__ = [
     "ensure_source_views",
     "load_concept_sql",
     "register_derived",
+    "resolve_concept_sql",
     "run_concept",
     "run_concept_versions",
     "source_relation_sql",
