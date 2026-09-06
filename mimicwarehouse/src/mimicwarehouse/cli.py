@@ -12,7 +12,8 @@ refusals exit 3) · ``demo`` (EP-22, :mod:`mimicwarehouse.demo`) · ``doctor`` (
 :mod:`mimicwarehouse.inventory`) · ``paths`` (EP-3, :mod:`mimicwarehouse.config`) · ``runs``
 (``refresh`` EP-30, ``benchmarks`` EP-32, :mod:`mimicwarehouse.runs_cli`) · ``schema`` (EP-9,
 :mod:`mimicwarehouse.schema.cli`) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
-``verify`` (EP-6, :mod:`mimicwarehouse.verify`). Later briefs add theirs the same way; a
+``units`` (EP-39, :mod:`mimicwarehouse.units`) · ``verify`` (EP-6,
+:mod:`mimicwarehouse.verify`). Later briefs add theirs the same way; a
 command is listed here only once its line exists below.
 
 Settings (EP-3, reworked EP-167): the callback loads an **unchecked**
@@ -61,6 +62,7 @@ from mimicwarehouse.inventory import inventory_app
 from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
 from mimicwarehouse.tracer import tracer_command
+from mimicwarehouse.units import units_app
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 
 #: The diagnostic allow-list — the one canonical statement of the rule (EP-33 B8;
@@ -191,6 +193,7 @@ app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
 app.command("sql")(sql_command)
 app.command("tracer")(tracer_command)
+app.add_typer(units_app, name="units")
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)
 
 

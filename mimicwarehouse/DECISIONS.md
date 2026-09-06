@@ -684,6 +684,24 @@ unrestricted.
 **D-33 Small cells: warn at n < 11 in-app; suppress n < 11 on export/commit** with
 complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 
+> **Addendum (2026-09-06, EP-39 — a k-suppressed table inside a catalog).**
+> `meta.item_unit_variants` is the first aggregate materialised *into* a tier catalog, where
+> `meta.*` is a safe-query registry exemption (no count column required, no suppressor
+> pass over plain columns) — so the small-cell rule is applied when the table is **built**,
+> not when it is read: the `units.variants` step keeps every `(itemid, source, valueuom)`
+> row but blanks `n_rows` / `share` on the rows `safe.SUPPRESSOR` drops at the tier's k
+> (`suppressed = true`; EP-43's `disclose.suppress` takes over through the same hook),
+> `share` is computed among the **released** rows of the itemid so a blanked cell cannot be
+> backed out from the shares, and the raw counts stay in the data root under
+> `lake/meta/<tier>/raw/` (a subdirectory EP-37's discovery walker never enters; never
+> exported). A suppressed row therefore shows its unit string with blank counts — the same
+> disclosure as the `<11` cells of `DATA-DICTIONARY.md` (EP-29). *Why:* a raw
+> `lake/meta/<tier>/<table>.parquet` would reach a session through `mwh sql` unsuppressed;
+> dropping the rows would hide which unit strings exist and let a lone blank be backed out
+> from the remaining shares. *Alternatives:* register the raw table and rely on the reader's
+> suppressor (leaks through the registry exemption); drop suppressed rows (the back-out);
+> a separate owner-only schema (a second mechanism for one table).
+
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.

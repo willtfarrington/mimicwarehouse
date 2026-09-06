@@ -1,0 +1,660 @@
+# mimicwarehouse curated item catalogue (EP-39; units.py; ASCII only).
+#
+# One entry per curated itemid: the source event table, the label as it reads in
+# d_items / d_labitems, a concept_group (items of one group share the canonical unit), the
+# canonical unit, the accepted unit strings with their conversion to the canonical unit
+# (`identity`, a numeric factor, or a named affine formula from units.FORMULAS), inclusive
+# plausibility bounds in the canonical unit, a curation note, the mimic-code file the itemid
+# was copied from (or the dictionary lookup that verified it) and a per-item version.
+#
+# Unit strings are matched after units.normalize_unit(): whitespace removed, degree sign and
+# a leading `deg` dropped, micro signs folded to `u`, casefolded, trailing dot removed - so
+# "degF", "deg F", "F" and the degree-sign form all read as the one key written here. The
+# key "" stands for a NULL / blank unit (the itemid implies the unit; see docs/methods/units.md).
+# Itemids come from the vendored mimic-code concepts_duckdb files named in source_ref and were
+# verified against meta.itemids (d_items + d_labitems) through `mwh sql` on the dev tier on
+# 2026-09-06; the three items without a concept reference were verified the same way.
+# Bounds are wide sanity bounds (not reference ranges), inclusive at both ends.
+version: 1
+version_note: "MIMIC-IV 3.1 curated itemids: 63 items in 37 concept groups, curated 2026-09-06 (EP-39)."
+items:
+  # ---- vitals (chartevents; measurement/vitalsign.sql) ----
+  - itemid: 220045
+    source: chartevents
+    label: "Heart Rate"
+    concept_group: vitals.hr
+    canonical_unit: bpm
+    accepted_units: {bpm: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "vitalsign.sql keeps 0 < value < 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220179
+    source: chartevents
+    label: "Non Invasive Blood Pressure systolic"
+    concept_group: vitals.sbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 400
+    curation_note: "vitalsign.sql keeps 0 < value < 400 (sbp, sbp_ni)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220050
+    source: chartevents
+    label: "Arterial Blood Pressure systolic"
+    concept_group: vitals.sbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 400
+    curation_note: "Invasive systolic; vitalsign.sql keeps 0 < value < 400."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 225309
+    source: chartevents
+    label: "ART BP Systolic"
+    concept_group: vitals.sbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 400
+    curation_note: "Second invasive systolic item; vitalsign.sql keeps 0 < value < 400."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220180
+    source: chartevents
+    label: "Non Invasive Blood Pressure diastolic"
+    concept_group: vitals.dbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "vitalsign.sql keeps 0 < value < 300 (dbp, dbp_ni)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220051
+    source: chartevents
+    label: "Arterial Blood Pressure diastolic"
+    concept_group: vitals.dbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "Invasive diastolic; vitalsign.sql keeps 0 < value < 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 225310
+    source: chartevents
+    label: "ART BP Diastolic"
+    concept_group: vitals.dbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "Second invasive diastolic item; vitalsign.sql keeps 0 < value < 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220181
+    source: chartevents
+    label: "Non Invasive Blood Pressure mean"
+    concept_group: vitals.mbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "vitalsign.sql keeps 0 < value < 300 (mbp, mbp_ni)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220052
+    source: chartevents
+    label: "Arterial Blood Pressure mean"
+    concept_group: vitals.mbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "Invasive mean; vitalsign.sql keeps 0 < value < 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 225312
+    source: chartevents
+    label: "ART BP Mean"
+    concept_group: vitals.mbp
+    canonical_unit: mmHg
+    accepted_units: {mmHg: identity}
+    plausible_low: 0
+    plausible_high: 300
+    curation_note: "Second invasive mean item; vitalsign.sql keeps 0 < value < 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220210
+    source: chartevents
+    label: "Respiratory Rate"
+    concept_group: vitals.rr
+    canonical_unit: insp/min
+    accepted_units: {insp/min: identity, /min: identity}
+    plausible_low: 0
+    plausible_high: 70
+    curation_note: "vitalsign.sql keeps 0 < value < 70."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 224690
+    source: chartevents
+    label: "Respiratory Rate (Total)"
+    concept_group: vitals.rr
+    canonical_unit: insp/min
+    accepted_units: {insp/min: identity, /min: identity}
+    plausible_low: 0
+    plausible_high: 70
+    curation_note: "Ventilator total rate, folded into resp_rate by vitalsign.sql; 0 < value < 70."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220277
+    source: chartevents
+    label: "O2 saturation pulseoxymetry"
+    concept_group: vitals.spo2
+    canonical_unit: "%"
+    accepted_units: {"%": identity}
+    plausible_low: 0
+    plausible_high: 100
+    curation_note: "vitalsign.sql and bg.sql keep 0 < value <= 100."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 223761
+    source: chartevents
+    label: "Temperature Fahrenheit"
+    concept_group: vitals.temperature
+    canonical_unit: degC
+    accepted_units: {degF: f_to_c, degC: identity}
+    plausible_low: 21.1
+    plausible_high: 48.9
+    curation_note: "Charted in Fahrenheit; vitalsign.sql keeps 70 < F < 120 and converts (F - 32) / 1.8. Bounds are that window in Celsius."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 223762
+    source: chartevents
+    label: "Temperature Celsius"
+    concept_group: vitals.temperature
+    canonical_unit: degC
+    accepted_units: {degC: identity, degF: f_to_c}
+    plausible_low: 10
+    plausible_high: 50
+    curation_note: "vitalsign.sql keeps 10 < C < 50."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  # ---- anthropometrics (chartevents; demographics/weight_durations.sql, measurement/height.sql) ----
+  - itemid: 226512
+    source: chartevents
+    label: "Admission Weight (Kg)"
+    concept_group: anthro.weight
+    canonical_unit: kg
+    accepted_units: {kg: identity, lbs: lb_to_kg, lb: lb_to_kg}
+    plausible_low: 20
+    plausible_high: 500
+    curation_note: "weight_durations.sql keeps 0 < value < 1500 (a garbage guard); the adult sanity window here is 20-500 kg."
+    source_ref: mimic-iv/concepts_duckdb/demographics/weight_durations.sql
+  - itemid: 224639
+    source: chartevents
+    label: "Daily Weight"
+    concept_group: anthro.weight
+    canonical_unit: kg
+    accepted_units: {kg: identity, lbs: lb_to_kg, lb: lb_to_kg}
+    plausible_low: 20
+    plausible_high: 500
+    curation_note: "weight_durations.sql keeps 0 < value < 1500; adult sanity window 20-500 kg."
+    source_ref: mimic-iv/concepts_duckdb/demographics/weight_durations.sql
+  - itemid: 226531
+    source: chartevents
+    label: "Admission Weight (lbs.)"
+    concept_group: anthro.weight
+    canonical_unit: kg
+    accepted_units: {"": lb_to_kg, lbs: lb_to_kg, lb: lb_to_kg, kg: identity}
+    plausible_low: 20
+    plausible_high: 500
+    curation_note: "Charted in pounds with a NULL valueuom (d_items unitname None): a blank unit is read as pounds. Not read by any vendored concept; verified against d_items."
+    source_ref: mimiciv_icu.d_items (mwh sql lookup, dev tier, 2026-09-06)
+  - itemid: 226730
+    source: chartevents
+    label: "Height (cm)"
+    concept_group: anthro.height
+    canonical_unit: cm
+    accepted_units: {cm: identity, inch: in_to_cm, in: in_to_cm}
+    plausible_low: 120
+    plausible_high: 230
+    curation_note: "height.sql keeps 120 < cm < 230 after coalescing the cm and inch items."
+    source_ref: mimic-iv/concepts_duckdb/measurement/height.sql
+  - itemid: 226707
+    source: chartevents
+    label: "Height"
+    concept_group: anthro.height
+    canonical_unit: cm
+    accepted_units: {inch: in_to_cm, in: in_to_cm, "": in_to_cm, cm: identity}
+    plausible_low: 120
+    plausible_high: 230
+    curation_note: "Charted in inches (d_items unitname Inch); height.sql multiplies by 2.54. A blank unit is read as inches."
+    source_ref: mimic-iv/concepts_duckdb/measurement/height.sql
+  # ---- neurological (chartevents; measurement/gcs.sql) ----
+  - itemid: 220739
+    source: chartevents
+    label: "GCS - Eye Opening"
+    concept_group: neuro.gcs_eyes
+    canonical_unit: points
+    accepted_units: {"": identity, points: identity}
+    plausible_low: 1
+    plausible_high: 4
+    curation_note: "Score component; valueuom is NULL, valuenum carries the points."
+    source_ref: mimic-iv/concepts_duckdb/measurement/gcs.sql
+  - itemid: 223900
+    source: chartevents
+    label: "GCS - Verbal Response"
+    concept_group: neuro.gcs_verbal
+    canonical_unit: points
+    accepted_units: {"": identity, points: identity}
+    plausible_low: 0
+    plausible_high: 5
+    curation_note: "Score component; gcs.sql recodes the text 'No Response-ETT' to 0, hence the 0 floor."
+    source_ref: mimic-iv/concepts_duckdb/measurement/gcs.sql
+  - itemid: 223901
+    source: chartevents
+    label: "GCS - Motor Response"
+    concept_group: neuro.gcs_motor
+    canonical_unit: points
+    accepted_units: {"": identity, points: identity}
+    plausible_low: 1
+    plausible_high: 6
+    curation_note: "Score component; valueuom is NULL, valuenum carries the points."
+    source_ref: mimic-iv/concepts_duckdb/measurement/gcs.sql
+  # ---- respiratory support (chartevents; measurement/bg.sql, ventilator_setting.sql) ----
+  - itemid: 223835
+    source: chartevents
+    label: "Inspired O2 Fraction"
+    concept_group: resp.fio2
+    canonical_unit: "%"
+    accepted_units: {"": identity, "%": identity}
+    plausible_low: 21
+    plausible_high: 100
+    curation_note: "Charted as a percentage with a NULL valueuom. Some entries are fractions (0.21-1.0); bg.sql rescales them by value (x 100), which this unit-based rule cannot do - they read as implausible here."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  # ---- bedside glucose (chartevents; measurement/vitalsign.sql) ----
+  - itemid: 225664
+    source: chartevents
+    label: "Glucose finger stick (range 70-100)"
+    concept_group: labs.glucose
+    canonical_unit: mg/dL
+    accepted_units: {"": identity, mg/dL: identity, mmol/L: mmol_to_mgdl_glucose}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "Fingerstick glucose with a NULL valueuom (mg/dL implied); vitalsign.sql keeps value > 0."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 220621
+    source: chartevents
+    label: "Glucose (serum)"
+    concept_group: labs.glucose
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, "": identity, mmol/L: mmol_to_mgdl_glucose}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "Chart-side serum glucose; a small share carries a NULL valueuom (mg/dL implied)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  - itemid: 226537
+    source: chartevents
+    label: "Glucose (whole blood)"
+    concept_group: labs.glucose
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, "": identity, mmol/L: mmol_to_mgdl_glucose}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "Chart-side whole-blood glucose; a small share carries a NULL valueuom (mg/dL implied)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/vitalsign.sql
+  # ---- chemistry (labevents; measurement/chemistry.sql) ----
+  - itemid: 50912
+    source: labevents
+    label: "Creatinine"
+    concept_group: labs.creatinine
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, umol/L: umol_to_mgdl_creatinine}
+    plausible_low: 0.1
+    plausible_high: 150
+    curation_note: "chemistry.sql keeps 0 < value <= 150."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 51006
+    source: labevents
+    label: "Urea Nitrogen"
+    concept_group: labs.bun
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_bun}
+    plausible_low: 1
+    plausible_high: 300
+    curation_note: "chemistry.sql keeps 0 < value <= 300."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50983
+    source: labevents
+    label: "Sodium"
+    concept_group: labs.sodium
+    canonical_unit: mEq/L
+    accepted_units: {mEq/L: identity, mmol/L: identity}
+    plausible_low: 80
+    plausible_high: 200
+    curation_note: "chemistry.sql keeps 0 < value <= 200; mmol/L equals mEq/L for a monovalent ion."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50971
+    source: labevents
+    label: "Potassium"
+    concept_group: labs.potassium
+    canonical_unit: mEq/L
+    accepted_units: {mEq/L: identity, mmol/L: identity}
+    plausible_low: 1
+    plausible_high: 30
+    curation_note: "chemistry.sql keeps 0 < value <= 30."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50902
+    source: labevents
+    label: "Chloride"
+    concept_group: labs.chloride
+    canonical_unit: mEq/L
+    accepted_units: {mEq/L: identity, mmol/L: identity}
+    plausible_low: 50
+    plausible_high: 200
+    curation_note: "chemistry.sql keeps 0 < value <= 10000 (garbage guard); sanity window 50-200."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50882
+    source: labevents
+    label: "Bicarbonate"
+    concept_group: labs.bicarbonate
+    canonical_unit: mEq/L
+    accepted_units: {mEq/L: identity, mmol/L: identity}
+    plausible_low: 1
+    plausible_high: 80
+    curation_note: "chemistry.sql keeps 0 < value <= 10000 (garbage guard); sanity window 1-80."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50931
+    source: labevents
+    label: "Glucose"
+    concept_group: labs.glucose
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_glucose}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "Serum glucose; chemistry.sql keeps 0 < value <= 10000."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50809
+    source: labevents
+    label: "Glucose"
+    concept_group: labs.glucose
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_glucose}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "Blood-gas glucose; bg.sql keeps value <= 10000."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  - itemid: 50813
+    source: labevents
+    label: "Lactate"
+    concept_group: labs.lactate
+    canonical_unit: mmol/L
+    accepted_units: {mmol/L: identity, mg/dL: mgdl_to_mmol_lactate}
+    plausible_low: 0.1
+    plausible_high: 40
+    curation_note: "bg.sql keeps value <= 10000 (garbage guard); sanity window 0.1-40 mmol/L."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  - itemid: 50960
+    source: labevents
+    label: "Magnesium"
+    concept_group: labs.magnesium
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_magnesium}
+    plausible_low: 0.1
+    plausible_high: 20
+    curation_note: "Not read by a vendored measurement concept; verified against d_labitems."
+    source_ref: mimiciv_hosp.d_labitems (mwh sql lookup, dev tier, 2026-09-06)
+  - itemid: 50893
+    source: labevents
+    label: "Calcium, Total"
+    concept_group: labs.calcium
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_calcium}
+    plausible_low: 1
+    plausible_high: 30
+    curation_note: "chemistry.sql keeps 0 < value <= 10000 (garbage guard); sanity window 1-30."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50970
+    source: labevents
+    label: "Phosphate"
+    concept_group: labs.phosphate
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, mmol/L: mmol_to_mgdl_phosphate}
+    plausible_low: 0.1
+    plausible_high: 30
+    curation_note: "Not read by a vendored measurement concept; verified against d_labitems."
+    source_ref: mimiciv_hosp.d_labitems (mwh sql lookup, dev tier, 2026-09-06)
+  - itemid: 50862
+    source: labevents
+    label: "Albumin"
+    concept_group: labs.albumin
+    canonical_unit: g/dL
+    accepted_units: {g/dL: identity, g/L: g_l_to_g_dl}
+    plausible_low: 0.5
+    plausible_high: 10
+    curation_note: "chemistry.sql keeps 0 < value <= 10."
+    source_ref: mimic-iv/concepts_duckdb/measurement/chemistry.sql
+  - itemid: 50852
+    source: labevents
+    label: "% Hemoglobin A1c"
+    concept_group: labs.hba1c
+    canonical_unit: "%"
+    accepted_units: {"%": identity, mmol/mol: ifcc_to_ngsp_hba1c}
+    plausible_low: 2
+    plausible_high: 25
+    curation_note: "NGSP percent; IFCC mmol/mol converts by the master equation. Not read by a vendored concept; verified against d_labitems."
+    source_ref: mimiciv_hosp.d_labitems (mwh sql lookup, dev tier, 2026-09-06)
+  # ---- enzymes and cardiac markers (labevents; measurement/enzyme.sql, cardiac_marker.sql) ----
+  - itemid: 50885
+    source: labevents
+    label: "Bilirubin, Total"
+    concept_group: labs.bilirubin_total
+    canonical_unit: mg/dL
+    accepted_units: {mg/dL: identity, umol/L: umol_to_mgdl_bilirubin}
+    plausible_low: 0.1
+    plausible_high: 100
+    curation_note: "enzyme.sql keeps value > 0."
+    source_ref: mimic-iv/concepts_duckdb/measurement/enzyme.sql
+  - itemid: 51003
+    source: labevents
+    label: "Troponin T"
+    concept_group: labs.troponin_t
+    canonical_unit: ng/mL
+    accepted_units: {ng/mL: identity, ug/L: identity, ng/L: ng_l_to_ng_ml}
+    plausible_low: 0.001
+    plausible_high: 100
+    curation_note: "Values below the assay floor are shipped as text ('<0.01') with a NULL valuenum."
+    source_ref: mimic-iv/concepts_duckdb/measurement/cardiac_marker.sql
+  # ---- blood gas (labevents; measurement/bg.sql) ----
+  - itemid: 50820
+    source: labevents
+    label: "pH"
+    concept_group: labs.ph
+    canonical_unit: units
+    accepted_units: {units: identity, "": identity}
+    plausible_low: 6.5
+    plausible_high: 8.0
+    curation_note: "Dimensionless; valueuom reads 'units'."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  - itemid: 50821
+    source: labevents
+    label: "pO2"
+    concept_group: labs.po2
+    canonical_unit: mmHg
+    accepted_units: {mm Hg: identity, kPa: kpa_to_mmhg}
+    plausible_low: 1
+    plausible_high: 800
+    curation_note: "valueuom reads 'mm Hg' (normalised to mmhg)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  - itemid: 50818
+    source: labevents
+    label: "pCO2"
+    concept_group: labs.pco2
+    canonical_unit: mmHg
+    accepted_units: {mm Hg: identity, kPa: kpa_to_mmhg}
+    plausible_low: 1
+    plausible_high: 250
+    curation_note: "valueuom reads 'mm Hg' (normalised to mmhg)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/bg.sql
+  # ---- complete blood count and coagulation (labevents; measurement/complete_blood_count.sql, coagulation.sql) ----
+  - itemid: 51301
+    source: labevents
+    label: "White Blood Cells"
+    concept_group: labs.wbc
+    canonical_unit: K/uL
+    accepted_units: {K/uL: identity, x10^9/L: identity, 10^9/L: identity}
+    plausible_low: 0.1
+    plausible_high: 1000
+    curation_note: "complete_blood_count.sql keeps value > 0; 10^9/L equals K/uL."
+    source_ref: mimic-iv/concepts_duckdb/measurement/complete_blood_count.sql
+  - itemid: 51222
+    source: labevents
+    label: "Hemoglobin"
+    concept_group: labs.hemoglobin
+    canonical_unit: g/dL
+    accepted_units: {g/dL: identity, g/L: g_l_to_g_dl, mmol/L: mmol_to_gdl_hemoglobin}
+    plausible_low: 1
+    plausible_high: 30
+    curation_note: "complete_blood_count.sql keeps value > 0."
+    source_ref: mimic-iv/concepts_duckdb/measurement/complete_blood_count.sql
+  - itemid: 51221
+    source: labevents
+    label: "Hematocrit"
+    concept_group: labs.hematocrit
+    canonical_unit: "%"
+    accepted_units: {"%": identity, L/L: fraction_to_percent}
+    plausible_low: 5
+    plausible_high: 80
+    curation_note: "complete_blood_count.sql keeps value > 0."
+    source_ref: mimic-iv/concepts_duckdb/measurement/complete_blood_count.sql
+  - itemid: 51265
+    source: labevents
+    label: "Platelet Count"
+    concept_group: labs.platelets
+    canonical_unit: K/uL
+    accepted_units: {K/uL: identity, x10^9/L: identity, 10^9/L: identity}
+    plausible_low: 1
+    plausible_high: 3000
+    curation_note: "complete_blood_count.sql keeps value > 0."
+    source_ref: mimic-iv/concepts_duckdb/measurement/complete_blood_count.sql
+  - itemid: 51237
+    source: labevents
+    label: "INR(PT)"
+    concept_group: labs.inr
+    canonical_unit: ratio
+    accepted_units: {"": identity, ratio: identity}
+    plausible_low: 0.5
+    plausible_high: 20
+    curation_note: "Dimensionless ratio; valueuom is NULL in the data."
+    source_ref: mimic-iv/concepts_duckdb/measurement/coagulation.sql
+  # ---- urine output (outputevents; measurement/urine_output.sql) ----
+  - itemid: 226559
+    source: outputevents
+    label: "Foley"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume; urine_output.sql sums the twelve urine items per charttime."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226560
+    source: outputevents
+    label: "Void"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226561
+    source: outputevents
+    label: "Condom Cath"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226584
+    source: outputevents
+    label: "Ileoconduit"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226563
+    source: outputevents
+    label: "Suprapubic"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226564
+    source: outputevents
+    label: "R Nephrostomy"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226565
+    source: outputevents
+    label: "L Nephrostomy"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226567
+    source: outputevents
+    label: "Straight Cath"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql)."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226557
+    source: outputevents
+    label: "R Ureteral Stent"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql); rare."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 226558
+    source: outputevents
+    label: "L Ureteral Stent"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Per-record volume (urine_output.sql); rare."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 227488
+    source: outputevents
+    label: "GU Irrigant Volume In"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Irrigant instilled; urine_output.sql subtracts it (value negated) from the urine sum."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql
+  - itemid: 227489
+    source: outputevents
+    label: "GU Irrigant/Urine Volume Out"
+    concept_group: urine.output
+    canonical_unit: mL
+    accepted_units: {mL: identity}
+    plausible_low: 0
+    plausible_high: 5000
+    curation_note: "Irrigant plus urine returned; urine_output.sql adds it to the urine sum."
+    source_ref: mimic-iv/concepts_duckdb/measurement/urine_output.sql

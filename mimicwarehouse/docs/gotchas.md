@@ -37,6 +37,18 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   closed-set aggregate, but `count(*) FILTER (WHERE flag = 1)` remains the sanctioned
   event-count pattern and arithmetic over aggregates stays refused (final-roadmap DIS-3).
   *(EP-31; retro-p2 ledger SGT-3.)*
+- **A DECIMAL literal times a DECIMAL scale overflows inside a macro.** `100.4` binds as
+  `DECIMAL(4,1)` and a factor such as `0.5555555555555556` as `DECIMAL(16,16)`, so
+  `mwh_harmonize(223761, 100.4, 'F')` raised an *Out of Range* error until the generated
+  macro casts its value argument to DOUBLE first — which also makes the SQL twin the same
+  float arithmetic as the Python one. *(EP-39; `test_ep39`'s DECIMAL-literal probe.)*
+- **`offset` is a reserved word.** A column named `offset` cannot be selected unquoted, so
+  `meta.item_units` calls the affine intercept `intercept`. *(EP-39.)*
+- **Macros persist in the catalog file and run under READ_ONLY.** `CREATE OR REPLACE MACRO`
+  on the build connection is enough; readers opened through `open_catalog` call it without
+  any registration of their own, and `safe_query` admits a macro call over constants as a
+  table-free (registry-exempt) statement. Dependent macros must be created in dependency
+  order — DuckDB binds the body at creation. *(EP-39.)*
 - **`.print` / `.read` driver files are CLI dialect.** The vendored `concepts_duckdb`
   driver is executed file-by-file from Python (parse the `.read` lines); the `duckdb`
   executable is never installed or run (GOVERNANCE §4). *(EP-33 D2: 65/65 files clean.)*

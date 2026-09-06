@@ -965,7 +965,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── concepts/                  EP-8, EP-167, EP-37, EP-38 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, the generated dag spec), runner.py (concept steps, meta.concept_versions, catalog discovery walker), pins.py; patching.py + patches/ (patches.yaml registry, five full-replacement <concept>.sql ports of open upstream PRs)
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
-│   ├── units.py                   EP-39  item dictionary curation, unit harmonization
+│   ├── units.py                   EP-39 shipped  curated item catalogue (data/item_units.yaml), normalize_unit + affine FORMULAS, harmonize / harmonize_frame / plausible_mask / bounds, the mwh_harmonize macro family (CATALOG_EXTENSIONS entry), the units.* DAG steps (dag/specs/units.yaml -> meta.item_units / item_unit_variants / item_dictionary), report + `mwh units`, docs/methods/units.md renderer
 │   ├── codesets/                  EP-40  registry, GEM utility
 │   ├── phenotypes/                EP-41/42
 │   ├── disclose.py                EP-43
@@ -1028,6 +1028,40 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > (`runner.run(...)`, tests) pass `provenance=True` to opt in. The runner records one
 > snapshot id per layer the executed steps reported (`StepOutcome.layer`; `core` always,
 > `derived` for the concept steps) and prints `snapshot <layer>/<tier> = …` per layer.
+
+> **Note (2026-09-06, EP-39) — `units.py`: the curated item catalogue and unit
+> harmonization.** The curation lives in package data (`data/item_units.yaml`, 63 itemids
+> in 37 concept groups copied from the vendored concept SQL and verified against
+> `meta.itemids` through `mwh sql`) validated by pydantic (`ItemSpec` / `ItemCatalogue`:
+> unique ids, `plausible_low < plausible_high`, the canonical unit accepted by identity, one
+> canonical unit per concept group). Unit strings match after `normalize_unit` (whitespace,
+> degree signs, a leading `deg`, micro signs, case, trailing dot; `""` = NULL / blank, accepted
+> only where the itemid implies the unit) and every conversion is an `Affine(scale,
+> intercept)` from the named `FORMULAS`, so `harmonize` (scalar), `harmonize_frame` /
+> `plausible_mask` (Polars) and the DuckDB macro `mwh_harmonize(itemid, value, valueuom)`
+> → `STRUCT(value_canonical, unit_canonical, converted, plausible)` — generated from the
+> same YAML by `macro_statements` and installed in every tier catalog by `register_units`,
+> the third `CATALOG_EXTENSIONS` entry — are one arithmetic (DOUBLE throughout: a DECIMAL
+> literal times a DECIMAL scale overflows, `docs/gotchas.md` §1). Unknown units pass
+> through with `converted = false`; bounds are inclusive sanity bounds in the canonical
+> unit. Three `python` steps in `dag/specs/units.yaml` (tag `units`, no `target`; the
+> shared `catalog` step follows them) write `lake/meta/<tier>/item_units.parquet`,
+> `item_unit_variants.parquet` and `item_dictionary.parquet` (EP-29's meta layout; EP-37's
+> walker registers them as `meta.<table>`): the catalogue itemid x accepted unit; the
+> `(itemid, source, valueuom)` counts over the curated itemids of the tier's staged event
+> tables, k-suppressed at build time through the `safe.SUPPRESSOR` hook (rows kept,
+> `n_rows` / `share` blanked, `share` over the released rows so a blank cannot be backed
+> out; the raw counts stay under `lake/meta/<tier>/raw/`, a subdirectory the walker never
+> enters — D-33 addendum); and EP-29's `meta.itemids` SELECT (now the shared
+> `catalog.build.ITEMIDS_SELECT_SQL`) LEFT JOIN the curation columns (`curated`,
+> `concept_group`, `canonical_unit`, `plausible_low` / `plausible_high`; `unit_hint`
+> stays on `meta.columns`). `units.report(tier)` reads the two meta tables through
+> `safe_query` and `summarize_variants` folds them into one row per itemid (`n_variants`,
+> `n_suppressed`, `dominant_unit`, `dominant_share`, `unexpected_units`, `flagged`);
+> `mwh units report --tier <t> [--format json]` renders it, `mwh units check` validates
+> the catalogue, `python -m mimicwarehouse.units` re-renders `docs/methods/units.md`.
+> Consumers: EP-44 (`bounds`, the flagged itemids), EP-55 (`harmonize_frame` / the
+> macro / `meta.item_units` as a join table), EP-138 (`meta.item_dictionary`).
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

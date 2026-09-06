@@ -1,0 +1,44 @@
+# dag/specs/units.yaml -- the item-dictionary / unit-harmonization steps (EP-39 item 3;
+# ASCII only). Merged into the one graph by dag.spec.load_dag() (EP-37 discovery): three
+# python steps (module:function handlers in mimicwarehouse.units, each writing
+# lake/meta/<tier>/<table>.parquet per EP-29's convention, registered as meta.<table> by
+# EP-37's discovery walker at catalog time) and the shared catalog step, whose depends_on /
+# tags are unioned with the other specs' so `mwh build --tier <t> --tag units` ends in a
+# catalog rebuild. No target: the steps are cheap and re-run whenever selected.
+#   units.item_units  -> meta.item_units          (the packaged catalogue, itemid x unit)
+#   units.variants    -> meta.item_unit_variants  (valueuom counts per curated itemid,
+#                                                  k-suppressed; raw counts under meta/<tier>/raw/)
+#   units.dictionary  -> meta.item_dictionary     (meta.itemids + the curation columns)
+version: 1
+steps:
+  - name: units.item_units
+    kind: python
+    callable: mimicwarehouse.units:run_item_units
+    tags: [units, meta]
+    tiers: [fixture, demo, dev, full]
+  - name: units.variants
+    kind: python
+    callable: mimicwarehouse.units:run_variants
+    tags: [units, meta]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_hosp.labevents
+      - stage.mimiciv_icu.chartevents
+      - stage.mimiciv_icu.outputevents
+      - stage.mimiciv_icu.inputevents
+  - name: units.dictionary
+    kind: python
+    callable: mimicwarehouse.units:run_dictionary
+    tags: [units, meta]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - units.item_units
+      - stage.mimiciv_icu.d_items
+      - stage.mimiciv_hosp.d_labitems
+  - name: catalog
+    kind: catalog
+    tags: [catalog, units]
+    depends_on:
+      - units.item_units
+      - units.variants
+      - units.dictionary

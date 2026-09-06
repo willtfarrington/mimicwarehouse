@@ -34,7 +34,8 @@ contract tables and the ``meta.*`` dictionary, before ``CHECKPOINT`` — the one
 later brief adds derived views or registry tables to **every** tier catalog without
 touching this module: :func:`mimicwarehouse.timesem.create_views` (EP-34:
 ``mimiciv_derived.hadm_era`` / ``icustay_index`` + ``meta.grains``) is registered here;
-EP-37 (concept discovery) and EP-39 (item dictionary) append theirs. Extensions receive
+EP-37 (concept discovery) and EP-39 (``units.register_units``: the ``mwh_harmonize``
+macro family + comments on the ``meta.item_*`` tables) append theirs. Extensions receive
 the open connection and never open their own; a failing extension fails the build (the
 old catalog stays intact, the ``.new`` is removed).
 
@@ -64,6 +65,7 @@ from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot
 from mimicwarehouse.loader.manifest import read_status, utc_now_iso
 from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
 from mimicwarehouse.timesem import create_views as _timesem_create_views
+from mimicwarehouse.units import register_units as _units_register
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -91,11 +93,28 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first; EP-37's
 #: discovery walker (``mimiciv_derived.<table>`` views over ``lake/derived/<tier>/`` and
 #: ``meta.<table>`` tables over ``lake/meta/<tier>/``) reads ``meta.catalog_info`` for the
-#: lake root, so extensions never need paths of their own.
+#: lake root, so extensions never need paths of their own; EP-39's ``units.register_units``
+#: (the ``mwh_harmonize`` macro family + comments on the ``meta.item_*`` tables the walker
+#: registered) runs after it.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
+    _units_register,
 ]
+
+#: The SELECT behind the ``meta.itemids`` view (EP-29): both item dimensions under one
+#: shape (``source`` = ``icu`` / ``hosp``). EP-39's ``units.dictionary`` step runs the same
+#: text over the build connection's source views, so ``meta.item_dictionary`` and the view
+#: can never disagree on the base columns.
+ITEMIDS_SELECT_SQL = (
+    "SELECT 'icu' AS source, itemid, label, abbreviation, linksto, category, "
+    "CAST(NULL AS VARCHAR) AS fluid, unitname, param_type "
+    "FROM mimiciv_icu.d_items "
+    "UNION ALL "
+    "SELECT 'hosp', itemid, label, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), "
+    "category, fluid, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR) "
+    "FROM mimiciv_hosp.d_labitems"
+)
 
 
 class CatalogBuildError(RuntimeError):
@@ -568,16 +587,7 @@ def _populate_meta(
     if kinds.get("mimiciv_icu.d_items") != "missing" and (
         kinds.get("mimiciv_hosp.d_labitems") != "missing"
     ):
-        con.execute(
-            "CREATE VIEW meta.itemids AS "
-            "SELECT 'icu' AS source, itemid, label, abbreviation, linksto, category, "
-            "CAST(NULL AS VARCHAR) AS fluid, unitname, param_type "
-            "FROM mimiciv_icu.d_items "
-            "UNION ALL "
-            "SELECT 'hosp', itemid, label, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR), "
-            "category, fluid, CAST(NULL AS VARCHAR), CAST(NULL AS VARCHAR) "
-            "FROM mimiciv_hosp.d_labitems"
-        )
+        con.execute(f"CREATE VIEW meta.itemids AS {ITEMIDS_SELECT_SQL}")
         _comment_on(
             con,
             "view",
@@ -603,6 +613,7 @@ def _populate_meta(
 __all__ = [
     "CATALOG_EXTENSIONS",
     "CATALOG_SCHEMAS",
+    "ITEMIDS_SELECT_SQL",
     "STAGED_SCHEMAS",
     "CatalogBuildError",
     "CatalogBuildResult",
