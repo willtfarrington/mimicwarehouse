@@ -1,0 +1,23 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: atc_a10a_insulins
+version: "1.0.0"
+name: ATC A10A - insulins and analogues (class)
+description: >
+  The WHO ATC pharmacological subgroup A10A (insulins and analogues) as a class prefix.
+  No ATC table is landed in v1 (D-35: the bulk index is a WHO CC purchase; the RxNorm ->
+  ATC path needs UMLS), so the member is the class code itself, matched by prefix once a
+  table exists (EP-143); insulin@1.0.0 is the name-based twin usable today.
+kind: atc
+members:
+  atc: [A10A]
+provenance:
+  source: hand
+  url: https://atcddd.fhi.no/atc_ddd_index/?code=A10A
+  ref: WHO Collaborating Centre for Drug Statistics Methodology, ATC/DDD index 2026
+  accessed: "2026-09-06"
+references:
+  - https://atcddd.fhi.no/atc_ddd_index/?code=A10A
+notes: >
+  ATC codes are hierarchical: A10A covers A10AB (fast-acting), A10AC (intermediate), A10AD
+  (intermediate + fast), A10AE (long-acting) and A10AF (inhaled).

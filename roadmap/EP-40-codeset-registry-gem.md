@@ -105,3 +105,95 @@ Sessions inspect code sets and dictionary matches freely; patient-level hits sta
 
 - AHRQ CCSR full category YAML generation from the CCSR reference file (public) — trigger:
   P4/P5 subgroup or utilization analyses need broad dx groupings; hazard: file size/versioning.
+  *(Mirrored into `final-roadmap.md` § 3 as v2 PHE-5 at execution, 2026-09-06.)*
+
+> **Completion note (2026-09-06).** Executed on fixture + dev as briefed; nothing ran on
+> full (the owner's next full rebuild folds `--tag codesets` in, as EP-39's `--tag units`).
+>
+> **Shipped.** `src/mimicwarehouse/codesets/` — `spec.py` (pydantic `CodeSet`, the seven
+> kinds with their member systems, code / name normalisation, the canonical-JSON
+> `def_hash`, `id@version` references), `registry.py` (the packaged `defs/` + the
+> committed `codesets.lock.json`; `CodeSetFrozenError` when a recorded pair's hash moved;
+> dictionary expansion with a bisect over the sorted dictionary codes; the
+> `codesets.compile` DAG step → `meta.codesets` + `meta.codeset_members`; `validate`
+> through `safe_query`; the `register_codesets` catalog extension, placed between the
+> concept walker and `units` so EP-34's and EP-39's order pins hold; the
+> `docs/methods/codesets.md` renderer), `gem.py` (the CMS 2018 GEM fetch with pinned
+> sha256 per text file + `source.yaml`, the parser, `GemTable.forward` / `backward`, the
+> `codesets.gem` step → `meta.gem_i9_to_i10` / `meta.gem_i10_to_i9`, the
+> `.gem-review.md` builder), `cli.py` (`mwh codeset list | show | lock | validate |
+> compile | expand --via-gem | gem fetch | gem status`), `dag/specs/codesets.yaml`, 20
+> seed YAMLs (the brief's 20 ids), `tests/fixtures/gem_sample.txt` (102 public GEM lines
+> in the four files' native format, split by the tests), `tests/ep/test_ep40.py` (14
+> fixture + 1 dev tests), `docs/methods/codesets.md`; `units.write_meta_parquet` made
+> public (the shared meta writer); DESIGN §8 + §15 notes, README state row + quick start,
+> `docs/gotchas.md` (YAML octal codes; `executemany` throughput), the vocabularies
+> register's GEM landing path (`gem`, per the EP-170 amendment, not `gems`),
+> `final-roadmap.md` PHE-5.
+>
+> **Design calls (routine, logged here).** (1) The "recorded" hash of the immutability
+> rule is a per-directory lock file (`codesets.lock.json`, `mwh codeset lock`), so study
+> directories get the same rule as the packaged seeds and a brand-new pair loads as
+> *unlocked* rather than being refused. (2) Grouped sets (`charlson_groups`) are one
+> `CodeSet` whose ICD entries carry a `group` label → `member_group` column; no second
+> schema. (3) A prefix that matches nothing still compiles to one unmatched row, so
+> `validate` can list it. (4) `mwh codeset compile` runs through the DAG runner (build
+> lock, benchmark lines, `run.start`); the `id@version` selection reaches the step through
+> a ContextVar set around the runner call and keeps the other sets' rows. (5) The GEM
+> fetch pins the sha256 of the four **text files** (the zips' hashes are recorded, a
+> re-packaged zip only warns). (6) The `codesets.gem` step is a no-op with a warning while
+> nothing is landed, so the session fixture lake and `mwh build --tier fixture` need no
+> download. (7) The fetched-hash verification found the CMS archive URLs live on
+> 2026-09-06 (`/medicare/coding/icd10/downloads/2018-icd-10-{cm,pcs}-general-equivalence-mappings.zip`).
+>
+> **Dev tier (2026-09-06).** `mwh codeset gem fetch`: 4 files verified (5.6 MB) into
+> `ext\vocab\gem\2018\` with `source.yaml`. `mwh build --tier dev --tag codesets` (build
+> `20260906T210007-dev-c165fdf`, run `20260906T210007Z-a95588`): `codesets.gem` 281,071
+> rows in 67.2 s (24,860 + 73,593 forward, 81,593 + 101,025 backward — the four files'
+> line counts), `codesets.compile` 5,433 member rows in 3.3 s, catalog 2.7 s. Dictionary
+> coverage (`mwh codeset validate … --tier dev`, declared entries matched per system):
+> t2dm 20/20 + 1/1 (136 compiled rows), t1dm 20/20 + 1/1, sepsis_explicit 9/9 + 13/13,
+> aki 1/1 + 1/1, ckd 1/1 + 1/1, mi 1/1 + 2/2, copd 3/3 + 4/4, hypertension 5/5 + 6/6,
+> atrial_fibrillation 1/1 + 8/8 (both the FY2020 split and the pre-split I48.1 / I48.2
+> exist in the dictionary), heart_failure 16/17 + 14/14 (425.6 is not an ICD-9-CM code —
+> Quan's range), charlson_groups 202/224 + 252/289: the 22 unmatched ICD-9 prefixes are
+> unused categories inside Quan's ranges (043, 044, 166–169, 177, 178, 425.6, 443.3–443.7,
+> 497–499, 572.5–572.7, 583.3, 583.5) and the 37 unmatched ICD-10 rules are WHO-only
+> codes with no ICD-10-CM counterpart (B21, B22, B24, C97, E10.0, E10.7, E11.7, E12.x,
+> E13.7, E14.x, F00, F05.1, I64, I79.2, I85.9, I98.2, J46, Z49.1, Z49.2). The itemid
+> sets match 7/7; the drug / ATC systems have no dictionary here (D-35) and read `n/a`.
+> **Acceptance deviation, documented:** the brief asks for ≥ 90 % dictionary match for
+> the ICD sets; every hand-typed set reaches 100 % and Charlson's ICD-9 arm 90.2 %, but
+> Charlson's ICD-10 arm sits at 87.2 % *by construction* (WHO codes kept for fidelity to
+> Quan and to the executed concept); `test_ep40` floors that one arm at 85 % and every
+> other ICD arm at 90 %, and the seed's `notes` say so. `mwh sql "SELECT codeset_id,
+> system, count(*) AS n FROM meta.codeset_members GROUP BY 1, 2 ORDER BY 1, 2" --tier dev`
+> works (19 rows shown, 13 small (set, system) groups suppressed — the standing `k` rule
+> applies to a `count(*)` even over a registry table; EP-43 owns any registry-aware
+> relaxation; `validate` prints the full numbers); `meta.gem_i9_to_i10` = 98,453 rows
+> (dx 24,860 / px 73,593), `meta.gem_i10_to_i9` = 182,618. `mwh codeset expand … --via-gem
+> --tier dev` wrote `studies\codesets\reviews\t2dm@1.0.0.gem-review.md` (1 ICD-10 and 19
+> ICD-9 proposals, 136 mappings already covered — the ICD-9 proposals are the
+> manifestation codes of E11 combination entries, exactly what a human review should
+> reject) and `sepsis_explicit@1.0.0.gem-review.md` (4 + 10 proposals, 70 covered).
+>
+> **Gates.** `uv run poe test -m ep_40`: 14 passed (fixture); with `--tier dev`: 15
+> passed (dev summary: 20 sets compiled, 32 (set, system) pairs, ICD coverage min 87.2 %,
+> GEM 98,453 / 182,618); `uv run mwh verify EP-40`: 14 passed; `mwh guard` clean over the
+> new files; `poe check` green — ruff check, `ruff format --check`, pyright (0 errors) and
+> the full fixture suite: 968 passed, 41 deselected (the dev / full / demo probes), 412 s
+> (run before two test-only edits to `test_ep40.py`; the module was re-linted and re-run
+> after them, 14 passed); `poe roadmap-check`: 0 errors, 0 warnings. The frozen-version
+> refusal is demonstrated in
+> `test_frozen_version_refused_and_bump_allowed` (library, `mwh codeset list`, `compile`,
+> `validate` → exit 3). No earlier `test_ep*.py` was edited.
+>
+> **Owner decisions at the interactive review (2026-09-06).** (1) Commit in the standard
+> two steps, no push (the owner pushes) — done, hashes in `README.md`. (2) Keep the
+> faithful Charlson transcription with the documented 85 % floor on its ICD-10 arm
+> (rejected: pruning the 37 WHO-only codes). (3) Leave the `k` rule on `count(*)` over
+> registry tables as it stands; a registry-aware relaxation belongs to EP-43 (rejected:
+> a `safe_query` exemption in this brief). (4) Defer the full-tier `--tag codesets` run to
+> the next full rebuild, as with EP-39's `--tag units` (rejected: a background job now).
+> Still open for the owner: the two GEM review files under the data root await a human
+> read (dictionary text only).

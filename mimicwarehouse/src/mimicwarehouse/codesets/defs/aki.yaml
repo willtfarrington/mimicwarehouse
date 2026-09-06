@@ -1,0 +1,25 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: aki
+version: "1.0.0"
+name: Acute kidney injury (diagnosis codes)
+description: >
+  Acute kidney failure as billed: ICD-9-CM 584.x (584.5 tubular necrosis ... 584.9
+  unspecified) and ICD-10-CM N17.- (N17.0 ... N17.9). A billing-code definition; the
+  KDIGO creatinine / urine-output staging is EP-42's phenotype.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "584", match: prefix}
+  icd10:
+    - {code: "N17", match: prefix}
+provenance:
+  source: hand
+  url: https://kdigo.org/guidelines/acute-kidney-injury/
+  ref: ICD-9-CM 584.- and ICD-10-CM N17.- (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://kdigo.org/guidelines/acute-kidney-injury/
+notes: >
+  Traumatic, obstetric and postprocedural kidney failure (958.5, 669.3x, 997.5 /
+  T79.5, O90.4, N99.0) are left out on purpose.

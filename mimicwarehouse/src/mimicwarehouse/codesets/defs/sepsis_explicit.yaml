@@ -1,0 +1,49 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: sepsis_explicit
+version: "1.0.0"
+name: Sepsis, explicitly coded (septicemia, sepsis, severe sepsis, septic shock)
+description: >
+  The "explicit" sepsis diagnosis codes: septicemia / sepsis by organism (ICD-9-CM 038.x,
+  ICD-10-CM A40.- / A41.- and the organism-specific sepsis codes), sepsis and severe sepsis
+  (995.91 / 995.92; R65.20), septic shock (785.52; R65.21), puerperal sepsis (O85) and
+  postprocedural sepsis / septic shock (T81.12- / T81.44-). A billing-code definition, not
+  the Sepsis-3 clinical criteria (EP-42 builds that from the mimic-code concept).
+kind: icd_dx
+members:
+  icd9:
+    - {code: "038", match: prefix}
+    - {code: "0202"}
+    - {code: "0223"}
+    - {code: "0362"}
+    - {code: "0545"}
+    - {code: "449"}
+    - {code: "78552"}
+    - {code: "99591"}
+    - {code: "99592"}
+  icd10:
+    - {code: "A40", match: prefix}
+    - {code: "A41", match: prefix}
+    - {code: "R652", match: prefix}
+    - {code: "T8112", match: prefix}
+    - {code: "T8144", match: prefix}
+    - {code: "A021"}
+    - {code: "A227"}
+    - {code: "A267"}
+    - {code: "A327"}
+    - {code: "A427"}
+    - {code: "A5486"}
+    - {code: "B377"}
+    - {code: "O85"}
+provenance:
+  source: hand
+  url: https://doi.org/10.1097/00003246-200107000-00002
+  ref: Angus et al. 2001 explicit septicemia codes, extended to the ICD-10-CM era by hand
+  accessed: "2026-09-06"
+references:
+  - https://doi.org/10.1097/00003246-200107000-00002
+  - https://doi.org/10.1056/NEJMoa022139
+notes: >
+  R65.2- covers severe sepsis with and without septic shock; T81.44- (sepsis following a
+  procedure) exists only from FY2020, T81.12- (postprocedural septic shock) from FY2017 -
+  earlier admissions carry none. Bacteremia (790.7 / R78.81) is deliberately excluded.

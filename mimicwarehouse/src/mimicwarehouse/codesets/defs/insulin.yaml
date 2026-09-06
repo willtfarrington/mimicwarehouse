@@ -1,0 +1,46 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: insulin
+version: "1.0.0"
+name: Insulins (drug names)
+description: >
+  Every insulin product as a substring of prescriptions.drug / emar.medication: the word
+  itself (which covers "Insulin", "Insulin Glargine", sliding-scale orders, ...) plus the
+  analogue generics and brands that are sometimes ordered without it.
+kind: drug
+members:
+  drugs:
+    match: contains
+    names:
+      - insulin
+      - glargine
+      - lantus
+      - basaglar
+      - toujeo
+      - semglee
+      - detemir
+      - levemir
+      - degludec
+      - tresiba
+      - aspart
+      - novolog
+      - fiasp
+      - lispro
+      - humalog
+      - admelog
+      - glulisine
+      - apidra
+      - humulin
+      - novolin
+      - nph
+provenance:
+  source: hand
+  url: https://atcddd.fhi.no/atc_ddd_index/?code=A10A
+  ref: WHO ATC A10A "insulins and analogues" members, spelled as MIMIC prescriptions name them
+  accessed: "2026-09-06"
+references:
+  - https://atcddd.fhi.no/atc_ddd_index/?code=A10A
+notes: >
+  A name match is not an administration: the EP-41 phenotype decides which orders count
+  (route, drug_type, emar events). "nph" is short and may match unrelated strings - review
+  the compiled hits on dev before relying on it alone.

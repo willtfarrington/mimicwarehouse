@@ -69,6 +69,11 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
 - **`os.open` without `O_BINARY` writes CRLF on Windows.** The pre-EP-33 ledger writers did;
   JSON readers tolerate the stray `\r`, and `fsio.append_jsonl` now writes exactly `\n`.
   *(EP-33 B8.)*
+- **`executemany` inserts run at a few thousand rows per second.** The meta writer
+  (`units.write_meta_parquet`: temp table + `COPY` + `publish.replace`) is right for
+  registry-sized tables, and the 281 k-row GEM step (`codesets.gem`) takes about 67 s on
+  it; anything larger should register an Arrow / Polars frame and `COPY` from that
+  instead. *(EP-40.)*
 - **Aggregate scans are cheap; sort-shaped work is not.** `meta.profile` over 886 M rows
   took 14.1 s; the per-bucket sorts of pass 2 dominate staging (pass 2 ≥ pass 1 on most
   large tables). Size estimates by *shape*, not by CSV GB — VARCHAR-heavy tables
@@ -133,6 +138,10 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `mwh doctor` `power_scheme` before heavy work and ask rather than change it.
 - **Commit messages via `git commit -F <scratch file>`**; never `--no-verify`; no
   AI-attribution trailers.
+- **Quote every code in a code-set YAML.** PyYAML (1.1) reads an unquoted `0010` as the
+  octal integer 8 and `496` as an int, so a leading zero is lost before the loader sees
+  it; `codesets.spec.normalize_code` refuses integer codes with that message. The same
+  goes for `version: "1.0.0"` (unquoted `1.0` is a float). *(EP-40.)*
 
 ## 4. Editing the design records (DESIGN.md / DECISIONS.md / briefs)
 

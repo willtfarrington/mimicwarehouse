@@ -1,0 +1,35 @@
+# dag/specs/codesets.yaml -- the code-set registry and GEM steps (EP-40 items 2 and 4;
+# ASCII only). Merged into the one graph by dag.spec.load_dag() (EP-37 discovery): two
+# python steps (module:function handlers under mimicwarehouse.codesets, each writing
+# lake/meta/<tier>/<table>.parquet per EP-29's convention, registered as meta.<table> by
+# EP-37's discovery walker at catalog time) and the shared catalog step, whose depends_on /
+# tags are unioned with the other specs' so `mwh build --tier <t> --tag codesets` ends in a
+# catalog rebuild. No target: both steps are cheap and re-run whenever selected.
+#   codesets.compile -> meta.codesets + meta.codeset_members  (every registered set expanded
+#                       against the tier's dictionary dims; `mwh codeset compile`)
+#   codesets.gem     -> meta.gem_i9_to_i10 + meta.gem_i10_to_i9 (the landed CMS 2018 GEMs;
+#                       a warning and no tables while ext/vocab/gem/2018/ is not landed)
+version: 1
+steps:
+  - name: codesets.compile
+    kind: python
+    callable: mimicwarehouse.codesets.registry:run_compile
+    tags: [codesets, meta]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_hosp.d_icd_diagnoses
+      - stage.mimiciv_hosp.d_icd_procedures
+      - stage.mimiciv_hosp.d_hcpcs
+      - stage.mimiciv_hosp.d_labitems
+      - stage.mimiciv_icu.d_items
+  - name: codesets.gem
+    kind: python
+    callable: mimicwarehouse.codesets.gem:run_gem
+    tags: [codesets, meta]
+    tiers: [fixture, demo, dev, full]
+  - name: catalog
+    kind: catalog
+    tags: [catalog, codesets]
+    depends_on:
+      - codesets.compile
+      - codesets.gem

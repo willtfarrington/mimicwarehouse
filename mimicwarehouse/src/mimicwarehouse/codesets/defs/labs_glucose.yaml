@@ -1,0 +1,23 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: labs_glucose
+version: "1.0.0"
+name: Glucose (lab and chart itemids)
+description: >
+  Every glucose itemid of EP-39's item catalogue (concept group labs.glucose, canonical
+  unit mg/dL): serum (labevents 50931, chemistry.sql), blood gas (50809, bg.sql) and the
+  chart-side serum / fingerstick / whole-blood items (220621, 225664, 226537,
+  vitalsign.sql).
+kind: itemid
+members:
+  itemids: [50809, 50931, 220621, 225664, 226537]
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code
+  ref: data/item_units.yaml (labs.glucose) <- concepts_duckdb measurement/chemistry.sql, bg.sql, vitalsign.sql
+  accessed: "2026-09-06"
+references:
+  - https://github.com/MIT-LCP/mimic-code
+notes: >
+  Units and plausibility bounds live in units.py (mwh_harmonize); the three chart items
+  come from chartevents, the two lab items from labevents - a consumer joins by source.

@@ -1,0 +1,34 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: atrial_fibrillation
+version: "1.0.0"
+name: Atrial fibrillation (diagnosis codes)
+description: >
+  Atrial fibrillation as billed: ICD-9-CM 427.31 and the ICD-10-CM I48 fibrillation codes
+  (paroxysmal, persistent incl. the FY2020 longstanding / other persistent split, chronic
+  incl. the FY2020 permanent / other chronic split, unspecified). Atrial flutter (427.32 /
+  I48.3, I48.4, I48.92) is left out on purpose.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "42731"}
+  icd10:
+    - {code: "I480"}
+    - {code: "I481"}
+    - {code: "I4811"}
+    - {code: "I4819"}
+    - {code: "I482"}
+    - {code: "I4820"}
+    - {code: "I4821"}
+    - {code: "I4891"}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 427.31 and ICD-10-CM I48.0 / I48.1- / I48.2- / I48.91 (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://www.cdc.gov/nchs/icd/icd-10-cm/index.html
+notes: >
+  I48.1 and I48.2 became headers in FY2020 (split into I48.11 / I48.19 and I48.20 /
+  I48.21); both the pre- and post-split spellings are listed because MIMIC-IV spans the
+  change and the dictionary is the union over years.

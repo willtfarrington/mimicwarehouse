@@ -844,14 +844,15 @@ def raw_variants_path(lake_root: Path | str, tier: str) -> Path:
     return meta_dir(lake_root, tier) / RAW_DIRNAME / f"{VARIANTS_TABLE}.parquet"
 
 
-def _write_parquet(
+def write_meta_parquet(
     con: duckdb.DuckDBPyConnection,
     dest: Path,
     columns: tuple[tuple[str, str], ...],
     rows: Iterable[Iterable[Any]],
 ) -> int:
     """Rows -> ``dest`` through a temp table + ``COPY`` + :func:`publish.replace` (the
-    EP-29 / EP-37 meta writer shape); returns the file size."""
+    EP-29 / EP-37 meta writer shape); returns the file size. Public since EP-40 — the
+    code-set and GEM steps write their ``lake/meta/<tier>/`` tables through it."""
     from mimicwarehouse import publish
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -910,7 +911,7 @@ def run_item_units(step: Step, ctx: StepContext) -> StepOutcome:
 
     rows = item_units_rows()
     dest = meta_table_path(ctx.lake_root, ctx.tier, ITEM_UNITS_TABLE)
-    nbytes = _write_parquet(ctx.con, dest, ITEM_UNITS_COLUMNS, rows)
+    nbytes = write_meta_parquet(ctx.con, dest, ITEM_UNITS_COLUMNS, rows)
     _LOG.info(
         "meta.item_units (%s): %d itemid(s), %d accepted-unit row(s) — %s",
         ctx.tier,
@@ -1036,11 +1037,11 @@ def run_variants(step: Step, ctx: StepContext) -> StepOutcome:
     tier, build_id = ctx.tier, ctx.build_id
     raw_rows = [[*r, tier, build_id] for r in raw.rows()]
     published_rows = [[*r, tier, build_id] for r in published.rows()]
-    raw_bytes = _write_parquet(
+    raw_bytes = write_meta_parquet(
         ctx.con, raw_variants_path(ctx.lake_root, tier), RAW_VARIANTS_COLUMNS, raw_rows
     )
     dest = meta_table_path(ctx.lake_root, tier, VARIANTS_TABLE)
-    nbytes = _write_parquet(ctx.con, dest, VARIANTS_COLUMNS, published_rows)
+    nbytes = write_meta_parquet(ctx.con, dest, VARIANTS_COLUMNS, published_rows)
     n_suppressed = int(published.get_column("suppressed").sum())
     _LOG.info(
         "meta.item_unit_variants (%s): %d variant row(s) over %d itemid(s), %d suppressed at "
@@ -1499,6 +1500,7 @@ __all__ = [
     "sync_methods_doc",
     "units_app",
     "variants_sql",
+    "write_meta_parquet",
 ]
 
 

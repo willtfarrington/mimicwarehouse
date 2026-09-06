@@ -1,0 +1,23 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: atc_c01ca_adrenergics
+version: "1.0.0"
+name: ATC C01CA - adrenergic and dopaminergic agents (class)
+description: >
+  The WHO ATC chemical subgroup C01CA (adrenergic and dopaminergic agents: epinephrine,
+  norepinephrine, dopamine, dobutamine, phenylephrine, ...) as a class prefix. No ATC table
+  is landed in v1 (D-35), so the member is the class code itself; vasopressors@1.0.0 is
+  the name-based twin usable today (vasopressin is ATC H01BA, outside this class).
+kind: atc
+members:
+  atc: [C01CA]
+provenance:
+  source: hand
+  url: https://atcddd.fhi.no/atc_ddd_index/?code=C01CA
+  ref: WHO Collaborating Centre for Drug Statistics Methodology, ATC/DDD index 2026
+  accessed: "2026-09-06"
+references:
+  - https://atcddd.fhi.no/atc_ddd_index/?code=C01CA
+notes: >
+  Members of C01CA in the 2026 index include C01CA03 norepinephrine, C01CA04 dopamine,
+  C01CA06 phenylephrine, C01CA07 dobutamine and C01CA24 epinephrine.

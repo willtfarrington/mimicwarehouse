@@ -1,0 +1,35 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: hypertension
+version: "1.0.0"
+name: Hypertension (diagnosis codes, essential and secondary / complicated)
+description: >
+  Hypertensive disease as billed: ICD-9-CM 401-405 (essential, hypertensive heart / kidney
+  disease, secondary) and ICD-10-CM I10-I13, I15, I16 (hypertensive crisis, FY2017+).
+  Elixhauser splits "uncomplicated" (401 / I10) from "complicated" (402-405 / I11-I13,
+  I15) - filter the compiled members by declared_code when that split is needed.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "401", match: prefix}
+    - {code: "402", match: prefix}
+    - {code: "403", match: prefix}
+    - {code: "404", match: prefix}
+    - {code: "405", match: prefix}
+  icd10:
+    - {code: "I10"}
+    - {code: "I11", match: prefix}
+    - {code: "I12", match: prefix}
+    - {code: "I13", match: prefix}
+    - {code: "I15", match: prefix}
+    - {code: "I16", match: prefix}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 401-405 and ICD-10-CM I10-I16 (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://hcup-us.ahrq.gov/toolssoftware/comorbidityicd10/comorbidity_icd10.jsp
+notes: >
+  I10 is a billable three-character code without children, hence an exact member;
+  gestational hypertension (642.x / O13-O16) is left out.

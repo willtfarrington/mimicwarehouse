@@ -1,0 +1,26 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: mi
+version: "1.0.0"
+name: Acute myocardial infarction (diagnosis codes)
+description: >
+  Acute myocardial infarction as billed: ICD-9-CM 410.xx (all sites and episodes of care)
+  and ICD-10-CM I21.- (acute) / I22.- (subsequent). Old / healed infarction (412, I25.2)
+  is left out - the Charlson myocardial_infarct group includes it.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "410", match: prefix}
+  icd10:
+    - {code: "I21", match: prefix}
+    - {code: "I22", match: prefix}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 410.- and ICD-10-CM I21.- / I22.- (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://doi.org/10.1097/01.mlr.0000182534.19832.83
+notes: >
+  410.x2 (subsequent episode of care) is included with the prefix; consumers needing the
+  initial episode only filter the compiled members by code.

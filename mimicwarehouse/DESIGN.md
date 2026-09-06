@@ -637,7 +637,62 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
 > acceptance. Measured sizes of the derived layer: full 1,337,952,596 bytes (1,276.0 MB) in
 > 65 files, dev 62,739,879 bytes, demo 1,821,138 bytes.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38 (completion notes); EP-39 … EP-42 planned; consolidated at EP-33.
+> **Note (2026-09-06, EP-40) — the code-set registry and the GEM utility as built.**
+> `src/mimicwarehouse/codesets/`: `spec.py` holds the pydantic `CodeSet` (`id` slug,
+> quoted semver `version`, `kind` in `icd_dx | icd_px | itemid | drug | atc | loinc |
+> hcpcs`, `members` by system, mandatory `provenance`, DOI/URL `references`, `notes`);
+> `kind` fixes the member systems (`KIND_FIELDS`) and every diagnosis / procedure set is
+> **dual** (`icd9` **and** `icd10` lists — the schema refuses one without the other, D-19
+> standing decision "ICD-9→10 dual code sets everywhere"). ICD / HCPCS entries are
+> `{code, match: exact|prefix, group}`; codes are normalised (upper, stripped, dots
+> removed; an integer code is refused because an unquoted `0010` is YAML octal), drug
+> names collapsed and upper-cased (a `regex` stays verbatim), lists de-duplicated and
+> sorted, so **`def_hash`** — sha256 of the canonical JSON of `{kind, members}` — is
+> invariant to key order, whitespace, dots and list order and moves exactly when the
+> definition moves. **Immutability rule (the EP-40 design decision):** each definition
+> directory carries `codesets.lock.json` (`id@version` → `def_hash`, written by `mwh
+> codeset lock` through `fsio.atomic_write_text`; the packaged one is committed);
+> `registry.load_dir` raises `CodeSetFrozenError` when a recorded pair's hash moved, and
+> every command refuses it with `EXIT_REFUSED` before anything runs; an unrecorded pair
+> loads as *unlocked* (`lock --check` exits 1 while a packaged seed is unlocked). The
+> registry (`registry.py`) is the packaged `defs/*.yaml` (20 seeds at EP-40: ten dual
+> dx sets, `charlson_groups` with the 17 Quan categories as `group`s transcribed from the
+> executed `charlson.sql` incl. the EP-38 C4A exclusion, three itemid sets taken from
+> EP-39's catalogue groups, four drug-name sets — `antibiotics` transcribes mimic-code's
+> `antibiotic.sql` list — and two ATC classes) plus any `--defs DIR` study directories.
+> **Compile** = the `python` step `codesets.compile` (`dag/specs/codesets.yaml`, tag
+> `codesets`; `mwh codeset compile [--tier t] [id@version …]` runs it and the catalog step
+> through the runner): prefix rules expand against the tier's staged dictionary views on
+> the build connection (`d_icd_diagnoses` / `d_icd_procedures` / EP-29's `meta.itemids`
+> shape over `d_items` + `d_labitems` / `d_hcpcs`; a bisect over the sorted codes) into
+> `lake/meta/<tier>/codesets.parquet` (the index: def_hash, kind, counts, `locked`, path)
+> and `codeset_members.parquet` (`system`, `code`, `match_kind`, `declared_code`,
+> `member_group`, dictionary `label`, `matched_in_dictionary` — NULL for the systems
+> without a dictionary here: drug names, RxNorm, ATC, LOINC (D-35); an unmatched prefix
+> still yields one row), registered by EP-37's walker and commented by
+> `register_codesets`, the third `CATALOG_EXTENSIONS` entry (after the walker, before
+> `units`). A selection re-compiles those sets and keeps the others' rows
+> (`compile_options`, a ContextVar the CLI sets around the runner call). `mwh codeset
+> validate` is the same expansion over the tier catalog read through `safe_query`
+> (dims / `meta.itemids` are registry-exempt, so declared / matched / unmatched codes and
+> titles print freely); the `k` rule still applies to `count(*)` over `meta.codeset_members`
+> (small (set, system) groups vanish from an aggregate `mwh sql` — use `validate` for the
+> per-set numbers; EP-43 owns any registry-aware relaxation). **GEM** (`gem.py`):
+> `mwh codeset gem fetch` lands the two public CMS 2018 zips under `ext/vocab/gem/2018/`
+> (EP-14's convention; the four text members verified against sha256 pins, `source.yaml`
+> in the EP-14 template shape; the owner may place the files by hand), the `codesets.gem`
+> step writes `meta.gem_i9_to_i10` / `meta.gem_i10_to_i9` (dx + px, the flags decoded:
+> `approximate`, `no_map`, `combination` booleans, `scenario` / `choice_list` integers;
+> a warning and no tables while nothing is landed, so the session fixture lake builds
+> offline), `gem.forward` / `gem.backward` map code lists, and `mwh codeset expand
+> <ref> --via-gem` writes `<id>@<version>.gem-review.md` under `studies/codesets/reviews/`
+> — proposals the set does not cover yet, with titles, sources and flags — for a human to
+> fold into a **new version**; the GEM is asymmetric by design (250.02 → E11.65, E11.65 →
+> 250.80) and never applied automatically. Consumers: EP-41 (`diagnosis` / `medication`
+> leaves by `id@version`, references resolved to hashes), EP-46 (cohort criteria), EP-63.
+> Prose twin: `docs/methods/codesets.md`.
+
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38, EP-40 (completion notes); EP-41 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -941,7 +996,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer; lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -966,7 +1021,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39 shipped  curated item catalogue (data/item_units.yaml), normalize_unit + affine FORMULAS, harmonize / harmonize_frame / plausible_mask / bounds, the mwh_harmonize macro family (CATALOG_EXTENSIONS entry), the units.* DAG steps (dag/specs/units.yaml -> meta.item_units / item_unit_variants / item_dictionary), report + `mwh units`, docs/methods/units.md renderer
-│   ├── codesets/                  EP-40  registry, GEM utility
+│   ├── codesets/                  EP-40 shipped  spec (CodeSet, def_hash, id@version refs), registry (defs/*.yaml + codesets.lock.json, dictionary expansion, the codesets.compile step -> meta.codesets / meta.codeset_members, register_codesets extension, validate, docs/methods/codesets.md renderer), gem (CMS 2018 GEM fetch + source.yaml, parser, forward / backward, the codesets.gem step -> meta.gem_i9_to_i10 / meta.gem_i10_to_i9, the .gem-review.md author aid), cli (`mwh codeset`)
 │   ├── phenotypes/                EP-41/42
 │   ├── disclose.py                EP-43
 │   ├── qc/                        EP-44/45 profiles, measurement process
@@ -1062,6 +1117,21 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > the catalogue, `python -m mimicwarehouse.units` re-renders `docs/methods/units.md`.
 > Consumers: EP-44 (`bounds`, the flagged itemids), EP-55 (`harmonize_frame` / the
 > macro / `meta.item_units` as a join table), EP-138 (`meta.item_dictionary`).
+
+> **Note (2026-09-06, EP-40) — `mwh codeset`, the `codesets/` package.** A fourth
+> package under the EP-33 B6 doctrine: `codesets/__init__.py` is docstring-only,
+> `spec.py` / `registry.py` / `gem.py` are pydantic + yaml + stdlib at import time (the
+> `codeset` sub-app is on the `mwh --help` path; duckdb, polars, `safe`, the runner, the
+> concept runner and `units` load inside function bodies — `test_ep40` pins the budget).
+> The command group: `list` / `show` (no data access), `lock [--defs DIR] [--check]`,
+> `validate <ref> [--tier t] [--json]` (dictionaries through `safe_query`), `compile
+> [--tier t] [ref …] [--defs DIR]` (the `codesets.compile` step + catalog through the
+> runner — build lock, benchmark lines, a `run.start(kind="build")` record; a frozen set
+> refuses with exit 3 before anything runs; a failed step exits 1), `expand <ref>
+> --via-gem [--tier t] [--out PATH]`, `gem fetch [--force]` / `gem status`. The meta
+> writer `units.write_meta_parquet` (the EP-29 / EP-37 temp-table + `COPY` + `publish.replace`
+> shape) went public so the two new steps share it. The §8 note carries the as-built
+> semantics; the prose twin is `docs/methods/codesets.md`.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

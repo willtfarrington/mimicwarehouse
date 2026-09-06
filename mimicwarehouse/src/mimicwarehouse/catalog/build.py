@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse import __version__, publish
+from mimicwarehouse.codesets.registry import register_codesets as _codesets_register
 from mimicwarehouse.concepts.runner import register_derived as _concepts_register_derived
 from mimicwarehouse.config import (
     Settings,
@@ -93,12 +94,15 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first; EP-37's
 #: discovery walker (``mimiciv_derived.<table>`` views over ``lake/derived/<tier>/`` and
 #: ``meta.<table>`` tables over ``lake/meta/<tier>/``) reads ``meta.catalog_info`` for the
-#: lake root, so extensions never need paths of their own; EP-39's ``units.register_units``
-#: (the ``mwh_harmonize`` macro family + comments on the ``meta.item_*`` tables the walker
-#: registered) runs after it.
+#: lake root, so extensions never need paths of their own; EP-40's
+#: ``codesets.registry.register_codesets`` (comments on the ``meta.codesets`` /
+#: ``meta.codeset_members`` / ``meta.gem_*`` tables the walker registered) and EP-39's
+#: ``units.register_units`` (the ``mwh_harmonize`` macro family + comments on the
+#: ``meta.item_*`` tables) run after it, ``units`` last.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
+    _codesets_register,
     _units_register,
 ]
 

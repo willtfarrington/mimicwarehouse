@@ -1,0 +1,44 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: t1dm
+version: "1.0.0"
+name: Type 1 diabetes mellitus (diagnosis codes)
+description: >
+  Type 1 diabetes mellitus as billed in diagnoses_icd: ICD-9-CM 250.x1 / 250.x3 (fifth
+  digit 1 or 3 = type I) and the whole ICD-10-CM E10 family.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "25001"}
+    - {code: "25003"}
+    - {code: "25011"}
+    - {code: "25013"}
+    - {code: "25021"}
+    - {code: "25023"}
+    - {code: "25031"}
+    - {code: "25033"}
+    - {code: "25041"}
+    - {code: "25043"}
+    - {code: "25051"}
+    - {code: "25053"}
+    - {code: "25061"}
+    - {code: "25063"}
+    - {code: "25071"}
+    - {code: "25073"}
+    - {code: "25081"}
+    - {code: "25083"}
+    - {code: "25091"}
+    - {code: "25093"}
+  icd10:
+    - {code: "E10", match: prefix}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 250.x1 / 250.x3 and ICD-10-CM E10.- (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://www.cdc.gov/nchs/icd/icd-10-cm/index.html
+notes: >
+  The counterpart of t2dm@1.0.0; the EP-41 T2DM phenotype uses it as an exclusion. The
+  fixture dictionaries carry no type-1 codes, so on the fixture tier this set matches
+  nothing - by design (tests assert declared members, dev asserts dictionary coverage).

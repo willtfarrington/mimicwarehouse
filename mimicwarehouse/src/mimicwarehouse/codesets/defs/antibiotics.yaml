@@ -1,0 +1,179 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: antibiotics
+version: "1.0.0"
+name: Antibiotics (mimic-code antibiotic.sql name list)
+description: >
+  The substring list of the vendored mimic-code medication/antibiotic.sql concept
+  (LOWER(drug) LIKE '%name%'), transcribed once and de-duplicated; the concept's route and
+  form exclusions (topical, eye / ear routes, creams, gels, desensitization orders) are
+  phenotype logic, not part of the code set.
+kind: drug
+members:
+  drugs:
+    match: contains
+    names:
+      - adoxa
+      - ala-tet
+      - alodox
+      - amikacin
+      - amikin
+      - amoxicill
+      - amphotericin
+      - anidulafungin
+      - ancef
+      - clavulanate
+      - ampicillin
+      - augmentin
+      - avelox
+      - avidoxy
+      - azactam
+      - azithromycin
+      - aztreonam
+      - axetil
+      - bactocill
+      - bactrim
+      - bactroban
+      - bethkis
+      - biaxin
+      - bicillin l-a
+      - cayston
+      - cefazolin
+      - cedax
+      - cefoxitin
+      - ceftazidime
+      - cefaclor
+      - cefadroxil
+      - cefdinir
+      - cefditoren
+      - cefepime
+      - cefotan
+      - cefotetan
+      - cefotaxime
+      - ceftaroline
+      - cefpodoxime
+      - cefpirome
+      - cefprozil
+      - ceftibuten
+      - ceftin
+      - ceftriaxone
+      - cefuroxime
+      - cephalexin
+      - cephalothin
+      - cephapririn
+      - chloramphenicol
+      - cipro
+      - ciprofloxacin
+      - claforan
+      - clarithromycin
+      - cleocin
+      - clindamycin
+      - cubicin
+      - dicloxacillin
+      - dirithromycin
+      - doryx
+      - doxycy
+      - duricef
+      - dynacin
+      - ery-tab
+      - eryped
+      - eryc
+      - erythrocin
+      - erythromycin
+      - factive
+      - flagyl
+      - fortaz
+      - furadantin
+      - garamycin
+      - gentamicin
+      - kanamycin
+      - keflex
+      - kefzol
+      - ketek
+      - levaquin
+      - levofloxacin
+      - lincocin
+      - linezolid
+      - macrobid
+      - macrodantin
+      - maxipime
+      - mefoxin
+      - metronidazole
+      - meropenem
+      - methicillin
+      - minocin
+      - minocycline
+      - monodox
+      - monurol
+      - morgidox
+      - moxatag
+      - moxifloxacin
+      - mupirocin
+      - myrac
+      - nafcillin
+      - neomycin
+      - nicazel doxy 30
+      - nitrofurantoin
+      - norfloxacin
+      - noroxin
+      - ocudox
+      - ofloxacin
+      - omnicef
+      - oracea
+      - oraxyl
+      - oxacillin
+      - pc pen vk
+      - pce dispertab
+      - panixine
+      - pediazole
+      - penicillin
+      - periostat
+      - pfizerpen
+      - piperacillin
+      - tazobactam
+      - primsol
+      - proquin
+      - raniclor
+      - rifadin
+      - rifampin
+      - rocephin
+      - smz-tmp
+      - septra
+      - septra ds
+      - solodyn
+      - spectracef
+      - streptomycin
+      - sulfadiazine
+      - sulfamethoxazole
+      - trimethoprim
+      - sulfatrim
+      - sulfisoxazole
+      - suprax
+      - synercid
+      - tazicef
+      - tetracycline
+      - timentin
+      - tobramycin
+      - unasyn
+      - vancocin
+      - vancomycin
+      - vantin
+      - vibativ
+      - vibra-tabs
+      - vibramycin
+      - zinacef
+      - zithromax
+      - zosyn
+      - zyvox
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code
+  ref: mimic-iv/concepts_duckdb/medication/antibiotic.sql (the CASE WHEN LOWER(drug) LIKE list)
+  accessed: "2026-09-06"
+references:
+  - https://github.com/MIT-LCP/mimic-code
+notes: >
+  The upstream list contains antifungals (amphotericin, anidulafungin) and repeats
+  ("septra" twice, "trimethoprim" twice) - kept as upstream defines it, duplicates
+  collapsed by normalisation. "septra ds" is redundant with "septra" under contains
+  matching and is kept for fidelity to the source.

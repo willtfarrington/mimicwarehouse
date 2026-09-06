@@ -1,0 +1,30 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: copd
+version: "1.0.0"
+name: Chronic obstructive pulmonary disease (diagnosis codes)
+description: >
+  COPD in the narrow sense: chronic bronchitis (491.x / J41.-, J42), emphysema (492.x /
+  J43.-) and chronic airway obstruction not elsewhere classified (496 / J44.-). Asthma
+  (493 / J45-J46), bronchiectasis and the pneumoconioses are left out; the Charlson
+  chronic_pulmonary_disease group is the broad version.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "491", match: prefix}
+    - {code: "492", match: prefix}
+    - {code: "496", match: prefix}
+  icd10:
+    - {code: "J41", match: prefix}
+    - {code: "J42", match: prefix}
+    - {code: "J43", match: prefix}
+    - {code: "J44", match: prefix}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 491 / 492 / 496 and ICD-10-CM J41-J44 (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://doi.org/10.1097/01.mlr.0000182534.19832.83
+notes: >
+  496 is a three-digit ICD-9-CM code with no children; the prefix rule resolves to it alone.

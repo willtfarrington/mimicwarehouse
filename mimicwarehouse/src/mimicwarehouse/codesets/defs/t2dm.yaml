@@ -1,0 +1,46 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted (leading zeros), dots omitted as
+# in MIMIC-IV; the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: t2dm
+version: "1.0.0"
+name: Type 2 diabetes mellitus (diagnosis codes)
+description: >
+  Type 2 or unspecified-type diabetes mellitus as billed in diagnoses_icd: ICD-9-CM 250.x0 /
+  250.x2 (fifth digit 0 or 2 = type II or unspecified type) and the whole ICD-10-CM E11
+  family.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "25000"}
+    - {code: "25002"}
+    - {code: "25010"}
+    - {code: "25012"}
+    - {code: "25020"}
+    - {code: "25022"}
+    - {code: "25030"}
+    - {code: "25032"}
+    - {code: "25040"}
+    - {code: "25042"}
+    - {code: "25050"}
+    - {code: "25052"}
+    - {code: "25060"}
+    - {code: "25062"}
+    - {code: "25070"}
+    - {code: "25072"}
+    - {code: "25080"}
+    - {code: "25082"}
+    - {code: "25090"}
+    - {code: "25092"}
+  icd10:
+    - {code: "E11", match: prefix}
+provenance:
+  source: hand
+  url: https://www.cms.gov/medicare/coding-billing/icd-10-codes
+  ref: ICD-9-CM 250.x0 / 250.x2 and ICD-10-CM E11.- (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://www.cdc.gov/nchs/icd/icd-10-cm/index.html
+notes: >
+  Type-1-specific fifth digits (1, 3) are t1dm@1.0.0. Long-term insulin use (V58.67 / Z79.4)
+  is not a diabetes diagnosis and is left out; secondary, drug-induced and gestational
+  diabetes (249.x, 648.0x, E08, E09, E13, O24) are left out on purpose - the EP-41
+  phenotype combines this set with medications and HbA1c and states what it does not claim.

@@ -6,7 +6,8 @@ set (the ``# --- commands`` block below is authoritative; retro CLI-4):
 ``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``canary`` (EP-171,
 :mod:`mimicwarehouse.canary`) · ``catalog``/``sql`` (EP-21, :mod:`mimicwarehouse.catalog.cli`;
 since EP-30 ``sql`` routes everything through ``safe_query`` — aggregate-only, audited,
-refusals exit 3) · ``demo`` (EP-22, :mod:`mimicwarehouse.demo`) · ``doctor`` (EP-2,
+refusals exit 3) · ``codeset`` (EP-40, :mod:`mimicwarehouse.codesets.cli`) · ``demo``
+(EP-22, :mod:`mimicwarehouse.demo`) · ``doctor`` (EP-2,
 :mod:`mimicwarehouse.doctor`) · ``fixtures`` (EP-11, :mod:`mimicwarehouse.fixtures.cli`) ·
 ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``inventory`` (EP-10,
 :mod:`mimicwarehouse.inventory`) · ``paths`` (EP-3, :mod:`mimicwarehouse.config`) · ``runs``
@@ -51,6 +52,7 @@ from rich.markup import escape
 from mimicwarehouse import __version__, config
 from mimicwarehouse.canary import canary_app
 from mimicwarehouse.catalog.cli import catalog_app, sql_command
+from mimicwarehouse.codesets.cli import codeset_app
 from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.console import EXIT_USAGE, err_console, fail
 from mimicwarehouse.dag.cli import build_command, jobs_command
@@ -182,6 +184,7 @@ def main(
 app.command("build")(build_command)
 app.add_typer(canary_app, name="canary")
 app.add_typer(catalog_app, name="catalog")
+app.add_typer(codeset_app, name="codeset")
 app.add_typer(demo_app, name="demo")
 app.command("doctor")(doctor_command)
 app.add_typer(fixtures_app, name="fixtures")

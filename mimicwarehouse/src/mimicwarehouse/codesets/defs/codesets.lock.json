@@ -1,0 +1,105 @@
+{
+  "codesets": {
+    "aki@1.0.0": {
+      "def_hash": "ad96a0dbd8adaf7895bc3c636608248f0ee2ebdea78a94adacb038b8b2db4e30",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "antibiotics@1.0.0": {
+      "def_hash": "0a34a3d3e80881eb4cf1c7c54f5bb65a3f1795997dc956157e22bc986515ccf7",
+      "kind": "drug",
+      "locked_at": "2026-09-06"
+    },
+    "atc_a10a_insulins@1.0.0": {
+      "def_hash": "c09806c851b5960a40ffab63fd17051bae47ee7bae94dc66ea2f6064cbd055fe",
+      "kind": "atc",
+      "locked_at": "2026-09-06"
+    },
+    "atc_c01ca_adrenergics@1.0.0": {
+      "def_hash": "84cc3c30278c437b45b8cf476a296f6e5d442fefbd7adc1a80b88ac01303a001",
+      "kind": "atc",
+      "locked_at": "2026-09-06"
+    },
+    "atrial_fibrillation@1.0.0": {
+      "def_hash": "bcf49b762e61670b5f3403480b07834f3406da31e7f1c344502e60cb0418ee95",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "charlson_groups@1.0.0": {
+      "def_hash": "bd5141bad9893bb420c22743d9fef50e561dff4d79c39a7a659340864433d0e2",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "ckd@1.0.0": {
+      "def_hash": "13bc9ec37693b728d30ca5554b6c3bfece027481a0c9af0fc11bb67c2bd06f72",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "copd@1.0.0": {
+      "def_hash": "ce4f1b21313c663f62b6ab8de401150e38813aab0f2f5fa1166017be9cad50a3",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "heart_failure@1.0.0": {
+      "def_hash": "f993dad36b9c35c9630cd34c571afa7316854909fdf677a5f7825dbe9c35cdb7",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "hypertension@1.0.0": {
+      "def_hash": "e83dec8848def9f3905e9cd3c960e7af48045e0d5d775bd66f11b5e2afa72acc",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "insulin@1.0.0": {
+      "def_hash": "51289402448b805666985260393b072212bebabbfa4b7ad5f717dd43e60a35bf",
+      "kind": "drug",
+      "locked_at": "2026-09-06"
+    },
+    "labs_creatinine@1.0.0": {
+      "def_hash": "56882cc015653a1be6d5fed410b6d4ee5b0fac423575fab9b6ad046467dba479",
+      "kind": "itemid",
+      "locked_at": "2026-09-06"
+    },
+    "labs_glucose@1.0.0": {
+      "def_hash": "0a5d3e43e3507ba0af9f3b5fff87efb546bab6e09384ae88e3baa82917d2129a",
+      "kind": "itemid",
+      "locked_at": "2026-09-06"
+    },
+    "labs_lactate@1.0.0": {
+      "def_hash": "6c8c98e4e52bea2a38411c097f9cc3111b4158a5b6849c511f5a1676b261ebea",
+      "kind": "itemid",
+      "locked_at": "2026-09-06"
+    },
+    "mi@1.0.0": {
+      "def_hash": "3c681d5b1e806a442cee1c21e8dbef227f09f83473bec7fd360c0d3c5e2c4208",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "noninsulin_antidiabetics@1.0.0": {
+      "def_hash": "bba2843889fed11c219d7e607d0150ad494f53abd51881a74ae4400df2ebbf87",
+      "kind": "drug",
+      "locked_at": "2026-09-06"
+    },
+    "sepsis_explicit@1.0.0": {
+      "def_hash": "5d172007c6219ad579900ed89807ee0c0bb9c5a4763cf342e96dcf2b4c0fdb2b",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "t1dm@1.0.0": {
+      "def_hash": "024460ebe6e4328fa9e0a22e0dbb3cf451f06d91dd502076a3f95c38857279f7",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "t2dm@1.0.0": {
+      "def_hash": "780eafccc3a88638c39403b205eb78a3e0bf13b95cb760a39cf681709a3a38f1",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-06"
+    },
+    "vasopressors@1.0.0": {
+      "def_hash": "8d34953c50398a54112d81c53ab0ea6c39512582a3373283baefcc8b6c0203fc",
+      "kind": "drug",
+      "locked_at": "2026-09-06"
+    }
+  },
+  "version": 1
+}

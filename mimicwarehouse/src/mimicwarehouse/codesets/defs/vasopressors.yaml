@@ -1,0 +1,36 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: vasopressors
+version: "1.0.0"
+name: Vasopressors (drug names + ICU infusion itemids)
+description: >
+  Norepinephrine, epinephrine, phenylephrine, vasopressin, dopamine and dobutamine: the
+  generic and common brand names matched as substrings of prescriptions.drug /
+  emar.medication, plus the inputevents itemids the mimic-code medication concepts read.
+kind: drug
+members:
+  drugs:
+    match: contains
+    names:
+      - norepinephrine
+      - levophed
+      - epinephrine
+      - adrenalin
+      - phenylephrine
+      - neo-synephrine
+      - vasopressin
+      - pitressin
+      - dopamine
+      - dobutamine
+  itemids: [221289, 221653, 221662, 221749, 221906, 222315]
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code
+  ref: mimic-iv/concepts_duckdb/medication/{norepinephrine,epinephrine,phenylephrine,vasopressin,dopamine,dobutamine}.sql
+  accessed: "2026-09-06"
+references:
+  - https://github.com/MIT-LCP/mimic-code
+notes: >
+  "epinephrine" also matches norepinephrine rows - the set is the union, so that is
+  harmless; milrinone (an inodilator in mimic-code's vasoactive_agent.sql) is left out.
+  Dose / rate logic (norepinephrine-equivalent dose) is EP-42's, not a code set's.

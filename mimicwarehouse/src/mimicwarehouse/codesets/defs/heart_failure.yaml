@@ -1,0 +1,55 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: heart_failure
+version: "1.0.0"
+name: Congestive heart failure (Quan 2005 Charlson definition)
+description: >
+  The Charlson "congestive heart failure" condition as coded by Quan et al. (2005) and
+  implemented by the vendored mimic-code charlson.sql: heart failure (428.x / I50.-), the
+  hypertensive and rheumatic heart-failure codes and the cardiomyopathies. Every rule is a
+  prefix rule, mirroring the SUBSTRING logic of the concept.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "428", match: prefix}
+    - {code: "39891", match: prefix}
+    - {code: "40201", match: prefix}
+    - {code: "40211", match: prefix}
+    - {code: "40291", match: prefix}
+    - {code: "40401", match: prefix}
+    - {code: "40403", match: prefix}
+    - {code: "40411", match: prefix}
+    - {code: "40413", match: prefix}
+    - {code: "40491", match: prefix}
+    - {code: "40493", match: prefix}
+    - {code: "4254", match: prefix}
+    - {code: "4255", match: prefix}
+    - {code: "4256", match: prefix}
+    - {code: "4257", match: prefix}
+    - {code: "4258", match: prefix}
+    - {code: "4259", match: prefix}
+  icd10:
+    - {code: "I43", match: prefix}
+    - {code: "I50", match: prefix}
+    - {code: "I099", match: prefix}
+    - {code: "I110", match: prefix}
+    - {code: "I130", match: prefix}
+    - {code: "I132", match: prefix}
+    - {code: "I255", match: prefix}
+    - {code: "I420", match: prefix}
+    - {code: "I425", match: prefix}
+    - {code: "I426", match: prefix}
+    - {code: "I427", match: prefix}
+    - {code: "I428", match: prefix}
+    - {code: "I429", match: prefix}
+    - {code: "P290", match: prefix}
+provenance:
+  source: Charlson
+  url: https://github.com/MIT-LCP/mimic-code
+  ref: mimic-iv/concepts_duckdb/comorbidity/charlson.sql (congestive_heart_failure)
+  accessed: "2026-09-06"
+references:
+  - https://doi.org/10.1097/01.mlr.0000182534.19832.83
+notes: >
+  Identical to the congestive_heart_failure group of charlson_groups@1.0.0, published as
+  its own set because EP-46's seed cohort references heart_failure@1.0.0 by id.

@@ -1,0 +1,25 @@
+# mimicwarehouse code set (EP-40). ASCII only; codes quoted, dots omitted as in MIMIC-IV;
+# the (id, version) pair is frozen in codesets.lock.json - bump version to change.
+id: ckd
+version: "1.0.0"
+name: Chronic kidney disease (diagnosis codes, all stages)
+description: >
+  Chronic kidney disease as billed: ICD-9-CM 585.x (stages 1-5, end stage, unspecified)
+  and ICD-10-CM N18.- (N18.1 ... N18.6, N18.9; the FY2021 stage-3 split N18.30-N18.32).
+kind: icd_dx
+members:
+  icd9:
+    - {code: "585", match: prefix}
+  icd10:
+    - {code: "N18", match: prefix}
+provenance:
+  source: hand
+  url: https://kdigo.org/guidelines/ckd-evaluation-and-management/
+  ref: ICD-9-CM 585.- and ICD-10-CM N18.- (public code tables)
+  accessed: "2026-09-06"
+references:
+  - https://kdigo.org/guidelines/ckd-evaluation-and-management/
+notes: >
+  Stage detail is available through the compiled member label (the dictionary title) when
+  a consumer needs stage-specific subsets; hypertensive CKD (403.x / I12.-, I13.-) and
+  dialysis status codes are not included - the Charlson renal_disease group is broader.

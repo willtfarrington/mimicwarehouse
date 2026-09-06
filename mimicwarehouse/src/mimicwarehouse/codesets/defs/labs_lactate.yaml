@@ -1,0 +1,20 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: labs_lactate
+version: "1.0.0"
+name: Blood lactate (lab itemids)
+description: >
+  The labevents itemid of blood lactate as curated by EP-39's item catalogue (concept
+  group labs.lactate, canonical unit mmol/L; mimic-code bg.sql reads it).
+kind: itemid
+members:
+  itemids: [50813]
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code
+  ref: data/item_units.yaml (labs.lactate) <- mimic-iv/concepts_duckdb/measurement/bg.sql
+  accessed: "2026-09-06"
+references:
+  - https://github.com/MIT-LCP/mimic-code
+notes: >
+  Units and plausibility bounds live in units.py (mwh_harmonize).

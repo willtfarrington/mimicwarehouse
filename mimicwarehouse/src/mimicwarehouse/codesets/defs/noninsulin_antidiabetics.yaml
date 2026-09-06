@@ -1,0 +1,87 @@
+# mimicwarehouse code set (EP-40). ASCII only; the (id, version) pair is frozen in
+# codesets.lock.json - bump version to change.
+id: noninsulin_antidiabetics
+version: "1.0.0"
+name: Non-insulin antidiabetic drugs (drug names)
+description: >
+  Blood-glucose-lowering drugs other than insulin (WHO ATC A10B) as substrings of
+  prescriptions.drug / emar.medication: metformin (biguanides), sulfonylureas, DPP-4
+  inhibitors, SGLT2 inhibitors, GLP-1 receptor agonists, thiazolidinediones, meglitinides,
+  alpha-glucosidase inhibitors and pramlintide - generic names plus common US brands.
+kind: drug
+members:
+  drugs:
+    match: contains
+    names:
+      - metformin
+      - glucophage
+      - glumetza
+      - fortamet
+      - riomet
+      - glyburide
+      - glibenclamide
+      - micronase
+      - diabeta
+      - glynase
+      - glipizide
+      - glucotrol
+      - glimepiride
+      - amaryl
+      - gliclazide
+      - tolbutamide
+      - tolazamide
+      - chlorpropamide
+      - glucovance
+      - sitagliptin
+      - januvia
+      - janumet
+      - saxagliptin
+      - onglyza
+      - linagliptin
+      - tradjenta
+      - alogliptin
+      - nesina
+      - empagliflozin
+      - jardiance
+      - dapagliflozin
+      - farxiga
+      - canagliflozin
+      - invokana
+      - ertugliflozin
+      - steglatro
+      - liraglutide
+      - victoza
+      - semaglutide
+      - ozempic
+      - rybelsus
+      - exenatide
+      - byetta
+      - bydureon
+      - dulaglutide
+      - trulicity
+      - lixisenatide
+      - tirzepatide
+      - mounjaro
+      - pioglitazone
+      - actos
+      - rosiglitazone
+      - avandia
+      - repaglinide
+      - prandin
+      - nateglinide
+      - starlix
+      - acarbose
+      - precose
+      - miglitol
+      - pramlintide
+      - symlin
+provenance:
+  source: hand
+  url: https://atcddd.fhi.no/atc_ddd_index/?code=A10B
+  ref: WHO ATC A10B "blood glucose lowering drugs, excl. insulins" members
+  accessed: "2026-09-06"
+references:
+  - https://atcddd.fhi.no/atc_ddd_index/?code=A10B
+notes: >
+  The EP-41 T2DM phenotype uses this set with prescriptions; "actos" also matches unrelated
+  strings containing it - review the compiled hits on dev before relying on it alone.
