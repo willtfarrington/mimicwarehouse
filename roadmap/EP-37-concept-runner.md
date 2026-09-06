@@ -230,4 +230,122 @@ shell cap ~10 min → the full run is background-only.
 
 - Regenerating `concepts_duckdb` ourselves via sqlglot from upstream `concepts/` (BigQuery
   dialect) when the vendored transpilation lags — trigger: upstream regeneration PR stays open
-  through P4.
+  through P4. *(Mirrored as `final-roadmap.md` CONC-1, parked by EP-8 and re-parked by
+  EP-37 on 2026-09-05.)*
+
+> **Completion note (2026-09-06).** Second execution of this brief, written from its text
+> after the revert `798141c` (the first attempt's code was not consulted or reused; the
+> Depends-on row — EP-8, EP-19, EP-22, EP-34, EP-35 — was ☑ before starting).
+>
+> **Step 0 (data-root cleanup, owner-approved).** *(0a, read-only)* `mwh doctor`: 9 pass ·
+> 1 warn (`antivirus`, by design) · 0 fail · 5 info, `power_scheme` "Balanced · AC power
+> mode: Best performance" for the whole session; `mwh paths`: `lake_derived` 0.0 MB;
+> `mwh jobs`: no `concepts-*` row; `mwh runs list --last 12`: the nine first-attempt
+> `concepts` build lines **still appear** — the ledger is append-only, as (0c) says — while
+> their run folders are gone (`mwh runs show 20260905T205421Z-87de91` → "no manifest");
+> `mwh catalog info --tier dev|demo|full`: 31 cataloged, 0 missing, the 65 stale
+> `mimiciv_derived` views + `meta.concept_versions` + `meta.profile_*` still listed.
+> *(0b, the approved one-off script — scratchpad `ep37_step0b_strip_derived.py`, run as
+> `uv run python <script>`, every path through `get_settings()`, key counts only)*:
+> `lake\manifests\status.json` 96 keys → dropped 65 `mimiciv_derived.*`, kept 31 core (no
+> `meta.profile` / `meta.concept_versions` key existed: `meta.profile` has no status key by
+> design); `lake\manifests\snapshots.json` 36 entries → dropped 4 `derived`, kept 32 `core`;
+> `lake\demo\manifests\status.json` 96 → 65 dropped / 31 kept;
+> `lake\demo\manifests\snapshots.json` 14 → 5 dropped / 9 kept; a `.bak` copy sits beside
+> each of the four files (owner may delete them now that this note exists). Verified:
+> `mwh build --tier dev --dry-run` and `--tier demo --dry-run` planned 33 steps (31 stage,
+> `meta.profile`, `catalog`); `mwh runs refresh` rebuilt `runs.duckdb`. *(0c)* no separate
+> catalog rebuild — this brief's own `--tag concepts` builds rebuilt each tier's catalog
+> without the stale views.
+>
+> **Shipped.** `src/mimicwarehouse/concepts/inventory.py` (+ the generated, committed
+> `concepts/concepts.yaml` and `dag/specs/concepts.yaml`; `python -m
+> mimicwarehouse.concepts.inventory [--check]` regenerates / drift-checks), `concepts/runner.py`
+> (`run_concept`, `run_concept_versions`, the `register_derived` catalog walker, `strip_header`,
+> the per-tier derived layout helpers), `concepts/pins.py` (+ `tests/ep/pins/concepts_demo.json`),
+> `dag/spec.py` (multi-spec discovery with the shared `catalog` step, `--with-deps`, `target` on
+> python steps), `dag/runner.py` (`--keep-going` + `blocked`, `--with-deps`, a `run.start
+> (kind="build")` provenance run per CLI build, per-layer snapshot ids, `StepContext.state` /
+> `.run`, `StepOutcome.layer`), `dag/snapshot.py` (`per_tier` completeness, `layer_prefix`),
+> `dag/cli.py` (the two flags, snapshot/run lines), `dag/benchmarks.py` (`read` infers the
+> ledger schema from every line), `catalog/build.py` (the walker registered as the second
+> `CATALOG_EXTENSIONS` entry), `docs/resources/concepts.md` (+ index row), DESIGN §3/§8/§15
+> dated notes, D-19/D-20 addenda, the README rows + quick start, `tests/ep/test_ep37.py`
+> (17 fixture · 2 dev · 1 demo opt-in tests). The EP-33 amendments were followed where they
+> override the item text: `python` steps (not `sql`), `<schema>/<table>` single-file layout
+> with no bucket partitions, `BenchmarkLine(kind="concept")` through `run.bench`, `mwh runs
+> benchmarks --kind concept`, count-pins as one `UNION ALL` statement.
+>
+> **Runs.** *demo* — `mwh build --tier demo --tag concepts` (foreground): run
+> `20260906T002639Z-ece96f`, 65 / 65 concepts done, concept wall 2.4 s (max 0.15 s), 131,517
+> derived rows in 1,821,138 bytes of Parquet — EP-33's D3 measurement (131,517 rows at
+> demo scale) reproduced exactly; `derived/demo` snapshot `10c7965497b1…`. *dev* — job
+> `concepts-dev` (pid 14084, 2026-09-06T00:28:58 → 00:29:22 UTC, exit 0), run
+> `20260906T002900Z-6f419d`: 65 / 65 done, concept wall 10.1 s (max 3.5 s), 4,633,174 rows in
+> 62,739,641 bytes, run wall 15.6 s, peak RSS 577.8 MB, disk delta 48.8 MB; `derived/dev`
+> snapshot `892d6dd46c30…`. On both tiers `SELECT status, count(*) AS n FROM
+> meta.concept_versions GROUP BY 1` → `done 65` through `mwh sql`, and the brief's
+> `SELECT concept, rows FROM meta.concept_versions ORDER BY 1` lists all 65 (read as counts
+> only). Dev pins written on their first run to `runs\pins\concepts_dev.json` (layout key
+> `runs`); demo pins committed (65 counts, every cell 0 or ≥ 11; `sepsis3` true 62; KDIGO
+> max stage 0 / 1 / 2 / 3 = 38 / 29 / 42 / 31 stays; Charlson n 275, mean index 4.66).
+> The `concept.sepsis.sepsis3` dev rebuild (`--select … --with-deps --force`) rebuilt only
+> it with every ancestor skipped (`test_ep37::test_dev_select_sepsis3_rebuilds_only_it`).
+>
+> **Full-tier launch (⏱).** `uv run --group dev mwh build --tier full --tag concepts
+> --keep-going --background --job concepts-full` — job **`concepts-full`**, PID **48132**,
+> started **2026-09-06T00:35:09+00:00**, log `runs\jobs\concepts-full.log` (layout key
+> `runs_jobs`); peek with `mwh jobs --job concepts-full --tail 20`. **It finished inside the
+> session**: state `done`, exit 0, finished 2026-09-06T00:47:03+00:00 (11 min 54 s job
+> wall incl. the catalog rebuild), run `20260906T003510Z-9564c0` (status ok, run wall
+> 707.0 s, peak RSS 7,479.6 MB, disk delta 1,427.4 MB): **65 / 65 concepts done, 0 failed,
+> 0 blocked**, summed concept wall 700.1 s (the longest single concept 442.8 s), **95,777,751
+> derived rows in 1,337,952,596 bytes** of Parquet (`lake_derived` now 1,335.8 MB incl. the
+> dev tier; 391 GB free) — the first attempt's 95,777,751 rows reproduced exactly;
+> `derived/full` snapshot `a681ed30d829…`; `meta.concept_versions` on `full.duckdb` →
+> `done 65`; `mwh catalog info --tier full` lists 75 registry/derived objects (the 65
+> concept views + EP-34's two + 8 `meta.*`). "Verified by EP-38" is therefore
+> record-keeping, as the pickup note anticipated: EP-38 pulls the per-concept table
+> (`mwh runs benchmarks --tier full --kind concept`) and appends it here.
+>
+> **Owner decisions (end of session, all the recommended option):** commit as the two-step
+> pair, no push; keep `meta.profile_*` out of the catalog; keep the provenance run per CLI
+> build; the owner deletes the four step-0b `.bak` files by hand (`lake\manifests\` and
+> `lake\demo\manifests\` — `status.json.bak`, `snapshots.json.bak`).
+>
+> **Gates.** `poe test -m ep_37` 17 passed (fixture; 58 s incl. the session lake);
+> `pytest --tier dev -m ep_37` 2 passed (the sepsis3 rebuild, versions + dev pins);
+> `mwh verify EP-37` 17 passed, exit 0; `poe check` **920 passed**, 36 deselected, 506 s
+> (ruff check, ruff format --check, pyright clean; 903 → 920 = the 17 new fixture tests);
+> the earlier-EP regression subset (EP-19/20/21/22/28/29/34/35/36) 120 passed after the
+> `benchmarks.read` fix; `poe roadmap-check --strict` 0 errors, 0 warnings (172 rows, 45
+> done before this brief's tick); `mwh guard` clean over the 20 touched files. Windows power
+> mode read *Best performance* on AC throughout. No dependency change.
+>
+> **Earlier tests touched (churn rule, EP-168).** `tests/ep/test_ep20.py::
+> test_spec_steps_carry_contract_defaults` — the exact catalog-dependency set became a
+> superset check (dated comment); `load_dag("stage")` keeps the exact set. The hazard note
+> named `test_ep19` for this pin; it is EP-20's. No other earlier test changed, but one
+> earlier module did: `dag.benchmarks.read` now passes `infer_schema_length=None` — a ledger
+> whose first hundred lines carry a null `error` (65 concept lines) made polars type the
+> column NULL and `test_ep19::test_failure_stops_run_and_rerun_resumes` (a crafted catalog
+> failure after the whole merged DAG) raised `ComputeError`. Every earlier `mwh verify`
+> stays green (`poe check` runs the whole suite).
+>
+> **Judgment calls (owner review; the D-20 addendum lists them in full).** (1) per-tier
+> derived completeness via `per_tier: true` + `layer` on the status entry; (2) concept
+> sources are views over the lake, not the tier catalog; (3) `meta.profile_*` are **not**
+> re-exposed as catalog tables (the first attempt had; per-column extrema on a
+> registry-exempt surface); (4) every CLI `mwh build` is now a provenance run (≈ 6 s of
+> doctor probes per process); (5) `--force` under `--with-deps` forces the selected steps
+> only; (6) a `catalog` step is never `blocked`; (7) the session fixture lake
+> (`conftest.fixture_lake_settings`, the full merged DAG by design since EP-170) now also
+> runs the 65 concepts — ≈ 25 s more per pytest session, 10 concepts empty on the fixture
+> (COVERAGE.md); (8) `meta.concept_versions` carries `status` / `error_class` / `build_id`
+> beyond the brief's columns so failures are recorded, not hidden; (9) the run ledger keeps
+> the first attempt's nine `concepts` lines (append-only; `mwh runs list` shows them,
+> `mwh runs show` says "no manifest").
+>
+> **Deviations from the brief text.** None beyond the EP-33 amendments; the "failing
+> concepts on 1.5.x" list in `docs/resources/concepts.md` is empty (65 / 65 on fixture,
+> demo and dev). Nothing was cherry-picked from `3ba1224` / `2be0990`.

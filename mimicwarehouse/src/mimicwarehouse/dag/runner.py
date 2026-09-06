@@ -19,31 +19,48 @@ in topological order, one tier at a time, as the **only writer** of the lake
   ``settings.lake_root(tier)`` and fixture/demo builds pass
   :func:`~mimicwarehouse.config.assert_not_credentialed_lake` first (EP-170/ARCH-3);
 * the bucket filter: ``dev`` -> ``settings.dev_buckets``, else all 100;
-* a step already complete for the tier in ``status.json`` is skipped unless ``force``;
-  a failing step stops the run and completed work stays complete (rerun = resume);
+* a step already complete for the tier in ``status.json`` is skipped unless ``force``
+  (stage steps by ``<schema>.<table>``; since EP-37 also ``sql``/``python`` steps that
+  declare a ``target`` — the concept steps, per tier through the ``per_tier`` status
+  rule of :mod:`~mimicwarehouse.dag.snapshot`); a failing step stops the run and
+  completed work stays complete (rerun = resume) — with ``keep_going`` (EP-37) the
+  failure is recorded, steps that depend on it (transitively, inside the selection) are
+  reported ``blocked`` and never attempted, and every independent step still runs;
+  ``with_deps`` pulls a ``--select``'s transitive ancestors into the run (skipped when
+  complete; ``force`` then applies to the selected steps only);
 * every step runs under a :class:`StepContext` with wall time and peak RSS sampled
   every 2 s by a daemon thread; one :class:`~mimicwarehouse.dag.benchmarks.BenchmarkLine`
   per step plus a ``kind: build`` summary line go to the benchmark ledger;
-* the run ends by appending the layer snapshot id to ``lake/manifests/snapshots.json``
+* with ``provenance`` (what ``mwh build`` passes, EP-37) the build runs inside
+  ``run.start(kind="build")`` (EP-35): one ``runs/<run_id>/`` manifest + ledger line per
+  CLI build, ``ctx.run`` for the handlers (concept refs and ``kind: concept`` benchmark
+  lines cite the run id), the layer snapshot ids recorded, the run marked failed when a
+  step failed; library callers (tests) default to no run;
+* the run ends by appending the ``core`` layer snapshot id — plus one per layer the
+  executed steps reported through :attr:`StepOutcome.layer` (``derived`` for the
+  concept steps, EP-37) — to ``lake/manifests/snapshots.json``
   (:mod:`~mimicwarehouse.dag.snapshot`).
 
 Step handlers live in :data:`STEP_HANDLERS` (kind -> handler) so later EPs add kinds
 without touching this module: ``stage`` is implemented here; ``catalog`` is EP-21's
 :func:`~mimicwarehouse.catalog.build.build_catalog`; ``python`` (EP-29) resolves the
 step's ``module:function`` and calls it with ``(step, ctx)`` (EP-29's ``meta.profile``
-is the first, EP-50 adds the spine); ``sql`` arrives with EP-37. Everything returned or
-logged is counts, schemas, hashes and timings — never a row.
+is the first; EP-37's concept steps and EP-50's spine use the same contract); the
+``sql`` kind has no handler — EP-37 chose ``python`` steps for the vendored concept
+files (nothing to deduplicate). Everything returned or logged is counts, schemas,
+hashes and timings — never a row.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import subprocess
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -62,6 +79,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import duckdb
 
     from mimicwarehouse.inventory import RawManifest
+    from mimicwarehouse.run import Run
     from mimicwarehouse.schema.contract import Table
 
 _LOG = logging.getLogger(__name__)
@@ -69,10 +87,19 @@ _LOG = logging.getLogger(__name__)
 LOCK_FILENAME = ".build.lock"
 #: RSS sample interval of the per-step daemon thread (seconds).
 RSS_SAMPLE_S = 2.0
-#: Layer the EP-19 stage steps write (EP-37/EP-50 add derived; EP-148 the notes lake).
+#: Layer the EP-19 stage steps write (EP-37 adds ``derived`` through
+#: :attr:`StepOutcome.layer`; EP-148 the notes lake).
 LAYER = "core"
 
-StepStatus = Literal["planned", "done", "skipped", "failed"]
+#: ``blocked`` (EP-37): never attempted because a step it depends on failed under
+#: ``keep_going``.
+StepStatus = Literal["planned", "done", "skipped", "failed", "blocked"]
+
+
+class BuildStepsFailed(RuntimeError):
+    """Raised inside the provenance run when one or more steps failed, so the run
+    manifest records ``status: failed``; :func:`run` swallows it and reports the failures
+    through :class:`BuildResult` as before."""
 
 
 class BuildLockError(RuntimeError):
@@ -97,6 +124,11 @@ class StepContext:
     lake_root: Path
     buckets: list[int] | None
     raw_manifest: RawManifest | None = None
+    #: The provenance run of this build (EP-35) when the caller asked for one, else None.
+    run: Run | None = None
+    #: Per-build scratch for handlers (EP-37: the concept steps cache their source views
+    #: and the core snapshot id here); lives exactly as long as the build connection.
+    state: dict[str, Any] = field(default_factory=dict)
 
     def provenance_for(self, table: Table) -> tuple[str | None, str | None]:
         """``(source_sha256, raw_snapshot_id)`` from the EP-10 raw manifest (DESIGN §11);
@@ -119,6 +151,9 @@ class StepOutcome:
     files: int | None = None
     pass1_wall_s: float | None = None
     pass2_wall_s: float | None = None
+    #: The lake layer the step published manifest lines into, when not ``core`` (EP-37:
+    #: ``derived``); the runner records that layer's snapshot id at the end of the build.
+    layer: str | None = None
 
 
 @dataclass(slots=True)
@@ -143,12 +178,17 @@ class BuildResult:
     build_id: str
     tier: str
     steps: list[StepReport] = field(default_factory=list)
+    #: The ``core`` layer snapshot id (EP-19); ``snapshot_ids`` carries every layer.
     snapshot_id: str | None = None
+    snapshot_ids: dict[str, str] = field(default_factory=dict)
+    #: The provenance run id when the build ran under ``run.start`` (EP-37).
+    run_id: str | None = None
     dry_run: bool = False
 
     @property
     def ok(self) -> bool:
-        return all(s.status != "failed" for s in self.steps)
+        """No step failed (a ``blocked`` step counts as not ok: its cause failed)."""
+        return all(s.status not in ("failed", "blocked") for s in self.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +287,7 @@ def _run_python(step: Step, ctx: StepContext) -> StepOutcome:
     return outcome if isinstance(outcome, StepOutcome) else StepOutcome()
 
 
-#: kind -> handler. EP-37 adds ``sql``.
+#: kind -> handler (``sql`` has none: EP-37's concepts are ``python`` steps).
 STEP_HANDLERS: dict[str, Callable[[Step, StepContext], StepOutcome]] = {
     "stage": _run_stage,
     "catalog": _run_catalog,
@@ -430,6 +470,37 @@ def resolve_raw_root(settings: Settings, tier: str) -> Path:
     raise DagError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
 
 
+@contextlib.contextmanager
+def _provenance(
+    enabled: bool,
+    *,
+    tier: str,
+    build_id: str,
+    job: str | None,
+    settings: Settings,
+    params: dict[str, Any],
+) -> Iterator[Run | None]:
+    """``run.start(kind="build")`` around a build when ``enabled`` (EP-37), else None.
+    A :class:`BuildStepsFailed` raised inside marks the run ``failed`` and is swallowed
+    here — the caller's :class:`BuildResult` already carries the step failures."""
+    if not enabled:
+        yield None
+        return
+    from mimicwarehouse import run as run_mod
+
+    with (
+        contextlib.suppress(BuildStepsFailed),
+        run_mod.start(
+            job or "build",
+            tier=tier,
+            kind="build",
+            params={"build_id": build_id, **params},
+            settings=settings,
+        ) as prov,
+    ):
+        yield prov
+
+
 def run(
     dag: DagSpec,
     tier: Tier | str,
@@ -442,12 +513,16 @@ def run(
     job: str | None = None,
     break_lock: bool = False,
     settings: Settings | None = None,
+    keep_going: bool = False,
+    with_deps: bool = False,
+    provenance: bool = False,
 ) -> BuildResult:
     """Execute the DAG for one tier (module docstring) and return a :class:`BuildResult`.
 
     ``dry_run`` returns the ordered plan (status ``planned``) without touching the lock,
     the lake or DuckDB. ``job`` only labels the log lines — the state file is owned by
-    :mod:`~mimicwarehouse.dag.jobs`.
+    :mod:`~mimicwarehouse.dag.jobs`. ``keep_going`` / ``with_deps`` / ``provenance`` are
+    the EP-37 additions (module docstring).
     """
     if tier not in ("fixture", "demo", "dev", "full"):
         raise DagError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
@@ -457,7 +532,7 @@ def run(
             if data_root is not None
             else config.get_settings()
         )
-    steps = dag.ordered(select=select, tags=tags, tier=tier)
+    steps = dag.ordered(select=select, tags=tags, tier=tier, with_deps=with_deps)
     if not steps:
         raise DagError("the selection matches no steps for this tier")
 
@@ -501,63 +576,134 @@ def run(
             lake_root,
         )
         t_run = time.perf_counter()
-        con = open_build_connection(settings, tier=tier)
-        try:
-            ctx = StepContext(
-                settings=settings,
-                tier=str(tier),
-                build_id=build_id,
-                con=con,
-                log=_LOG,
-                raw_root=raw_root,
-                lake_root=lake_root,
-                buckets=buckets,
-                raw_manifest=raw_manifest,
-            )
-            for step in steps:
-                qn = step.qualified_table
-                if qn is not None and not force:
-                    entry = read_status(lake_root)["steps"].get(qn)
-                    if entry is not None and complete_for_tier(entry, str(tier)):
-                        _LOG.info(
-                            "%sskip %s (%s already complete for %s)", prefix, step.name, qn, tier
-                        )
-                        result.steps.append(
-                            StepReport(name=step.name, kind=step.kind, status="skipped")
-                        )
-                        continue
-                handler = STEP_HANDLERS.get(step.kind)
-                if handler is None:
-                    raise DagError(
-                        f"step {step.name}: no handler registered for kind {step.kind!r} "
-                        f"(known: {sorted(STEP_HANDLERS)})"
+        params = {
+            "select": list(select or []),
+            "tags": list(tags or []),
+            "force": force,
+            "keep_going": keep_going,
+            "with_deps": with_deps,
+            "steps": [s.name for s in steps],
+        }
+        with _provenance(
+            provenance, tier=str(tier), build_id=build_id, job=job, settings=settings, params=params
+        ) as prov:
+            result.run_id = prov.run_id if prov is not None else None
+            con = open_build_connection(settings, tier=tier)
+            try:
+                ctx = StepContext(
+                    settings=settings,
+                    tier=str(tier),
+                    build_id=build_id,
+                    con=con,
+                    log=_LOG,
+                    raw_root=raw_root,
+                    lake_root=lake_root,
+                    buckets=buckets,
+                    raw_manifest=raw_manifest,
+                    run=prov,
+                )
+                layers: set[str] = {LAYER}
+                unavailable: set[str] = set()  # failed or blocked step names (keep_going)
+                # --force with --with-deps forces the *selected* steps only: the pulled-in
+                # ancestors are skipped when complete (a forced dev restage of a full table
+                # would be refused by the coverage guard anyway, LDR-1)
+                forced: set[str] | None = set(select) if (with_deps and select) else None
+                for step in steps:
+                    # a catalog step registers whatever is complete (EP-21/EP-37
+                    # discovery), so a failed producer never blocks it — the failed
+                    # table is simply absent from the catalog
+                    blockers = (
+                        [] if step.kind == "catalog" else sorted(set(step.depends_on) & unavailable)
                     )
-                _LOG.info("%sstep %s (%s) start", prefix, step.name, step.kind)
-                sampler = _RssSampler()
-                sampler.start()
-                t0 = time.perf_counter()
-                report = StepReport(name=step.name, kind=step.kind, status="done")
-                try:
-                    outcome = handler(step, ctx)
-                except Exception as exc:
-                    report.status = "failed"
-                    report.error = f"{type(exc).__name__}: {exc}"
-                    outcome = StepOutcome()
-                finally:
-                    report.wall_s = round(time.perf_counter() - t0, 3)
-                    report.peak_rss_mb = sampler.stop()
-                report.rows = outcome.rows
-                report.bytes_out = outcome.bytes_out
-                report.files = outcome.files
-                result.steps.append(report)
-                # per-phase lines first (chronological: pass1 < pass2 < total) — only a
-                # large partitioned stage reports them (EP-23; benchmarks module doc)
-                for phase, wall in (
-                    ("pass1", outcome.pass1_wall_s),
-                    ("pass2", outcome.pass2_wall_s),
-                ):
-                    if wall is None:
+                    if blockers:
+                        _LOG.warning(
+                            "%sblocked %s (depends on failed/blocked %s)",
+                            prefix,
+                            step.name,
+                            ", ".join(blockers),
+                        )
+                        unavailable.add(step.name)
+                        result.steps.append(
+                            StepReport(
+                                name=step.name,
+                                kind=step.kind,
+                                status="blocked",
+                                error=f"blocked by {', '.join(blockers)}",
+                            )
+                        )
                         continue
+                    qn = step.qualified_table
+                    force_this = force and (forced is None or step.name in forced)
+                    if qn is not None and not force_this:
+                        entry = read_status(lake_root)["steps"].get(qn)
+                        if entry is not None and complete_for_tier(entry, str(tier)):
+                            _LOG.info(
+                                "%sskip %s (%s already complete for %s)",
+                                prefix,
+                                step.name,
+                                qn,
+                                tier,
+                            )
+                            # a skipped table still belongs to its layer (the entry says
+                            # which; core when unsaid), so the layer's id is re-recorded
+                            layers.add(str(entry.get("layer") or LAYER))
+                            result.steps.append(
+                                StepReport(name=step.name, kind=step.kind, status="skipped")
+                            )
+                            continue
+                    handler = STEP_HANDLERS.get(step.kind)
+                    if handler is None:
+                        raise DagError(
+                            f"step {step.name}: no handler registered for kind {step.kind!r} "
+                            f"(known: {sorted(STEP_HANDLERS)})"
+                        )
+                    _LOG.info("%sstep %s (%s) start", prefix, step.name, step.kind)
+                    sampler = _RssSampler()
+                    sampler.start()
+                    t0 = time.perf_counter()
+                    report = StepReport(name=step.name, kind=step.kind, status="done")
+                    try:
+                        outcome = handler(step, ctx)
+                    except Exception as exc:
+                        report.status = "failed"
+                        report.error = f"{type(exc).__name__}: {exc}"
+                        outcome = StepOutcome()
+                    finally:
+                        report.wall_s = round(time.perf_counter() - t0, 3)
+                        report.peak_rss_mb = sampler.stop()
+                    report.rows = outcome.rows
+                    report.bytes_out = outcome.bytes_out
+                    report.files = outcome.files
+                    result.steps.append(report)
+                    if outcome.layer:
+                        layers.add(outcome.layer)
+                    # per-phase lines first (chronological: pass1 < pass2 < total) — only
+                    # a large partitioned stage reports them (EP-23; benchmarks module doc)
+                    for phase, wall in (
+                        ("pass1", outcome.pass1_wall_s),
+                        ("pass2", outcome.pass2_wall_s),
+                    ):
+                        if wall is None:
+                            continue
+                        benchmarks.append(
+                            benchmarks.BenchmarkLine(
+                                ts=utc_now_iso(),
+                                build_id=build_id,
+                                tier=str(tier),
+                                step=step.name,
+                                kind=step.kind,
+                                phase=phase,  # type: ignore[arg-type]
+                                wall_s=round(wall, 3),
+                                bytes_in=outcome.bytes_in if phase == "pass1" else None,
+                                rows=outcome.rows if phase == "pass2" else None,
+                                duckdb_version=duckdb.__version__,
+                                git_sha=git_sha,
+                                host=host,
+                                ok=report.status == "done",
+                                error=report.error,
+                            ),
+                            settings,
+                        )
                     benchmarks.append(
                         benchmarks.BenchmarkLine(
                             ts=utc_now_iso(),
@@ -565,97 +711,104 @@ def run(
                             tier=str(tier),
                             step=step.name,
                             kind=step.kind,
-                            phase=phase,  # type: ignore[arg-type]
-                            wall_s=round(wall, 3),
-                            bytes_in=outcome.bytes_in if phase == "pass1" else None,
-                            rows=outcome.rows if phase == "pass2" else None,
+                            phase="total",
+                            wall_s=report.wall_s,
+                            peak_rss_mb=report.peak_rss_mb,
+                            rows=outcome.rows,
+                            bytes_in=outcome.bytes_in,
+                            bytes_out=outcome.bytes_out,
+                            files=outcome.files,
                             duckdb_version=duckdb.__version__,
                             git_sha=git_sha,
                             host=host,
                             ok=report.status == "done",
                             error=report.error,
+                            run_id=result.run_id,
                         ),
                         settings,
                     )
-                benchmarks.append(
-                    benchmarks.BenchmarkLine(
-                        ts=utc_now_iso(),
-                        build_id=build_id,
-                        tier=str(tier),
-                        step=step.name,
-                        kind=step.kind,
-                        phase="total",
-                        wall_s=report.wall_s,
-                        peak_rss_mb=report.peak_rss_mb,
-                        rows=outcome.rows,
-                        bytes_in=outcome.bytes_in,
-                        bytes_out=outcome.bytes_out,
-                        files=outcome.files,
-                        duckdb_version=duckdb.__version__,
-                        git_sha=git_sha,
-                        host=host,
-                        ok=report.status == "done",
-                        error=report.error,
-                    ),
-                    settings,
-                )
-                if report.status == "failed":
-                    _LOG.error(
-                        "%sstep %s failed: %s — stopping; completed work stays "
-                        "complete (rerun to resume)",
+                    if report.status == "failed":
+                        if prov is not None:
+                            prov.warn(f"step {step.name} failed: {report.error}")
+                        if not keep_going:
+                            _LOG.error(
+                                "%sstep %s failed: %s — stopping; completed work stays "
+                                "complete (rerun to resume)",
+                                prefix,
+                                step.name,
+                                report.error,
+                            )
+                            break
+                        unavailable.add(step.name)
+                        _LOG.error(
+                            "%sstep %s failed: %s — continuing (--keep-going); its "
+                            "dependents will be blocked",
+                            prefix,
+                            step.name,
+                            report.error,
+                        )
+                        continue
+                    _LOG.info(
+                        "%sstep %s done rows=%s bytes=%s files=%s wall=%.1fs rss=%.0fMB",
                         prefix,
                         step.name,
-                        report.error,
+                        outcome.rows,
+                        outcome.bytes_out,
+                        outcome.files,
+                        report.wall_s,
+                        report.peak_rss_mb or 0.0,
                     )
-                    break
-                _LOG.info(
-                    "%sstep %s done rows=%s bytes=%s files=%s wall=%.1fs rss=%.0fMB",
-                    prefix,
-                    step.name,
-                    outcome.rows,
-                    outcome.bytes_out,
-                    outcome.files,
-                    report.wall_s,
-                    report.peak_rss_mb or 0.0,
-                )
-        finally:
-            con.close()
+            finally:
+                con.close()
 
-        wall_run = round(time.perf_counter() - t_run, 3)
-        if result.ok:
-            result.snapshot_id = layer_snapshot(lake_root, LAYER, str(tier), settings=settings)
-            record_snapshot(
-                lake_root,
-                layer=LAYER,
-                tier=str(tier),
-                snapshot_id=result.snapshot_id,
-                build_id=build_id,
+            wall_run = round(time.perf_counter() - t_run, 3)
+            if result.ok:
+                for layer in sorted(layers):
+                    snapshot_id = layer_snapshot(lake_root, layer, str(tier), settings=settings)
+                    result.snapshot_ids[layer] = snapshot_id
+                    record_snapshot(
+                        lake_root,
+                        layer=layer,
+                        tier=str(tier),
+                        snapshot_id=snapshot_id,
+                        build_id=build_id,
+                    )
+                    if prov is not None:
+                        prov.record_snapshot(layer, snapshot_id)
+                    _LOG.info("%ssnapshot %s/%s = %s", prefix, layer, tier, snapshot_id)
+                result.snapshot_id = result.snapshot_ids.get(LAYER)
+            done = [s for s in result.steps if s.status == "done"]
+            benchmarks.append(
+                benchmarks.BenchmarkLine(
+                    ts=utc_now_iso(),
+                    build_id=build_id,
+                    tier=str(tier),
+                    step=None,
+                    kind="build",
+                    phase="total",
+                    wall_s=wall_run,
+                    rows=sum(s.rows or 0 for s in done) if done else None,
+                    bytes_out=sum(s.bytes_out or 0 for s in done) if done else None,
+                    files=sum(s.files or 0 for s in done) if done else None,
+                    duckdb_version=duckdb.__version__,
+                    git_sha=git_sha,
+                    host=host,
+                    ok=result.ok,
+                    error=next((s.error for s in result.steps if s.error), None),
+                    run_id=result.run_id,
+                ),
+                settings,
             )
-            _LOG.info("%ssnapshot %s/%s = %s", prefix, LAYER, tier, result.snapshot_id)
-        done = [s for s in result.steps if s.status == "done"]
-        benchmarks.append(
-            benchmarks.BenchmarkLine(
-                ts=utc_now_iso(),
-                build_id=build_id,
-                tier=str(tier),
-                step=None,
-                kind="build",
-                phase="total",
-                wall_s=wall_run,
-                rows=sum(s.rows or 0 for s in done) if done else None,
-                bytes_out=sum(s.bytes_out or 0 for s in done) if done else None,
-                files=sum(s.files or 0 for s in done) if done else None,
-                duckdb_version=duckdb.__version__,
-                git_sha=git_sha,
-                host=host,
-                ok=result.ok,
-                error=next((s.error for s in result.steps if s.error), None),
-            ),
-            settings,
-        )
-        _LOG.info(
-            "%sbuild %s %s wall=%.1fs", prefix, build_id, "ok" if result.ok else "FAILED", wall_run
-        )
+            _LOG.info(
+                "%sbuild %s %s wall=%.1fs",
+                prefix,
+                build_id,
+                "ok" if result.ok else "FAILED",
+                wall_run,
+            )
+            if not result.ok and prov is not None:
+                bad = [s.name for s in result.steps if s.status in ("failed", "blocked")]
+                raise BuildStepsFailed(f"{len(bad)} step(s) failed or blocked: {', '.join(bad)}")
     finally:
         release_lock(settings, build_id)
     return result
@@ -682,6 +835,7 @@ __all__ = [
     "STEP_HANDLERS",
     "BuildLockError",
     "BuildResult",
+    "BuildStepsFailed",
     "StepContext",
     "StepOutcome",
     "StepReport",

@@ -296,6 +296,15 @@ adopt as-is untested.
 > future re-vendor that meets a new upstream debugging id handles it the same way and reports it
 > under `local_edits` rather than failing or needing a per-file exclusion.
 
+> **Addendum (2026-09-05, EP-37).** All 65 vendored `concepts_duckdb` files now execute
+> through the DAG runner on every tier (fixture, demo, dev; full launched as the
+> `concepts-full` job, EP-38 verifies) with **no local edit and no patch** — the runner
+> refuses a vendored file whose bytes drifted from the committed inventory's `sql_sha256`,
+> so "adopt as-is, tested" is enforced, and EP-38's patch mechanism is the only sanctioned
+> deviation path. The inventory (`concepts/concepts.yaml`), the generated DAG spec and
+> `docs/resources/concepts.md` are the three committed faces of the pin; the "failing on
+> 1.5.x" list is empty, as the EP-33 D2 smoke predicted.
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
@@ -330,6 +339,37 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > the data root: `doctor`, `paths`, `guard`, `verify`, `schema`, `fixtures`), pinned by
 > `test_ep167`; the EP-16 question of retiring it structurally is closed — the list *is*
 > the rule's statement.
+
+> **Addendum (2026-09-05, EP-37 — the concept runner as built; judgment calls for owner
+> review).** (1) **Concept steps are `python` steps** with a `target` (their `status.json`
+> key), per the EP-33 amendment; no `sql` handler was added (nothing to deduplicate).
+> (2) **Per-tier completeness** — derived tables set `per_tier: true` (and `layer`) on
+> their status entry and `complete_for_tier` reads dev completeness from the dev build
+> alone; the shared `lake/` root otherwise makes a full-only build look dev-complete while
+> no `derived/dev/` file exists (the first attempt's "runner skips every concept" hazard
+> in another guise). (3) **Sources are views over the lake, not the tier catalog** — the
+> concept steps recreate the catalog's own `read_parquet` relations on the build
+> connection, so the catalog file is never read during a concept build (no cycle with
+> the `catalog` step, no attach) and a test can run concepts against a temp lake.
+> (4) **`meta.profile_*` are not re-exposed as catalog tables** by the discovery walker:
+> EP-29 folds them into `meta.columns` / `meta.row_counts`, and their VARCHAR-cast
+> min/max of measurement columns would sit in a registry-exempt (`meta.*`) surface
+> without k-gating (D-31/D-33; SGT-2 admits extrema only inside k-gated rows). The first
+> attempt had registered them; reversing that is deliberate and reviewable. (5) **Every
+> `mwh build` is a provenance run** (`run.start(kind="build")`, ~6 s of doctor probes per
+> process): builds are the runs GOVERNANCE §12 describes, and the concept lines /
+> `meta.concept_versions` cite the run id the brief asked for; library callers opt in.
+> (6) **`--force` under `--with-deps` forces the selected steps only** (ancestors skip when
+> complete) — the coverage guard (LDR-1) would refuse a forced dev restage of a full table
+> anyway. (7) `--keep-going` never blocks a `catalog` step: it registers what is complete.
+> (8) The generated inventory carries `upstream_commit` once at the top level; each record
+> inherits it on load. (9) `test_ep20`'s exact catalog-dependency pin became a superset
+> check under the EP-168 churn rule (the stage-only spec keeps the exact set); no other
+> earlier test was touched — but `dag.benchmarks.read` now infers the ledger schema from
+> every line (a ledger opening with 65 null-`error` concept lines typed the column NULL
+> and broke `test_ep19`'s crafted failure). (10) Demo count-pins are committed with cells
+> below 11 as `"<11"` (the brief's rule; ODbL data, GOVERNANCE §3); dev pins stay under
+> `runs/pins/`.
 
 **D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**

@@ -12,7 +12,22 @@ per-step **overrides**, present in the YAML only when a brief deliberately devia
 Validation (:class:`DagSpec`): unique step names, dependencies name existing steps,
 the graph is acyclic (``graphlib.TopologicalSorter``), per-kind required/allowed
 fields. :meth:`DagSpec.ordered` returns the topological execution order, optionally
-filtered by ``--select`` names, ``--tag`` tags and the build tier.
+filtered by ``--select`` names (``with_deps`` pulls in their transitive ancestors,
+EP-37), ``--tag`` tags and the build tier.
+
+**Spec discovery (EP-37, ledger P3C-2).** :func:`load_dag` with no name merges **every**
+packaged ``dag/specs/*.yaml`` into one graph: step names are unique across files except
+the shared steps in :data:`SHARED_STEPS` (today only ``catalog``), which are deduplicated
+by name with their ``depends_on`` and ``tags`` unioned — so ``catalog`` runs after the
+stage steps *and* after every concept step, and ``--tag concepts`` reaches it. Cross-file
+``depends_on`` references resolve after the merge; the packaged ``stage`` spec
+(:data:`DEFAULT_SPEC`) is simply the first of the merged files. ``load_dag("stage")``
+still loads that one file alone. Later specs (EP-39/44/45/50/53) add their own file and
+rely on the same mechanism; there is no ``--spec`` option.
+
+``python`` steps may carry an optional ``target`` — the ``status.json`` key of the
+per-tier table they publish (EP-37's concept steps) — which makes them resumable
+through the runner's skip logic exactly like a stage step (:attr:`Step.qualified_table`).
 
 Step *handlers* live in :data:`mimicwarehouse.dag.runner.STEP_HANDLERS` — a registry
 dict keyed by kind, so later EPs add kinds without touching the runner.
@@ -21,10 +36,11 @@ dict keyed by kind, so later EPs add kinds without touching the runner.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from graphlib import CycleError, TopologicalSorter
 from importlib.resources import files
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -32,8 +48,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from mimicwarehouse.config import Tier
 
 SPECS_DIRNAME = "specs"
-#: The spec every P2 stage brief extends (EP-20 adds the remaining tables).
+#: The spec every P2 stage brief extends (EP-20 adds the remaining tables); the first of
+#: the merged files (EP-37 discovery) and the origin of the shared ``catalog`` step.
 DEFAULT_SPEC = "stage"
+#: Steps more than one packaged spec may declare (EP-37): merged by name, ``depends_on``
+#: and ``tags`` unioned, every other field required to agree.
+SHARED_STEPS: frozenset[str] = frozenset({"catalog"})
 
 Kind = Literal["stage", "sql", "python", "catalog"]
 
@@ -46,7 +66,8 @@ KIND_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
         frozenset({"size_class", "partitioned", "sort_by", "demo_source"}),
     ),
     "sql": (frozenset({"file", "target"}), frozenset()),
-    "python": (frozenset({"callable_name"}), frozenset()),
+    # EP-37: ``target`` = the status.json key a python step publishes (resumable steps)
+    "python": (frozenset({"callable_name"}), frozenset({"target"})),
     "catalog": (frozenset(), frozenset()),
 }
 #: Every kind-specific field (to refuse, per step, the ones another kind owns).
@@ -91,9 +112,14 @@ class Step(_Frozen):
     size_class: Literal["small", "large"] | None = None
     partitioned: bool | None = None
     sort_by: tuple[str, ...] | None = None
-    # sql
+    # sql (+ python since EP-37)
     file: str | None = Field(default=None, description="SQL file under dag/sql/ (EP-37)")
-    target: str | None = None
+    target: str | None = Field(
+        default=None,
+        description="the status.json key of the table the step publishes "
+        "(`<schema>.<table>`): required for sql steps, optional for python steps whose "
+        "output is a resumable per-tier table (EP-37 concept steps)",
+    )
     # python
     callable_name: str | None = Field(
         default=None,
@@ -139,10 +165,13 @@ class Step(_Frozen):
 
     @property
     def qualified_table(self) -> str | None:
-        """``<schema>.<table>`` for a stage step (its ``status.json`` key), else None."""
-        if self.schema_name is None or self.table is None:
-            return None
-        return f"{self.schema_name}.{self.table}"
+        """The ``status.json`` key of what the step publishes: ``<schema>.<table>`` for a
+        stage step, else the step's ``target`` (``sql`` steps always; ``python`` steps that
+        publish a resumable per-tier table, EP-37); None for a step without one
+        (``meta.profile``, ``catalog``), which the runner therefore never skips."""
+        if self.schema_name is not None and self.table is not None:
+            return f"{self.schema_name}.{self.table}"
+        return self.target
 
 
 class DagSpec(_Frozen):
@@ -183,19 +212,38 @@ class DagSpec(_Frozen):
                 return s
         raise DagError(f"no step {name!r}; known: {sorted(s.name for s in self.steps)}")
 
+    def ancestors(self, names: Sequence[str]) -> set[str]:
+        """The transitive ``depends_on`` closure of ``names`` (the names themselves
+        excluded); unknown names raise :class:`DagError`."""
+        by_name = {s.name: s for s in self.steps}
+        out: set[str] = set()
+        stack = list(names)
+        while stack:
+            name = stack.pop()
+            if name not in by_name:
+                raise DagError(f"unknown step {name!r}; known: {sorted(by_name)}")
+            for dep in by_name[name].depends_on:
+                if dep not in out:
+                    out.add(dep)
+                    stack.append(dep)
+        return out - set(names)
+
     def ordered(
         self,
         *,
         select: list[str] | None = None,
         tags: list[str] | None = None,
         tier: Tier | str | None = None,
+        with_deps: bool = False,
     ) -> tuple[Step, ...]:
         """The steps to run, in topological order.
 
-        ``select`` keeps exactly the named steps (their dependencies are **not** pulled
-        in — a selected step over an incomplete dependency simply finds no staged input);
-        ``tags`` keeps steps carrying at least one of the tags; ``tier`` drops steps
-        whose ``tiers`` list excludes it. Unknown names/tags raise :class:`DagError`.
+        ``select`` keeps exactly the named steps — their dependencies are **not** pulled
+        in (a selected step over an incomplete dependency simply finds no staged input)
+        unless ``with_deps`` is set (EP-37: the transitive ancestors join the selection
+        and the runner then skips the ones already complete); ``tags`` keeps steps
+        carrying at least one of the tags; ``tier`` drops steps whose ``tiers`` list
+        excludes it. The filters compose. Unknown names/tags raise :class:`DagError`.
         """
         by_name = {s.name: s for s in self.steps}
         if select:
@@ -204,6 +252,8 @@ class DagSpec(_Frozen):
                 raise DagError(
                     f"--select names unknown step(s) {unknown}; known: {sorted(by_name)}"
                 )
+            if with_deps:
+                select = sorted(set(select) | self.ancestors(select))
         if tags:
             all_tags = {t for s in self.steps for t in s.tags}
             unknown = sorted(set(tags) - all_tags)
@@ -232,8 +282,7 @@ def specs_root() -> Path:
     return Path(str(files(__package__).joinpath(SPECS_DIRNAME)))
 
 
-def load_dag_from(path: Path) -> DagSpec:
-    """Parse and validate one spec YAML file; tests point this at crafted specs."""
+def _read_spec_doc(path: Path) -> dict[str, Any]:
     path = Path(path)
     try:
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -241,18 +290,98 @@ def load_dag_from(path: Path) -> DagSpec:
         raise DagError(f"{path.name}: cannot read ({exc})") from exc
     if not isinstance(doc, dict):
         raise DagError(f"{path.name}: top level must be a mapping")
+    return doc
+
+
+def _validate(doc: dict[str, Any], label: str) -> DagSpec:
     try:
         return DagSpec.model_validate(doc)
     except ValidationError as exc:
-        lines = [f"{path.name}: {exc.error_count()} validation error(s)"]
+        lines = [f"{label}: {exc.error_count()} validation error(s)"]
         for e in exc.errors():
             loc = ".".join(str(p) for p in e["loc"])
             lines.append(f"  {loc}: {e['msg']}")
         raise DagError("\n".join(lines)) from None
 
 
-def load_dag(name: str = DEFAULT_SPEC) -> DagSpec:
-    """The packaged spec ``dag/specs/<name>.yaml``."""
+def load_dag_from(path: Path) -> DagSpec:
+    """Parse and validate one spec YAML file; tests point this at crafted specs."""
+    path = Path(path)
+    return _validate(_read_spec_doc(path), path.name)
+
+
+def _unique(values: Sequence[Any]) -> list[Any]:
+    return list(dict.fromkeys(values))
+
+
+def merge_spec_documents(docs: Sequence[tuple[str, dict[str, Any]]]) -> dict[str, Any]:
+    """One spec document from several ``(label, document)`` pairs (EP-37 discovery):
+    steps are appended in file order; a step declared in more than one file must be a
+    :data:`SHARED_STEPS` name, its ``depends_on`` / ``tags`` are unioned (first file's
+    order first) and every other field must agree — anything else is a
+    :class:`DagError` naming both files. ``version`` is the maximum."""
+    merged: dict[str, dict[str, Any]] = {}
+    origin: dict[str, str] = {}
+    version = 1
+    for label, doc in docs:
+        version = max(version, int(doc.get("version", 1) or 1))
+        steps = doc.get("steps")
+        if not isinstance(steps, list):
+            raise DagError(f"{label}: 'steps' must be a list")
+        for raw in steps:
+            if not isinstance(raw, dict) or "name" not in raw:
+                raise DagError(f"{label}: every step needs a 'name'")
+            name = str(raw["name"])
+            if name not in merged:
+                merged[name] = dict(raw)
+                origin[name] = label
+                continue
+            if name not in SHARED_STEPS:
+                raise DagError(
+                    f"step {name!r} is declared in both {origin[name]} and {label}; only "
+                    f"{sorted(SHARED_STEPS)} may be shared across spec files"
+                )
+            have = merged[name]
+            for key in set(have) | set(raw):
+                if key in ("depends_on", "tags"):
+                    continue
+                if have.get(key) != raw.get(key):
+                    raise DagError(
+                        f"shared step {name!r}: field {key!r} differs between "
+                        f"{origin[name]} and {label}"
+                    )
+            have["depends_on"] = _unique(
+                list(have.get("depends_on") or []) + list(raw.get("depends_on") or [])
+            )
+            have["tags"] = _unique(list(have.get("tags") or []) + list(raw.get("tags") or []))
+    return {"version": version, "steps": list(merged.values())}
+
+
+def load_dag_from_files(paths: Sequence[Path]) -> DagSpec:
+    """Merge several spec files (:func:`merge_spec_documents`) and validate the result
+    as one graph — cross-file ``depends_on`` references resolve after the merge."""
+    docs = [(Path(p).name, _read_spec_doc(Path(p))) for p in paths]
+    labels = ", ".join(label for label, _ in docs)
+    return _validate(merge_spec_documents(docs), labels)
+
+
+def spec_paths() -> list[Path]:
+    """Every packaged ``dag/specs/*.yaml``, :data:`DEFAULT_SPEC` first, the rest by name."""
+    root = specs_root()
+    default = root / f"{DEFAULT_SPEC}.yaml"
+    others = sorted(p for p in root.glob("*.yaml") if p != default)
+    return ([default] if default.is_file() else []) + others
+
+
+def load_dag(name: str | None = None) -> DagSpec:
+    """The packaged DAG. With ``name`` the single spec ``dag/specs/<name>.yaml`` (the
+    EP-19 form, e.g. ``load_dag("stage")``); with no name **every** packaged spec merged
+    into one graph (EP-37 discovery, module docstring) — what ``mwh build`` runs."""
+    if name is None:
+        paths = spec_paths()
+        if not paths:
+            raise DagError(f"no packaged specs under {specs_root()}")
+        return load_dag_from_files(paths)
     path = specs_root() / f"{name}.yaml"
     if not path.is_file():
         known = sorted(p.stem for p in specs_root().glob("*.yaml"))
@@ -263,6 +392,7 @@ def load_dag(name: str = DEFAULT_SPEC) -> DagSpec:
 __all__ = [
     "DEFAULT_SPEC",
     "KIND_FIELDS",
+    "SHARED_STEPS",
     "SPECS_DIRNAME",
     "DagError",
     "DagSpec",
@@ -270,5 +400,8 @@ __all__ = [
     "Step",
     "load_dag",
     "load_dag_from",
+    "load_dag_from_files",
+    "merge_spec_documents",
+    "spec_paths",
     "specs_root",
 ]

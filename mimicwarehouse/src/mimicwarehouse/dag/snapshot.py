@@ -15,7 +15,15 @@ Scope rules:
   ``settings.dev_buckets`` plus unpartitioned tables — it must **not** move when
   buckets 5-99 finish during a full pass;
 * a table restaged across builds contributes its **latest** line per path (newest
-  ``ts`` wins across every ``<lake_root>/manifests/*.jsonl``).
+  ``ts`` wins across every ``<lake_root>/manifests/*.jsonl``);
+* **per-tier layers (EP-37).** ``core`` is one shared set of files that ``dev`` reads
+  through a bucket filter; every later layer (``derived`` from EP-37, ``marts`` from
+  EP-47/55) is materialised **per tier** under ``<layer>/<tier>/...`` on the same lake
+  root (:func:`layer_prefix`), so its ``dev`` and ``full`` files differ. Such tables
+  mark their status entry ``per_tier: true`` and :func:`complete_for_tier` then reads
+  ``dev`` completeness from the dev build alone (``tier_complete == "dev"`` /
+  ``dev_ready``) — a full-only build is **not** dev-complete, because the dev file does
+  not exist. The dev id of a per-tier layer hashes only the ``<layer>/dev/`` lines.
 
 Every build appends ``{layer, tier, snapshot_id, build_id, ts}`` to
 ``lake/manifests/snapshots.json`` (a history list); EP-21 stores the id in
@@ -40,16 +48,29 @@ from mimicwarehouse.loader.manifest import (
 )
 
 SNAPSHOTS_FILENAME = "snapshots.json"
+#: The shared layer: one file set for dev + full (dev = bucket filter).
+CORE_LAYER = "core"
 
 
 def complete_for_tier(entry: dict[str, Any], tier: str) -> bool:
     """Whether a ``status.json`` step entry counts as complete for ``tier``:
     ``tier_complete == "full"`` everywhere, with ``dev``/``dev_ready`` sufficing for
-    the dev tier (DESIGN §11; the EP-19 skip logic uses the same predicate)."""
+    the dev tier (DESIGN §11; the EP-19 skip logic uses the same predicate). An entry
+    flagged ``per_tier`` (a per-tier layer, module docstring — EP-37) is dev-complete only
+    through its own dev build: ``tier_complete == "dev"`` or ``dev_ready``, never
+    ``tier_complete == "full"`` alone."""
     tc = entry.get("tier_complete")
     if tier == "dev":
+        if entry.get("per_tier"):
+            return tc == "dev" or bool(entry.get("dev_ready"))
         return tc in ("dev", "full") or bool(entry.get("dev_ready"))
     return tc == "full"
+
+
+def layer_prefix(layer: str, tier: str) -> str:
+    """The manifest-path prefix of ``layer`` for ``tier``: ``core/`` (shared; the dev
+    view is the bucket filter) or ``<layer>/<tier>/`` for the per-tier layers (EP-37)."""
+    return f"{layer}/" if layer == CORE_LAYER else f"{layer}/{tier}/"
 
 
 def _bucket_of(path: str) -> int | None:
@@ -99,8 +120,9 @@ def layer_snapshot(
 
     contract = load_contract()
     payload: list[list[Any]] = []
+    prefix = layer_prefix(layer, tier)
     for line in _latest_lines(lake_root).values():
-        if not line.path.startswith(f"{layer}/"):
+        if not line.path.startswith(prefix):
             continue
         qn = f"{line.schema_name}.{line.table}"
         if qn not in complete:
@@ -145,8 +167,9 @@ def table_file_stats(
     complete = {qn for qn, entry in status.items() if complete_for_tier(entry, tier)}
     dev_buckets = set(settings.dev_buckets)
     stats: dict[str, tuple[int, int, int]] = {}
+    prefix = layer_prefix(layer, tier)
     for line in _latest_lines(lake_root).values():
-        if not line.path.startswith(f"{layer}/"):
+        if not line.path.startswith(prefix):
             continue
         qn = f"{line.schema_name}.{line.table}"
         if qn not in complete:
@@ -197,8 +220,10 @@ def record_snapshot(
 
 
 __all__ = [
+    "CORE_LAYER",
     "SNAPSHOTS_FILENAME",
     "complete_for_tier",
+    "layer_prefix",
     "layer_snapshot",
     "read_snapshots",
     "record_snapshot",

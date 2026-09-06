@@ -164,7 +164,30 @@ chartevents/labevents views; a worst-case single pass over all 433 M chartevents
 ≈ 17 GB of hash/sort state, so spill is possible but bounded (≤ 20–40 GB) under the 150 GB
 `max_temp_directory_size` cap; expected free space after P3 ≈ 380 GB.
 
-*History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3 (completion notes); consolidated at EP-33.
+> **Note (2026-09-05, EP-37) — the per-tier derived layout, used from here on.** The
+> `core` layer is one file set that `dev` reads through a bucket filter; every layer
+> above it is materialised **per tier** on the same lake root:
+> `<lake_root(tier)>/derived/<tier>/<schema>/<table>/part-0.parquet` — one ZSTD file per
+> table, no bucket partitions (EP-33 amendment 3) — so `lake/derived/dev/…` and
+> `lake/derived/full/…` coexist under the shared `lake/` while `fixture` / `demo` keep
+> theirs under their own roots (`lake/fixture/derived/fixture/…`, `lake/demo/derived/demo/…`;
+> EP-167). Manifest lines and `status.json` entries live on the same lake root as the
+> core ones; a per-tier table's status entry carries `per_tier: true` plus a
+> `tiers[<tier>]` sub-entry (status, rows, bytes, build/run id, error class), and
+> `dag.snapshot.complete_for_tier` then reads **dev** completeness from the dev build alone
+> (`tier_complete == "dev"` / `dev_ready`) — a full-only build never makes the dev file
+> exist. Layer snapshot ids follow `dag.snapshot.layer_prefix`: `core/` vs
+> `<layer>/<tier>/`. The catalog registers whatever is complete through the discovery
+> walker `concepts.runner.register_derived` (an EP-34 `CATALOG_EXTENSIONS` entry that
+> reads `meta.catalog_info.lake_root`): every `derived/<tier>/<schema>/<table>/` becomes a
+> `<schema>.<table>` view, every `meta/<tier>/<table>.parquet` a `meta.<table>` table
+> (EP-29's `profile_*` pair excepted — it is folded into `meta.columns` / `meta.row_counts`
+> and carries per-column extrema). Later layouts follow the rule: `lake/marts/<tier>/…` →
+> `marts.*` (EP-47/55); the bucketed spine (EP-50) is the one exception, registered by its
+> own `union` step. First measured sizes: 65 concept tables on `demo` = 1.5 MB of Parquet
+> (the EP-33 D3 estimate held); full sizes are the `concepts-full` job's (EP-38 verifies).
+
+*History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3, EP-37 (completion notes); consolidated at EP-33.
 
 ## 4. Tiers & sampler spec (D-18, D-27)
 
@@ -548,7 +571,35 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
   → SQL; versioned like code sets; first three: T2DM, sepsis-3 (via concept), KDIGO AKI
   stage. The fixture plants all three traits (§4) and EP-41 regenerates it as 0.3.0.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2 (completion notes); EP-37 … EP-42 planned; consolidated at EP-33.
+> **Note (2026-09-05, EP-37) — the concept runner as built.** `concepts/inventory.py`
+> enumerates the 65 vendored `concepts_duckdb/<group>/<name>.sql` files into the committed
+> inventory `concepts/concepts.yaml` (name, group, path, `sql_sha256` = `VENDOR.json`'s
+> `sha256_lf`, upstream commit, the `mimiciv_derived.*` concepts and `mimiciv_hosp|icu.*`
+> tables a comment-stripped regex scan finds, driver position) in topological order (Kahn;
+> ties by upstream's `duckdb.sql` order) and renders the DAG spec `dag/specs/concepts.yaml`
+> — one `python` step `concept.<group>.<name>` per concept (`target` = its status key,
+> `depends_on` = its concept **and** stage ancestors), `meta.concept_versions`, and the
+> shared `catalog` step; both files are drift-tested. `concepts/runner.py` strips
+> upstream's `DROP TABLE …; CREATE TABLE … AS` header, exposes the tier's staged tables as
+> views on the build connection (the catalog's own relations, so dev sees its buckets and
+> the catalog file is never needed), `COPY (SELECT …) TO` one Parquet file under the §3
+> per-tier layout, publishes it with `publish.swap_dir`, appends the manifest line
+> (`source_sha256` = the SQL's sha256, `raw_snapshot_id` = the core snapshot id), the
+> per-tier status entry and a `kind: concept` benchmark line (`run.bench`, EP-35/36;
+> `run_id` when the build runs under `run.start`), and refuses a vendored file whose bytes
+> drifted from the inventory. Failures are recorded (status `failed` + error class,
+> `ok: false` ledger line, a row in `meta.concept_versions`) with a **sanitized** message —
+> DuckDB quotes cell values in conversion errors. `meta.concept_versions` (per tier under
+> `lake/meta/<tier>/`) lists concept, group, upstream commit, sql sha256, `patch_id` (NULL
+> until EP-38), rows, built_at, run/build ids, the derived snapshot id, status and error
+> class. Count-pins: `concepts/pins.py` through `safe_query` — the per-concept counts are
+> one `UNION ALL` statement, cells below 11 are the string `"<11"` (`render_cell`, the
+> helper EP-43 replaces); `tests/ep/pins/concepts_demo.json` is committed (ODbL), the dev
+> pins live under `runs/pins/` (never committed before EP-43). All 65 execute on 1.5.5
+> (fixture, demo, dev; full launched as `concepts-full`, EP-38 verifies); the human-readable
+> inventory and the (empty) failure list are `docs/resources/concepts.md`.
+
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37 (completion notes); EP-38 … EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -867,13 +918,13 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── publish.py                 EP-17/21 → EP-33 shipped   the one rename-aside publish primitive (swap_dir, swap_file, retry helpers); supersedes paths.py and catalog.build.swap_catalog
 │   ├── engine.py                  EP-33 shipped  the one DuckDB connection factory (open_duckdb, attach_read_only)
 │   ├── loader/                    EP-17, EP-18, EP-23 … EP-27, EP-33 shipped   engine (build connection guards), csv, stage, buckets, manifest, paths
-│   ├── dag/                       EP-19, EP-28, EP-29, EP-32, EP-33 shipped   spec (+ specs/stage.yaml), runner, snapshot, benchmarks, jobs, cli
+│   ├── dag/                       EP-19, EP-28, EP-29, EP-32, EP-33, EP-37 shipped   spec (+ specs/stage.yaml, specs/concepts.yaml; multi-spec discovery), runner (--keep-going, --with-deps, provenance run, per-layer snapshots), snapshot (per-tier layers), benchmarks, jobs, cli
 │   ├── catalog/                   EP-21, EP-29, EP-30, EP-33 shipped   build, connect, profile, dictionary, cli (`mwh catalog`, `mwh sql`)
 │   ├── demo.py                    EP-22 shipped  ODbL demo fetch + source.yaml register
 │   ├── safe.py                    EP-30, EP-33 shipped   safe_query, AuditLine, build_runs_db
 │   ├── runs_cli.py                EP-30, EP-32, EP-35 shipped   `mwh runs refresh | list | show | benchmarks`
 │   ├── tracer.py                  EP-31 shipped  tracer bullet (+ sql/tracer_first_icu_mortality.sql); `mwh tracer`
-│   ├── concepts/                  EP-8, EP-167 shipped (vendor/ + pin, vendoring.py); EP-37/38 runner + patches/
+│   ├── concepts/                  EP-8, EP-167, EP-37 shipped   vendor/ + pin, vendoring.py; inventory.py (+ concepts.yaml, the generated dag spec), runner.py (concept steps, meta.concept_versions, catalog discovery walker), pins.py; EP-38 patches/
 │   ├── timesem.py                 EP-34 shipped  eras, ages, ICD rule, relative time, dod censoring rules, grain registry + index-rule SQL, catalog views (CATALOG_EXTENSIONS entry), docs/methods/time-semantics.md renderer
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39  item dictionary curation, unit harmonization
@@ -918,6 +969,27 @@ they can report a bad root; membership is pinned by `test_ep167`. `inventory`, `
 Background work (`--background --job NAME` on `build` and `tracer`) detaches through
 `dag.jobs.launch`; `verify` passes `MWH_DATA_ROOT=<resolved --data-root>` to its pytest
 child without mutating `os.environ`, and spawned jobs pass the same env.
+
+> **Note (2026-09-05, EP-37) — `mwh build` runs the merged DAG; `--keep-going`,
+> `--with-deps`.** `dag.spec.load_dag()` with no name merges every packaged
+> `dag/specs/*.yaml` into one graph (step names unique across files; the shared
+> `catalog` step deduplicated with `depends_on` and `tags` unioned, so `--tag concepts`
+> ends in it; cross-file `depends_on` resolves after the merge; `load_dag("stage")` still
+> loads one file; there is no `--spec` option — EP-39/44/45/50/53 add files, not flags).
+> `python` steps may declare a `target` (their `status.json` key) and are then
+> skipped/resumed like stage steps. Two runner flags: `--keep-going` records a step
+> failure and continues with every step that does not depend on it — dependents inside
+> the selection are reported **`blocked`** (a new `StepStatus`; a `catalog` step is never
+> blocked, it registers what is complete) and the build exits 1 — and `--with-deps`
+> pulls a `--select`'s transitive ancestors into the run (skipped when complete; `--force`
+> then applies to the selected steps only, so a forced dev rebuild never asks the coverage
+> guard to restage a full table). Every CLI build now runs inside `run.start(kind="build")`
+> (EP-35): one `runs/<run_id>/` manifest + ledger line per `mwh build` (params: build id,
+> selection, flags; refs: the concepts built; snapshot ids per layer; `status: failed` when
+> a step failed), printed as `run <run_id>` under the summary table — library callers
+> (`runner.run(...)`, tests) pass `provenance=True` to opt in. The runner records one
+> snapshot id per layer the executed steps reported (`StepOutcome.layer`; `core` always,
+> `derived` for the concept steps) and prints `snapshot <layer>/<tier> = …` per layer.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

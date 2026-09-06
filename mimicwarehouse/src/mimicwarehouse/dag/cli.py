@@ -92,14 +92,35 @@ def build_command(
             help="Take over a stale build lock (dead pid). A live build is never broken.",
         ),
     ] = False,
+    keep_going: Annotated[
+        bool,
+        typer.Option(
+            "--keep-going",
+            help="Record a step failure and continue with the steps that do not depend on "
+            "it (dependents are reported blocked); default: stop at the first failure.",
+        ),
+    ] = False,
+    with_deps: Annotated[
+        bool,
+        typer.Option(
+            "--with-deps",
+            help="With --select: also run the selected steps' transitive dependencies "
+            "(already-complete ones are skipped; --force then applies to the selected "
+            "steps only).",
+        ),
+    ] = False,
 ) -> None:
-    """Run the stage DAG for one tier (EP-19; the only writer of the lake, DESIGN 6)."""
+    """Run the DAG for one tier (EP-19; the only writer of the lake, DESIGN 6). Every
+    packaged spec is merged (EP-37): stage steps, meta.profile, the concept steps
+    (--tag concepts) and the shared catalog step."""
     state: CliState = ctx.obj
     if tier not in TIERS:
         fail("mwh build", f"unknown tier {tier!r}; expected one of {', '.join(TIERS)}")
     settings = state.settings
     selects = _split_csv(select or [])
     tags = _split_csv(tag or [])
+    if with_deps and not selects:
+        fail("mwh build", "--with-deps only applies to a --select list")
 
     if background:
         if dry_run:  # DAG-1: the plan needs the foreground console; never detach a real build
@@ -124,6 +145,10 @@ def build_command(
             argv.append("--force")
         if break_lock:
             argv.append("--break-lock")
+        if keep_going:
+            argv.append("--keep-going")
+        if with_deps:
+            argv.append("--with-deps")
         assert job is not None
         argv += ["--job", job]
         try:
@@ -165,6 +190,9 @@ def build_command(
             job=job,
             break_lock=break_lock,
             settings=settings,
+            keep_going=keep_going,
+            with_deps=with_deps,
+            provenance=True,  # EP-37: every CLI build is a runs/<run_id> record (EP-35)
         )
     except (DagError, runner_mod.BuildLockError, config.ConfigError) as exc:
         report_job("failed", 2)
@@ -198,8 +226,10 @@ def build_command(
             f"{s.wall_s:,.1f}",
         )
     console.print(table)
-    if result.snapshot_id is not None:
-        console.print(f"snapshot core/{result.tier} = {result.snapshot_id}", highlight=False)
+    for layer, snapshot_id in sorted(result.snapshot_ids.items()):
+        console.print(f"snapshot {layer}/{result.tier} = {snapshot_id}", highlight=False)
+    if result.run_id is not None:
+        console.print(f"run {result.run_id} (mwh runs show {result.run_id})", highlight=False)
     report_job("done" if result.ok else "failed", 0 if result.ok else EXIT_FINDINGS)
     if not result.ok:
         raise typer.Exit(code=EXIT_FINDINGS)

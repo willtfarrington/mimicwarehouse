@@ -157,10 +157,14 @@ def test_spec_steps_carry_contract_defaults(contract: Contract) -> None:
         # size_class / partitioned / sort_by come from the contract, never the spec
         assert step.size_class is None and step.partitioned is None and step.sort_by is None
     catalog = dag.step("catalog")
-    # EP-29 added the meta.profile python step between the stages and the catalog
-    assert set(catalog.depends_on) == {s.name for s in dag.steps if s.kind == "stage"} | {
-        "meta.profile"
-    }
+    # EP-29 added the meta.profile python step between the stages and the catalog.
+    # EP-37 (2026-09-05, churn rule): load_dag() now merges every packaged spec and the
+    # shared catalog step's depends_on is the union across files (the concept steps join
+    # it), so the EP-20 fact is a superset check: catalog still depends on every stage
+    # step and on meta.profile. The stage spec alone keeps the exact set.
+    stage_deps = {s.name for s in dag.steps if s.kind == "stage"} | {"meta.profile"}
+    assert stage_deps <= set(catalog.depends_on)
+    assert set(load_dag("stage").step("catalog").depends_on) == stage_deps
 
 
 # ---------------------------------------------------------------------------

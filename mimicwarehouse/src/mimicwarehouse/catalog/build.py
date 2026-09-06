@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse import __version__, publish
+from mimicwarehouse.concepts.runner import register_derived as _concepts_register_derived
 from mimicwarehouse.config import (
     Settings,
     Tier,
@@ -87,9 +88,13 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 
 #: The extension hook (module docstring; EP-34 item 5): ``(con, tier) -> None`` callables
 #: run in order on the build connection after the contract tables and ``meta.*``, before
-#: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first.
+#: ``CHECKPOINT``. Append, never replace — ``timesem.create_views`` stays first; EP-37's
+#: discovery walker (``mimiciv_derived.<table>`` views over ``lake/derived/<tier>/`` and
+#: ``meta.<table>`` tables over ``lake/meta/<tier>/``) reads ``meta.catalog_info`` for the
+#: lake root, so extensions never need paths of their own.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
+    _concepts_register_derived,
 ]
 
 

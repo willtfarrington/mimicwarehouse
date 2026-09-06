@@ -135,7 +135,12 @@ def read(settings: Settings | None = None) -> polars.DataFrame:
     rows = fsio.read_jsonl(benchmarks_path(settings))
     if not rows:
         return polars.DataFrame()
-    return polars.read_ndjson(b"".join(fsio.encode_line(row) for row in rows))
+    # EP-37: infer the schema from every line, not polars' first 100 — a ledger whose
+    # first hundred lines carry a null `error` (65 concept steps) would otherwise type
+    # the column NULL and refuse the first failed step's message
+    return polars.read_ndjson(
+        b"".join(fsio.encode_line(row) for row in rows), infer_schema_length=None
+    )
 
 
 def summarize(
