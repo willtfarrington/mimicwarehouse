@@ -24,7 +24,7 @@ latest addendum's date and EP.
 | D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
 | D-15 | uv-managed CPython 3.13, one venv | refined at EP-7, EP-166 (wheel rule, psutil) | 2026-08-28, EP-166 |
 | D-16 | CPU-first, GPU opt-in | settled | — |
-| D-17 | DuckDB + Parquet lake canonical | refined at EP-9, EP-166, EP-169, EP-17, EP-33 (engine facts; NULLS LAST canonical) | 2026-09-01, EP-33 |
+| D-17 | DuckDB + Parquet lake canonical | refined at EP-9, EP-166, EP-169, EP-17, EP-33 (engine facts; NULLS LAST canonical), EP-41 (fixture writer aligned, CTR-1 closed) | 2026-09-06, EP-41 |
 | D-18 | Tiers fixture / demo / dev / full | refined at EP-166, EP-33 (dev-first ordering) | 2026-08-30, EP-33 |
 | D-19 | mimic-code vendored at a pin | refined at EP-8 (pin recorded) | 2026-08-17, EP-8 |
 | D-20 | Custom `mwh build` runner | refined at EP-33 (⏱ job standard; lock identity; dry-run rule) | 2026-09-01, EP-33 |
@@ -32,7 +32,7 @@ latest addendum's date and EP.
 | D-24 | JSONL ledgers + `runs.duckdb` views | refined at EP-166, EP-33 (ledger practice; `fsio` canon) | 2026-09-01, EP-33 |
 | D-25 | Protocol freeze by content hash | settled | — |
 | D-26 | Raw provenance = local manifest | refined at EP-10, EP-166, EP-16 | 2026-08-28, EP-16 |
-| D-27 | Synthetic fixture generator | refined at EP-9, EP-166, EP-16 (id floors, 0.2.0, regen protocol) | 2026-08-28, EP-16 |
+| D-27 | Synthetic fixture generator | refined at EP-9, EP-166, EP-16 (id floors, 0.2.0, regen protocol), EP-41 (0.3.0: T2DM inputs, outcome enrichment, NULLS LAST) | 2026-09-06, EP-41 |
 | D-28 | ≤ 5 s latency via marts | settled | — |
 | D-29 | Data placement (repo, data root, never G:/D:) | refined at EP-3, EP-7 | 2026-08-17, EP-7 |
 | D-30 | Plain CSVs untouched | settled | — |
@@ -244,6 +244,11 @@ native only; pandas primary.
 > (`build` / `app`, a required positional), pinned by a grep guard; the engine gotchas
 > (`10**9` binds DOUBLE, path-keyed instance cache → `ATTACH IF NOT EXISTS`) live in
 > DESIGN §6.1 and `docs/gotchas.md`.
+
+> **Addendum (2026-09-06, EP-41 — CTR-1 closed).** The Polars fixture writer
+> (`fixtures.hosp.to_frame`) and the fixture check (`fixtures.check`) sort
+> `nulls_last=True` since generator 0.3.0, so the committed CSVs are in the order the
+> loader's DuckDB `ORDER BY` would produce for the same rows; no lake was restaged.
 
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
@@ -576,6 +581,25 @@ on-demand MIMIC-IV Demo 2.2 (+ ED Demo) tier.** *Alternatives:* demo only; synth
 > via `uv run --group dev mwh fixtures build` (≈ 1.6 s). Change protocol:
 > `tests/README.md` § "Changing the synthetic fixture".
 
+> **Addendum (2026-09-06, EP-41 — the 0.3.0 regeneration).** One regeneration (minor
+> bump: a new spec key), as the EP-33 amendment to EP-41 planned: (1) the **T2DM inputs**
+> — `vocab/d_labitems.yaml` gains HbA1c (itemid 50852, panel `a1c`; random draws stay
+> below 6.5 %, the planted t2dm admissions force 6.6–11.0 %), `vocab/drugs.yaml` gains
+> metformin (forced on the planted t2dm admissions) and glipizide (sampled); the T1DM
+> exclusion codes stay **absent on purpose** (`test_ep40` pins that `t1dm@1.0.0` matches
+> nothing on the fixture; `test_ep41` covers the branch with crafted rows); (2) the
+> **outcome enrichment** (EP-33 D4e): `FixtureSpec.min_deaths_per_level = 1` —
+> `_plant_deaths` folds singleton `admission_type` / `first_careunit` levels among the
+> first ICU stays into the most common level, then plants in-hospital deaths (on a
+> subject's last admission only, never on the sole survivor of another level) until every
+> level of the EP-31 tracer's four covariates carries a death and a survivor — the 0.2.0
+> plan had 5 degenerate levels (three `admission_type`, two `first_careunit`), 0.3.0 has
+> none (22 deaths / 186 admissions); (3) the **NULLS LAST alignment** (D-17 addendum).
+> Totals: 50,746 rows, 5,336,847 bytes = 5.09 MiB (31 files; ≤ 10 MB budget). Earlier
+> tests touched: `test_ep169` alone (its literal `0.2.0` pins now read the shipped version
+> and floor at 0.2.0 — the churn rule's "shipped fact legitimately changed" case);
+> `test_ep11/12` regenerate their expectations, `test_ep21/22/30` read the manifest.
+
 **D-28 Latency ≤ 5 s typical on full data via marts; interactive pages default to
 dev.** *Alternatives:* ≤ 2 s always; whatever DuckDB gives.
 
@@ -702,7 +726,15 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > suppressor (leaks through the registry exemption); drop suppressed rows (the back-out);
 > a separate owner-only schema (a second mechanism for one table).
 
-**D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
+> **Addendum (2026-09-06, EP-41 — a positive count inside a registry table and a run
+> record).** `meta.phenotype_versions` (a `meta.*` registry table, readable unsuppressed
+> through `mwh sql`) and the `kind: phenotype` run manifest's `params` both carry the
+> phenotype's `n_positive`; following the EP-39 rule above, the value is blanked
+> (`n_positive_suppressed = true`, `k` recorded) when `0 < n_positive < k` at build time,
+> in the progress log too, while the raw count stays in `status.json` under the data root
+> (read by code, never printed). `rows` (the unit count) is never small. The phenotype
+> views themselves (`mimiciv_derived.phenotype_<id>`, `_hadm`) are subject-keyed
+> non-registry reads, so `safe_query`'s own k rule covers every aggregate over them.
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.
 

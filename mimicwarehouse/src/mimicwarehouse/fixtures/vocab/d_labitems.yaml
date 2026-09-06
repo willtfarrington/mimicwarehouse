@@ -6,7 +6,7 @@
 # "plausible" sampling bounds (low/high) plus the reference range the fixture writes into
 # labevents.ref_range_lower / ref_range_upper; `decimals` fixes the text form of `value`.
 # `panel` groups items into specimen draws; `text_values` items carry no valuenum.
-version_note: "MIMIC-IV 3.1 d_labitems subset (~44 items), typed 2026-08-18 (EP-11)."
+version_note: "MIMIC-IV 3.1 d_labitems subset (~45 items), typed 2026-08-18 (EP-11); HbA1c 50852 added 2026-09-06 (EP-41, generator 0.3.0)."
 items:
   # ---- Chemistry (Blood) ----
   - {itemid: 50862, label: "Albumin", fluid: Blood, category: Chemistry, valueuom: "g/dL", decimals: 1, low: 2.0, high: 5.0, ref_lower: 3.5, ref_upper: 5.2, panel: chem}
@@ -29,6 +29,9 @@ items:
   - {itemid: 50889, label: "C-Reactive Protein", fluid: Blood, category: Chemistry, valueuom: "mg/L", decimals: 1, low: 0.5, high: 120.0, ref_lower: 0.0, ref_upper: 5.0, panel: inflam}
   - {itemid: 50963, label: "NTproBNP", fluid: Blood, category: Chemistry, valueuom: "pg/mL", decimals: 0, low: 50, high: 6000, ref_lower: 0, ref_upper: 900, panel: cardiac}
   - {itemid: 50954, label: "Lactate Dehydrogenase (LD)", fluid: Blood, category: Chemistry, valueuom: "IU/L", decimals: 0, low: 100, high: 500, ref_lower: 94, ref_upper: 250, panel: lft}
+  # EP-41 (0.3.0): the T2DM phenotype's lab leaf; random draws stay below the 6.5 % threshold,
+  # the planted t2dm admissions force a value above it (hosp._build_labs)
+  - {itemid: 50852, label: "% Hemoglobin A1c", fluid: Blood, category: Chemistry, valueuom: "%", decimals: 1, low: 4.8, high: 6.4, ref_lower: 4.0, ref_upper: 6.0, panel: a1c}
   # ---- Blood Gas (Blood) ----
   - {itemid: 50813, label: "Lactate", fluid: Blood, category: "Blood Gas", valueuom: "mmol/L", decimals: 1, low: 0.5, high: 5.0, ref_lower: 0.5, ref_upper: 2.0, panel: bg}
   - {itemid: 50820, label: "pH", fluid: Blood, category: "Blood Gas", valueuom: units, decimals: 2, low: 7.20, high: 7.52, ref_lower: 7.35, ref_upper: 7.45, panel: bg}
@@ -69,6 +72,7 @@ panels:
   cardiac: [51003, 50963]
   inflam: [50889]
   ua: [51498, 51491, 51464]
+  a1c: [50852]
 # Draw weights per admission (relative frequency of each panel); the outpatient draws use
 # only the first four.
-panel_weights: {bmp: 6, cbc: 5, chem: 2, lft: 2, coag: 2, bg: 2, cardiac: 1, inflam: 1, diff: 1, ua: 1}
+panel_weights: {bmp: 6, cbc: 5, chem: 2, lft: 2, coag: 2, bg: 2, cardiac: 1, inflam: 1, diff: 1, ua: 1, a1c: 1}

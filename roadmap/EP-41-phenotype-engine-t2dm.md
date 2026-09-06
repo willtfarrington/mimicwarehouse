@@ -96,3 +96,107 @@ diagnoses carry no timestamps (assign `dischtime` of the admission), the ICD swi
 - `uv run --group dev mwh phenotype summary t2dm@1.0.0 --tier dev` prints n_units, n_positive and
   share (no cell < 11); the number is recorded in the completion note.
 - Golden SQL file committed; changing a threshold in the YAML without a version bump is refused.
+
+## Parked → final-roadmap.md
+
+- Session reads of a **specific** phenotype version: the walker's `phenotypes."<id>@<version>"`
+  views sit outside `safe.ALLOWED_SCHEMAS`, so `mwh sql` / `mwh phenotype summary` see only the
+  latest built version through `mimiciv_derived.phenotype_<id>` — trigger: a version-comparison
+  workflow (EP-63, a cohort pinned to an older version at EP-46/47); hazard: allow-listing the
+  schema is a governance loosening (EP-43 decides) vs per-version `mimiciv_derived` views.
+  *(Mirrored into `final-roadmap.md` § 3 as v2 PHE-6 at execution, 2026-09-06.)*
+- Branch-aware onset semantics (today: `earliest` / `latest` / `first_of` over the positive
+  leaves a unit satisfies, whichever branch made the flag true) — trigger: EP-49 / EP-76
+  anchoring on a phenotype onset. *(Mirrored as v2 PHE-7, 2026-09-06.)*
+
+> **Completion note (2026-09-06).** Executed on fixture + dev as briefed; nothing ran on
+> full (`--tag phenotypes` joins the owner's next full rebuild, as EP-39's `--tag units`
+> and EP-40's `--tag codesets`; EP-42's `phenotypes-full` job covers the three phenotypes).
+>
+> **Shipped.** `src/mimicwarehouse/phenotypes/` — `spec.py` (pydantic `Phenotype`: grain,
+> the `all` / `any` / `not` criteria tree over the seven leaf kinds, onset, outputs,
+> provenance, `what_it_does_not_claim`; `def_hash` over grain + criteria + onset + the
+> referenced code-set hashes), `registry.py` (`defs/` + `phenotypes.lock.json`,
+> `PhenotypeFrozenError`, reference resolution against the EP-40 registry incl.
+> `--codesets DIR` study directories, `validate`), `compiler.py` (the deterministic CTE
+> chain — code sets and lab conversions inlined; grain mapping for subject / hadm /
+> icustay; the `hadm` companion SQL), `runner.py` (the `phenotypes.compile` step →
+> `lake/derived/<tier>/phenotypes/<id>@<version>/part-0.parquet` + `meta.phenotype_versions`,
+> one `kind: phenotype` run per phenotype, skip-when-built / `--force`,
+> `register_phenotypes` — `mimiciv_derived.phenotype_<id>` = the latest built version +
+> `phenotype_<id>_hadm` — `summarize` / `summary` through `safe_query`, the docs renderer),
+> `cli.py` (`mwh phenotype list | show [--sql] | validate | lock | compile [--dry-run]
+> [--force] | summary`), `defs/t2dm.yaml` (`t2dm@1.0.0`, locked), `dag/specs/phenotypes.yaml`,
+> `tests/ep/golden/t2dm@1.0.0.sql`, `tests/ep/test_ep41.py` (14 fixture + 1 dev tests),
+> `docs/methods/phenotypes.md`; `BENCHMARK_KINDS` + `phenotype`; the fourth
+> `CATALOG_EXTENSIONS` entry; DESIGN §4/§8/§15 notes, D-17/D-27/D-33 addenda, README state
+> row + quick start, `docs/gotchas.md` (the macro-scan finding), `tests/README.md`,
+> `tests/fixtures/COVERAGE.md`, `final-roadmap.md` PHE-6/PHE-7.
+>
+> **Fixture 0.3.0** (the EP-33 amendment's three items, one regeneration, minor bump for the
+> new spec key `min_deaths_per_level`): HbA1c 50852 + metformin / glipizide in the vocab
+> (the planted t2dm admissions force HbA1c 6.6–11.0 % and a metformin order; the T1DM
+> codes stay absent on purpose, `test_ep40` pins it); `_plant_deaths` — singleton
+> `admission_type` / `first_careunit` levels among the first ICU stays fold into the most
+> common level, then every level of the tracer's four covariates gets a death and a
+> survivor (0.2.0 had 5 degenerate levels, 0.3.0 has 0; 22 deaths / 186 admissions, 4
+> planted; no careunit relabel was needed); `nulls_last=True` in the writer and the check
+> (CTR-1). 50,746 rows / 5.09 MiB; 13 of 31 CSVs moved (admissions, patients, the order
+> chain, labevents, microbiologyevents — the NULLS LAST tables — inputevents /
+> ingredientevents; diagnoses, transfers, icustays and chartevents are byte-identical).
+> Earlier test edited: `test_ep169` only (its two literal `0.2.0` pins now read
+> `write.GENERATOR_VERSION` and floor at 0.2.0 — the churn rule's "shipped fact changed"
+> case); every earlier `mwh verify EP-k` still exits 0.
+>
+> **Design calls (routine, logged here).** (1) Code sets and lab conversions are
+> **inlined** into the SQL: the statement is the definition, runs on any connection that
+> sees the tier's relations and needs no macro — the `mwh_harmonize` family re-expands per
+> call and scanned the fixture's 9,619 lab rows in 43 s (50 s / 5.6 GB RSS in the step; 0.13
+> s inlined), recorded in `docs/gotchas.md` §1 for EP-55. (2) The materialised versions
+> land as `phenotypes."<id>@<version>"` views through EP-37's walker (versions coexist on
+> disk and in the catalog) and the session surface is `mimiciv_derived.phenotype_<id>` =
+> the latest semver built on the tier, plus the `_hadm` companion for subject grain; the
+> `phenotypes` schema stays off `safe.ALLOWED_SCHEMAS` (parked, PHE-6). (3) One nested
+> `kind: phenotype` run per phenotype inside the build's `kind: build` run, so
+> `mwh runs list --kind phenotype` shows each build with its SQL and reference hashes.
+> (4) `n_positive` is blanked below k in `meta.phenotype_versions`, the run params and
+> the log (D-33 addendum); the phenotype views are subject-keyed reads under `safe_query`.
+> (5) Onset = `least` / `greatest` over the positive leaves a unit satisfies (branch-aware
+> onsets parked, PHE-7); temporal operands are inline leaves that count only through
+> the temporal leaf; timeless events (diagnoses at `dischtime`, procedures at
+> `chartdate`) map to every stay of their admission under the icustay grain. (6) The
+> compiled SQL is UTF-8, not ASCII (EP-39's degree / micro signs in the unit
+> normalisation); the CLI strings stay ASCII.
+>
+> **Dev tier (2026-09-06).** `mwh phenotype compile t2dm@1.0.0 --tier dev` (build
+> `20260906T223651-dev-765f50f`, run `20260906T223651Z-639b6a`; the phenotype run
+> `20260906T223658Z-94e38f`): materialisation 0.15 s (18,322 units, 102,196 bytes),
+> `phenotypes.compile` 1.0 s, catalog 2.9 s, build 10.0 s. `mwh phenotype summary
+> t2dm@1.0.0 --tier dev` (k = 11, 0 rows suppressed): **18,322 subjects, 2,491 positive,
+> 13.6 %**; by era through the `_hadm` companion — 2008–2010 11,291 admissions / 3,666
+> (32.5 %), 2011–2013 5,604 / 1,388 (24.8 %), 2014–2016 4,635 / 1,032 (22.3 %),
+> 2017–2019 3,514 / 731 (20.8 %), 2020–2022 2,219 / 567 (25.6 %). `mwh runs list --kind
+> phenotype` shows the run; `meta.phenotype_versions` carries `def_hash f0511c05bf8b…`
+> and the three code-set hashes. Fixture: 120 subjects, 68 positive (the fixture's random
+> code sampling draws T2DM codes freely); `summary --k 1` prints the era rows.
+>
+> **Gates.** `uv run poe test -m ep_41`: 14 passed (fixture); with `--tier dev`: 15
+> passed (the dev summary above); `uv run mwh verify EP-41`: 14 passed; `poe check`
+> green — ruff check, `ruff format --check`, pyright (0 errors) and the full fixture
+> suite: **982 passed, 42 deselected** (the dev / full / demo probes), 434 s;
+> `mwh guard` clean over the working tree (690 files); `poe roadmap-check --strict`
+> 0 errors, 0 warnings. The frozen-version refusal (phenotype and code set, library and
+> every command → exit 3) and the golden-SQL pin are demonstrated in
+> `test_frozen_version_refused_and_bump_allowed` / `test_compiler_golden_and_determinism`;
+> the fixture-dependent modules of EP-11 … EP-40 were re-run after the regeneration
+> (163 passed) before the full suite.
+>
+> **Owner decisions at the interactive review (2026-09-06).** (1) Commit in the standard
+> two steps, no push (the owner pushes) — done, hashes in `README.md`. (2) Keep
+> `test_ep169`'s relaxed generator-version pin (reads the shipped version, floors at
+> 0.2.0) so later regenerations touch no earlier module (rejected: a literal `0.3.0`).
+> (3) Accept that the `phenotypes` catalog schema stays outside `safe.ALLOWED_SCHEMAS` —
+> sessions read the latest version through `mimiciv_derived.phenotype_<id>`; a
+> version-addressed read is parked as PHE-6 for EP-43 (rejected: allow-listing the schema
+> in this brief). (4) Defer the full-tier `--tag phenotypes` build to the next full rebuild
+> / EP-42's `phenotypes-full` job (rejected: a background job now).

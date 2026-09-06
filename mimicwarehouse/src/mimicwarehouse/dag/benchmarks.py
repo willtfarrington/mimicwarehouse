@@ -60,6 +60,7 @@ BENCHMARK_KINDS: tuple[str, ...] = (
     "build",
     "verify",
     "concept",
+    "phenotype",
     "mart",
     "query",
     "page",

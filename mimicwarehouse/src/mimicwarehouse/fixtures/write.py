@@ -52,7 +52,7 @@ if TYPE_CHECKING:  # pragma: no cover
 #: Bumped when any manifest byte-relevant fact changes for the default spec: **patch** = bytes
 #: of existing tables moved; **minor** = new tables / modules / spec keys. Protocol:
 #: ``tests/README.md`` section "Changing the synthetic fixture" (EP-166/EP-169, retro FXT-3).
-GENERATOR_VERSION = "0.2.0"
+GENERATOR_VERSION = "0.3.0"
 GENERATOR_NAME = "mimicwarehouse.fixtures"
 MANIFEST_NAME = "manifest.json"
 README_NAME = "README.md"

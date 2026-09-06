@@ -1,6 +1,6 @@
 {
   "generator": "mimicwarehouse.fixtures",
-  "generator_version": "0.2.0",
+  "generator_version": "0.3.0",
   "python_version": "3.13.15",
   "numpy_version": "2.5.2",
   "polars_version": "1.43.2",
@@ -42,9 +42,10 @@
     "planted_per_trait": 6,
     "n_caregivers": 15,
     "vent_fraction": 0.4,
-    "vasopressor_fraction": 0.25
+    "vasopressor_fraction": 0.25,
+    "min_deaths_per_level": 1
   },
-  "contract_hash": "023640a16790cb8d75d535d0768c0700104eb41ba1e3127612d4af03a829f307",
+  "contract_hash": "d11b2fc91831f55cedf2f809d938bcf4f07da250ac012b38af340249ccbc08dd",
   "contract_schema_hash": "51f751191ca0eea8ea763313cc52fabd0c89635c1b19297cc6bc30321d878f2c",
   "regenerate": "uv run --group dev mwh fixtures build",
   "id_floor": 90000000,
@@ -54,223 +55,223 @@
   ],
   "files": {
     "mimic-iv-3.1/hosp/admissions.csv": {
-      "sha256": "743f6472ec39045774ed564b3eb4be96a837d3399da2eea21c4128b808a2d1e6",
-      "bytes": 31264,
+      "sha256": "df89ca775e97bd3a4d301a3ff754f4da9d9e215e83ef4c7cf4275605377d5a6d",
+      "bytes": 31308,
       "rows": 186,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/d_hcpcs.csv": {
       "sha256": "6d9bcdfb39c9296ecd373128a5b97970dda78fae8ae10794df59e03e83047a0d",
       "bytes": 1524,
       "rows": 12,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/d_icd_diagnoses.csv": {
       "sha256": "32b8c5f3325576b2bd6f20543150e2d654d9f34118e0e4cd6bfbf123a291797d",
       "bytes": 5086,
       "rows": 108,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/d_icd_procedures.csv": {
       "sha256": "93e3895b07554a2a7538981f36e9672c768c7e4e5dd67191b0d0fc97fd9c4b6f",
       "bytes": 1645,
       "rows": 24,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/d_labitems.csv": {
-      "sha256": "fac7d7842b971146500d63720c346f863ceb754b1ea26e08da6c3a8c86897117",
-      "bytes": 1572,
-      "rows": 45,
+      "sha256": "9e8aaefc09daf514d3be1f2d01e25928e4c3bc340e1e9de9a5f35bf372e05461",
+      "bytes": 1611,
+      "rows": 46,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/diagnoses_icd.csv": {
       "sha256": "c7456da6fcb87e9c21bdbc7d9c9018cf880330f75cb0060aeda143c47d6f1c63",
       "bytes": 39045,
       "rows": 1400,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/drgcodes.csv": {
       "sha256": "a0bb2d9924e1d03b0918ce3624ad05258fb6d546b3a9f7cc73dafd8b50c2c38b",
       "bytes": 23333,
       "rows": 356,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/emar.csv": {
-      "sha256": "cecae3d0868996e6a8a23ba0cc7ac7b6360e8a665187a606667654b2dc697f70",
-      "bytes": 406089,
-      "rows": 2872,
+      "sha256": "1c768bcbaee193825aa71ff6a1f532a77706a5d3b35170e93a85ff8c773c5ca3",
+      "bytes": 397234,
+      "rows": 2803,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/emar_detail.csv": {
-      "sha256": "891cd7148aba8454d5adb9f454cf786e4c08e09834ce84cfbd343a20f393b1ef",
-      "bytes": 580323,
-      "rows": 5586,
+      "sha256": "8b03c867d849410ca4c9c3da23233c9ff64bc7691dbafb20e606f49aaa2f41ed",
+      "bytes": 563114,
+      "rows": 5447,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/hcpcsevents.csv": {
       "sha256": "b28adf5549ebb5a628866f058e4368586a8c579ec0f156a7e10125f9015c8706",
       "bytes": 6977,
       "rows": 110,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/labevents.csv": {
-      "sha256": "e0c3df2c25630849e14ba1cafd6d0029feb8c2226125031f4e4c132004d78af3",
-      "bytes": 1178969,
-      "rows": 9619,
+      "sha256": "b1a1dd1bb890e2c8b2df6ca94fc158fd639b53c77a3f6293b3c11202b6738b96",
+      "bytes": 1167203,
+      "rows": 9537,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/microbiologyevents.csv": {
-      "sha256": "b4b7579d02fc46141b016897b68eaf6662e9be316d5ea11b6f4a8a020838ce95",
+      "sha256": "f980eb7f51ca7d02fc4740c4b2d30aac59ec03ade2fa0d0735853e101a32956b",
       "bytes": 45206,
       "rows": 212,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/omr.csv": {
       "sha256": "24694e596efea6b91ccb4b5f8023f6e87124572d1a3ae9a0e3ece757a48aedda",
       "bytes": 44351,
       "rows": 1066,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/patients.csv": {
-      "sha256": "74fd44ae4488f5aa44726c94e60e8b584d1506b1550922b7d339ed3aab62b00c",
-      "bytes": 4183,
+      "sha256": "2f9626f4965a85df62a8138a95b8d95dbee3ca416fc8b17ba0c467faf9410e01",
+      "bytes": 4223,
       "rows": 120,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/pharmacy.csv": {
-      "sha256": "336fdf7d2014ca88588f0a29977b1d9e96ae18b6e66c9d28337099242fa741dc",
-      "bytes": 185516,
-      "rows": 958,
+      "sha256": "4a95892c97fb765dddf02ba4842b4ae7c1943e2df72aa052b4cb1817024a48b9",
+      "bytes": 186556,
+      "rows": 964,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/poe.csv": {
-      "sha256": "c9253013f62d4a7beb3fef57a4e7ea1160d994cb641f55e7f6ff4731cfdcf391",
-      "bytes": 189771,
-      "rows": 2028,
+      "sha256": "f29731fe041e389e13490ae089e83340c16228c1b2257c6dabed908f25cc6368",
+      "bytes": 191338,
+      "rows": 2046,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/poe_detail.csv": {
-      "sha256": "8e2a41912fd025cee25372ce0015c62220c6617455e5723083709ef219b3d77d",
-      "bytes": 49011,
-      "rows": 1066,
+      "sha256": "42741bd77756b68ca09c45e7020f375bdc99c5f977dad47bfb11def7eabc85c7",
+      "bytes": 50925,
+      "rows": 1106,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/prescriptions.csv": {
-      "sha256": "fefa671398a119854899d70d562950f9b3b25cd1ef7b3c1059ee7913bc91308f",
-      "bytes": 195838,
-      "rows": 1141,
+      "sha256": "a8ee23e4f7558a440fa9f1bc04fc38492474c80227c425290a818acc478b794d",
+      "bytes": 195203,
+      "rows": 1138,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/procedures_icd.csv": {
       "sha256": "7315be7a8655cf66f00203cab4ee7e7cf923c857dd72c8c49648c47b539e8498",
       "bytes": 7432,
       "rows": 185,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/provider.csv": {
       "sha256": "1b87c2e6fb525a3478cc2f0311e8e15e42c8fa7c61963b0bcc346cc3eb2dcb14",
       "bytes": 292,
       "rows": 40,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/services.csv": {
       "sha256": "635a18e44f7f0294218b953d4bc177a4e1a74527aaca5f45d3510ad6cfa66c0c",
       "bytes": 9618,
       "rows": 216,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/hosp/transfers.csv": {
       "sha256": "0042f0a417fa2c6f4417ed1fef80bd7199cf11ae9180a7f5292b91a1e232fcc3",
       "bytes": 49444,
       "rows": 604,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/caregiver.csv": {
       "sha256": "e50a08ab214c07fe422d8e5d758c63a8375c6b9ca34948f3b0292b935a3f9809",
       "bytes": 148,
       "rows": 15,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/chartevents.csv": {
       "sha256": "560f52bcefe3b28efe0ca8784d80207a7dd4919a9d7fe7d39e91670eaf46bcf7",
       "bytes": 1962815,
       "rows": 20125,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/d_items.csv": {
       "sha256": "68b9690c1b22407d3ccb1782e5bbac6f4c9a83f10e74ed97dbb2bfbeda8b335b",
       "bytes": 3833,
       "rows": 47,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/datetimeevents.csv": {
       "sha256": "5905464908b18fa4a89df2dfbedb17f9abe50cae26e10b70d38b1d8f708500e7",
       "bytes": 13894,
       "rows": 116,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/icustays.csv": {
       "sha256": "c0ae399781cdb08c83059bb9cf104b5d839062d9850ce154df6c48c032a9c6ce",
       "bytes": 11962,
       "rows": 75,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/ingredientevents.csv": {
-      "sha256": "0ca060c39258b25b4ab27c0b7681ff757929965c7273e19429f9b9cab86632f5",
-      "bytes": 61432,
+      "sha256": "93f8515f7139c48c0ad5febdc2b9c072546a75189b58796b5602b9a9036b7f33",
+      "bytes": 61428,
       "rows": 364,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/inputevents.csv": {
-      "sha256": "51551eea77fc17ab5e8a86ca909fc078cc3b22c5baf3b7a5686f8d397cfde3c8",
-      "bytes": 67229,
+      "sha256": "317c8d82e493a9e7a18fa2a39591586d629d74e9d375c9af4d87d307718c53d5",
+      "bytes": 67227,
       "rows": 285,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/outputevents.csv": {
       "sha256": "f740e12a83ef2fd0b98aacf565bae5c26e30d735f17adabb4af02469390d28c1",
       "bytes": 166068,
       "rows": 1857,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     },
     "mimic-iv-3.1/icu/procedureevents.csv": {
       "sha256": "b02036cb42636c8896a68fa8f1848778d41f98f4353802b73fd1a0243d219af0",
       "bytes": 26804,
       "rows": 136,
       "seed": 2026,
-      "generator_version": "0.2.0"
+      "generator_version": "0.3.0"
     }
   },
-  "total_bytes": 5370674,
-  "total_rows": 50974
+  "total_bytes": 5336847,
+  "total_rows": 50746
 }

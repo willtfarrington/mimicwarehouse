@@ -1,0 +1,51 @@
+# mimicwarehouse phenotype (EP-41). ASCII only; the (id, version) pair is frozen in
+# phenotypes.lock.json together with the def_hash of every referenced code set - bump
+# version to change anything below `criteria` / `onset` / `grain`.
+id: t2dm
+version: "1.0.0"
+name: Type 2 diabetes mellitus (billed codes, non-insulin antidiabetics or HbA1c >= 6.5 %)
+description: >
+  A subject has type 2 diabetes mellitus when any admission carries a T2DM diagnosis code,
+  or when a non-insulin antidiabetic was prescribed or an HbA1c of 6.5 % or more was
+  measured and no admission ever carried a type 1 code. The onset is the earliest
+  qualifying event (a coded admission's discharge, a prescription start or a lab draw).
+grain: subject
+criteria:
+  any:
+    - id: dx
+      diagnosis: {codeset: t2dm@1.0.0, position: any, min_admissions: 1}
+    - all:
+        - any:
+            - id: med
+              medication: {codeset: noninsulin_antidiabetics@1.0.0, source: prescriptions, min_orders: 1}
+            - id: a1c
+              lab: {itemids: [50852], op: ">=", threshold: 6.5, unit: "%", min_count: 1}
+        - not:
+            id: t1dm
+            diagnosis: {codeset: t1dm@1.0.0}
+onset: earliest
+outputs: {flag: true, onset_time: true, evidence: true}
+references: [noninsulin_antidiabetics@1.0.0, t1dm@1.0.0, t2dm@1.0.0]
+provenance:
+  source: hand
+  url: https://diabetesjournals.org/care/issue/47/Supplement_1
+  ref: >-
+    ADA Standards of Care 2024, section 2 (HbA1c >= 6.5 % as a diagnostic threshold);
+    code sets t2dm@1.0.0 / t1dm@1.0.0 / noninsulin_antidiabetics@1.0.0 (EP-40)
+  accessed: "2026-09-06"
+citations:
+  - https://doi.org/10.2337/dc24-S002
+notes: >
+  The first phenotype of the engine: it exercises diagnoses (dual ICD-9/10 sets),
+  medications (drug-name rules over prescriptions), labs (HbA1c through EP-39's inlined
+  harmonisation, which converts IFCC mmol/mol to NGSP %) and the boolean tree with an
+  exclusion. The
+  fixture plants the diagnosis + metformin + HbA1c signal on its t2dm admissions.
+what_it_does_not_claim:
+  - Not a validated eMERGE / PheKB algorithm; no chart review or adjudication backs it.
+  - HbA1c alone does not distinguish type 1 from type 2 diabetes; the type 1 exclusion
+    rests on billed codes only.
+  - Gestational, secondary and drug-induced diabetes (O24, E08, E09, E13; 648.0x, 249.x)
+    are not excluded and a metformin order has other indications.
+  - A billed code or an order is not a confirmed diagnosis, and the onset is the earliest
+    recorded evidence in MIMIC-IV, not the clinical onset.

@@ -306,7 +306,11 @@ def test_validate_flags_overlapping_id_spaces(
 
 
 def test_generator_version_bumped() -> None:
-    assert write_mod.GENERATOR_VERSION == "0.2.0"
+    # EP-169 shipped 0.2.0; EP-41 regenerated as 0.3.0 (the planned next regeneration).
+    # EP-41: pin "at least the EP-169 bump", not the exact string, so later regenerations
+    # under the tests/README.md protocol no longer touch this module.
+    major, minor, _patch = (int(p) for p in write_mod.GENERATOR_VERSION.split("."))
+    assert (major, minor) >= (0, 2)
 
 
 def test_manifest_provenance_and_structural_pin(
@@ -322,13 +326,17 @@ def test_manifest_provenance_and_structural_pin(
         "python_version",
     )
     assert set(write_mod.MANIFEST_PROVENANCE_KEYS) <= set(manifest)
-    assert manifest["generator_version"] == "0.2.0"
+    # EP-41: the committed manifest carries the shipped generator version (0.3.0 since
+    # EP-41's regeneration), never a literal
+    assert manifest["generator_version"] == write_mod.GENERATOR_VERSION
     assert manifest["contract_schema_hash"] == contract.structural_hash()
     # provenance keys are real version strings (the committed ones are the locked versions)
     assert manifest["numpy_version"] == numpy.__version__
     assert manifest["polars_version"] == polars.__version__
     assert re.fullmatch(r"3\.\d+\.\d+", manifest["python_version"])
-    assert {e["generator_version"] for e in manifest["files"].values()} == {"0.2.0"}
+    assert {e["generator_version"] for e in manifest["files"].values()} == {
+        write_mod.GENERATOR_VERSION
+    }
     for name, floor in DEFAULT_FLOORS.items():
         assert manifest["spec"][name] == floor, name
 

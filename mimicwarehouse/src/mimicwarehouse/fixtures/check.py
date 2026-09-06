@@ -216,7 +216,8 @@ def _sort_problems(schema: str, name: str, frame: pl.DataFrame, contract: Contra
     table = contract.table(schema, name)
     if not table.sort_keys or frame.height < 2:
         return []
-    sorted_frame = frame.sort(list(table.sort_keys), maintain_order=True)
+    # NULLS LAST, the canonical placement (D-17 addendum at EP-33; aligned at 0.3.0)
+    sorted_frame = frame.sort(list(table.sort_keys), nulls_last=True, maintain_order=True)
     if not frame.select(list(table.sort_keys)).equals(sorted_frame.select(list(table.sort_keys))):
         return [f"{name}: rows are not sorted by {list(table.sort_keys)}"]
     return []

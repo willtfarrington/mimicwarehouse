@@ -1,0 +1,38 @@
+# dag/specs/phenotypes.yaml -- the phenotype engine step (EP-41 item 2; ASCII only). Merged
+# into the one graph by dag.spec.load_dag() (EP-37 discovery): one python step (the handler
+# in mimicwarehouse.phenotypes.runner) and the shared catalog step, whose depends_on / tags
+# are unioned with the other specs' so `mwh build --tier <t> --tag phenotypes` ends in a
+# catalog rebuild. No target: the step keeps its own per-phenotype status entries
+# (phenotypes.<id>@<version>, per tier) and skips a version already built with the same
+# def_hash unless forced through `mwh phenotype compile --force`.
+#   phenotypes.compile -> lake/derived/<tier>/phenotypes/<id>@<version>/part-0.parquet (one
+#                         file per built version, registered by EP-37's discovery walker as
+#                         phenotypes."<id>@<version>") + lake/meta/<tier>/phenotype_versions.parquet
+#                         (meta.phenotype_versions); the catalog extension then exposes the
+#                         latest version as mimiciv_derived.phenotype_<id> (+ _hadm companion).
+# The depends_on list is the union of the core tables any leaf kind reads (the fixture and
+# every real tier stage them all); a concept leaf (EP-42) needs its concept built first
+# (`mwh build --tier <t> --tag concepts`).
+version: 1
+steps:
+  - name: phenotypes.compile
+    kind: python
+    callable: mimicwarehouse.phenotypes.runner:run_compile
+    tags: [phenotypes, derived]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_hosp.patients
+      - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.diagnoses_icd
+      - stage.mimiciv_hosp.procedures_icd
+      - stage.mimiciv_hosp.prescriptions
+      - stage.mimiciv_hosp.emar
+      - stage.mimiciv_hosp.labevents
+      - stage.mimiciv_hosp.microbiologyevents
+      - stage.mimiciv_icu.icustays
+      - stage.mimiciv_icu.inputevents
+  - name: catalog
+    kind: catalog
+    tags: [catalog, phenotypes]
+    depends_on:
+      - phenotypes.compile

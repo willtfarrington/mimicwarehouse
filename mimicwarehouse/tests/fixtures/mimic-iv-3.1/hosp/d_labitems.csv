@@ -5,6 +5,7 @@ itemid,label,fluid,category
 50818,pCO2,Blood,Blood Gas
 50820,pH,Blood,Blood Gas
 50821,pO2,Blood,Blood Gas
+50852,% Hemoglobin A1c,Blood,Chemistry
 50861,Alanine Aminotransferase (ALT),Blood,Chemistry
 50862,Albumin,Blood,Chemistry
 50863,Alkaline Phosphatase,Blood,Chemistry

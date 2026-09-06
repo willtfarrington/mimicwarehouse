@@ -15,6 +15,13 @@ Everything downstream draws from **per-table child generators** (:func:`table_rn
 stable CRC of the table name, so adding a table (EP-12's icu generators) never perturbs the
 bytes of an existing one. Same spec => byte-identical output (the "fixture drift" test).
 
+Outcome enrichment (generator 0.3.0, EP-41; EP-33 ledger D4e): after the traits are
+planted, :func:`_plant_deaths` folds singleton ``admission_type`` / ``first_careunit``
+levels among the first ICU stays into the most common level and plants in-hospital deaths
+(on a subject's last admission only) until every level of the EP-31 tracer's four
+categorical covariates carries ``min_deaths_per_level`` deaths and one survivor — so the
+tracer's fit excludes no level on the fixture.
+
 MIMIC caveats mirrored on purpose (DESIGN section 7): ages >= 89 written as 91, shifted years
 (``anchor_year`` 2110-2200), ``anchor_year_group`` from the five real labels, ``dod`` within a
 year of the last discharge and never before an in-hospital ``deathtime``, ICD-9 for the
@@ -139,6 +146,19 @@ class FixtureSpec(BaseModel):
         le=1.0,
         description="non-sepsis ICU stays with a vasopressor drip (planted sepsis stays "
         "always get norepinephrine)",
+    )
+    # outcome enrichment (EP-41, generator 0.3.0; EP-33 ledger D4e): the tracer's
+    # first-ICU-stay -> in-hospital mortality fit must exclude no covariate level on the
+    # fixture, so every level of gender / admission_type / first_careunit /
+    # anchor_year_group among the first ICU stays carries at least this many deaths (and
+    # at least one survivor); singleton admission_type / first_careunit levels are folded
+    # into the most common level first. 0 = the 0.2.0 behaviour (deaths from the plan only).
+    min_deaths_per_level: int = Field(
+        default=1,
+        ge=0,
+        le=10,
+        description="minimum in-hospital deaths per covariate level among first ICU stays "
+        "(the EP-31 tracer's covariates); 0 disables the outcome enrichment",
     )
 
     @model_validator(mode="after")
@@ -494,6 +514,172 @@ def _plant_traits(rng: np.random.Generator, spec: FixtureSpec, subjects: list[Su
             )
 
 
+def _replace_admission(subjects: list[SubjectPlan], si: int, ai: int, **changes: Any) -> None:
+    """Rebuild the frozen ``subjects[si].admissions[ai]`` with ``changes`` in place."""
+    s = subjects[si]
+    a = s.admissions[ai]
+    new_a = AdmissionPlan(
+        **{f: getattr(a, f) for f in a.__dataclass_fields__ if f not in changes}, **changes
+    )
+    adms = list(s.admissions)
+    adms[ai] = new_a
+    subjects[si] = SubjectPlan(
+        **{f: getattr(s, f) for f in s.__dataclass_fields__ if f != "admissions"},
+        admissions=tuple(adms),
+    )
+
+
+def _replace_subject(subjects: list[SubjectPlan], si: int, **changes: Any) -> None:
+    s = subjects[si]
+    subjects[si] = SubjectPlan(
+        **{f: getattr(s, f) for f in s.__dataclass_fields__ if f not in changes}, **changes
+    )
+
+
+#: The EP-31 tracer's categorical covariates, read off a (subject, admission) unit.
+_LEVEL_FACTORS: tuple[str, ...] = (
+    "gender",
+    "admission_type",
+    "first_careunit",
+    "anchor_year_group",
+)
+
+
+def _first_icu_units(subjects: list[SubjectPlan]) -> list[tuple[int, int]]:
+    """``(subject index, admission index)`` of every subject's first ICU stay — the
+    tracer's cohort (first stay by ``intime``, then ``stay_id``; one per subject)."""
+    units: list[tuple[int, int]] = []
+    for si, s in enumerate(subjects):
+        stays = [
+            (a.icu.intime, a.icu.stay_id, ai)
+            for ai, a in enumerate(s.admissions)
+            if a.icu is not None
+        ]
+        if stays:
+            units.append((si, min(stays)[2]))
+    return units
+
+
+def _level_of(subjects: list[SubjectPlan], unit: tuple[int, int], factor: str) -> str:
+    si, ai = unit
+    s = subjects[si]
+    a = s.admissions[ai]
+    if factor == "gender":
+        return s.gender
+    if factor == "anchor_year_group":
+        return s.anchor_year_group
+    if factor == "admission_type":
+        return a.admission_type
+    assert a.icu is not None
+    return a.icu.careunit
+
+
+def _set_careunit(subjects: list[SubjectPlan], si: int, ai: int, careunit: str) -> None:
+    """Relabel the ICU careunit of one admission's ICU segment (segments and the
+    ``IcuSegment`` stay in step, so ``transfers`` and ``icustays`` still agree)."""
+    a = subjects[si].admissions[ai]
+    assert a.icu is not None
+    segments = tuple(
+        Segment(careunit, seg.intime, seg.outtime, True) if seg.is_icu else seg
+        for seg in a.segments
+    )
+    icu = IcuSegment(
+        a.icu.stay_id, a.icu.subject_id, a.icu.hadm_id, careunit, a.icu.intime, a.icu.outtime
+    )
+    _replace_admission(subjects, si, ai, segments=segments, icu=icu)
+
+
+def _died(subjects: list[SubjectPlan], unit: tuple[int, int]) -> bool:
+    return subjects[unit[0]].admissions[unit[1]].died
+
+
+def _sole_survivor(
+    subjects: list[SubjectPlan],
+    levels: dict[tuple[str, str], list[tuple[int, int]]],
+    unit: tuple[int, int],
+) -> bool:
+    """Whether ``unit`` is the only survivor of any level it belongs to."""
+    return any(
+        unit in members and sum(not _died(subjects, u) for u in members) == 1
+        for members in levels.values()
+    )
+
+
+def _plant_deaths(
+    rng: np.random.Generator, spec: FixtureSpec, vocab: Vocab, subjects: list[SubjectPlan]
+) -> None:
+    """Outcome enrichment (generator 0.3.0, EP-41; ledger D4e): among the first ICU stays,
+    (1) fold a singleton ``admission_type`` / ``first_careunit`` level into the most common
+    one, then (2) give every level of the four tracer covariates at least
+    ``spec.min_deaths_per_level`` in-hospital deaths and at least one survivor, planting a
+    death only on a subject's **last** admission (the plan's own rule: ``dod`` = that
+    discharge) and never on the sole survivor of another level. Rebuilds the frozen
+    records in place; a level that cannot be satisfied is left as the plan drew it."""
+    if spec.min_deaths_per_level == 0:
+        return
+    death_location = str(vocab.categories["death_discharge_location"])
+
+    # (1) singleton levels -> the most common level of that factor
+    for factor in ("admission_type", "first_careunit"):
+        while True:
+            units = _first_icu_units(subjects)
+            counts: dict[str, list[tuple[int, int]]] = {}
+            for unit in units:
+                counts.setdefault(_level_of(subjects, unit, factor), []).append(unit)
+            singles = [lvl for lvl, members in counts.items() if len(members) == 1]
+            if not singles or len(counts) == 1:
+                break
+            target = max(counts, key=lambda lvl: (len(counts[lvl]), lvl))
+            (si, ai) = counts[singles[0]][0]
+            if factor == "admission_type":
+                _replace_admission(subjects, si, ai, admission_type=target)
+            else:
+                _set_careunit(subjects, si, ai, target)
+
+    # (2) deaths and survivors per level, to a fixed point
+    for _round in range(20):
+        units = _first_icu_units(subjects)
+        levels: dict[tuple[str, str], list[tuple[int, int]]] = {}
+        for unit in units:
+            for factor in _LEVEL_FACTORS:
+                levels.setdefault((factor, _level_of(subjects, unit, factor)), []).append(unit)
+        changed = False
+        for key in sorted(levels):
+            members = levels[key]
+            if len(members) < 2:
+                continue
+            deaths = [u for u in members if _died(subjects, u)]
+            survivors = [u for u in members if not _died(subjects, u)]
+            if len(deaths) < spec.min_deaths_per_level:
+                candidates = [
+                    u
+                    for u in survivors
+                    if u[1] == len(subjects[u[0]].admissions) - 1
+                    and not _sole_survivor(subjects, levels, u)
+                ]
+                need = min(spec.min_deaths_per_level - len(deaths), len(candidates))
+                if need <= 0:
+                    continue
+                chosen = rng.choice(len(candidates), size=need, replace=False)
+                for idx in sorted(int(c) for c in chosen):
+                    si, ai = candidates[idx]
+                    _replace_admission(
+                        subjects, si, ai, died=True, discharge_location=death_location
+                    )
+                    _replace_subject(subjects, si, dod=subjects[si].admissions[ai].dischtime.date())
+                changed = True
+                break  # levels changed: recompute before touching the next one
+            if not survivors:
+                si, ai = deaths[0]
+                disch = str(pick(rng, vocab.weighted("discharge_locations")) or "HOME")
+                _replace_admission(subjects, si, ai, died=False, discharge_location=disch)
+                _replace_subject(subjects, si, dod=None)
+                changed = True
+                break
+        if not changed:
+            return
+
+
 def build_plan(spec: FixtureSpec | None = None, vocab: Vocab | None = None) -> FixturePlan:
     """Build the whole skeleton from ``spec`` (defaults: the committed fixture)."""
     import numpy as np
@@ -545,6 +731,7 @@ def build_plan(spec: FixtureSpec | None = None, vocab: Vocab | None = None) -> F
             )
         )
     _plant_traits(rng, spec, subjects)
+    _plant_deaths(rng, spec, vocab, subjects)
     providers = tuple(f"P9{n:04d}" for n in range(1, spec.n_providers + 1))
     return FixturePlan(spec=spec, subjects=tuple(subjects), providers=providers)
 

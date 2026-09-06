@@ -1,0 +1,10 @@
+{
+  "phenotypes": {
+    "t2dm@1.0.0": {
+      "def_hash": "f0511c05bf8b2a95c08a444e64b58a0ddddaaac821f9bc2e06d017e54bf6c742",
+      "grain": "subject",
+      "locked_at": "2026-09-06"
+    }
+  },
+  "version": 1
+}

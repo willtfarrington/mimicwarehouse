@@ -74,6 +74,16 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   registry-sized tables, and the 281 k-row GEM step (`codesets.gem`) takes about 67 s on
   it; anything larger should register an Arrow / Polars frame and `COPY` from that
   instead. *(EP-40.)*
+- **The `mwh_harmonize` macro family is for point lookups, not scans.** A macro is
+  re-expanded at every call site and the family nests four levels (unit normalisation →
+  63-arm CASE → struct), so `WHERE (mwh_harmonize(itemid, valuenum, valueuom)).value_canonical
+  >= 6.5` over the fixture's 9,619 `labevents` rows took **43 s** (50 s in the phenotype
+  step, 5.6 GB RSS) against 0.01 s for the plain predicate. Anything that scans an event
+  table inlines the conversions of the itemids it needs — one `CASE` over a unit string
+  normalised once per row — which is what the phenotype compiler's lab leaf does
+  (`phenotypes.compiler.harmonised_value_sql`, 0.13 s for the same step); EP-55's marts
+  should do the same rather than call the macro per row. *(EP-41; the timing probe in the
+  session scratchpad.)*
 - **Aggregate scans are cheap; sort-shaped work is not.** `meta.profile` over 886 M rows
   took 14.1 s; the per-bucket sorts of pass 2 dominate staging (pass 2 ≥ pass 1 on most
   large tables). Size estimates by *shape*, not by CSV GB — VARCHAR-heavy tables
@@ -160,8 +170,9 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `tests/fixtures/manifest.json` / the contract / `build_plan()`.
 - Markers are unpadded (`ep_8`), files zero-padded (`test_ep08.py`); `mwh verify EP-n`
   runs the marker in a fresh interpreter and requires the file to exist for code briefs.
-- `tests/fixtures/` is byte-identical across sessions (`GENERATOR_VERSION` 0.2.0);
-  regeneration is a deliberate, versioned act (EP-41 → 0.3.0).
+- `tests/fixtures/` is byte-identical across sessions (`GENERATOR_VERSION` 0.3.0 since
+  EP-41); regeneration is a deliberate, versioned act (`tests/README.md` § "Changing the
+  synthetic fixture").
 - `import helpers` (tests/ is on `sys.path` via `conftest.py`); import-budget probes use
   `helpers.assert_import_budget` — heavy libraries stay out of the `mwh --help` path
   (DESIGN §15 doctrine).

@@ -14,7 +14,9 @@ itemids / ICD codes / drug names from the seed vocabularies, MIMIC-shaped free t
 commas, double quotes, embedded newlines in ``labevents.comments``), ``hadm_id``-less outpatient
 labs, MetaVision ICU careunits, ``poe_id`` = ``<subject_id>-<poe_seq>``, ``emar_id`` =
 ``<subject_id>-<emar_seq>``, planted signal (creatinine doubling within 48 h, blood culture +
-IV antibiotic within 24 h, T2DM codes + insulin + glucose). Nothing here reads data; the only
+IV antibiotic within 24 h, T2DM codes + insulin + a non-insulin antidiabetic + glucose +
+HbA1c >= 6.5 % since 0.3.0 / EP-41). Frames are sorted NULLS LAST like DuckDB's ``ORDER
+BY`` (D-17 addendum, 0.3.0). Nothing here reads data; the only
 inputs are the plan and the hand-typed vocab. Guard (G4): every id starts at 90 000 000, every
 other numeric field is far from the real id bands, and no compact ``YYYYMMDD`` is ever formatted.
 """
@@ -114,7 +116,9 @@ def to_frame(table: Table, rows: Iterable[dict[str, Any]]) -> pl.DataFrame:
     frame = pl.from_dicts(rows, schema=schema, strict=True) if rows else pl.DataFrame(schema=schema)
     frame = frame.select(list(schema))
     if table.sort_keys:
-        frame = frame.sort(list(table.sort_keys), maintain_order=True)
+        # NULLS LAST = DuckDB's bare ORDER BY, the canonical placement (D-17 addendum at
+        # EP-33, ledger CTR-1; aligned at the 0.3.0 regeneration, EP-41)
+        frame = frame.sort(list(table.sort_keys), nulls_last=True, maintain_order=True)
     return frame
 
 
@@ -313,6 +317,11 @@ def _raw_med_orders(
     if a.has("t2dm"):
         for d in vocab.drugs_tagged("insulin"):
             forced.append((d, a.admittime + MINUTE * int(rng.integers(60, 12 * 60))))
+        # EP-41 (0.3.0): a non-insulin antidiabetic order too, so the T2DM phenotype's
+        # medication leaf (noninsulin_antidiabetics@1.0.0 over prescriptions) fires
+        for d in vocab.drugs_tagged("antidiabetic"):
+            if "t2dm" in d.tags:
+                forced.append((d, a.admittime + MINUTE * int(rng.integers(60, 12 * 60))))
     out: list[_RawOrder] = []
     seen = {d.drug for d, _ in forced}
     for d, t in forced:
@@ -699,6 +708,18 @@ def _build_labs(ctx: HospContext) -> list[dict[str, Any]]:
                     panel="bmp",
                     charttime=t,
                     forced={50931: float(rng.integers(180, 340))},
+                )
+                # EP-41 (0.3.0): an HbA1c >= 6.5 % on the same admission (the lab leaf)
+                _draw(
+                    ctx,
+                    rng,
+                    ids,
+                    rows,
+                    subject_id=s.subject_id,
+                    hadm_id=a.hadm_id,
+                    panel="a1c",
+                    charttime=t + MINUTE * int(rng.integers(5, 60)),
+                    forced={50852: round(float(rng.uniform(6.6, 11.0)), 1)},
                 )
             if a.has("sepsis"):
                 t = ctx.trait_times.culture[a.hadm_id]

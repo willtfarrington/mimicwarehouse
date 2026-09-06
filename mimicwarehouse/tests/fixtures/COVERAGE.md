@@ -54,10 +54,15 @@ rows for the covered items only:
   and a CRRT procedureevents row (225802), but `treatment/crrt` matches by chartevents
   settings itemids (all absent), so the CRRT route to stage 3 never fires on the
   fixture; staging comes from the creatinine/urine-output criteria only.
-- EP-41's T2DM phenotype inputs are absent by design: HbA1c (itemid 50852), any
-  non-insulin antidiabetic (`drugs.yaml` carries insulin/glargine but no metformin or
-  sulfonylurea), and the T1DM exclusion ICD codes. EP-41 extends `vocab/d_labitems.yaml`
-  / `vocab/drugs.yaml` / the ICD vocab and regenerates (GENERATOR_VERSION 0.3.0).
+- EP-41's T2DM phenotype inputs since generator 0.3.0 (2026-09-06): HbA1c (itemid
+  50852, `vocab/d_labitems.yaml`, panel `a1c` - random draws stay below 6.5 %, the planted
+  t2dm admissions force a value above it) and two non-insulin antidiabetics
+  (`vocab/drugs.yaml`: metformin, forced on the planted t2dm admissions; glipizide,
+  sampled only). The **T1DM exclusion codes stay absent on purpose** (`t1dm@1.0.0`
+  matches nothing on the fixture, as `test_ep40` pins); `test_ep41` covers that branch
+  with crafted in-test rows. The same regeneration planted the outcome enrichment (every
+  tracer covariate level among the first ICU stays carries a death and a survivor; ledger
+  D4e) and aligned the writer's null placement with DuckDB's NULLS LAST (ledger CTR-1).
 - ED / Note fixture modules do not exist yet (EP-142 / EP-148 own them); every ED/Note
   concept or query is out of the fixture's reach until then.
 - `measurement/complete_blood_count` under the EP-38 patch (`complete_blood_count-mchc-

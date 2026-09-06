@@ -104,10 +104,14 @@ or the EP-9 schema contract changes fixture bytes. The protocol:
    `.gitattributes`, so CSV diffs don't render).
 3. Bump `write.GENERATOR_VERSION` when any manifest sha256 changes for the default spec:
    **patch** = bytes of existing tables moved; **minor** = new tables/modules/spec keys
-   (a README-/manifest-only change needs no bump). Shipped: **0.2.0** (EP-169: disjoint id
-   floors + sort-key tie-breaks — D-27/D-17 addenda); next is **0.3.0** (EP-41 extends the
-   vocab for its T2DM inputs — see `tests/fixtures/COVERAGE.md` for what the fixture does
-   and does not cover).
+   (a README-/manifest-only change needs no bump). Shipped: **0.3.0** (EP-41, 2026-09-06:
+   the T2DM inputs — HbA1c 50852, metformin / glipizide — the outcome enrichment
+   `min_deaths_per_level` (a new spec key) and the NULLS LAST alignment of the writer and
+   check with DuckDB's `ORDER BY`; D-27/D-17 addenda); before it **0.2.0** (EP-169:
+   disjoint id floors + sort-key tie-breaks). `tests/fixtures/COVERAGE.md` says what the
+   fixture does and does not cover. `test_ep169` pins "at least 0.2.0" and reads the
+   shipped version from `write.GENERATOR_VERSION`, so a later regeneration touches no
+   earlier test module.
 4. Commit CSVs + `manifest.json` + `tests/fixtures/README.md` + the version bump in **one**
    commit; bundle generator tweaks so regenerations stay rare (a full regen adds < 1 MiB
    compressed to `.git`).

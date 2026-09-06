@@ -232,11 +232,16 @@ construction), **50,974 rows / 5.12 MiB** (budget ≤ 10 MB; chartevents ≤ 3 M
 are **disjoint per id space** (`first_subject_id 90_000_000`, `first_hadm_id 91_000_000`,
 `first_stay_id 92_000_000`, `first_event_id 93_000_000`, `first_caregiver_id 93_900_000`;
 enforced by `fixtures.check`, none an 8-digit real-band token) so a wrong-key join can
-never match by accident (D-27 addendum). `GENERATOR_VERSION` is **0.2.0**; regeneration is
-byte-identical for the same spec/generator (`test_ep11::test_fixture_drift`) and is a
-deliberate, versioned act — never a hand edit (EP-41 extends the vocabulary and
-regenerates as 0.3.0). Planted signal (AKI creatinine rise, sepsis culture → antibiotics →
-norepinephrine, T2DM code + insulin + glucose) and the MIMIC caveats (ages ≥ 89 → 91,
+never match by accident (D-27 addendum). `GENERATOR_VERSION` is **0.3.0** (EP-41,
+2026-09-06: **50,746 rows / 5.09 MiB**, 186 admissions, 75 ICU stays; the T2DM inputs —
+HbA1c 50852, metformin / glipizide — the outcome enrichment `min_deaths_per_level` (every
+tracer covariate level among the first ICU stays carries a death and a survivor, ledger
+D4e) and the NULLS LAST alignment of the writer / check with DuckDB's `ORDER BY`, ledger
+CTR-1); regeneration is byte-identical for the same spec/generator
+(`test_ep11::test_fixture_drift`) and is a deliberate, versioned act — never a hand edit
+(`tests/README.md` § "Changing the synthetic fixture"). Planted signal (AKI creatinine
+rise, sepsis culture → antibiotics → norepinephrine, T2DM code + insulin + metformin +
+glucose + HbA1c ≥ 6.5 %) and the MIMIC caveats (ages ≥ 89 → 91,
 shifted years, ICD-9/10 by era, `dod` rules) are mirrored; real itemids in `d_items` /
 `d_labitems` come from public docs, and fixture-only 2401xx / 2402xx items back the
 `datetimeevents` / `ingredientevents` tables no vendored concept reads. Which vendored
@@ -692,7 +697,70 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
 > leaves by `id@version`, references resolved to hashes), EP-46 (cohort criteria), EP-63.
 > Prose twin: `docs/methods/codesets.md`.
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38, EP-40 (completion notes); EP-41 … EP-42 planned; consolidated at EP-33.
+> **Note (2026-09-06, EP-41) — the phenotype engine as built.**
+> `src/mimicwarehouse/phenotypes/`: `spec.py` holds the pydantic `Phenotype` — `id`,
+> quoted semver `version`, `grain` (`subject | hadm | icustay`, checked against
+> `timesem.GRAINS`), a `criteria` tree of `all` / `any` (lists) and `not` (one node) over
+> **leaves** (`{id, <kind>: {...}}`: `diagnosis(codeset, position, min_admissions)`,
+> `procedure(codeset)`, `medication(codeset, source: prescriptions|emar|inputevents,
+> min_orders)`, `lab(codeset|itemids, op, threshold, unit, min_count)`,
+> `microbiology(spec_itemids|org_itemids, positive_only)`, `concept(table, column, op,
+> value, key, time_column)` for EP-42, `temporal(a, relation: before|after|within_hours,
+> b, hours)` over two inline operand leaves), `onset` (`earliest` / `latest` /
+> `{first_of: [...]}`), `outputs`, mandatory `provenance`, `citations`, `notes`,
+> `what_it_does_not_claim`. **`def_hash`** = sha256 of the canonical JSON of `{grain,
+> criteria, onset, references: {id@version: code-set def_hash}}`: the registry
+> (`registry.py`) resolves every code set the leaves name against the EP-40 registry
+> (packaged seeds + `--codesets DIR`), so a phenotype version pins its inputs and a
+> frozen code set refuses the phenotypes that read it; the `(id, version)` rule is
+> EP-40's lock-file shape (`defs/phenotypes.lock.json`, `mwh phenotype lock`,
+> `PhenotypeFrozenError`, every command exits 3 before anything runs). `compiler.py`
+> is a pure function of the YAML and the code-set members: one CTE chain — `units`
+> (patients / admissions / icustays), `leaf_NN_<id>` event CTEs with the code sets
+> **inlined** (exact codes as `IN`, prefixes as `LIKE`, drug names as `contains` /
+> `regexp_matches`; lab conversions of the leaf's curated itemids as a `CASE` over the
+> unit normalised once per row, the same arithmetic as `mwh_harmonize` — the macro
+> family itself is not scan-safe, `docs/gotchas.md` §1), `mapped_NN_<id>` grain mapping
+> (subject by `subject_id`; hadm by `hadm_id` or the admission window for events without
+> one; icustay by `stay_id` or the stay window, timeless diagnoses / procedures to every
+> stay of their admission), `unit_NN_<id>` (`first_time` / `last_time` / `n_events`,
+> `HAVING` the `min_*` thresholds), `reduced` (`has_` / `t_` / `n_` per criteria leaf)
+> and the final `SELECT <grain keys>, flag, onset_time, evidence_json ... ORDER BY keys`
+> (`least` / `greatest` over the positive leaves; `evidence_json` a compact
+> `{"<leaf id>": n}` object, keys sorted, kept ≤ 64 characters because sessions read
+> phenotype views as subject-keyed non-registry reads — ledger P3C-5). Identical specs
+> compile to identical text; `tests/ep/golden/<id>@<version>.sql` pins the packaged
+> definitions. `runner.py`: the `python` step `phenotypes.compile` (`dag/specs/
+> phenotypes.yaml`, tag `phenotypes`; `mwh phenotype compile [refs] [--tier] [--force]
+> [--dry-run]` runs it and the catalog step through the runner) `COPY`s each selected
+> phenotype whose `(id, version, def_hash)` is not yet complete for the tier to
+> `lake/derived/<tier>/phenotypes/<id>@<version>/part-0.parquet` (EP-37's per-tier
+> layout — every built version keeps its directory, so versions coexist; manifest line,
+> `status.json` entry `phenotypes.<id>@<version>` with `per_tier`), inside **one
+> `kind: phenotype` run per phenotype** (EP-35: `sql/phenotype.sql`, the phenotype and
+> every code set as refs with hashes, the core snapshot id, a `kind: phenotype` benchmark
+> line) nested in the build's own run, then writes `lake/meta/<tier>/
+> phenotype_versions.parquet` (id, version, def_hash, grain, refs JSON, rows,
+> `n_positive` blanked below k with `n_positive_suppressed`, built_at, run / build ids,
+> sql sha256, the derived snapshot id, status, error class — D-33 addendum). EP-37's
+> walker registers each build as the view `phenotypes."<id>@<version>"` (a schema
+> outside `safe.ALLOWED_SCHEMAS`, so sessions cannot address a version directly) and the
+> fourth `CATALOG_EXTENSIONS` entry `register_phenotypes` (after codesets, before units)
+> exposes the **latest built version** per id as `mimiciv_derived.phenotype_<id>` plus
+> the per-admission companion `phenotype_<id>_hadm` for subject-grain phenotypes
+> (flag = the onset lies at or before the admission's `dischtime`). `summarize` /
+> `summary(ref, tier)` reads `n_units` / `n_positive` overall and by era (`hadm_era`;
+> the companion for subject grain) through `safe_query` (k = 11 on dev / full); only the
+> latest built version has a session view, an older `id@version` is refused with the
+> remedy. First definition `t2dm@1.0.0` (grain subject): `any(dx, all(any(med, a1c),
+> not(t1dm)))` over `t2dm@1.0.0` / `noninsulin_antidiabetics@1.0.0` (prescriptions) /
+> HbA1c 50852 ≥ 6.5 % / `t1dm@1.0.0`, onset earliest, four `what_it_does_not_claim`
+> lines (not eMERGE-validated; HbA1c does not type; gestational / secondary not
+> excluded; an order is not a diagnosis). Prose twin: `docs/methods/phenotypes.md`.
+> Consumers: EP-42 (`concept` leaf, `sepsis3` / `kdigo_aki`), EP-46/47 (cohort criteria
+> by `id@version`), EP-63 (Phenotype Studio), EP-68 (rates over the views).
+
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38, EP-40, EP-41 (completion notes); EP-42 planned; consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -996,7 +1064,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1022,7 +1090,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── run.py                     EP-35, EP-36 shipped  provenance run ledger: `start` context manager, `RunManifest`, `runs/ledger.jsonl`, `runs.duckdb` ledger views, `bench`, `reproduction_block` (docs/methods/provenance.md); seeds (`derive_seed` / `rng` / `spawn_rngs` / `seed_everything` / `sql_sample_clause`, `Run.seed`) + `ResourceLog` (docs/methods/determinism.md)
 │   ├── units.py                   EP-39 shipped  curated item catalogue (data/item_units.yaml), normalize_unit + affine FORMULAS, harmonize / harmonize_frame / plausible_mask / bounds, the mwh_harmonize macro family (CATALOG_EXTENSIONS entry), the units.* DAG steps (dag/specs/units.yaml -> meta.item_units / item_unit_variants / item_dictionary), report + `mwh units`, docs/methods/units.md renderer
 │   ├── codesets/                  EP-40 shipped  spec (CodeSet, def_hash, id@version refs), registry (defs/*.yaml + codesets.lock.json, dictionary expansion, the codesets.compile step -> meta.codesets / meta.codeset_members, register_codesets extension, validate, docs/methods/codesets.md renderer), gem (CMS 2018 GEM fetch + source.yaml, parser, forward / backward, the codesets.gem step -> meta.gem_i9_to_i10 / meta.gem_i10_to_i9, the .gem-review.md author aid), cli (`mwh codeset`)
-│   ├── phenotypes/                EP-41/42
+│   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43
 │   ├── qc/                        EP-44/45 profiles, measurement process
 │   ├── cohort/                    EP-46/47/48 spec, compiler, attrition
@@ -1132,6 +1200,28 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > writer `units.write_meta_parquet` (the EP-29 / EP-37 temp-table + `COPY` + `publish.replace`
 > shape) went public so the two new steps share it. The §8 note carries the as-built
 > semantics; the prose twin is `docs/methods/codesets.md`.
+
+> **Note (2026-09-06, EP-41) — `mwh phenotype`, the `phenotypes/` package.** A fifth
+> package under the B6 doctrine: `phenotypes/__init__.py` is docstring-only,
+> `spec.py` / `registry.py` are pydantic + yaml + stdlib (plus the EP-40 spec / registry
+> modules, already in the start-up set) so the `phenotype` sub-app sits on the `mwh
+> --help` path; the compiler, `timesem`, `units`, duckdb, polars, `safe`, the runner and
+> the concept runner load inside function bodies (`test_ep41` pins the budget; the
+> catalog builder imports `phenotypes.runner` for its extension, as it does the concept
+> and code-set modules). The command group: `list` / `show [--sql]` / `validate`
+> (grain, reference kinds, lab units against the EP-39 catalogue, the SQL compiles — no
+> data access; problems exit 1), `lock [--defs DIR] [--check]`, `compile [refs …]
+> [--tier t] [--force] [--dry-run] [--defs DIR] [--codesets DIR]` (the
+> `phenotypes.compile` step + catalog through the runner — build lock, benchmark lines,
+> a `run.start(kind="build")` record wrapping one `kind: phenotype` run per phenotype; a
+> frozen phenotype or code set refuses with exit 3 before anything runs; a failed step
+> exits 1), `summary <ref> [--tier t] [--k n] [--json]` (through `safe_query`; `--k`
+> below 11 only on the synthetic tiers, as `mwh sql`). The `dag/specs/phenotypes.yaml`
+> step depends on the ten core tables any leaf reads; a concept leaf needs its concept
+> built first. The §8 note carries the as-built semantics; the prose twin is
+> `docs/methods/phenotypes.md`. The `mwh_harmonize` macro family was measured at 43 s
+> for one predicate over the fixture's 9,619 lab rows (per-call macro expansion), so the
+> lab leaf inlines its conversions — `docs/gotchas.md` §1 records the rule for EP-55.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and
@@ -1289,7 +1379,7 @@ root). `tests/helpers.py` (importable, not a plugin; `tests/` is on `sys.path` v
 (clears every `MWH_*` / `PYTEST_*` variable, rebuilds the settings cache),
 `fresh_interpreter(argv)`, `assert_import_budget(...)` (§15). Tests build into temp roots
 via `--data-root` / `MWH_DATA_ROOT` and never into the real one; the fixture tier's data is
-the committed tree, byte-identical across sessions (`GENERATOR_VERSION` 0.2.0).
+the committed tree, byte-identical across sessions (`GENERATOR_VERSION` 0.3.0 since EP-41).
 
 **Churn rule (EP-168; `tests/README.md`).** A new EP must not need to edit an earlier
 `test_ep*.py`: rolling literals (file counts, row totals, the verify probe's "code brief
