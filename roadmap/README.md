@@ -145,7 +145,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-37 | [Concept runner (mimic-code concepts_duckdb → mimiciv_derived) ⏱](EP-37-concept-runner.md) | M | EP-8, EP-19, EP-22, EP-34, EP-35 | core | ☑ `9966645` |
 | EP-38 | [Concept fixes/ports for DuckDB 1.5.x](EP-38-concept-fixes.md) | M | EP-37 | core | ☑ `c5c0b0c` |
 | EP-39 | [Itemid dictionary curation + unit harmonization](EP-39-itemid-units.md) | M | EP-29 | core | ☑ `963ab67` |
-| EP-40 | [Code-set registry + ICD-9→10 GEM utility](EP-40-codeset-registry-gem.md) | M | EP-21 | core | ☐ |
+| EP-40 | [Code-set registry + ICD-9→10 GEM utility](EP-40-codeset-registry-gem.md) | M | EP-21 | core | ☑ `3612a7f` |
 | EP-41 | [Phenotype engine + T2DM phenotype](EP-41-phenotype-engine-t2dm.md) | M | EP-40 | core | ☐ |
 | EP-42 | [Phenotypes: sepsis-3 + KDIGO AKI stage](EP-42-phenotypes-sepsis-aki.md) | M | EP-41, EP-38 | core | ☐ |
 | EP-43 | [Disclosure primitives (`disclose` module)](EP-43-disclose-primitives.md) | M | EP-30 | core | ☐ |
