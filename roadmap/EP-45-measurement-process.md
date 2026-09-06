@@ -2,6 +2,15 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-44 (Data-quality profiling) · **Blocks:** EP-54 (Re-plan P3), EP-72 (Missing-data views)
 
+> **Owner gate to surface at completion (owner directive 2026-09-06, at EP-41).** The
+> session that completes this brief must end its final message with an explicit
+> "**before EP-46 starts, you must finish this**" item: the owner's review of the two
+> EP-40 GEM review files (`<data_root>\studies\codesets\reviews\t2dm@1.0.0.gem-review.md`
+> and `sepsis_explicit@1.0.0.gem-review.md` — accept codes into a new code-set version
+> via `mwh codeset lock` / `compile`, or reject them all and say so). The owner asked for
+> silence on this item from EP-42 through EP-45; EP-46's brief carries the matching
+> pickup gate. Sessions never open the files (data root); the owner relays verdicts.
+
 > **EP-33 amendment (2026-09-01).** Header facts unchanged. **Spec discovery** (ledger P3C-2,
 > implemented by EP-37): `dag/specs/measurement.yaml` is merged into the one graph by
 > `dag.spec.load_dag()`, so `mwh build --tier dev --tag measurement` needs no `--spec`; steps
