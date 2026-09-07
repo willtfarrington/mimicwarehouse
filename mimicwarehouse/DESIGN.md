@@ -760,7 +760,49 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
 > Consumers: EP-42 (`concept` leaf, `sepsis3` / `kdigo_aki`), EP-46/47 (cohort criteria
 > by `id@version`), EP-63 (Phenotype Studio), EP-68 (rates over the views).
 
-*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38, EP-40, EP-41 (completion notes); EP-42 planned; consolidated at EP-33.
+> **Note (2026-09-06, EP-42) — concept-backed phenotypes as built.** Three packaged
+> definitions join `t2dm`: **`sepsis3@1.0.0`** (grain icustay; `concept(mimiciv_derived.
+> sepsis3.sepsis3 = true, key stay_id, time suspected_infection_time)`, typed evidence
+> `sofa_time` / `sofa_score` at the first event), **`kdigo_aki@1.0.0`** (grain icustay;
+> `parameters: {min_stage: 1, window_hours: 168}`; `concept(mimiciv_derived.kdigo_stages.
+> aki_stage_smoothed >= $min_stage, key stay_id, time charttime, window [0, $window_hours)
+> h from intime)`, evidence `max_stage_in_window` = `max(...)` with default 0 and levels
+> `[0, 1, 2, 3]`, `stage_at_onset` = `first(...)`) and **`sepsis_explicit@1.0.0`** (grain
+> hadm; `diagnosis(sepsis_explicit@1.0.0)`, the EP-40 set). Engine additions: (1)
+> **parameters** — a top-level scalar mapping whose `$name` placeholders are resolved into
+> the criteria before validation (`phenotype_from_text(..., parameters=)` overrides for
+> in-memory variants), hashed under `parameters`; (2) **concept `window`** —
+> `{from_hours, to_hours}` relative to the key table's anchor (`intime` / `admittime`)
+> through `timesem.sql_hours_since`; (3) **concept `evidence`** — typed per-unit output
+> columns after `evidence_json` (`first` / `last` = `arg_min` / `arg_max` by event time,
+> `min` / `max`; `default`; `levels`), reserved names and temporal operands refused; (4)
+> **concept pins** — the registry resolves every `mimiciv_derived.<name>` a leaf reads
+> against the committed concept inventory + patch registry to a `ConceptPin` (the DAG
+> step and the sha256 of the SQL the concept runner executes, the patch's when patched)
+> hashed under `concepts`, so a re-vendor or a new patch refuses the locked phenotypes
+> that read the concept; the compile step exposes the concept only when it is complete
+> for the tier (`ConceptNotBuiltError`) **and** its status entry's executed sha equals
+> the pin (`ConceptPinMismatchError`, remedy = the concept rebuild or a version bump);
+> `dag/specs/phenotypes.yaml` depends on the pinned concept steps
+> (`phenotypes.runner.concept_steps`, drift-tested) so a full build orders concepts
+> first; (5) the step attempts every selected phenotype and records each failure
+> (`status: failed` + error class) before raising, and `meta.phenotype_versions` gains
+> `concept_refs`; (6) the **icustay `_hadm` companion** (`compiler.icustay_hadm_companion_sql`:
+> admissions with >= 1 ICU stay, flag = any stay flagged, earliest flagged onset,
+> `n_stays`); (7) `mwh phenotype compile --background --job NAME` (the EP-19 launcher);
+> (8) `mwh phenotype summary <ref …> [--report | --out DIR] [--no-agreement]` —
+> per-phenotype prevalence, the **distribution** of every evidence column with `levels`,
+> the pairwise per-admission **agreement** 2x2 (`runner.distribution` / `agreement` /
+> `prevalence_report`, every read through `safe_query`, recorded on a `kind: analysis`
+> run with `claim_type: exploratory` when a report is written) and the artefact
+> **`runs/<run_id>/phenotype_prevalence.md`** (claim-type label, the retrospective
+> statement, "disclosure sidecar pending EP-43" — EP-43 checks it retroactively, EP-53
+> promotes it; EP-42 amendment, D-43 item 14). `t2dm@1.0.0`'s hash and golden SQL are
+> unchanged (no parameters, no concept leaves → the EP-41 canonical shape). Full-tier
+> prevalence, run ids and timings: the EP-42 completion note. Prose twin:
+> `docs/methods/phenotypes.md`.
+
+*History:* built by EP-8, EP-167, EP-29, EP-33 item D2, EP-37, EP-38, EP-40, EP-41, EP-42 (completion notes); consolidated at EP-33.
 
 ## 9. Cohort spec → SQL
 
@@ -944,7 +986,19 @@ manifests and job state files.
 - **`run_id` / `audit_id`** (EP-35 / EP-30) and the **protocol hash** (EP-51). Every run
   and audit line cites `snapshot_ids` — a `{layer: id}` dict.
 
-*History:* built by EP-10, EP-17, EP-19, EP-23, EP-28, EP-29, EP-30, EP-31, EP-32, EP-166, EP-33 B8 (completion notes); EP-35/36 planned; consolidated at EP-33.
+> **Note (2026-09-06, EP-42) — stamped ids join the snapshot history.** The derived
+> layer now has two producers in one build (the concepts, then the phenotypes), and each
+> writes a versions table that stamps the derived id *at its write time*
+> (`meta.concept_versions`, `meta.phenotype_versions`); the runner's single end-of-build
+> entry therefore no longer covered the id `meta.concept_versions` carries (EP-37's
+> `test_fixture_lake_carries_every_concept` caught it). Rule: a step that stamps a layer
+> id appends it through `snapshot.record_snapshot_once`, and the runner's end-of-build
+> entry is skipped only when the same build already recorded the identical id — so every
+> stamped id is a recorded state whatever the producer order, and a build still leaves at
+> least one entry per layer it touched (the EP-19 "one entry per core-only build" pin
+> holds). `Run.read_layer` keeps taking the latest entry, i.e. the end state.
+
+*History:* built by EP-10, EP-17, EP-19, EP-23, EP-28, EP-29, EP-30, EP-31, EP-32, EP-166, EP-33 B8, EP-42 (completion notes); EP-35/36 planned; consolidated at EP-33.
 
 ## 12. Safe-query (D-31, D-32)
 
@@ -1064,7 +1118,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1222,6 +1276,18 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > `docs/methods/phenotypes.md`. The `mwh_harmonize` macro family was measured at 43 s
 > for one predicate over the fixture's 9,619 lab rows (per-call macro expansion), so the
 > lab leaf inlines its conversions — `docs/gotchas.md` §1 records the rule for EP-55.
+
+> **Note (2026-09-06, EP-42) — `mwh phenotype` additions.** `compile` gains
+> `--background --job NAME` (the EP-19 detached launcher, as `mwh build` / `mwh tracer`;
+> `--dry-run` with `--background` is a usage error) and attempts every selected
+> phenotype before raising; `summary` takes one or more references plus `--report` /
+> `--out DIR` (a `kind: analysis` run, `claim_type: exploratory`, the reads recorded
+> through `Run.safe_query`, `phenotype_prevalence.md` written into the run folder or
+> `DIR`), `--no-agreement`, `--defs` / `--codesets` (the definitions supply the evidence
+> `levels` and the "what it does not claim" text; a built version without a definition is
+> summarised without them); its `--json` keeps the EP-41 single-phenotype shape at the
+> top level for one reference. The import budget is unchanged: `dag.jobs`, `run`, the
+> concept inventory and patch registry load inside command bodies (`test_ep42` pins it).
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

@@ -1,0 +1,54 @@
+# mimicwarehouse phenotype (EP-42). ASCII only; the (id, version) pair is frozen in
+# phenotypes.lock.json together with the executed-SQL sha256 of the mimic-code concept it
+# reads (patch included) - bump version to change anything below `criteria` / `onset` /
+# `grain`, or when the vendored concept moves.
+id: sepsis3
+version: "1.0.0"
+name: Sepsis-3 per ICU stay (mimic-code operationalisation, suspected infection + SOFA >= 2)
+description: >
+  An ICU stay meets Sepsis-3 when the mimic-code `sepsis3` concept flags it: a suspicion of
+  infection (an antibiotic order paired with a culture within the concept's window) and a
+  SOFA score of 2 or more within -48 h / +24 h of the suspected-infection time. The onset
+  is the suspected-infection time; the SOFA window end (`sofa_time`) and the score
+  (`sofa_score`) are carried as typed evidence columns.
+grain: icustay
+criteria:
+  id: s3
+  concept:
+    table: mimiciv_derived.sepsis3
+    column: sepsis3
+    op: "="
+    value: true
+    key: stay_id
+    time_column: suspected_infection_time
+    evidence:
+      - {name: sofa_time, column: sofa_time, agg: first}
+      - {name: sofa_score, column: sofa_score, agg: first}
+onset: earliest
+outputs: {flag: true, onset_time: true, evidence: true}
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code/blob/main/mimic-iv/concepts/sepsis/sepsis3.sql
+  ref: >-
+    mimic-iv/concepts_duckdb/sepsis/sepsis3.sql at the EP-8 pin (built and count-pinned by
+    EP-37/38; the phenotype pins its executed-SQL sha256)
+  accessed: "2026-09-06"
+citations:
+  - https://doi.org/10.1001/jama.2016.0287
+  - https://doi.org/10.1093/jamia/ocx084
+notes: >
+  The concept keeps one row per stay (the earliest suspicion of infection with a qualifying
+  SOFA window), so the leaf's event count is at most one per stay. Stays without a
+  suspicion-of-infection row or without a SOFA score of 2 or more are negative, not
+  unknown. The EP-40 code set sepsis_explicit@1.0.0 (phenotype sepsis_explicit@1.0.0,
+  grain hadm) is the classic billing-code definition for the agreement cross-tab.
+what_it_does_not_claim:
+  - Not a clinical adjudication of sepsis - it is the mimic-code operationalisation of the
+    Sepsis-3 criteria over charted antibiotics, cultures and the SOFA components.
+  - The suspicion-of-infection rule depends on antibiotic and microbiology charting; a
+    stay treated without a paired culture, or with an infection first suspected before
+    the ICU stay, can be missed.
+  - The SOFA score inherits the concept's imputation choices (a missing component counts
+    as 0), so a stay with sparse charting can fall below the threshold.
+  - The onset is the recorded suspected-infection time, not the clinical onset; ages >= 89
+    and the per-patient date shift do not affect this per-stay definition.

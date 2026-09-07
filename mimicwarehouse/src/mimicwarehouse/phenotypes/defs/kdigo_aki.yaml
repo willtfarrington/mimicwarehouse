@@ -1,0 +1,62 @@
+# mimicwarehouse phenotype (EP-42). ASCII only; the (id, version) pair is frozen in
+# phenotypes.lock.json together with the executed-SQL sha256 of the mimic-code concept it
+# reads (patch included) - bump version to change anything below `parameters` /
+# `criteria` / `onset` / `grain`, or when the vendored concept moves. A study that wants
+# another window or minimum stage copies this file as the next version (or compiles an
+# in-memory variant through `parameters=`); the locked pair never changes.
+id: kdigo_aki
+version: "1.0.0"
+name: KDIGO acute kidney injury within the first 7 ICU days (smoothed stage >= 1)
+description: >
+  An ICU stay has acute kidney injury when the mimic-code `kdigo_stages` concept records a
+  smoothed KDIGO stage of at least `min_stage` at a chart time within `window_hours` of
+  the ICU admission (`[intime, intime + window_hours)`; 168 h = 7 days, the EP-112 window).
+  The onset is the first qualifying chart time; `max_stage_in_window` (0-3, 0 when no
+  qualifying row exists) and `stage_at_onset` are carried as typed evidence columns.
+grain: icustay
+parameters:
+  min_stage: 1
+  window_hours: 168
+criteria:
+  id: aki
+  concept:
+    table: mimiciv_derived.kdigo_stages
+    column: aki_stage_smoothed
+    op: ">="
+    value: $min_stage
+    key: stay_id
+    time_column: charttime
+    window: {from_hours: 0, to_hours: $window_hours}
+    evidence:
+      - {name: max_stage_in_window, column: aki_stage_smoothed, agg: max, default: 0, levels: [0, 1, 2, 3]}
+      - {name: stage_at_onset, column: aki_stage_smoothed, agg: first}
+onset: earliest
+outputs: {flag: true, onset_time: true, evidence: true}
+provenance:
+  source: mimic-code
+  url: https://github.com/MIT-LCP/mimic-code/blob/main/mimic-iv/concepts/organfailure/kdigo_stages.sql
+  ref: >-
+    mimic-iv/concepts_duckdb/organfailure/kdigo_stages.sql at the EP-8 pin (creatinine,
+    urine-output and CRRT criteria; the 6-h smoothed stage); baseline creatinine per
+    mimic-code's creatinine_baseline
+  accessed: "2026-09-06"
+citations:
+  - https://doi.org/10.1038/kisup.2012.1
+  - https://doi.org/10.1093/jamia/ocx084
+notes: >
+  `aki_stage_smoothed` is the concept's maximum stage over the preceding 6 hours per
+  subject, so a single elevated creatinine flags the following 6 hours too. The window is
+  measured from `icustays.intime` with timesem.sql_hours_since; rows without a stage
+  (NULL) never qualify. Evidence aggregates run over the qualifying rows only, so with
+  `min_stage` above 1 `max_stage_in_window` reports the maximum qualifying stage.
+what_it_does_not_claim:
+  - Not an adjudicated AKI diagnosis - KDIGO staging is applied to charted creatinine,
+    urine output and CRRT as mimic-code computes them, with mimic-code's baseline
+    creatinine (creatinine_baseline) rather than a pre-admission baseline.
+  - The urine-output criteria depend on charting completeness (hourly output and a
+    recorded weight); sparse charting understages, and the CRRT route to stage 3 needs
+    the CRRT settings itemids.
+  - Stage 0 in the distribution includes stays with no creatinine or urine-output row in
+    the window, not only stays assessed as normal.
+  - The onset is the first qualifying chart time within the window, not the clinical
+    onset; AKI that develops after the window is negative under the default 7 days.

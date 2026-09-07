@@ -22,18 +22,27 @@ text runs on the build connection's source views and on a tier catalog):
    ``last_time`` / ``n_events`` (``HAVING`` the leaf's ``min_*`` thresholds);
 5. ``reduced`` — ``units`` LEFT JOIN every criteria leaf's ``unit`` CTE: ``has_<id>``,
    ``t_<id>`` (first event), ``n_<id>`` (evidence count, 0 when absent);
-6. the final ``SELECT <grain keys>, flag, onset_time, evidence_json … ORDER BY <keys>`` —
-   ``flag`` is the boolean tree over ``has_*``; ``onset_time`` the ``earliest`` /
-   ``latest`` / ``first_of`` time over the **positive** leaves present (``least`` /
-   ``greatest`` ignore NULLs), NULL when the flag is false; ``evidence_json`` a compact
-   JSON object ``{"<leaf id>": n_events, …}`` with keys sorted (kept short on purpose:
-   sessions read phenotype views as subject-keyed, so a value must stay <= 64 characters
-   — EP-41 amendment, ledger P3C-5).
+6. the final ``SELECT <grain keys>, flag, onset_time, evidence_json[, <evidence …>] …
+   ORDER BY <keys>`` — ``flag`` is the boolean tree over ``has_*``; ``onset_time`` the
+   ``earliest`` / ``latest`` / ``first_of`` time over the **positive** leaves present
+   (``least`` / ``greatest`` ignore NULLs), NULL when the flag is false; ``evidence_json``
+   a compact JSON object ``{"<leaf id>": n_events, …}`` with keys sorted (kept short on
+   purpose: sessions read phenotype views as subject-keyed, so a value must stay <= 64
+   characters — EP-41 amendment, ledger P3C-5); then one **typed evidence column** per
+   ``evidence`` entry of the concept leaves (EP-42): the leaf CTE carries the concept
+   column, the unit CTE aggregates it over the unit's qualifying events (``first`` /
+   ``last`` = ``arg_min`` / ``arg_max`` by event time, ``min`` / ``max``), and the final
+   select fills units the leaf does not satisfy with the declared ``default`` (else
+   NULL).
 
-Lab leaves compare the EP-39 harmonised value — the canonical unit for curated itemids,
-``valuenum`` as recorded otherwise — with the conversions of the leaf's itemids
-**inlined** (:func:`harmonised_value_sql`, the same arithmetic as ``mwh_harmonize``), so
-the statement runs on any connection that sees the tier's relations and needs no macro.
+Concept leaves (EP-42) join the concept table to its key table and, when the leaf
+declares a ``window``, keep only events whose ``time_column`` lies ``from_hours <= hours
+since the anchor < to_hours`` — ``timesem.sql_hours_since(anchor, time)`` over
+``icustays.intime`` (``stay_id``) or ``admissions.admittime`` (``hadm_id``). Lab leaves
+compare the EP-39 harmonised value — the canonical unit for curated itemids, ``valuenum``
+as recorded otherwise — with the conversions of the leaf's itemids **inlined**
+(:func:`harmonised_value_sql`, the same arithmetic as ``mwh_harmonize``), so the
+statement runs on any connection that sees the tier's relations and needs no macro.
 Identical specs compile to identical text — ``tests/ep/golden/`` pins the packaged
 definitions. No data access here.
 """
@@ -47,6 +56,7 @@ from mimicwarehouse.codesets.spec import CodeSetError, DrugMembers, Members
 from mimicwarehouse.phenotypes.spec import (
     ConceptLeaf,
     DiagnosisLeaf,
+    EvidenceColumn,
     LabLeaf,
     Leaf,
     MedicationLeaf,
@@ -87,7 +97,10 @@ class CompileError(PhenotypeError):
 
 @dataclass(frozen=True, slots=True)
 class Compiled:
-    """One compiled phenotype: the statement, its per-leaf event SQL, the tables read."""
+    """One compiled phenotype: the statement, its per-leaf event SQL, the tables read,
+    the output columns (``evidence_columns`` = the typed evidence columns after
+    ``evidence_json``) and the per-admission companion SQL (subject and icustay grains,
+    with ``{relation}`` to fill in)."""
 
     ref: str
     grain: str
@@ -97,6 +110,7 @@ class Compiled:
     columns: tuple[str, ...]
     hadm_companion_sql: str | None
     warnings: tuple[str, ...] = ()
+    evidence_columns: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -112,6 +126,12 @@ class _Events:
     min_events: int = 1
     min_admissions: int = 1
     sources: list[str] = field(default_factory=list)
+    evidence: tuple[EvidenceColumn, ...] = ()
+
+    @property
+    def evidence_names(self) -> tuple[str, ...]:
+        """The ``ev_<name>`` columns the leaf's CTEs carry alongside ``event_time``."""
+        return tuple(f"ev_{e.name}" for e in self.evidence)
 
     @property
     def cte(self) -> str:
@@ -394,15 +414,33 @@ def _microbiology(index: str, leaf: Leaf, payload: MicrobiologyLeaf) -> _Events:
     )
 
 
+def _window_predicate(payload: ConceptLeaf, anchor: str) -> str:
+    """``AND from <= hours since the anchor < to`` (EP-42; ``timesem.sql_hours_since``)."""
+    if payload.window is None:
+        return ""
+    from mimicwarehouse.timesem import sql_hours_since
+
+    hours = sql_hours_since(anchor, f"c.{payload.time_column}")
+    return (
+        f"\n    AND {hours} >= {sql_value(payload.window.from_hours)}"
+        f"\n    AND {hours} < {sql_value(payload.window.to_hours)}"
+    )
+
+
+def _evidence_select(payload: ConceptLeaf) -> str:
+    return "".join(f", c.{e.column} AS ev_{e.name}" for e in payload.evidence)
+
+
 def _concept(index: str, leaf: Leaf, payload: ConceptLeaf) -> _Events:
     predicate = f"c.{payload.column} {payload.op} {sql_value(payload.value)}"
+    evidence = _evidence_select(payload)
     if payload.key == "stay_id":
         time = f"c.{payload.time_column}" if payload.time_column else "s.intime"
         body = (
-            f"SELECT s.subject_id, s.hadm_id, c.stay_id, {time} AS event_time\n"
+            f"SELECT s.subject_id, s.hadm_id, c.stay_id, {time} AS event_time{evidence}\n"
             f"  FROM {payload.table} AS c\n"
             f"  JOIN {ICUSTAYS} AS s ON s.stay_id = c.stay_id\n"
-            f"  WHERE {predicate}"
+            f"  WHERE {predicate}{_window_predicate(payload, 's.intime')}"
         )
         return _Events(
             index,
@@ -412,14 +450,16 @@ def _concept(index: str, leaf: Leaf, payload: ConceptLeaf) -> _Events:
             hadm_nullable=False,
             stay_nullable=False,
             sources=[payload.table, ICUSTAYS],
+            evidence=payload.evidence,
         )
     if payload.key == "hadm_id":
         time = f"c.{payload.time_column}" if payload.time_column else "a.admittime"
         body = (
-            f"SELECT a.subject_id, c.hadm_id, {_null_int('stay_id')}, {time} AS event_time\n"
+            f"SELECT a.subject_id, c.hadm_id, {_null_int('stay_id')}, {time} AS event_time"
+            f"{evidence}\n"
             f"  FROM {payload.table} AS c\n"
             f"  JOIN {ADMISSIONS} AS a ON a.hadm_id = c.hadm_id\n"
-            f"  WHERE {predicate}"
+            f"  WHERE {predicate}{_window_predicate(payload, 'a.admittime')}"
         )
         return _Events(
             index,
@@ -429,11 +469,12 @@ def _concept(index: str, leaf: Leaf, payload: ConceptLeaf) -> _Events:
             hadm_nullable=False,
             stay_nullable=True,
             sources=[payload.table, ADMISSIONS],
+            evidence=payload.evidence,
         )
     time = f"c.{payload.time_column}" if payload.time_column else "CAST(NULL AS TIMESTAMP)"
     body = (
         f"SELECT c.subject_id, {_null_int('hadm_id')}, {_null_int('stay_id')}, "
-        f"{time} AS event_time\n"
+        f"{time} AS event_time{evidence}\n"
         f"  FROM {payload.table} AS c\n"
         f"  WHERE {predicate}"
     )
@@ -445,6 +486,7 @@ def _concept(index: str, leaf: Leaf, payload: ConceptLeaf) -> _Events:
         hadm_nullable=True,
         stay_nullable=True,
         sources=[payload.table],
+        evidence=payload.evidence,
     )
 
 
@@ -471,14 +513,18 @@ def _events_of(index: str, leaf: Leaf, codesets: CodeSetRegistry) -> _Events:
 
 
 def _mapping_sql(grain: str, ev: _Events) -> tuple[str, str | None]:
-    """``(the mapped CTE body, the source table the mapping joins or None)``."""
+    """``(the mapped CTE body, the source table the mapping joins or None)``; the
+    leaf's ``ev_*`` evidence columns ride along with ``event_time``."""
+    plain = "".join(f", {c}" for c in ev.evidence_names)
+    aliased = "".join(f", e.{c}" for c in ev.evidence_names)
     if grain == "subject":
-        return f"SELECT subject_id, hadm_id, event_time\n  FROM {ev.cte}", None
+        return f"SELECT subject_id, hadm_id, event_time{plain}\n  FROM {ev.cte}", None
     if grain == "hadm":
         if not ev.hadm_nullable:
-            return f"SELECT subject_id, hadm_id, event_time\n  FROM {ev.cte}", None
+            return f"SELECT subject_id, hadm_id, event_time{plain}\n  FROM {ev.cte}", None
         return (
-            "SELECT e.subject_id, coalesce(e.hadm_id, w.hadm_id) AS hadm_id, e.event_time\n"
+            "SELECT e.subject_id, coalesce(e.hadm_id, w.hadm_id) AS hadm_id, e.event_time"
+            f"{aliased}\n"
             f"  FROM {ev.cte} AS e\n"
             f"  LEFT JOIN {ADMISSIONS} AS w\n"
             "    ON e.hadm_id IS NULL AND w.subject_id = e.subject_id\n"
@@ -486,11 +532,11 @@ def _mapping_sql(grain: str, ev: _Events) -> tuple[str, str | None]:
             ADMISSIONS,
         )
     if not ev.stay_nullable:
-        return f"SELECT subject_id, hadm_id, stay_id, event_time\n  FROM {ev.cte}", None
+        return f"SELECT subject_id, hadm_id, stay_id, event_time{plain}\n  FROM {ev.cte}", None
     window = "TRUE" if ev.timeless else "(e.event_time >= s.intime AND e.event_time <= s.outtime)"
     return (
         "SELECT e.subject_id, coalesce(e.hadm_id, s.hadm_id) AS hadm_id, "
-        "coalesce(e.stay_id, s.stay_id) AS stay_id, e.event_time\n"
+        f"coalesce(e.stay_id, s.stay_id) AS stay_id, e.event_time{aliased}\n"
         f"  FROM {ev.cte} AS e\n"
         f"  LEFT JOIN {ICUSTAYS} AS s\n"
         "    ON e.stay_id IS NULL AND s.subject_id = e.subject_id\n"
@@ -527,14 +573,25 @@ def _temporal_sql(grain: str, ev: _Events, a: _Events, b: _Events, payload: Temp
     )
 
 
+def _evidence_agg(e: EvidenceColumn) -> str:
+    """The per-unit aggregate of one evidence column over the leaf's qualifying events."""
+    column = f"ev_{e.name}"
+    if e.agg == "first":
+        return f"arg_min({column}, event_time) AS {column}"
+    if e.agg == "last":
+        return f"arg_max({column}, event_time) AS {column}"
+    return f"{e.agg}({column}) AS {column}"
+
+
 def _unit_sql(grain: str, ev: _Events) -> str:
     key = GRAIN_KEYS[grain][1]
     having = [f"count(*) >= {ev.min_events}"]
     if ev.min_admissions > 1:
         having.append(f"count(DISTINCT hadm_id) >= {ev.min_admissions}")
+    evidence = "".join(f", {_evidence_agg(e)}" for e in ev.evidence)
     return (
         f"SELECT {key}, min(event_time) AS first_time, max(event_time) AS last_time, "
-        "count(*) AS n_events\n"
+        f"count(*) AS n_events{evidence}\n"
         f"  FROM {ev.mapped}\n"
         f"  WHERE {key} IS NOT NULL\n"
         f"  GROUP BY {key}\n"
@@ -591,10 +648,12 @@ def compile_phenotype(
     codesets: CodeSetRegistry,
     *,
     resolved: dict[str, str] | None = None,
+    concepts: dict[str, str] | None = None,
 ) -> Compiled:
     """Compile ``phenotype`` (module docstring). ``resolved`` (reference -> code-set
-    ``def_hash``) only decorates the header comment; the statement itself is a pure
-    function of the phenotype and the code-set members."""
+    ``def_hash``) and ``concepts`` (concept table -> executed-SQL sha256, EP-42) only
+    decorate the header comment; the statement itself is a pure function of the
+    phenotype and the code-set members."""
     grain = phenotype.grain
     if grain not in GRAIN_KEYS:
         raise CompileError(f"grain {grain!r} has no compiler (subject | hadm | icustay)")
@@ -651,12 +710,16 @@ def compile_phenotype(
     # 5. the reduction
     select = [f"u.{c}" for c in key_columns]
     joins: list[str] = []
+    evidence_columns: list[tuple[str, EvidenceColumn]] = []
     for leaf in criteria:
         ev = events[leaf.id]
         alias = f"l{ev.index}"
         select.append(f"({alias}.{join_key} IS NOT NULL) AS has_{leaf.id}")
         select.append(f"{alias}.first_time AS t_{leaf.id}")
         select.append(f"coalesce({alias}.n_events, 0) AS n_{leaf.id}")
+        for e in ev.evidence:
+            select.append(f"{alias}.ev_{e.name} AS ev_{e.name}")
+            evidence_columns.append((leaf.id, e))
         joins.append(f"  LEFT JOIN {ev.unit} AS {alias} ON {alias}.{join_key} = u.{join_key}")
     reduced = "SELECT\n    " + ",\n    ".join(select) + "\n  FROM units AS u\n" + "\n".join(joins)
     ctes.append(_cte("reduced", reduced))
@@ -670,6 +733,12 @@ def compile_phenotype(
     if phenotype.outputs.evidence:
         outputs.append(f"{_evidence_expr([leaf.id for leaf in criteria])} AS evidence_json")
         columns.append("evidence_json")
+    for _leaf_id, e in evidence_columns:
+        if e.default is not None:
+            outputs.append(f"coalesce(ev_{e.name}, {sql_value(e.default)}) AS {e.name}")
+        else:
+            outputs.append(f"ev_{e.name} AS {e.name}")
+        columns.append(e.name)
     refs = ", ".join(
         f"{ref}={(resolved or {}).get(ref, '?')[:12]}" for ref in phenotype.codeset_refs
     )
@@ -679,6 +748,14 @@ def compile_phenotype(
         f"-- criteria: {phenotype.criteria.render()}; onset: {phenotype.onset.canonical()}\n"
         f"-- references: {refs or '(none)'}\n"
     )
+    if phenotype.parameters:
+        listed = ", ".join(f"{k}={v!r}" for k, v in sorted(phenotype.parameters.items()))
+        header += f"-- parameters: {listed}\n"
+    pinned = [t for t in phenotype.concept_tables if concepts and t in concepts]
+    if pinned:
+        assert concepts is not None
+        listed = ", ".join(f"{t}={concepts[t][:12]}" for t in pinned)
+        header += f"-- concepts: {listed}\n"
     sql = (
         header
         + "WITH\n"
@@ -688,11 +765,12 @@ def compile_phenotype(
         + "\nFROM reduced\nORDER BY "
         + ", ".join(key_columns)
     )
-    companion = (
-        hadm_companion_sql("{relation}", has_onset=phenotype.outputs.onset_time)
-        if grain == "subject"
-        else None
-    )
+    if grain == "subject":
+        companion = hadm_companion_sql("{relation}", has_onset=phenotype.outputs.onset_time)
+    elif grain == "icustay":
+        companion = icustay_hadm_companion_sql("{relation}", has_onset=phenotype.outputs.onset_time)
+    else:
+        companion = None
     return Compiled(
         ref=phenotype.ref,
         grain=grain,
@@ -702,6 +780,7 @@ def compile_phenotype(
         columns=tuple(columns),
         hadm_companion_sql=companion,
         warnings=tuple(dict.fromkeys(warnings)),
+        evidence_columns=tuple(e.name for _l, e in evidence_columns),
     )
 
 
@@ -728,12 +807,35 @@ def hadm_companion_sql(relation: str, *, has_onset: bool = True) -> str:
     )
 
 
+def icustay_hadm_companion_sql(relation: str, *, has_onset: bool = True) -> str:
+    """The per-admission companion of an ``icustay``-grain phenotype (EP-42): one row
+    per admission **with at least one ICU stay** (the phenotype is only assessable
+    there), ``flag`` = any of its stays is flagged, ``onset_time`` = the earliest onset
+    among the flagged stays, ``n_stays`` = the admission's ICU stays. The sepsis-3 vs
+    explicit-code cross-tab joins this companion to the ``hadm``-grain phenotype."""
+    onset = (
+        "min(p.onset_time) FILTER (WHERE p.flag) AS onset_time"
+        if has_onset
+        else "CAST(NULL AS TIMESTAMP) AS onset_time"
+    )
+    return (
+        "SELECT a.subject_id, a.hadm_id,\n"
+        "  coalesce(bool_or(p.flag), FALSE) AS flag,\n"
+        f"  {onset},\n"
+        "  count(*) AS n_stays\n"
+        f"FROM {ADMISSIONS} AS a\n"
+        f"JOIN {relation} AS p ON p.hadm_id = a.hadm_id\n"
+        "GROUP BY a.subject_id, a.hadm_id"
+    )
+
+
 def describe(compiled: Compiled) -> dict[str, Any]:
     """A JSON-able description (no SQL text) for ``--json`` outputs."""
     return {
         "ref": compiled.ref,
         "grain": compiled.grain,
         "columns": list(compiled.columns),
+        "evidence_columns": list(compiled.evidence_columns),
         "sources": list(compiled.sources),
         "leaves": list(compiled.leaf_sql),
         "sql_chars": len(compiled.sql),
@@ -755,6 +857,7 @@ __all__ = [
     "hadm_companion_sql",
     "harmonised_value_sql",
     "icd_predicate",
+    "icustay_hadm_companion_sql",
     "sql_str",
     "sql_value",
 ]

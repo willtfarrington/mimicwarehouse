@@ -1,0 +1,40 @@
+# mimicwarehouse phenotype (EP-42). ASCII only; the (id, version) pair is frozen in
+# phenotypes.lock.json together with the def_hash of the referenced code set - bump
+# version to change anything below `criteria` / `onset` / `grain`.
+id: sepsis_explicit
+version: "1.0.0"
+name: Sepsis, explicitly coded per admission (Angus explicit septicemia / sepsis codes)
+description: >
+  An admission carries explicit sepsis when any of its billed diagnoses is in the
+  sepsis_explicit@1.0.0 code set (septicemia / sepsis by organism, severe sepsis, septic
+  shock, puerperal and postprocedural sepsis; ICD-9-CM and ICD-10-CM). The onset is the
+  admission's discharge time (diagnoses carry no timestamp). The billing-code companion
+  of sepsis3@1.0.0 for the classic explicit-codes vs Sepsis-3 agreement cross-tab.
+grain: hadm
+criteria:
+  id: dx
+  diagnosis: {codeset: sepsis_explicit@1.0.0, position: any, min_admissions: 1}
+onset: earliest
+outputs: {flag: true, onset_time: true, evidence: true}
+references: [sepsis_explicit@1.0.0]
+provenance:
+  source: hand
+  url: https://doi.org/10.1097/00003246-200107000-00002
+  ref: >-
+    Angus et al. 2001 explicit septicemia codes as extended to ICD-10-CM by the EP-40 code
+    set sepsis_explicit@1.0.0
+  accessed: "2026-09-06"
+citations:
+  - https://doi.org/10.1097/00003246-200107000-00002
+  - https://doi.org/10.1056/NEJMoa022139
+notes: >
+  Any diagnosis position counts (the EP-40 set is not restricted to the principal
+  diagnosis). The per-admission grain lets the sepsis3 icustay companion
+  (mimiciv_derived.phenotype_sepsis3_hadm) join it on the admission.
+what_it_does_not_claim:
+  - Explicit codes under-ascertain sepsis - coding practice varies by era and by
+    organism-specific coding, and the ICD-10-CM codes T81.12- / T81.44- exist only from
+    FY2017 / FY2020.
+  - A billed code is not a clinical adjudication and says nothing about timing within the
+    admission; the onset is the discharge time by convention.
+  - Bacteremia without a sepsis code (790.7 / R78.81) is deliberately outside the set.

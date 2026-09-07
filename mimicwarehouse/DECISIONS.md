@@ -331,6 +331,23 @@ adopt as-is untested.
 > taken verbatim from upstream although it nulls a large minority of MCHC rows recorded
 > with `%` — an owner-reviewed choice (EP-38 completion note).
 
+> **Addendum (2026-09-06, EP-42 — phenotypes pin the concept build).** A phenotype whose
+> `concept` leaf reads `mimiciv_derived.<name>` records a `ConceptPin` in its `def_hash`:
+> the sha256 of the SQL the concept runner executes for that concept — the EP-38 patch's
+> when patched, else the vendored file's — resolved from the committed inventory and patch
+> registry (definition text, no data), together with the DAG step that builds it. So a
+> re-vendor or a new patch that changes the executed SQL refuses every locked phenotype
+> that reads the concept (`PhenotypeFrozenError`) until its version is bumped against the
+> new concept, and the compile step refuses to materialise over a tier whose concept
+> status entry carries another executed sha (`ConceptPinMismatchError`, remedy = the
+> concept rebuild or the bump). The pinned concept steps are `depends_on` of
+> `phenotypes.compile`, so a full build orders them first; tag / compile runs do not pull
+> them in (the step records the phenotype as failed with the remedy). *Why:* GOVERNANCE
+> §12 — a phenotype version must reproduce from the concept it was defined against; the
+> EP-38 rule (3) already made the executed sha the concept's identity. *Alternatives:* pin
+> the upstream commit only (blind to patches); check at summary time (too late — the
+> table is already built); a warning instead of a refusal (a silent drift).
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
@@ -735,8 +752,33 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > (read by code, never printed). `rows` (the unit count) is never small. The phenotype
 > views themselves (`mimiciv_derived.phenotype_<id>`, `_hadm`) are subject-keyed
 > non-registry reads, so `safe_query`'s own k rule covers every aggregate over them.
+
+> **Addendum (2026-09-06, EP-42 — the prevalence artefact under `runs/`).** `mwh
+> phenotype summary … --report` writes `runs/<run_id>/phenotype_prevalence.md` (the
+> per-phenotype prevalence, the KDIGO stage distribution, the pairwise per-admission
+> 2×2 tables) with every number read through `safe_query` — so the row-wise
+> `safe.SUPPRESSOR` rule (k = 11 on dev / full) is the suppression it carries, as the
+> EP-170 / EP-33 amendments to EP-42 resolved (D-43 item 14: a wording fix, EP-43 checks
+> the file retroactively): a 2×2 whose any cell lies in 1..k-1 is suppressed whole and
+> rendered `suppressed (< k)` per cell, an absent distribution level reads "zero or
+> suppressed", and the file states its claim type (exploratory), the retrospective
+> sentence and "disclosure sidecar pending EP-43" in its header. It stays under the data
+> root; EP-53 promotes it once EP-43's check and sidecar exist. The typed evidence columns
+> the EP-42 phenotypes materialise (`sofa_score`, `max_stage_in_window`, …) are
+> subject-keyed values like `evidence_json`: sessions aggregate them (`GROUP BY` a level,
+> `count(*) FILTER`), never select them. *Why:* one suppression mechanism (the safe-query
+> hook) until EP-43 replaces it — no second implementation in a brief. *Alternatives:*
+> wait for EP-43 before writing any artefact (loses the acceptance record); an ad-hoc
+> complementary rule in the renderer (a second implementation; parked as PHE-9).
+
+**D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.
+
+> **Correction (2026-09-06, EP-42 — mechanical repair; ledger DRF-1 precedent).** The
+> D-34 heading line above was consumed as an edit anchor by the EP-41 D-33 addendum
+> (commit `f72b7d7`), which left its second line ("extra** (e.g. scikit-survival …") orphaned
+> under D-33; restored verbatim from `963ab67`. Content otherwise unchanged.
 
 **D-35 Vocabularies: free first** (ICD-9/10 dims, LOINC, RxNorm, ATC, AHRQ CCSR/
 Elixhauser/Charlson code sets, CMS GEMs); UMLS/SNOMED/OMOP Athena as later optional EPs

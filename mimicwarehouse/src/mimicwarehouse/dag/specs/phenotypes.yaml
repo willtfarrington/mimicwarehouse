@@ -11,8 +11,13 @@
 #                         (meta.phenotype_versions); the catalog extension then exposes the
 #                         latest version as mimiciv_derived.phenotype_<id> (+ _hadm companion).
 # The depends_on list is the union of the core tables any leaf kind reads (the fixture and
-# every real tier stage them all); a concept leaf (EP-42) needs its concept built first
-# (`mwh build --tier <t> --tag concepts`).
+# every real tier stage them all) plus, since EP-42, the concept steps the packaged
+# concept-backed phenotypes pin (sepsis3 -> concept.sepsis.sepsis3, kdigo_aki ->
+# concept.organfailure.kdigo_stages; `phenotypes.runner.concept_steps` renders the list
+# and test_ep42 asserts it agrees), so a full build orders the concepts first. A
+# `--tag phenotypes` or `mwh phenotype compile` run does not pull them in: the concept
+# must already be built for the tier (`mwh build --tier <t> --tag concepts`) from the SQL
+# the phenotype pins, or the step records the phenotype as failed with the remedy.
 version: 1
 steps:
   - name: phenotypes.compile
@@ -31,6 +36,8 @@ steps:
       - stage.mimiciv_hosp.microbiologyevents
       - stage.mimiciv_icu.icustays
       - stage.mimiciv_icu.inputevents
+      - concept.organfailure.kdigo_stages
+      - concept.sepsis.sepsis3
   - name: catalog
     kind: catalog
     tags: [catalog, phenotypes]

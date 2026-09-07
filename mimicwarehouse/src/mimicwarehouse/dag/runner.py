@@ -69,7 +69,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from mimicwarehouse import config
 from mimicwarehouse.config import Settings, Tier, assert_not_credentialed_lake, require_free_space
 from mimicwarehouse.dag import benchmarks
-from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot, record_snapshot
+from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot, record_snapshot_once
 from mimicwarehouse.dag.spec import DagError, DagSpec, Step
 from mimicwarehouse.loader import paths as loader_paths
 from mimicwarehouse.loader.engine import open_build_connection
@@ -766,7 +766,9 @@ def run(
                 for layer in sorted(layers):
                     snapshot_id = layer_snapshot(lake_root, layer, str(tier), settings=settings)
                     result.snapshot_ids[layer] = snapshot_id
-                    record_snapshot(
+                    # skipped only when a stamping step of this build (meta.concept_versions,
+                    # meta.phenotype_versions) already recorded the identical id (EP-42)
+                    record_snapshot_once(
                         lake_root,
                         layer=layer,
                         tier=str(tier),

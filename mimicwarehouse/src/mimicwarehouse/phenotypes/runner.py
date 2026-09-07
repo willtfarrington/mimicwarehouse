@@ -26,19 +26,39 @@ DESIGN §3/§8/§15; D-19/D-20/D-33).
     records ``status: failed`` + the error class and re-raises a sanitized
     :class:`~mimicwarehouse.phenotypes.spec.PhenotypeError`.
 
+    **Concept leaves (EP-42).** Before compiling, every ``mimiciv_derived.*`` concept a
+    leaf reads must be complete for the tier (:func:`concepts.runner.ensure_derived_view`;
+    :class:`ConceptNotBuiltError` otherwise) **and** built from the SQL the phenotype
+    pins (:class:`~mimicwarehouse.phenotypes.registry.ConceptPin` vs the concept's status
+    entry — the executed sha256, patch included; :class:`ConceptPinMismatchError` names
+    the rebuild). The step attempts **every** selected phenotype, records each failure
+    as ``status: failed`` + the error class, writes ``meta.phenotype_versions`` (so failed
+    and blocked rows are visible) and only then raises the summary of failures.
+
 :func:`register_phenotypes` (``CATALOG_EXTENSIONS`` entry, after the walker, before ``units``)
     ``mimiciv_derived.phenotype_<id>`` = the **latest built version** of each id (semver
     order) over the walker's ``phenotypes.*`` view, plus the per-admission companion
     ``mimiciv_derived.phenotype_<id>_hadm`` for subject-grain phenotypes
-    (:func:`compiler.hadm_companion_sql`), and the comment on ``meta.phenotype_versions``.
-    Sessions read the ``mimiciv_derived`` views through ``safe_query`` (subject-keyed,
-    non-registry reads: the ``phenotypes`` schema itself is not on the allow list).
+    (:func:`compiler.hadm_companion_sql`: every admission, prevalent by discharge) and for
+    icustay-grain phenotypes (:func:`compiler.icustay_hadm_companion_sql`: admissions
+    with >= 1 ICU stay, flagged when any stay is; EP-42), and the comment on
+    ``meta.phenotype_versions``. Sessions read the ``mimiciv_derived`` views through
+    ``safe_query`` (subject-keyed, non-registry reads: the ``phenotypes`` schema itself is
+    not on the allow list).
 
-:func:`summarize` / :func:`summary`
-    The prevalence helper: ``n_units`` / ``n_positive`` (+ ``share``) for the phenotype's
+:func:`summarize` / :func:`summary` / :func:`distribution` / :func:`agreement` /
+:func:`prevalence_report`
+    The prevalence helpers: ``n_units`` / ``n_positive`` (+ ``share``) for the phenotype's
     grain, then by era through ``mimiciv_derived.hadm_era`` (the ``_hadm`` companion for
-    subject-grain phenotypes), every number read through ``safe_query`` (k = 11 row-wise
-    suppression on the credentialed tiers, audited); ``mwh phenotype summary`` prints it.
+    subject-grain phenotypes); the distribution of a typed evidence column with declared
+    ``levels`` (the KDIGO stages); the 2x2 agreement of two phenotypes per admission
+    (their ``hadm``-grain relations; EP-42) — every number read through ``safe_query``
+    (k = 11 row-wise suppression on the credentialed tiers, audited; through
+    ``Run.safe_query`` when a run is open so the SQL and audit ids are recorded).
+    :func:`prevalence_report` bundles them for ``mwh phenotype summary``, and
+    :func:`write_prevalence_report` renders ``phenotype_prevalence.md`` (claim type
+    exploratory, the retrospective statement, a "disclosure sidecar pending EP-43" line)
+    into a run folder — the artefact EP-43 checks retroactively and EP-53 promotes.
 
 Small cells (D-33): ``n_positive`` values in ``1 .. k-1`` are blanked in every surface a
 session can read — ``meta.phenotype_versions``, the run manifest's params and the progress
@@ -53,14 +73,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Iterable, Iterator
+import re
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mimicwarehouse import publish
+from mimicwarehouse import fsio, publish
 from mimicwarehouse.concepts.runner import (
     DERIVED_LAYER,
     PART,
@@ -83,10 +105,17 @@ from mimicwarehouse.phenotypes.compiler import (
     Compiled,
     compile_phenotype,
     hadm_companion_sql,
+    icustay_hadm_companion_sql,
     sql_str,
 )
 from mimicwarehouse.phenotypes.registry import Entry, Registry, load_registry
-from mimicwarehouse.phenotypes.spec import Leaf, PhenotypeError
+from mimicwarehouse.phenotypes.spec import (
+    RESERVED_COLUMNS,
+    Leaf,
+    ParamValue,
+    PhenotypeError,
+    UnknownPhenotypeError,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -95,8 +124,19 @@ if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.config import Settings
     from mimicwarehouse.dag.runner import StepContext, StepOutcome
     from mimicwarehouse.dag.spec import Step
+    from mimicwarehouse.run import Run
+    from mimicwarehouse.safe import SafeResult
 
 _LOG = logging.getLogger(__name__)
+
+
+class ConceptNotBuiltError(PhenotypeError):
+    """A concept leaf's table is not complete for the tier (build the concept first)."""
+
+
+class ConceptPinMismatchError(PhenotypeError):
+    """The tier's concept was built from different SQL than the phenotype pins (EP-42)."""
+
 
 #: The DAG step / tag (``dag/specs/phenotypes.yaml``).
 STEP_COMPILE = "phenotypes.compile"
@@ -118,6 +158,13 @@ BENCH_KIND = "phenotype"
 EVIDENCE_MAX_CHARS = 64
 #: The three-way suppression sentinel a session may see instead of a small count.
 SMALL_CELL = "<k"
+#: The prevalence artefact ``mwh phenotype summary --report`` writes into a run folder.
+PREVALENCE_REPORT = "phenotype_prevalence.md"
+CLAIM_TYPE = "exploratory"
+RETROSPECTIVE_SENTENCE = "MIMIC-IV analyses are retrospective."
+SIDECAR_PENDING = "Disclosure sidecar pending EP-43"
+
+_COLUMN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def _sql_ident(name: str) -> str:
@@ -262,6 +309,7 @@ def _record_status(
         "def_hash": entry.def_hash,
         "grain": entry.phenotype.grain,
         "refs": dict(entry.resolved),
+        "concepts": entry.concept_hashes,
     }
     fields: dict[str, Any] = {
         "per_tier": True,
@@ -369,6 +417,19 @@ def _materialize(ctx: StepContext, entry: Entry, compiled: Compiled) -> BuildOut
         for ref, def_hash in sorted(entry.resolved.items()):
             cs_id, cs_version = ref.split("@", 1)
             prun.record_ref("codeset", cs_id, version=cs_version, hash=def_hash)
+        for _table, pin in sorted(entry.concepts.items()):
+            # the same shape the concept runner records (EP-37/38): the executed SQL's
+            # sha256 under `concept`, the patch under `concept_patch` when one applies
+            prun.record_ref(
+                "concept", pin.name, version=pin.upstream_commit, hash=pin.executed_sha256
+            )
+            if pin.patch_id is not None:
+                prun.record_ref(
+                    "concept_patch",
+                    pin.patch_id,
+                    version=pin.upstream_commit,
+                    hash=pin.executed_sha256,
+                )
         prun.record_snapshot("core", _core_snapshot_id(ctx))
         try:
             (rows, n_positive, max_evidence, columns), usage = ResourceLog.measure(
@@ -479,8 +540,10 @@ def _materialize(ctx: StepContext, entry: Entry, compiled: Compiled) -> BuildOut
 
 def _ensure_concepts(ctx: StepContext, entry: Entry) -> None:
     """Expose the ``mimiciv_derived`` concept tables a phenotype's concept leaves read as
-    views on the build connection (:func:`concepts.runner.ensure_derived_view`)."""
-    from mimicwarehouse.concepts.runner import ConceptError, ensure_derived_view
+    views on the build connection (:func:`concepts.runner.ensure_derived_view`) and check
+    every pinned concept against the tier's build: the status entry's executed-SQL
+    sha256 must equal the pin's (EP-42 — the phenotype hash pins the concept build)."""
+    from mimicwarehouse.concepts.runner import ConceptError, concept_entry, ensure_derived_view
 
     for table in entry.phenotype.concept_tables:
         schema, _, name = table.partition(".")
@@ -489,7 +552,21 @@ def _ensure_concepts(ctx: StepContext, entry: Entry) -> None:
         try:
             ensure_derived_view(ctx, name)
         except ConceptError as exc:
-            raise PhenotypeError(f"{entry.ref}: {exc}") from None
+            raise ConceptNotBuiltError(f"{entry.ref}: {exc}") from None
+        pin = entry.concepts.get(table)
+        if pin is None:
+            continue
+        attempt = ((concept_entry(ctx.lake_root, name) or {}).get("tiers") or {}).get(ctx.tier)
+        built = str((attempt or {}).get("sql_sha256") or "")
+        if built and built != pin.executed_sha256:
+            built_patch = (attempt or {}).get("patch_id") or "none"
+            raise ConceptPinMismatchError(
+                f"{entry.ref}: {table} on tier {ctx.tier} was built from SQL {built[:12]} "
+                f"(patch {built_patch}) but the phenotype pins {pin.executed_sha256[:12]} "
+                f"(patch {pin.patch_id or 'none'}) — rebuild the concept "
+                f"(`mwh build --tier {ctx.tier} --select {pin.step} --force`) or bump the "
+                "phenotype version against the current concept"
+            )
 
 
 def run_compile(step: Step, ctx: StepContext) -> StepOutcome:
@@ -506,6 +583,7 @@ def run_compile(step: Step, ctx: StepContext) -> StepOutcome:
     total_bytes = 0
     built: list[str] = []
     skipped: list[str] = []
+    failures: list[str] = []
     for entry in selected:
         attempt = phenotype_attempt(ctx.lake_root, ctx.tier, entry.ref)
         if (
@@ -523,32 +601,80 @@ def run_compile(step: Step, ctx: StepContext) -> StepOutcome:
             )
             skipped.append(entry.ref)
             continue
-        _ensure_concepts(ctx, entry)
-        compiled = compile_phenotype(entry.phenotype, registry.codesets, resolved=entry.resolved)
-        outcome = _materialize(ctx, entry, compiled)
+        try:
+            _ensure_concepts(ctx, entry)
+            compiled = compile_phenotype(
+                entry.phenotype,
+                registry.codesets,
+                resolved=entry.resolved,
+                concepts=entry.concept_hashes,
+            )
+        except PhenotypeError as exc:
+            # a missing / mismatched concept or a compile error: recorded like a DuckDB
+            # failure so meta.phenotype_versions shows it; the other phenotypes still run
+            _record_status(ctx, entry, status="failed", error_class=type(exc).__name__)
+            _LOG.error("phenotype %s (%s): %s", entry.ref, ctx.tier, exc)
+            failures.append(f"{entry.ref}: {exc}")
+            continue
+        try:
+            outcome = _materialize(ctx, entry, compiled)
+        except PhenotypeError as exc:  # status + ok:false line already recorded
+            _LOG.error("phenotype %s (%s): %s", entry.ref, ctx.tier, exc)
+            failures.append(f"{entry.ref}: {exc}")
+            continue
         total_rows += outcome.rows
         total_bytes += outcome.nbytes
         built.append(entry.ref)
+    snapshot_id = layer_snapshot(ctx.lake_root, DERIVED_LAYER, ctx.tier, settings=ctx.settings)
     rows = versions_rows(
-        ctx.lake_root, ctx.tier, k=ctx.settings.k_suppression, settings=ctx.settings
+        ctx.lake_root,
+        ctx.tier,
+        k=ctx.settings.k_suppression,
+        settings=ctx.settings,
+        snapshot_id=snapshot_id,
     )
     dest = versions_path(ctx.lake_root, ctx.tier)
     meta_bytes = write_meta_parquet(ctx.con, dest, VERSIONS_COLUMNS, rows)
+    if rows:
+        # the stamped derived id joins the snapshot history (dag.snapshot docstring)
+        from mimicwarehouse.dag.snapshot import record_snapshot_once
+
+        record_snapshot_once(
+            ctx.lake_root,
+            layer=DERIVED_LAYER,
+            tier=ctx.tier,
+            snapshot_id=snapshot_id,
+            build_id=ctx.build_id,
+        )
     _LOG.info(
         "meta.phenotype_versions (%s): %d version(s) attempted on the tier, %d built now, "
-        "%d skipped — %s",
+        "%d skipped, %d failed — %s",
         ctx.tier,
         len(rows),
         len(built),
         len(skipped),
+        len(failures),
         dest,
     )
+    if failures:
+        raise PhenotypeError(
+            f"{len(failures)} of {len(selected)} phenotype(s) failed on tier {ctx.tier}: "
+            + " | ".join(failures)
+        )
     return StepOutcome(
         rows=total_rows,
         bytes_out=total_bytes + meta_bytes,
         files=len(built) + 1,
         layer=DERIVED_LAYER,
     )
+
+
+def concept_steps(registry: Registry | None = None) -> tuple[str, ...]:
+    """The DAG steps that build every concept the **packaged** definitions pin — the
+    ``depends_on`` the ``phenotypes.compile`` step carries (``dag/specs/phenotypes.yaml``)
+    so a full build orders the concepts first; ``test_ep42`` asserts the two agree."""
+    reg = registry if registry is not None else load_registry()
+    return tuple(sorted({pin.step for e in reg if e.packaged for pin in e.concepts.values()}))
 
 
 # ---------------------------------------------------------------------------
@@ -573,17 +699,25 @@ VERSIONS_COLUMNS: tuple[tuple[str, str], ...] = (
     ("status", "VARCHAR"),
     ("error_class", "VARCHAR"),
     ("tier", "VARCHAR"),
+    ("concept_refs", "VARCHAR"),
 )
 
 
 def versions_rows(
-    lake_root: Path | str, tier: str, *, k: int, settings: Settings | None = None
+    lake_root: Path | str,
+    tier: str,
+    *,
+    k: int,
+    settings: Settings | None = None,
+    snapshot_id: str | None = None,
 ) -> list[list[Any]]:
     """The ``meta.phenotype_versions`` rows for ``tier`` from ``status.json``: one per
     ``phenotypes.<id>@<version>`` entry attempted on the tier (id, then semver order);
-    ``n_positive`` blanked (``n_positive_suppressed = true``) below ``k`` (D-33)."""
+    ``n_positive`` blanked (``n_positive_suppressed = true``) below ``k`` (D-33);
+    ``snapshot_id`` = the derived layer's current id unless given."""
     status = read_status(Path(lake_root))["steps"]
-    snapshot_id = layer_snapshot(Path(lake_root), DERIVED_LAYER, tier, settings=settings)
+    if snapshot_id is None:
+        snapshot_id = layer_snapshot(Path(lake_root), DERIVED_LAYER, tier, settings=settings)
     rows: list[list[Any]] = []
     prefix = f"{SCHEMA}."
     entries = sorted(
@@ -619,6 +753,7 @@ def versions_rows(
                 attempt.get("status"),
                 attempt.get("error_class"),
                 tier,
+                json.dumps(attempt.get("concepts") or {}, sort_keys=True, separators=(",", ":")),
             ]
         )
     return rows
@@ -630,11 +765,13 @@ def versions_rows(
 
 _VERSIONS_COMMENT = (
     "One row per phenotype version attempted on this tier (phenotypes/runner.py, EP-41): "
-    "def_hash (sha256 of grain + criteria + onset + the referenced code-set hashes), "
-    "grain, refs (JSON of id@version -> def_hash), rows, n_positive (NULL below k, "
-    "n_positive_suppressed), built_at, run_id / build_id, sql_sha256, the derived "
-    "snapshot id, status, error_class. The latest built version of each id is exposed as "
-    "mimiciv_derived.phenotype_<id> (+ phenotype_<id>_hadm for subject-grain phenotypes)."
+    "def_hash (sha256 of grain + criteria + onset + the referenced code-set hashes, plus "
+    "parameters and the pinned concept hashes since EP-42), grain, refs (JSON of "
+    "id@version -> def_hash), concept_refs (JSON of mimiciv_derived.<concept> -> executed "
+    "SQL sha256), rows, n_positive (NULL below k, n_positive_suppressed), built_at, "
+    "run_id / build_id, sql_sha256, the derived snapshot id, status, error_class. The "
+    "latest built version of each id is exposed as mimiciv_derived.phenotype_<id> "
+    "(+ phenotype_<id>_hadm for subject- and icustay-grain phenotypes)."
 )
 
 
@@ -678,32 +815,48 @@ def register_phenotypes(con: duckdb.DuckDBPyConnection, tier: str) -> None:
             "icustay" if "stay_id" in columns else ("hadm" if "hadm_id" in columns else "subject")
         )
         con.execute(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM {source}")
+        key_columns = {"subject_id", "hadm_id", "stay_id"}
+        extra = [c for c in columns if c not in key_columns and c not in OUTPUT_COLUMNS]
+        evidence_note = (
+            f"; typed evidence columns {', '.join(extra)} (EP-42: per-leaf aggregates of the "
+            "concept columns)"
+            if extra
+            else ""
+        )
         con.execute(
             f"COMMENT ON VIEW {view} IS "
             + sql_str(
                 f"Phenotype {ref} (grain {grain}; the latest built version on tier {tier}; "
                 f"EP-41 engine): {', '.join(c for c in columns if c in OUTPUT_COLUMNS)} per "
                 "unit — flag = the boolean criteria tree, onset_time = the onset rule over "
-                "the positive leaves, evidence_json = per-leaf event counts. Every built "
-                f'version lives under {SCHEMA}."<id>@<version>"; meta.phenotype_versions '
-                "carries the hashes. Subject-keyed: read through safe_query as aggregates."
+                f"the positive leaves, evidence_json = per-leaf event counts{evidence_note}. "
+                f'Every built version lives under {SCHEMA}."<id>@<version>"; '
+                "meta.phenotype_versions carries the hashes. Subject-keyed: read through "
+                "safe_query as aggregates."
             )
         )
         views += 1
-        if grain == "subject" and "mimiciv_hosp.admissions" in present:
+        if grain in ("subject", "icustay") and "mimiciv_hosp.admissions" in present:
             companion = f"{DERIVED_SCHEMA}.{_sql_ident(VIEW_PREFIX + phenotype_id + HADM_SUFFIX)}"
-            con.execute(
-                f"CREATE OR REPLACE VIEW {companion} AS "
-                + hadm_companion_sql(source, has_onset="onset_time" in columns)
-            )
-            con.execute(
-                f"COMMENT ON VIEW {companion} IS "
-                + sql_str(
+            has_onset = "onset_time" in columns
+            if grain == "subject":
+                body = hadm_companion_sql(source, has_onset=has_onset)
+                comment = (
                     f"Per-admission companion of phenotype {ref} (EP-41): every admission, "
                     "flag = the subject's onset lies at or before this dischtime (prevalent "
                     "by discharge), onset_time carried over. Join hadm_era for the era axis."
                 )
-            )
+            else:
+                body = icustay_hadm_companion_sql(source, has_onset=has_onset)
+                comment = (
+                    f"Per-admission companion of phenotype {ref} (EP-42): the admissions "
+                    "with at least one ICU stay, flag = any of the admission's stays is "
+                    "flagged, onset_time = the earliest flagged onset, n_stays = its ICU "
+                    "stays. Join hadm_era for the era axis; join a hadm-grain phenotype for "
+                    "an agreement cross-tab."
+                )
+            con.execute(f"CREATE OR REPLACE VIEW {companion} AS " + body)
+            con.execute(f"COMMENT ON VIEW {companion} IS " + sql_str(comment))
             companions += 1
     if f"meta.{VERSIONS_TABLE}" in present:
         con.execute(
@@ -725,8 +878,8 @@ def register_phenotypes(con: duckdb.DuckDBPyConnection, tier: str) -> None:
 @dataclass(frozen=True, slots=True)
 class Summary:
     """``mwh phenotype summary``'s result: the frame (``scope``, ``unit``, ``n_units``,
-    ``n_positive``, ``share``), the version actually read, ``k``, suppressed row counts and
-    the audit ids of the reads."""
+    ``n_positive``, ``share``), the version actually read, ``k``, suppressed row counts,
+    the audit ids of the reads and the catalog's core snapshot id."""
 
     ref: str
     tier: str
@@ -735,6 +888,7 @@ class Summary:
     df: polars.DataFrame
     rows_suppressed: int
     audit_ids: tuple[str, ...]
+    snapshot_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -745,6 +899,132 @@ class Summary:
             "rows_suppressed": self.rows_suppressed,
             "rows": self.df.to_dicts(),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class Distribution:
+    """The distribution of one typed evidence column of a built phenotype (EP-42): one
+    row per ``level`` present after suppression — ``n_units`` / ``n_positive`` / ``share``
+    (an absent level is zero units or a suppressed small cell)."""
+
+    ref: str
+    column: str
+    tier: str
+    k: int
+    df: polars.DataFrame
+    levels: tuple[ParamValue, ...]
+    rows_suppressed: int
+    audit_id: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ref": self.ref,
+            "column": self.column,
+            "tier": self.tier,
+            "k": self.k,
+            "levels": list(self.levels),
+            "rows_suppressed": self.rows_suppressed,
+            "rows": self.df.to_dicts(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Agreement:
+    """The 2x2 agreement of two built phenotypes per admission (EP-42): their
+    ``hadm``-grain relations joined on the admission — ``n_hadm`` admissions in the join,
+    ``n_both`` / ``n_a_only`` / ``n_b_only`` / ``n_neither``; every cell None when the
+    row was suppressed (any cell in ``1 .. k-1``)."""
+
+    ref_a: str
+    ref_b: str
+    tier: str
+    k: int
+    denominator: str
+    n_hadm: int | None
+    n_both: int | None
+    n_a_only: int | None
+    n_b_only: int | None
+    n_neither: int | None
+    rows_suppressed: int
+    audit_id: str
+
+    @property
+    def suppressed(self) -> bool:
+        return self.n_hadm is None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ref_a": self.ref_a,
+            "ref_b": self.ref_b,
+            "tier": self.tier,
+            "k": self.k,
+            "denominator": self.denominator,
+            "n_hadm": self.n_hadm,
+            "n_both": self.n_both,
+            "n_a_only": self.n_a_only,
+            "n_b_only": self.n_b_only,
+            "n_neither": self.n_neither,
+            "rows_suppressed": self.rows_suppressed,
+        }
+
+
+def _run_query(
+    sql: str,
+    *,
+    name: str,
+    tier: str,
+    k: int,
+    settings: Settings,
+    actor: str | None,
+    run: Run | None,
+) -> SafeResult:
+    """One audited read: through ``Run.safe_query`` (statement + audit id recorded on the
+    run) when a run is open, else plain :func:`safe_query`."""
+    if run is not None:
+        return run.safe_query(sql, name=name, tier=tier, k=k, settings=settings, actor=actor)
+    from mimicwarehouse.safe import safe_query
+
+    return safe_query(sql, tier=tier, k=k, settings=settings, actor=actor)
+
+
+def _latest_built(
+    ref: str, *, tier: str, settings: Settings, actor: str | None
+) -> tuple[str, str, str]:
+    """``(resolved ref, grain, the session view)`` of the latest built version of
+    ``ref``'s id on ``tier`` — refusing a ref that is not that latest version (only the
+    latest has a session view) or an id with no built version."""
+    phenotype_id, sep, version = ref.partition("@")
+    if not sep:
+        raise PhenotypeError(f"{ref!r} is not a phenotype reference (id@version)")
+    versions = [
+        v
+        for v in built_versions(tier, settings=settings, actor=actor)
+        if v["phenotype_id"] == phenotype_id and v["status"] == "done"
+    ]
+    if not versions:
+        raise PhenotypeError(
+            f"no built version of {phenotype_id} on tier {tier} — run "
+            f"`mwh phenotype compile {ref} --tier {tier}` first"
+        )
+    latest = max(versions, key=lambda v: semver_key(str(v["version"])))
+    if str(latest["version"]) != version:
+        raise PhenotypeError(
+            f"{ref} is not the latest built version on tier {tier} ({phenotype_id}@"
+            f"{latest['version']} is); only the latest version has a session view "
+            f"(mimiciv_derived.{VIEW_PREFIX}{phenotype_id})"
+        )
+    grain = str(latest["grain"])
+    return (
+        f"{phenotype_id}@{latest['version']}",
+        grain,
+        f"{DERIVED_SCHEMA}.{VIEW_PREFIX}{phenotype_id}",
+    )
+
+
+def _hadm_relation(grain: str, view: str) -> str:
+    """The admission-level relation of a built phenotype: the view itself for the
+    ``hadm`` grain, the ``_hadm`` companion for the subject and icustay grains."""
+    return view if grain == "hadm" else view + HADM_SUFFIX
 
 
 def built_versions(
@@ -773,6 +1053,17 @@ def built_versions(
     return result.df.to_dicts()
 
 
+def _with_share(df: polars.DataFrame) -> polars.DataFrame:
+    import polars as pl
+
+    return df.with_columns(
+        pl.when(pl.col("n_units") > 0)
+        .then(pl.col("n_positive") / pl.col("n_units"))
+        .otherwise(None)
+        .alias("share")
+    )
+
+
 def summarize(
     ref: str,
     *,
@@ -780,60 +1071,45 @@ def summarize(
     settings: Settings | None = None,
     k: int | None = None,
     actor: str | None = None,
+    run: Run | None = None,
 ) -> Summary:
-    """The prevalence summary of ``ref`` on ``tier`` (module docstring)."""
+    """The prevalence summary of ``ref`` on ``tier`` (module docstring); ``run`` records
+    the two statements and their audit ids on an open run."""
     import polars as pl
 
     from mimicwarehouse.config import get_settings
-    from mimicwarehouse.safe import safe_query
 
     settings = settings or get_settings()
-    phenotype_id, sep, version = ref.partition("@")
-    if not sep:
-        raise PhenotypeError(f"{ref!r} is not a phenotype reference (id@version)")
-    versions = [
-        v
-        for v in built_versions(tier, settings=settings, actor=actor)
-        if v["phenotype_id"] == phenotype_id and v["status"] == "done"
-    ]
-    if not versions:
-        raise PhenotypeError(
-            f"no built version of {phenotype_id} on tier {tier} — run "
-            f"`mwh phenotype compile {ref} --tier {tier}` first"
-        )
-    latest = max(versions, key=lambda v: semver_key(str(v["version"])))
-    if str(latest["version"]) != version:
-        raise PhenotypeError(
-            f"{ref} is not the latest built version on tier {tier} ({phenotype_id}@"
-            f"{latest['version']} is); only the latest version has a session view "
-            f"(mimiciv_derived.{VIEW_PREFIX}{phenotype_id})"
-        )
-    grain = str(latest["grain"])
-    view = f"{DERIVED_SCHEMA}.{VIEW_PREFIX}{phenotype_id}"
+    resolved_ref, grain, view = _latest_built(ref, tier=tier, settings=settings, actor=actor)
+    phenotype_id = resolved_ref.partition("@")[0]
     era_relation = view if grain != "subject" else view + HADM_SUFFIX
     era_unit = grain if grain != "subject" else "hadm"
     resolved_k = k if k is not None else settings.k_suppression
     audit_ids: list[str] = []
     suppressed = 0
-    total = safe_query(
+    total = _run_query(
         f"SELECT count(*) AS n_units, count(*) FILTER (WHERE flag) AS n_positive FROM {view}",
+        name=f"{phenotype_id}_total",
         tier=tier,
         k=resolved_k,
         settings=settings,
         actor=actor,
+        run=run,
     )
     audit_ids.append(total.audit_id)
     suppressed += total.rows_suppressed
-    by_era = safe_query(
+    by_era = _run_query(
         "SELECT e.anchor_year_group AS era, count(*) AS n_units, "
         "count(*) FILTER (WHERE p.flag) AS n_positive "
         f"FROM {era_relation} AS p "
         f"JOIN {DERIVED_SCHEMA}.hadm_era AS e ON e.hadm_id = p.hadm_id "
         "GROUP BY 1 ORDER BY 1",
+        name=f"{phenotype_id}_by_era",
         tier=tier,
         k=resolved_k,
         settings=settings,
         actor=actor,
+        run=run,
     )
     audit_ids.append(by_era.audit_id)
     suppressed += by_era.rows_suppressed
@@ -843,28 +1119,26 @@ def summarize(
     for row in by_era.df.to_dicts():
         era = row.pop("era")
         records.append({"scope": str(era), "unit": era_unit, **row})
-    df = pl.DataFrame(
-        records,
-        schema={
-            "scope": pl.String,
-            "unit": pl.String,
-            "n_units": pl.Int64,
-            "n_positive": pl.Int64,
-        },
-    ).with_columns(
-        pl.when(pl.col("n_units") > 0)
-        .then(pl.col("n_positive") / pl.col("n_units"))
-        .otherwise(None)
-        .alias("share")
+    df = _with_share(
+        pl.DataFrame(
+            records,
+            schema={
+                "scope": pl.String,
+                "unit": pl.String,
+                "n_units": pl.Int64,
+                "n_positive": pl.Int64,
+            },
+        )
     )
     return Summary(
-        ref=f"{phenotype_id}@{latest['version']}",
+        ref=resolved_ref,
         tier=tier,
         grain=grain,
         k=resolved_k,
         df=df,
         rows_suppressed=suppressed,
         audit_ids=tuple(audit_ids),
+        snapshot_id=total.snapshot_id,
     )
 
 
@@ -879,6 +1153,428 @@ def summary(
     """The brief's helper: ``summarize(...).df`` — ``n_units`` / ``n_positive`` / ``share``
     overall and by era, k-suppressed through ``safe_query``."""
     return summarize(ref, tier=tier, settings=settings, k=k, actor=actor).df
+
+
+def distribution(
+    ref: str,
+    column: str,
+    *,
+    tier: str,
+    settings: Settings | None = None,
+    k: int | None = None,
+    actor: str | None = None,
+    run: Run | None = None,
+    levels: Iterable[ParamValue] = (),
+) -> Distribution:
+    """The distribution of the typed evidence column ``column`` of ``ref``'s latest built
+    version (EP-42): ``n_units`` and ``n_positive`` per level, k-suppressed row-wise."""
+    import polars as pl
+
+    from mimicwarehouse.config import get_settings
+
+    settings = settings or get_settings()
+    name = column.strip().lower()
+    if not _COLUMN_RE.match(name) or name in RESERVED_COLUMNS or name.endswith("_id"):
+        raise PhenotypeError(f"{column!r} is not a typed evidence column name")
+    resolved_ref, _grain, view = _latest_built(ref, tier=tier, settings=settings, actor=actor)
+    phenotype_id = resolved_ref.partition("@")[0]
+    resolved_k = k if k is not None else settings.k_suppression
+    result = _run_query(
+        f"SELECT {name} AS level, count(*) AS n_units, count(*) FILTER (WHERE flag) AS "
+        f"n_positive FROM {view} GROUP BY 1 ORDER BY 1",
+        name=f"{phenotype_id}_{name}_distribution",
+        tier=tier,
+        k=resolved_k,
+        settings=settings,
+        actor=actor,
+        run=run,
+    )
+    df = result.df.with_columns(
+        pl.col("n_units").cast(pl.Int64), pl.col("n_positive").cast(pl.Int64)
+    )
+    return Distribution(
+        ref=resolved_ref,
+        column=name,
+        tier=tier,
+        k=resolved_k,
+        df=_with_share(df),
+        levels=tuple(levels),
+        rows_suppressed=result.rows_suppressed,
+        audit_id=result.audit_id,
+    )
+
+
+def agreement(
+    ref_a: str,
+    ref_b: str,
+    *,
+    tier: str,
+    settings: Settings | None = None,
+    k: int | None = None,
+    actor: str | None = None,
+    run: Run | None = None,
+) -> Agreement:
+    """The 2x2 agreement of two built phenotypes per admission (EP-42): their
+    admission-level relations (:func:`_hadm_relation`) joined on the admission, so an
+    icustay-grain phenotype restricts the denominator to admissions with >= 1 ICU stay
+    and a subject-grain one contributes its prevalent-by-discharge flag."""
+    from mimicwarehouse.config import get_settings
+
+    settings = settings or get_settings()
+    resolved_a, grain_a, view_a = _latest_built(ref_a, tier=tier, settings=settings, actor=actor)
+    resolved_b, grain_b, view_b = _latest_built(ref_b, tier=tier, settings=settings, actor=actor)
+    if resolved_a == resolved_b:
+        raise PhenotypeError(f"agreement needs two different phenotypes, got {resolved_a} twice")
+    resolved_k = k if k is not None else settings.k_suppression
+    denominator = (
+        "admissions with at least one ICU stay"
+        if "icustay" in (grain_a, grain_b)
+        else "all admissions"
+    )
+    id_a = resolved_a.partition("@")[0]
+    id_b = resolved_b.partition("@")[0]
+    result = _run_query(
+        "SELECT count(*) AS n_hadm, "
+        "count(*) FILTER (WHERE a.flag AND b.flag) AS n_both, "
+        "count(*) FILTER (WHERE a.flag AND NOT b.flag) AS n_a_only, "
+        "count(*) FILTER (WHERE NOT a.flag AND b.flag) AS n_b_only, "
+        "count(*) FILTER (WHERE NOT a.flag AND NOT b.flag) AS n_neither "
+        f"FROM {_hadm_relation(grain_a, view_a)} AS a "
+        f"JOIN {_hadm_relation(grain_b, view_b)} AS b ON b.hadm_id = a.hadm_id",
+        name=f"agreement_{id_a}_{id_b}",
+        tier=tier,
+        k=resolved_k,
+        settings=settings,
+        actor=actor,
+        run=run,
+    )
+    cells: dict[str, int | None] = dict.fromkeys(
+        ("n_hadm", "n_both", "n_a_only", "n_b_only", "n_neither")
+    )
+    if result.df.height == 1:
+        row = result.df.row(0, named=True)
+        cells = {name: int(row[name]) for name in cells}
+    return Agreement(
+        ref_a=resolved_a,
+        ref_b=resolved_b,
+        tier=tier,
+        k=resolved_k,
+        denominator=denominator,
+        n_hadm=cells["n_hadm"],
+        n_both=cells["n_both"],
+        n_a_only=cells["n_a_only"],
+        n_b_only=cells["n_b_only"],
+        n_neither=cells["n_neither"],
+        rows_suppressed=result.rows_suppressed,
+        audit_id=result.audit_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The prevalence report (EP-42 item 4): summaries + distributions + agreement -> Markdown
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Definition:
+    """What the report says about a phenotype's definition (from the registry when the
+    built version is registered; documentation text only)."""
+
+    ref: str
+    name: str
+    grain: str
+    def_hash: str
+    what_it_does_not_claim: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PrevalenceReport:
+    """``mwh phenotype summary``'s bundle: one :class:`Summary` per phenotype, the
+    distributions of every evidence column that declares ``levels``, the pairwise
+    :class:`Agreement` tables, the definitions, and the run that recorded the reads."""
+
+    tier: str
+    k: int
+    summaries: tuple[Summary, ...]
+    distributions: tuple[Distribution, ...]
+    agreements: tuple[Agreement, ...]
+    definitions: dict[str, Definition] = field(default_factory=dict)
+    run_id: str | None = None
+    generated: str = ""
+
+    @property
+    def audit_ids(self) -> tuple[str, ...]:
+        ids: list[str] = []
+        for s in self.summaries:
+            ids.extend(s.audit_ids)
+        ids.extend(d.audit_id for d in self.distributions)
+        ids.extend(a.audit_id for a in self.agreements)
+        return tuple(dict.fromkeys(ids))
+
+    @property
+    def rows_suppressed(self) -> int:
+        return (
+            sum(s.rows_suppressed for s in self.summaries)
+            + sum(d.rows_suppressed for d in self.distributions)
+            + sum(a.rows_suppressed for a in self.agreements)
+        )
+
+    @property
+    def snapshot_id(self) -> str | None:
+        return next((s.snapshot_id for s in self.summaries if s.snapshot_id), None)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tier": self.tier,
+            "k": self.k,
+            "run_id": self.run_id,
+            "generated": self.generated,
+            "rows_suppressed": self.rows_suppressed,
+            "phenotypes": [s.to_dict() for s in self.summaries],
+            "distributions": [d.to_dict() for d in self.distributions],
+            "agreement": [a.to_dict() for a in self.agreements],
+        }
+
+
+def prevalence_report(
+    refs: Sequence[str],
+    *,
+    tier: str,
+    settings: Settings | None = None,
+    k: int | None = None,
+    actor: str | None = None,
+    run: Run | None = None,
+    registry: Registry | None = None,
+    agreements: bool = True,
+) -> PrevalenceReport:
+    """Summaries of ``refs`` (each the latest built version of its id on ``tier``), the
+    distribution of every evidence column with declared ``levels`` (when the definition
+    is in ``registry``), and the agreement 2x2 of every pair (module docstring)."""
+    from mimicwarehouse.config import get_settings
+
+    settings = settings or get_settings()
+    resolved_k = k if k is not None else settings.k_suppression
+    wanted = list(dict.fromkeys(r.strip() for r in refs if r.strip()))
+    if not wanted:
+        raise PhenotypeError("prevalence_report needs at least one phenotype reference")
+    summaries: list[Summary] = []
+    distributions: list[Distribution] = []
+    definitions: dict[str, Definition] = {}
+    for ref in wanted:
+        s = summarize(ref, tier=tier, settings=settings, k=resolved_k, actor=actor, run=run)
+        summaries.append(s)
+        entry: Entry | None = None
+        if registry is not None:
+            try:
+                entry = registry.get(s.ref)
+            except UnknownPhenotypeError:
+                entry = None
+        if entry is None:
+            continue
+        p = entry.phenotype
+        definitions[s.ref] = Definition(
+            ref=s.ref,
+            name=p.name,
+            grain=p.grain,
+            def_hash=entry.def_hash,
+            what_it_does_not_claim=tuple(p.what_it_does_not_claim),
+        )
+        for e in p.evidence_columns:
+            if e.levels:
+                distributions.append(
+                    distribution(
+                        s.ref,
+                        e.name,
+                        tier=tier,
+                        settings=settings,
+                        k=resolved_k,
+                        actor=actor,
+                        run=run,
+                        levels=e.levels,
+                    )
+                )
+    pairs: list[Agreement] = []
+    if agreements:
+        for i, a in enumerate(summaries):
+            for b in summaries[i + 1 :]:
+                pairs.append(
+                    agreement(
+                        a.ref,
+                        b.ref,
+                        tier=tier,
+                        settings=settings,
+                        k=resolved_k,
+                        actor=actor,
+                        run=run,
+                    )
+                )
+    if run is not None:
+        for s in summaries:
+            phenotype_id, _, version = s.ref.partition("@")
+            definition = definitions.get(s.ref)
+            run.record_ref(
+                "phenotype",
+                phenotype_id,
+                version=version,
+                hash=definition.def_hash if definition else None,
+            )
+    return PrevalenceReport(
+        tier=tier,
+        k=resolved_k,
+        summaries=tuple(summaries),
+        distributions=tuple(distributions),
+        agreements=tuple(pairs),
+        definitions=definitions,
+        run_id=run.run_id if run is not None else None,
+        generated=datetime.now(UTC).date().isoformat(),
+    )
+
+
+def _md_table(header: list[str], rows: list[list[str]]) -> list[str]:
+    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+    return lines
+
+
+def _share_text(value: Any) -> str:
+    return "-" if value is None else f"{float(value) * 100:.1f} %"
+
+
+def _count_text(value: int | None, k: int) -> str:
+    from mimicwarehouse.inventory import fmt_int
+
+    return f"suppressed (< {fmt_int(k)})" if value is None else fmt_int(value)
+
+
+def render_prevalence_report(report: PrevalenceReport) -> str:
+    """``phenotype_prevalence.md`` (module docstring): ASCII, every integer through
+    ``fmt_int``, no identifier column anywhere, the claim-type label, the retrospective
+    statement and the "sidecar pending EP-43" line in the header."""
+    from mimicwarehouse.inventory import fmt_int
+
+    k = report.k
+    lines = [
+        "# Phenotype prevalence (EP-42)",
+        "",
+        f"**Claim type: {CLAIM_TYPE}.** {RETROSPECTIVE_SENTENCE}",
+        "",
+        f"{SIDECAR_PENDING} - every number below came through `safe_query` (row-wise "
+        f"k = {fmt_int(k)} suppression: a row with any count in 1..{fmt_int(k - 1)} is "
+        "dropped; audited), so `mwh disclose check` verifies this file retroactively once "
+        "EP-43 ships (EP-42 amendment, D-43 item 14).",
+        "",
+        f"Run `{report.run_id or '-'}` - tier `{report.tier}` - core snapshot "
+        f"`{report.snapshot_id or '-'}` - generated {report.generated or '-'} - "
+        f"{fmt_int(report.rows_suppressed)} row(s) suppressed in total - "
+        f"{fmt_int(len(report.audit_ids))} audited read(s).",
+        "",
+        "## Prevalence",
+        "",
+    ]
+    for s in report.summaries:
+        definition = report.definitions.get(s.ref)
+        title = f"### `{s.ref}`" + (f" - {definition.name}" if definition else "")
+        lines += [
+            title,
+            "",
+            f"Grain `{s.grain}`"
+            + (f" - def_hash `{definition.def_hash[:12]}`" if definition else "")
+            + f" - {fmt_int(s.rows_suppressed)} row(s) suppressed at k = {fmt_int(k)}.",
+            "",
+            *_md_table(
+                ["scope", "unit", "n_units", "n_positive", "share"],
+                [
+                    [
+                        str(r["scope"]),
+                        str(r["unit"]),
+                        fmt_int(int(r["n_units"])),
+                        fmt_int(int(r["n_positive"])),
+                        _share_text(r["share"]),
+                    ]
+                    for r in s.df.to_dicts()
+                ],
+            ),
+            "",
+        ]
+    if report.distributions:
+        lines += ["## Distributions", ""]
+        for d in report.distributions:
+            present = {str(r["level"]): r for r in d.df.to_dicts()}
+            levels = [str(v) for v in d.levels] or list(present)
+            rows: list[list[str]] = []
+            for level in levels:
+                r = present.get(level)
+                if r is None:
+                    rows.append([level, "-", "-", "-"])
+                else:
+                    rows.append(
+                        [
+                            level,
+                            fmt_int(int(r["n_units"])),
+                            fmt_int(int(r["n_positive"])),
+                            _share_text(r["share"]),
+                        ]
+                    )
+            lines += [
+                f"### `{d.column}` of `{d.ref}`",
+                "",
+                *_md_table(["level", "n_units", "n_positive", "share"], rows),
+                "",
+                f"An absent level (`-`) has zero units or was suppressed (< {fmt_int(k)}); "
+                f"{fmt_int(d.rows_suppressed)} row(s) suppressed.",
+                "",
+            ]
+    if report.agreements:
+        lines += ["## Agreement (per admission)", ""]
+        for a in report.agreements:
+            id_a = a.ref_a.partition("@")[0]
+            id_b = a.ref_b.partition("@")[0]
+            lines += [
+                f"### `{a.ref_a}` x `{a.ref_b}`",
+                "",
+                f"Denominator: {a.denominator} - n = {_count_text(a.n_hadm, k)}.",
+                "",
+                *_md_table(
+                    ["", f"{id_b} yes", f"{id_b} no"],
+                    [
+                        [f"{id_a} yes", _count_text(a.n_both, k), _count_text(a.n_a_only, k)],
+                        [f"{id_a} no", _count_text(a.n_b_only, k), _count_text(a.n_neither, k)],
+                    ],
+                ),
+                "",
+            ]
+    claims = [d for d in report.definitions.values() if d.what_it_does_not_claim]
+    if claims:
+        lines += ["## What these definitions do not claim", ""]
+        for d in claims:
+            lines.append(f"- `{d.ref}`:")
+            lines.extend(f"  - {item.strip()}" for item in d.what_it_does_not_claim)
+        lines.append("")
+    refs = " ".join(s.ref for s in report.summaries)
+    lines += [
+        "## Reproduction",
+        "",
+        "```powershell",
+        "cd mimicwarehouse",
+        f"uv run --group dev mwh phenotype summary {refs} --tier {report.tier} --report",
+        "```",
+        "",
+        f"The run folder `runs/{report.run_id or '<run_id>'}/` carries every statement "
+        "under `sql/` and the audit ids of the reads in `manifest.json`; `mwh runs show "
+        "<run_id>` prints them.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_prevalence_report(report: PrevalenceReport, out_dir: Path | str) -> Path:
+    """Render :func:`render_prevalence_report` to ``<out_dir>/phenotype_prevalence.md``
+    (``fsio.atomic_write_text``; the directory is created)."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / PREVALENCE_REPORT
+    fsio.atomic_write_text(path, render_prevalence_report(report).rstrip("\n") + "\n")
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -912,7 +1608,19 @@ def leaf_text(leaf: Leaf) -> str:
         return f"microbiology({', '.join(parts)})"
     if leaf.kind == "concept":
         time = f", time {p.time_column}" if p.time_column else ""
-        return f"concept({p.table}.{p.column} {p.op} {p.value!r}, key {p.key}{time})"
+        window = (
+            f", window [{p.window.from_hours:g}, {p.window.to_hours:g}) h from the anchor"
+            if p.window is not None
+            else ""
+        )
+        evidence = (
+            ", evidence " + ", ".join(f"{e.name} = {e.agg}({e.column})" for e in p.evidence)
+            if p.evidence
+            else ""
+        )
+        return (
+            f"concept({p.table}.{p.column} {p.op} {p.value!r}, key {p.key}{time}{window}{evidence})"
+        )
     hours = f", {p.hours} h" if p.hours is not None else ""
     return f"temporal({p.a.id} {p.relation} {p.b.id}{hours})"
 
@@ -929,6 +1637,24 @@ def render_card(entry: Entry) -> str:
     ]
     refs = ", ".join(f"`{ref}` (`{h[:12]}`)" for ref, h in sorted(entry.resolved.items()))
     lines.append(f"- **references** {refs or '(none)'}")
+    if p.parameters:
+        listed = ", ".join(f"`{k}` = `{v!r}`" for k, v in sorted(p.parameters.items()))
+        lines.append(f"- **parameters** {listed}")
+    if entry.concepts:
+        pins = ", ".join(
+            f"`{table}` (`{pin.executed_sha256[:12]}`, "
+            f"{'patch ' + pin.patch_id if pin.patch_id else 'unpatched'})"
+            for table, pin in sorted(entry.concepts.items())
+        )
+        lines.append(f"- **concepts pinned** {pins}")
+    if p.evidence_columns:
+        evidence = ", ".join(
+            f"`{e.name}` = {e.agg}(`{e.column}`)"
+            + (f", default `{e.default!r}`" if e.default is not None else "")
+            + (f", levels `{list(e.levels)}`" if e.levels else "")
+            for e in p.evidence_columns
+        )
+        lines.append(f"- **evidence columns** {evidence}")
     lines.append("")
     lines.append("| leaf | kind | definition | polarity |")
     lines.append("|---|---|---|---|")
@@ -976,23 +1702,36 @@ def sync_methods_doc(path: Path | None = None) -> Path:
 __all__ = [
     "BENCH_KIND",
     "CARDS_MARK",
+    "CLAIM_TYPE",
     "DAG_TAG",
     "DERIVED_SCHEMA",
     "EVIDENCE_MAX_CHARS",
     "HADM_SUFFIX",
     "METHODS_DOC_RELPATH",
+    "PREVALENCE_REPORT",
+    "RETROSPECTIVE_SENTENCE",
     "SCHEMA",
+    "SIDECAR_PENDING",
     "SMALL_CELL",
     "STEP_COMPILE",
     "VERSIONS_COLUMNS",
     "VERSIONS_TABLE",
     "VIEW_PREFIX",
+    "Agreement",
     "BuildOutcome",
     "CompileOptions",
+    "ConceptNotBuiltError",
+    "ConceptPinMismatchError",
+    "Definition",
+    "Distribution",
+    "PrevalenceReport",
     "Summary",
+    "agreement",
     "built_versions",
     "compile_options",
+    "concept_steps",
     "current_options",
+    "distribution",
     "latest_versions",
     "leaf_text",
     "methods_doc_path",
@@ -1001,9 +1740,11 @@ __all__ = [
     "phenotype_dir",
     "phenotype_entry",
     "phenotype_part",
+    "prevalence_report",
     "register_phenotypes",
     "render_card",
     "render_cards",
+    "render_prevalence_report",
     "run_compile",
     "semver_key",
     "status_key",
@@ -1012,4 +1753,5 @@ __all__ = [
     "sync_methods_doc",
     "versions_path",
     "versions_rows",
+    "write_prevalence_report",
 ]

@@ -111,7 +111,9 @@ def _scalar(con: duckdb.DuckDBPyConnection, sql: str) -> Any:
 
 
 def test_packaged_definition_locked_and_pinned(registry: Registry) -> None:
-    assert registry.refs() == ("t2dm@1.0.0",) and registry.ids() == ("t2dm",)
+    # EP-42 added sepsis3 / kdigo_aki / sepsis_explicit beside t2dm (churn rule: a shipped
+    # fact changed — the registry contents; the pin became membership at EP-42)
+    assert "t2dm@1.0.0" in registry.refs() and "t2dm" in registry.ids()
     entry = registry.get("t2dm@1.0.0")
     p = entry.phenotype
     assert entry.locked and entry.packaged and entry.display_path == "defs/t2dm.yaml"
@@ -141,9 +143,9 @@ def test_packaged_definition_locked_and_pinned(registry: Registry) -> None:
     assert check.exit_code == 0 and "0 unlocked" in check.stdout, check.output
     listing = runner.invoke(app, ["phenotype", "list", "--json"])
     assert listing.exit_code == 0, listing.output
-    payload = json.loads(listing.stdout)["phenotypes"]
-    assert [x["ref"] for x in payload] == ["t2dm@1.0.0"] and payload[0]["locked"]
-    assert payload[0]["references"] == entry.resolved
+    payload = {x["ref"]: x for x in json.loads(listing.stdout)["phenotypes"]}
+    assert "t2dm@1.0.0" in payload and payload["t2dm@1.0.0"]["locked"]
+    assert payload["t2dm@1.0.0"]["references"] == entry.resolved
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +385,7 @@ def test_frozen_version_refused_and_bump_allowed(
     check = runner.invoke(app, ["phenotype", "lock", "--check", "--defs", str(defs)])
     assert check.exit_code == 1 and "t2dm@1.1.0" in check.stdout, check.output
     result = registry_mod.lock_dir(defs, codesets=codesets)
-    assert result.added == ("t2dm@1.1.0",) and result.unchanged == ("t2dm@1.0.0",)
+    assert result.added == ("t2dm@1.1.0",) and "t2dm@1.0.0" in result.unchanged  # EP-42: 4 locked
     assert registry_mod.lock_dir(defs, codesets=codesets).added == ()
     assert all(e.locked for e in registry_mod.load_dir(defs, codesets))
     lock_text = registry_mod.lock_path(defs).read_text(encoding="utf-8")
@@ -426,7 +428,7 @@ def test_frozen_version_refused_and_bump_allowed(
         newline="\n",
     )
     reg = registry_mod.load_registry([study], codeset_dirs=[study_cs])
-    assert set(reg.refs()) == {"t2dm@1.0.0", "narrow@1.0.0"}
+    assert {"t2dm@1.0.0", "narrow@1.0.0"} <= set(reg.refs())  # EP-42 adds three packaged ids
     narrow = reg.get("narrow@1.0.0")
     assert not narrow.locked and "t2dm_narrow@1.0.0" in narrow.resolved
     with pytest.raises(PhenotypeError, match="no code set"):
@@ -1148,7 +1150,8 @@ def test_dag_spec_catalog_hook_and_cli_wiring() -> None:
         step.kind == "python"
         and step.callable_name == "mimicwarehouse.phenotypes.runner:run_compile"
     )
-    assert set(step.depends_on) == set(LAKE_STEPS) and step.qualified_table is None
+    # EP-42 added the pinned concept steps to depends_on (test_ep42 asserts the exact set)
+    assert set(LAKE_STEPS) <= set(step.depends_on) and step.qualified_table is None
     assert phen_runner.DAG_TAG in step.tags and "derived" in step.tags
     assert step.tiers == ("fixture", "demo", "dev", "full")
     catalog = dag.step("catalog")
@@ -1227,12 +1230,15 @@ def lake(tmp_path_factory: pytest.TempPathFactory) -> Settings:
     """A fixture lake with the tables the leaves read + phenotypes.compile + catalog."""
     root = tmp_path_factory.mktemp("phenotype-lake")
     settings = config.Settings(data_root=root)
-    result = runner_mod.run(
-        load_dag(),
-        "fixture",
-        select=[*LAKE_STEPS, phen_runner.STEP_COMPILE, "catalog"],
-        settings=settings,
-    )
+    # t2dm only: EP-42's concept-backed phenotypes need their concepts built (test_ep42
+    # builds that lake); the selection keeps this module's pins on one phenotype
+    with phen_runner.compile_options(select=["t2dm@1.0.0"]):
+        result = runner_mod.run(
+            load_dag(),
+            "fixture",
+            select=[*LAKE_STEPS, phen_runner.STEP_COMPILE, "catalog"],
+            settings=settings,
+        )
     failed = [f"{s.name}: {s.error}" for s in result.steps if s.status == "failed"]
     assert not failed, failed
     return settings
@@ -1637,7 +1643,7 @@ def test_session_fixture_lake_carries_the_phenotype(
 ) -> None:
     """The full DAG (conftest's session lake) runs phenotypes.compile too."""
     con = fixture_lake_catalog
-    assert phen_runner.latest_versions(con) == {"t2dm": "1.0.0"}
+    assert phen_runner.latest_versions(con)["t2dm"] == "1.0.0"  # EP-42 adds three more ids
     views = {
         str(r[0])
         for r in con.execute(

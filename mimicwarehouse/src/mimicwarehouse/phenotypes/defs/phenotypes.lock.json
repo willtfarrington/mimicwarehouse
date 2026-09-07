@@ -1,5 +1,20 @@
 {
   "phenotypes": {
+    "kdigo_aki@1.0.0": {
+      "def_hash": "8ee86ad3004583e23f88b9fa133c63cf9c41cd101d4b2a8068b588d615cd8d89",
+      "grain": "icustay",
+      "locked_at": "2026-09-06"
+    },
+    "sepsis3@1.0.0": {
+      "def_hash": "8a1762166ae96c0053d13d6be3efa49b169801a533b3d1753acfa1f00bb4a95a",
+      "grain": "icustay",
+      "locked_at": "2026-09-06"
+    },
+    "sepsis_explicit@1.0.0": {
+      "def_hash": "edcd2302f046e916e3261d3344c53bebe62960e40a3cc6fba99fee4781b31173",
+      "grain": "hadm",
+      "locked_at": "2026-09-06"
+    },
     "t2dm@1.0.0": {
       "def_hash": "f0511c05bf8b2a95c08a444e64b58a0ddddaaac821f9bc2e06d017e54bf6c742",
       "grain": "subject",

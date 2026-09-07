@@ -63,6 +63,15 @@ rows for the covered items only:
   with crafted in-test rows. The same regeneration planted the outcome enrichment (every
   tracer covariate level among the first ICU stays carries a death and a survivor; ledger
   D4e) and aligned the writer's null placement with DuckDB's NULLS LAST (ledger CTR-1).
+- EP-42's concept-backed phenotypes (`sepsis3@1.0.0` over `sepsis/sepsis3`,
+  `kdigo_aki@1.0.0` over `organfailure/kdigo_stages`) read those concepts as the fixture
+  builds them: `kdigo_stages` stages from the creatinine / urine-output criteria above
+  (never CRRT), and `sepsis3` needs `sepsis/suspicion_of_infection` (antibiotic orders
+  paired with cultures) plus a SOFA of 2 or more, whose PaO2/FiO2 branch is empty here.
+  `test_ep42` therefore asserts the phenotypes *agree with the concept tables* on the
+  fixture lake rather than pinning positive counts, and covers the flag / onset /
+  evidence semantics with crafted in-test concept frames; no fixture regeneration was
+  needed (generator stays 0.3.0).
 - ED / Note fixture modules do not exist yet (EP-142 / EP-148 own them); every ED/Note
   concept or query is out of the fixture's reach until then.
 - `measurement/complete_blood_count` under the EP-38 patch (`complete_blood_count-mchc-

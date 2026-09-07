@@ -152,6 +152,11 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   octal integer 8 and `496` as an int, so a leading zero is lost before the loader sees
   it; `codesets.spec.normalize_code` refuses integer codes with that message. The same
   goes for `version: "1.0.0"` (unquoted `1.0` is a float). *(EP-40.)*
+- **No `: ` inside a plain-scalar list item.** A `what_it_does_not_claim` bullet such as
+  `- Not adjudicated: KDIGO staging is …` parses as a *mapping* (`{"Not adjudicated":
+  "KDIGO …"}`) and the loader fails with "could not find expected ':'" on the *next*
+  line; write ` - ` or `;` instead, or quote the item (the block scalars `>` / `|` are
+  unaffected). *(EP-42; the three definition files.)*
 
 ## 4. Editing the design records (DESIGN.md / DECISIONS.md / briefs)
 

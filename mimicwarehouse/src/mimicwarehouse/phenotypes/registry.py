@@ -5,8 +5,14 @@ EP-40 code-set registry, validation (EP-41 item 1; DESIGN §8, §15; GOVERNANCE 
   study directory passed by path is loaded into a :class:`Registry` of :class:`Entry`
   records keyed by ``id@version``. Loading resolves every code-set reference the leaves
   name against the code-set registry (the packaged seeds plus ``codeset_dirs``) to that
-  set's ``def_hash`` (:func:`resolve_references`) and computes the phenotype's
-  ``def_hash`` from them (:meth:`~mimicwarehouse.phenotypes.spec.Phenotype.def_hash`).
+  set's ``def_hash`` (:func:`resolve_references`), resolves every vendored concept a
+  ``concept`` leaf reads to a :class:`ConceptPin` — the sha256 of the SQL the concept
+  runner executes for it (the EP-38 patch's when the concept is patched, else the
+  vendored file's, from the committed inventory + patch registry; EP-42) — and computes
+  the phenotype's ``def_hash`` from both
+  (:meth:`~mimicwarehouse.phenotypes.spec.Phenotype.def_hash`), so a phenotype version
+  pins the concept build it was defined against; the runner refuses to materialise over a
+  tier whose concept was built from different SQL.
 * **Lock.** A directory carries ``phenotypes.lock.json`` (written by ``mwh phenotype
   lock`` through :func:`fsio.atomic_write_text`): the record of every ``(id, version)``
   pair's ``def_hash``. **Immutability rule** (the EP-40 rule, same shape): loading a YAML
@@ -31,8 +37,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import cache
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -53,12 +60,16 @@ from mimicwarehouse.phenotypes.spec import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from mimicwarehouse.codesets.registry import Registry as CodeSetRegistry
+    from mimicwarehouse.concepts.inventory import Inventory
+    from mimicwarehouse.concepts.patching import PatchRegistry
 
 _LOG = logging.getLogger(__name__)
 
 #: ``src/mimicwarehouse/phenotypes/defs/`` — the packaged definitions and their lock.
 DEFS_DIRNAME = "defs"
 LOCK_FILENAME = "phenotypes.lock.json"
+#: The schema of the vendored concepts a ``concept`` leaf pins (EP-37/38).
+CONCEPT_SCHEMA = "mimiciv_derived"
 #: The code-set kind each leaf kind's ``codeset`` must have.
 LEAF_CODESET_KINDS: dict[str, str] = {
     "diagnosis": "icd_dx",
@@ -157,9 +168,87 @@ def resolve_references(phenotype: Phenotype, codesets: CodeSetRegistry) -> dict[
 
 
 @dataclass(frozen=True, slots=True)
+class ConceptPin:
+    """How a phenotype pins one vendored concept it reads (EP-42): the DAG step that
+    builds it and the sha256 of the SQL the concept runner executes — the EP-38 patch's
+    when the concept is patched (``patch_id`` set), else the vendored file's. Hashes and
+    names only, resolved from the committed inventory / patch registry (no data)."""
+
+    table: str
+    name: str
+    step: str
+    executed_sha256: str
+    vendored_sha256: str
+    patch_id: str | None
+    upstream_commit: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "table": self.table,
+            "step": self.step,
+            "executed_sha256": self.executed_sha256,
+            "vendored_sha256": self.vendored_sha256,
+            "patch_id": self.patch_id,
+            "upstream_commit": self.upstream_commit,
+        }
+
+
+@cache
+def _concept_catalog() -> tuple[Inventory, PatchRegistry]:
+    """The committed concept inventory and patch registry, loaded once per process
+    (definition text; the concept modules stay off the ``mwh --help`` path)."""
+    from mimicwarehouse.concepts import patching
+    from mimicwarehouse.concepts.inventory import load_inventory
+
+    return load_inventory(), patching.load_registry()
+
+
+def concept_pin(name: str) -> ConceptPin | None:
+    """The :class:`ConceptPin` of ``mimiciv_derived.<name>``, or None when ``name`` is
+    not a vendored concept (a study's own derived table is read unpinned; ``validate``
+    warns). The seam tests monkeypatch to simulate a concept whose SQL moved."""
+    from mimicwarehouse.concepts.inventory import InventoryError
+
+    inventory, patches = _concept_catalog()
+    try:
+        concept = inventory.concept(name)
+    except InventoryError:
+        return None
+    patch = patches.for_concept(name)
+    return ConceptPin(
+        table=concept.qualified_name,
+        name=concept.name,
+        step=concept.step_name,
+        executed_sha256=patch.sql_sha256 if patch is not None else concept.sql_sha256,
+        vendored_sha256=concept.sql_sha256,
+        patch_id=patch.patch_id if patch is not None else None,
+        upstream_commit=concept.upstream_commit,
+    )
+
+
+def resolve_concepts(phenotype: Phenotype) -> dict[str, ConceptPin]:
+    """``{table: ConceptPin}`` for every ``mimiciv_derived.*`` concept table the
+    phenotype's leaves read that the vendored inventory knows (module docstring)."""
+    pins: dict[str, ConceptPin] = {}
+    for table in phenotype.concept_tables:
+        schema, _, name = table.partition(".")
+        if schema != CONCEPT_SCHEMA:
+            continue
+        pin = concept_pin(name)
+        if pin is not None:
+            pins[table] = pin
+    return pins
+
+
+def concept_hashes(pins: dict[str, ConceptPin]) -> dict[str, str]:
+    """The ``concept_hashes`` argument of :meth:`Phenotype.def_hash` from resolved pins."""
+    return {table: pin.executed_sha256 for table, pin in pins.items()}
+
+
+@dataclass(frozen=True, slots=True)
 class Entry:
     """One registered phenotype: the parsed YAML, the resolved reference hashes, its
-    ``def_hash``, where it came from, whether locked."""
+    ``def_hash``, where it came from, whether locked, and the concept pins (EP-42)."""
 
     phenotype: Phenotype
     resolved: dict[str, str]
@@ -167,10 +256,15 @@ class Entry:
     path: Path
     locked: bool
     packaged: bool
+    concepts: dict[str, ConceptPin] = field(default_factory=dict)
 
     @property
     def ref(self) -> str:
         return self.phenotype.ref
+
+    @property
+    def concept_hashes(self) -> dict[str, str]:
+        return concept_hashes(self.concepts)
 
     @property
     def display_path(self) -> str:
@@ -258,7 +352,8 @@ def load_dir(
     for path in sorted(root.glob("*.yaml")):
         phenotype = load_phenotype(path)
         resolved = resolve_references(phenotype, codesets)
-        def_hash = phenotype.def_hash(resolved)
+        concepts = resolve_concepts(phenotype)
+        def_hash = phenotype.def_hash(resolved, concept_hashes(concepts))
         locked = check_lock(phenotype.ref, def_hash, lock, where=path.name)
         entries.append(
             Entry(
@@ -268,6 +363,7 @@ def load_dir(
                 path=path,
                 locked=locked,
                 packaged=packaged,
+                concepts=concepts,
             )
         )
     return entries
@@ -356,6 +452,9 @@ class Validation:
             "grain": p.grain,
             "def_hash": self.entry.def_hash,
             "references": dict(self.entry.resolved),
+            "concepts": {t: pin.to_dict() for t, pin in sorted(self.entry.concepts.items())},
+            "parameters": dict(p.parameters),
+            "evidence": [e.name for e in p.evidence_columns],
             "leaves": [
                 {"id": leaf.id, "kind": leaf.kind, "negated": neg} for leaf, neg in p.all_leaves()
             ],
@@ -427,8 +526,17 @@ def _leaf_problems(
                 )
         if payload.unit is None:
             warnings.append(f"leaf {leaf.id}: no unit declared for the threshold")
-    if leaf.kind == "concept" and not payload.table.startswith("mimiciv_derived."):
-        warnings.append(f"leaf {leaf.id}: concept table {payload.table} is outside mimiciv_derived")
+    if leaf.kind == "concept":
+        schema, _, name = payload.table.partition(".")
+        if schema != CONCEPT_SCHEMA:
+            warnings.append(
+                f"leaf {leaf.id}: concept table {payload.table} is outside {CONCEPT_SCHEMA}"
+            )
+        elif concept_pin(name) is None:
+            warnings.append(
+                f"leaf {leaf.id}: {payload.table} is not a vendored concept — its build is "
+                "not pinned by the phenotype hash"
+            )
     return problems, warnings
 
 
@@ -456,7 +564,9 @@ def validate(entry: Entry, codesets: CodeSetRegistry) -> Validation:
     sources: tuple[str, ...] = ()
     if not problems:
         try:
-            compiled = compile_phenotype(phenotype, codesets, resolved=entry.resolved)
+            compiled = compile_phenotype(
+                phenotype, codesets, resolved=entry.resolved, concepts=entry.concept_hashes
+            )
         except CompileError as exc:
             problems.append(f"compile: {exc}")
         else:
@@ -473,9 +583,11 @@ def validate(entry: Entry, codesets: CodeSetRegistry) -> Validation:
 
 
 __all__ = [
+    "CONCEPT_SCHEMA",
     "DEFS_DIRNAME",
     "LEAF_CODESET_KINDS",
     "LOCK_FILENAME",
+    "ConceptPin",
     "Entry",
     "LockEntry",
     "LockFile",
@@ -483,12 +595,15 @@ __all__ = [
     "Registry",
     "Validation",
     "check_lock",
+    "concept_hashes",
+    "concept_pin",
     "load_dir",
     "load_lock",
     "load_registry",
     "lock_dir",
     "lock_path",
     "packaged_defs_dir",
+    "resolve_concepts",
     "resolve_references",
     "validate",
     "write_lock",

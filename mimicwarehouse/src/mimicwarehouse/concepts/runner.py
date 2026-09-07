@@ -581,8 +581,20 @@ def run_concept_versions(step: Step, ctx: StepContext) -> StepOutcome:
 
     rows = concept_versions_rows(ctx.lake_root, ctx.tier, settings=ctx.settings)
     dest, nbytes = write_concept_versions(ctx.con, ctx.lake_root, ctx.tier, rows)
-    if rows and ctx.run is not None:
-        ctx.run.record_snapshot(DERIVED_LAYER, str(rows[0][8]))
+    if rows:
+        # the stamped derived id joins the snapshot history (EP-42): a later derived
+        # producer in the same build (phenotypes.compile) moves the end-of-build id
+        from mimicwarehouse.dag.snapshot import record_snapshot_once
+
+        record_snapshot_once(
+            ctx.lake_root,
+            layer=DERIVED_LAYER,
+            tier=ctx.tier,
+            snapshot_id=str(rows[0][8]),
+            build_id=ctx.build_id,
+        )
+        if ctx.run is not None:
+            ctx.run.record_snapshot(DERIVED_LAYER, str(rows[0][8]))
     failed = sum(1 for r in rows if r[9] == "failed")
     _LOG.info(
         "meta.concept_versions (%s): %d concept(s) attempted, %d failed — %s",

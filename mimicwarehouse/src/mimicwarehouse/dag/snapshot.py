@@ -27,7 +27,14 @@ Scope rules:
 
 Every build appends ``{layer, tier, snapshot_id, build_id, ts}`` to
 ``lake/manifests/snapshots.json`` (a history list); EP-21 stores the id in
-``meta.catalog_info`` and EP-35 cites it in run manifests.
+``meta.catalog_info`` and EP-35 cites it in run manifests. Since EP-42 a step that
+**stamps** a layer id into a versions table (``meta.concept_versions``,
+``meta.phenotype_versions``) appends the id it stamped through
+:func:`record_snapshot_once`, so a stamped id is a recorded state whatever the order of
+the layer's producers within the build (the phenotypes run after the concepts and move
+the derived id again); the runner's end-of-build entry is skipped only when the same
+build already recorded the identical id, so a build still leaves at least one entry per
+layer it touched.
 """
 
 from __future__ import annotations
@@ -219,6 +226,26 @@ def record_snapshot(
     return entry
 
 
+def record_snapshot_once(
+    lake_root: Path, *, layer: str, tier: str, snapshot_id: str, build_id: str
+) -> dict[str, Any] | None:
+    """:func:`record_snapshot` unless ``build_id`` already recorded exactly this
+    ``(layer, tier, snapshot_id)`` — the stamping steps and the runner's end-of-build
+    entry then never duplicate each other (module docstring); returns the new entry or
+    None when it was already there."""
+    for entry in read_snapshots(lake_root):
+        if (
+            entry.get("layer") == layer
+            and entry.get("tier") == tier
+            and entry.get("snapshot_id") == snapshot_id
+            and entry.get("build_id") == build_id
+        ):
+            return None
+    return record_snapshot(
+        lake_root, layer=layer, tier=tier, snapshot_id=snapshot_id, build_id=build_id
+    )
+
+
 __all__ = [
     "CORE_LAYER",
     "SNAPSHOTS_FILENAME",
@@ -227,6 +254,7 @@ __all__ = [
     "layer_snapshot",
     "read_snapshots",
     "record_snapshot",
+    "record_snapshot_once",
     "snapshots_path",
     "table_file_stats",
 ]

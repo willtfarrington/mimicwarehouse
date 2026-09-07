@@ -32,13 +32,31 @@ passed by path) that names a computable clinical trait by *rules*, never by data
 * **Onset** — ``earliest`` / ``latest`` take the min / max first-event time over the
   *positive* leaves (those not under a ``not``) a unit satisfies; ``first_of`` names the
   leaves to take the earliest of. A unit whose ``flag`` is false has no onset.
+* **Parameters** (EP-42) — an optional top-level ``parameters: {name: scalar}`` mapping
+  of named defaults; inside ``criteria`` a scalar field may be written as the placeholder
+  ``$name`` (``value: $min_stage``, ``to_hours: $window_hours``) and is resolved before
+  validation, so the leaves always hold concrete values and the hash moves when a
+  parameter moves. :func:`phenotype_from_text` / :func:`load_phenotype` take
+  ``parameters=`` overrides for the in-memory variants tests and studies compile (a
+  variant is a different definition — never materialise it under the locked pair).
+* **Concept leaves** (EP-42) — ``concept(table, column, op, value, key, time_column,
+  window, evidence)``: ``window: {from_hours, to_hours}`` keeps only events whose
+  ``time_column`` lies ``from_hours <= hours since the key table's anchor < to_hours``
+  (``intime`` for ``stay_id``, ``admittime`` for ``hadm_id``; ``timesem.sql_hours_since``
+  in the SQL), and ``evidence: [{name, column, agg, default, levels}]`` materialises
+  typed per-unit columns beside ``evidence_json`` — ``agg`` is ``first`` / ``last``
+  (the value at the earliest / latest qualifying event), ``min`` or ``max`` over the
+  leaf's qualifying events; ``default`` fills units the leaf does not satisfy; ``levels``
+  declares an ordinal's values so ``mwh phenotype summary`` reports its distribution.
 * **References** are the code sets the leaves name (``id@version``); the registry
   resolves every reference to the code set's ``def_hash`` and the phenotype's
   **``def_hash``** is the sha256 of the canonical JSON of ``{grain, criteria, onset,
-  references: {ref: hash}}`` — so a phenotype version pins its inputs and moves exactly
-  when the definition or a referenced definition moves. ``name``, ``description``,
-  ``provenance``, ``citations``, ``notes`` and ``what_it_does_not_claim`` are
-  documentation and stay out of the hash.
+  references: {ref: hash}}`` — plus ``parameters`` when declared and ``concepts: {table:
+  executed-SQL sha256}`` for every vendored concept a leaf reads (EP-42: the registry
+  pins the concept build, patch included) — so a phenotype version pins its inputs and
+  moves exactly when the definition or a referenced definition moves. ``name``,
+  ``description``, ``provenance``, ``citations``, ``notes`` and
+  ``what_it_does_not_claim`` are documentation and stay out of the hash.
 * ``version`` is semver; the ``(id, version)`` pair is immutable once recorded in the
   registry lock (:mod:`~mimicwarehouse.phenotypes.registry` raises
   :class:`PhenotypeFrozenError` when a locked pair's hash moved — bump the version).
@@ -88,12 +106,22 @@ OnsetKind = Literal["earliest", "latest", "first_of"]
 Relation = Literal["before", "after", "within_hours"]
 MedicationSource = Literal["prescriptions", "emar", "inputevents"]
 ConceptKey = Literal["stay_id", "hadm_id", "subject_id"]
+EvidenceAgg = Literal["first", "last", "min", "max"]
+EVIDENCE_AGGS: tuple[str, ...] = ("first", "last", "min", "max")
+#: A parameter value / an evidence default (scalars only — never a list or a mapping).
+ParamValue = bool | int | float | str
+#: Output column names an evidence column can never take (the grain keys + the fixed
+#: outputs of every materialised phenotype).
+RESERVED_COLUMNS: frozenset[str] = frozenset(
+    {"subject_id", "hadm_id", "stay_id", "flag", "onset_time", "evidence_json"}
+)
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 _PMID_RE = re.compile(r"\bPMID\b", re.IGNORECASE)
 _QUALIFIED_RE = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 _COLUMN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_PARAM_REF_RE = re.compile(r"^\$([a-z][a-z0-9_]*)$")
 
 
 class PhenotypeError(ValueError):
@@ -275,11 +303,97 @@ class MicrobiologyLeaf(_Frozen):
         return out
 
 
+def _scalar(value: Any, what: str) -> ParamValue:
+    if value is None or isinstance(value, list | dict | tuple):
+        raise ValueError(f"{what} must be a scalar (bool, int, float or str)")
+    return value
+
+
+class EvidenceColumn(_Frozen):
+    """One typed evidence column a concept leaf materialises per unit (module docstring):
+    ``name`` (the output column, a slug outside :data:`RESERVED_COLUMNS`), ``column`` (the
+    concept column), ``agg`` (``first`` / ``last`` = the value at the earliest / latest
+    qualifying event; ``min`` / ``max`` over the qualifying events), ``default`` (the value
+    for units the leaf does not satisfy; NULL when absent) and ``levels`` (the ordinal's
+    values, e.g. the KDIGO stages ``[0, 1, 2, 3]`` — declares a distribution the summary
+    reports)."""
+
+    name: str
+    column: str
+    agg: EvidenceAgg = "first"
+    default: ParamValue | None = None
+    levels: tuple[ParamValue, ...] = ()
+
+    @field_validator("name", "column")
+    @classmethod
+    def _slug(cls, value: str) -> str:
+        text = value.strip().lower()
+        if not _COLUMN_RE.match(text):
+            raise ValueError(f"evidence name / column {value!r} is not a lower [a-z0-9_] name")
+        return text
+
+    @field_validator("default", mode="before")
+    @classmethod
+    def _default(cls, value: Any) -> Any:
+        return None if value is None else _scalar(value, "evidence.default")
+
+    @field_validator("levels", mode="before")
+    @classmethod
+    def _levels(cls, value: Any) -> tuple[ParamValue, ...]:
+        if value is None:
+            return ()
+        if not isinstance(value, list | tuple):
+            raise ValueError("evidence.levels must be a list of scalars")
+        out = tuple(_scalar(v, "evidence.levels") for v in value)
+        if len(set(out)) != len(out):
+            raise ValueError("evidence.levels must not repeat a value")
+        return out
+
+    @model_validator(mode="after")
+    def _reserved(self) -> EvidenceColumn:
+        if self.name in RESERVED_COLUMNS or self.name.endswith("_id"):
+            raise ValueError(
+                f"evidence name {self.name!r} is reserved (grain keys, flag, onset_time, "
+                "evidence_json and *_id names)"
+            )
+        return self
+
+    def canonical(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"name": self.name, "column": self.column, "agg": self.agg}
+        if self.default is not None:
+            out["default"] = self.default
+        if self.levels:
+            out["levels"] = list(self.levels)
+        return out
+
+
+class ConceptWindow(_Frozen):
+    """A relative-time restriction on a concept leaf's events: keep an event when
+    ``from_hours <= hours since the anchor < to_hours`` (the anchor is the key table's —
+    ``icustays.intime`` for ``stay_id``, ``admissions.admittime`` for ``hadm_id``)."""
+
+    from_hours: float = 0.0
+    to_hours: float
+
+    @model_validator(mode="after")
+    def _order(self) -> ConceptWindow:
+        if self.to_hours <= self.from_hours:
+            raise ValueError(
+                f"window: to_hours ({self.to_hours}) must exceed from_hours ({self.from_hours})"
+            )
+        return self
+
+    def canonical(self) -> dict[str, Any]:
+        return {"from_hours": self.from_hours, "to_hours": self.to_hours}
+
+
 class ConceptLeaf(_Frozen):
     """Rows of a materialised concept (``mimiciv_derived.<table>``, EP-37/38) where
     ``column op value``; ``key`` names the concept's key column (``stay_id`` for the ICU
     concepts, joined to ``icustays`` for the other keys), ``time_column`` the event time
-    (default: the key table's anchor — ``intime`` / ``admittime``). Used by EP-42."""
+    (default: the key table's anchor — ``intime`` / ``admittime``); ``window`` restricts
+    the events to hours relative to that anchor and ``evidence`` names the typed columns
+    the leaf materialises (module docstring). Used by EP-42 (sepsis-3, KDIGO AKI)."""
 
     table: str
     column: str
@@ -287,6 +401,8 @@ class ConceptLeaf(_Frozen):
     value: bool | int | float | str
     key: ConceptKey = "stay_id"
     time_column: str | None = None
+    window: ConceptWindow | None = None
+    evidence: tuple[EvidenceColumn, ...] = ()
 
     @field_validator("table")
     @classmethod
@@ -306,6 +422,22 @@ class ConceptLeaf(_Frozen):
             raise ValueError(f"column {value!r} is not a lower [a-z0-9_] name")
         return text
 
+    @model_validator(mode="after")
+    def _window_rules(self) -> ConceptLeaf:
+        if self.window is not None:
+            if self.time_column is None:
+                raise ValueError("concept.window needs a time_column to restrict")
+            if self.key == "subject_id":
+                raise ValueError(
+                    "concept.window needs an anchored key (stay_id -> intime, hadm_id -> "
+                    "admittime); a subject_id-keyed concept has no anchor"
+                )
+        names = [e.name for e in self.evidence]
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if dupes:
+            raise ValueError(f"concept.evidence names repeat: {dupes}")
+        return self
+
     def canonical(self) -> dict[str, Any]:
         out: dict[str, Any] = {
             "table": self.table,
@@ -316,6 +448,10 @@ class ConceptLeaf(_Frozen):
         }
         if self.time_column is not None:
             out["time_column"] = self.time_column
+        if self.window is not None:
+            out["window"] = self.window.canonical()
+        if self.evidence:
+            out["evidence"] = [e.canonical() for e in self.evidence]
         return out
 
 
@@ -438,6 +574,13 @@ class Leaf(_Frozen):
             return tuple(
                 dict.fromkeys(self.payload.a.concept_tables + self.payload.b.concept_tables)
             )
+        return ()
+
+    @property
+    def evidence_columns(self) -> tuple[EvidenceColumn, ...]:
+        """The typed evidence columns this leaf materialises (concept leaves only)."""
+        if self.kind == "concept":
+            return tuple(self.payload.evidence)
         return ()
 
     def canonical(self) -> dict[str, Any]:
@@ -570,6 +713,38 @@ class Outputs(_Frozen):
         return self
 
 
+def _validated_parameters(value: Any) -> dict[str, ParamValue]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("parameters must be a mapping of name -> scalar")
+    out: dict[str, ParamValue] = {}
+    for name, item in value.items():
+        if not isinstance(name, str) or not _ID_RE.match(name):
+            raise ValueError(f"parameter name {name!r} is not a lower [a-z0-9_] slug")
+        out[name] = _scalar(item, f"parameter {name}")
+    return out
+
+
+def _substitute(obj: Any, parameters: dict[str, ParamValue]) -> Any:
+    """``$name`` placeholders inside the criteria tree -> the parameter's value."""
+    if isinstance(obj, dict):
+        return {k: _substitute(v, parameters) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_substitute(v, parameters) for v in obj]
+    if isinstance(obj, str):
+        m = _PARAM_REF_RE.match(obj)
+        if m is not None:
+            name = m.group(1)
+            if name not in parameters:
+                raise ValueError(
+                    f"criteria references the unknown parameter ${name}; declared: "
+                    f"{', '.join(sorted(parameters)) or '(none)'}"
+                )
+            return parameters[name]
+    return obj
+
+
 class Phenotype(_Frozen):
     """One versioned phenotype (module docstring)."""
 
@@ -578,6 +753,10 @@ class Phenotype(_Frozen):
     name: str = Field(min_length=1)
     description: str = ""
     grain: GrainName
+    parameters: dict[str, ParamValue] = Field(
+        default_factory=dict,
+        description="named scalar defaults the criteria reference as $name (EP-42)",
+    )
     criteria: Node
     onset: Onset = Onset(rule="earliest")
     outputs: Outputs = Outputs()
@@ -590,6 +769,19 @@ class Phenotype(_Frozen):
     citations: tuple[str, ...] = ()
     notes: str = ""
     what_it_does_not_claim: tuple[str, ...] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_parameters(cls, data: Any) -> Any:
+        """Resolve ``$name`` placeholders in ``criteria`` from ``parameters`` before the
+        leaves validate, so every leaf holds a concrete value."""
+        if not isinstance(data, dict):
+            return data
+        parameters = _validated_parameters(data.get("parameters"))
+        out = {**data, "parameters": parameters}
+        if "criteria" in data:
+            out["criteria"] = _substitute(data["criteria"], parameters)
+        return out
 
     @field_validator("id")
     @classmethod
@@ -654,6 +846,21 @@ class Phenotype(_Frozen):
                         f"{self.id}@{self.version}: leaf {leaf.id}: min_admissions > 1 only "
                         "applies to the subject grain"
                     )
+        names: list[str] = []
+        for leaf, _neg in self.criteria.leaves():
+            if leaf.kind == "temporal":
+                for operand in (leaf.payload.a, leaf.payload.b):
+                    if operand.evidence_columns:
+                        raise ValueError(
+                            f"{self.id}@{self.version}: leaf {operand.id}: a temporal operand "
+                            "cannot declare evidence columns (only criteria leaves do)"
+                        )
+            names.extend(e.name for e in leaf.evidence_columns)
+        clashes = sorted({n for n in names if names.count(n) > 1})
+        if clashes:
+            raise ValueError(
+                f"{self.id}@{self.version}: evidence column name(s) {clashes} repeat across leaves"
+            )
         return self
 
     # -- derived views ---------------------------------------------------------------------
@@ -696,22 +903,52 @@ class Phenotype(_Frozen):
             tables.update(leaf.concept_tables)
         return tuple(sorted(tables))
 
-    def canonical(self, reference_hashes: Mapping[str, str]) -> dict[str, Any]:
+    @property
+    def evidence_columns(self) -> tuple[EvidenceColumn, ...]:
+        """The typed evidence columns of every criteria leaf, document order (they
+        follow ``evidence_json`` in the materialised table)."""
+        out: list[EvidenceColumn] = []
+        for leaf, _neg in self.criteria.leaves():
+            out.extend(leaf.evidence_columns)
+        return tuple(out)
+
+    def canonical(
+        self,
+        reference_hashes: Mapping[str, str],
+        concept_hashes: Mapping[str, str] | None = None,
+    ) -> dict[str, Any]:
         """The hashed shape: grain + criteria + onset + the resolved reference hashes
-        (every reference the leaves name must be present)."""
+        (every reference the leaves name must be present), plus ``parameters`` when
+        declared and ``concepts`` (table -> executed-SQL sha256) for every concept table
+        the leaves read that ``concept_hashes`` pins (a table without a pin — one outside
+        the vendored inventory — is not part of the hash)."""
         missing = sorted(set(self.codeset_refs) - set(reference_hashes))
         if missing:
             raise PhenotypeError(f"{self.ref}: unresolved reference(s) {missing}")
-        return {
+        out: dict[str, Any] = {
             "grain": self.grain,
             "criteria": self.criteria.canonical(),
             "onset": self.onset.canonical(),
             "references": {ref: reference_hashes[ref] for ref in self.codeset_refs},
         }
+        if self.parameters:
+            out["parameters"] = dict(sorted(self.parameters.items()))
+        pinned = {
+            table: concept_hashes[table]
+            for table in self.concept_tables
+            if concept_hashes and table in concept_hashes
+        }
+        if pinned:
+            out["concepts"] = pinned
+        return out
 
-    def def_hash(self, reference_hashes: Mapping[str, str]) -> str:
+    def def_hash(
+        self,
+        reference_hashes: Mapping[str, str],
+        concept_hashes: Mapping[str, str] | None = None,
+    ) -> str:
         """sha256 of the canonical JSON (module docstring)."""
-        payload = canonical_json(self.canonical(reference_hashes))
+        payload = canonical_json(self.canonical(reference_hashes, concept_hashes))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -728,39 +965,63 @@ def _format_validation_error(where: str, exc: ValidationError) -> str:
     return "\n".join(lines)
 
 
-def phenotype_from_text(text: str, *, where: str = "<text>") -> Phenotype:
+def phenotype_from_text(
+    text: str, *, where: str = "<text>", parameters: Mapping[str, ParamValue] | None = None
+) -> Phenotype:
     """Parse one YAML document into a :class:`Phenotype` (:class:`PhenotypeError` names
-    every validation problem)."""
+    every validation problem). ``parameters`` overrides the document's declared
+    defaults (every name must be declared) — the in-memory variant a test or a study
+    compiles; a variant hashes differently and is never the locked pair."""
     try:
         doc = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise PhenotypeError(f"{where}: cannot parse ({exc})") from exc
     if not isinstance(doc, dict):
         raise PhenotypeError(f"{where}: top level must be a mapping")
+    if parameters:
+        try:
+            declared = _validated_parameters(doc.get("parameters"))
+        except ValueError as exc:
+            raise PhenotypeError(f"{where}: {exc}") from None
+        unknown = sorted(set(parameters) - set(declared))
+        if unknown:
+            raise PhenotypeError(
+                f"{where}: parameter override(s) {unknown} are not declared "
+                f"(declared: {', '.join(sorted(declared)) or '(none)'})"
+            )
+        doc = {**doc, "parameters": {**declared, **parameters}}
     try:
         return Phenotype.model_validate(doc)
     except ValidationError as exc:
         raise PhenotypeError(_format_validation_error(where, exc)) from None
 
 
-def load_phenotype(path: Path | str) -> Phenotype:
-    """Parse and validate one phenotype YAML file."""
+def load_phenotype(
+    path: Path | str, *, parameters: Mapping[str, ParamValue] | None = None
+) -> Phenotype:
+    """Parse and validate one phenotype YAML file (``parameters`` as in
+    :func:`phenotype_from_text`)."""
     path = Path(path)
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise PhenotypeError(f"{path.name}: cannot read ({exc})") from exc
-    return phenotype_from_text(text, where=path.name)
+    return phenotype_from_text(text, where=path.name, parameters=parameters)
 
 
 __all__ = [
     "COMPARISONS",
+    "EVIDENCE_AGGS",
     "GRAINS",
     "LEAF_KINDS",
+    "RESERVED_COLUMNS",
     "Comparison",
     "ConceptKey",
     "ConceptLeaf",
+    "ConceptWindow",
     "DiagnosisLeaf",
+    "EvidenceAgg",
+    "EvidenceColumn",
     "GrainName",
     "LabLeaf",
     "Leaf",
@@ -774,6 +1035,7 @@ __all__ = [
     "Onset",
     "OnsetKind",
     "Outputs",
+    "ParamValue",
     "Phenotype",
     "PhenotypeError",
     "PhenotypeFrozenError",
