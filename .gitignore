@@ -84,6 +84,10 @@ source material/*
 !mimicwarehouse/tests/fixtures/**
 !mimicwarehouse/tests/fixtures/**/*.csv
 !mimicwarehouse/tests/fixtures/**/*.parquet
+# EP-43 (owner decision 2026-09-07): the sidecar the acceptance command
+# `mwh disclose check tests/fixtures/disclose/good_aggregate.csv --write-sidecar` writes
+# carries a timestamp + git sha of the moment, so it is never committed.
+mimicwarehouse/tests/fixtures/disclose/*.disclosure.json
 
 # =============================================================================
 # Python / uv / tooling

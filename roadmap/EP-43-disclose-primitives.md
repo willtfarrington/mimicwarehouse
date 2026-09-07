@@ -126,3 +126,99 @@ needs a chain-aware mode, so it is defined here.
   are synthetic and committed).
 - `mwh disclose verify` fails after a one-byte edit to the artifact.
 - `docs/methods/disclosure.md` exists and lists every finding code with an example.
+
+## Parked → final-roadmap.md
+
+- **Functional-dependency-aware margins and attribute disclosure** (mirrored as v2 DIS-4):
+  the shipped margin model treats every proper subset of the group columns as a
+  publishable margin, so co-varying group columns (`valueuom` / `unit_norm` / `expected`
+  in `meta.item_unit_variants`) over-protect rather than under-protect; the checker cannot
+  see totals published in *other* files; a 100 % / 0 % cell over a group of ≥ k units is
+  not flagged. Standard SDC tooling (tau-argus-style) is the reference when a reviewer
+  (EP-133) hits a false complement or a real attribute leak.
+- Banding of extreme-value aggregates (`min` / `max` to bands) stays with the DP item
+  (DIS-1) — the SGT-2 decision below keeps the row gate as the release condition.
+
+> **Completion note (2026-09-07).** Fixture tier, one session (≈ M). Shipped
+> `src/mimicwarehouse/disclose.py` (≈ 2,000 lines after formatting), `mwh disclose check |
+> verify`, `mwh fixtures disclose`, `tests/ep/test_ep43.py` (18 tests), the three committed
+> fixtures under `tests/fixtures/disclose/`, `docs/methods/disclosure.md`, and the
+> retroactive sidecars `DATA-DICTIONARY.md.disclosure.json` and
+> `docs/analyses/00-staging-benchmark.md.disclosure.json`.
+>
+> **As built vs the brief.** (1) `suppress()` is cell-level with `<col>_suppressed`
+> markers and an explicit, documented margin model (every proper subset of the group
+> columns is a publishable margin; a margin with exactly one hidden cell hides its
+> next-smallest published cell, preferring an already-damaged row; nested totals such as
+> `n` / `n_fit` lose the smaller one when their difference is small — amendment (b);
+> rate-like columns are blanked beside a hidden count; fixpoint; idempotent). The 2×2 →
+> two suppressed, the 3×3 → a 2×2 rectangle at fixpoint, chain mode on `[1000, 995, 400]`
+> → the drop withheld, both neighbours `~1,000`; chain mode also withholds every drop
+> beside a banded total so no exact difference survives (the rounding rule, documented).
+> (2) `check()` covers the ten extensions with the six brief codes **plus a seventh,
+> `OVERSIZE`** (image size: warn > 5 MiB, fail at the guard's 20 000 KiB bound) — the
+> brief's "(f) images: size" had no code to carry it. The band scan skips count-like and
+> telemetry columns / keys (amendment 2), Markdown / HTML tables get an exempt-header list
+> (levels, codes, versions, units, telemetry) plus the nested-total and attrition-chain
+> rules, `n = 4` is caught in prose / Mermaid / SVG / HTML text, embedded arrays are
+> extracted from whole-JSON scripts and from `"values":` / `"data":` / `Plotly.newPlot(`
+> by bracket matching. Findings are value-free (guard-style masking) and parser / engine
+> text is sanitised through `safe.sanitize_error_text` (amendment e). (3) The
+> **`safe.SUPPRESSOR` hook is `disclose.safe_suppressor`** (amendment c): complementary
+> suppression released **row-wise**, so `mwh sql`, `units.suppress_variants` and
+> `concepts.pins` keep their rows-kept-or-dropped contract; this is also where the
+> **SGT-2 decision** landed — no per-column tightening of extreme-value aggregates,
+> recorded in `docs/methods/disclosure.md` §2 and the D-31 addendum (amendment d).
+> (4) Sidecars follow the brief's schema (`mimicwarehouse.disclosure/1`; `path` = file
+> name so the pair moves together; one `checks` entry per code) and are written only for
+> a passing result. (5) The three fixtures are written by **`mwh fixtures disclose`**
+> (`fixtures/disclose.py`, `FILES` = the bytes; `test_ep43` asserts no drift): the session
+> deny rules refuse the Write tool on `*.csv`, and CLAUDE.md §2 forbids working around a
+> denial, so a generator is the one sanctioned writer, as `mwh fixtures build` is for the
+> hosp / icu tree (amendment 1's crafting rule is honoured: the ids are `9x`-band under an
+> identifier-named column, no pragma).
+>
+> **Retroactive checks (amendment a + the EP-170 acceptance line).**
+> `DATA-DICTIONARY.md` was regenerated from the full catalog with the new header line
+> (`catalog/dictionary.py`; only the header, build id `20260907T001149-full-41fbf65` and
+> build time changed — the core snapshot id is unchanged) and passes; so does
+> `docs/analyses/00-staging-benchmark.md` with its header rewritten; both sidecars are
+> committed and `test_ep43` re-verifies the pairs. EP-42's `phenotype_prevalence.md`
+> passes on both the dev run `20260907T001135Z-132f3c` and the full run
+> `20260907T001401Z-aec143` (they stay under `runs/` for EP-53; the first dev pass
+> exposed a checker bug — the prose rule read `n = 3,588.` as `n = 3` before the trailing
+> period — fixed and regression-tested). `docs/analyses/README.md`'s index and rule
+> paragraph were updated (the tracer row now says "pending promotion at EP-53").
+>
+> **Earlier tests edited (roadmap CMP-6 rule — a shipped fact legitimately changed):**
+> `test_ep30::test_small_group_suppressed_rowwise` and `::test_sql_cli_csv_format`,
+> `test_ep33_safe::test_aliased_cast_count_still_k_suppressed` and
+> `::test_union_all_allowed_audited_and_suppressed_rowwise` — the crafted small group now
+> loses its complementary `rest` row too (the old assertion `n = total − 1` *was* the
+> back-out this brief closes); `test_ep39::test_variants_on_crafted_tables_and_suppression`
+> — the `(HR, "bpm")` spelling blanks beside the small `BPM` cell (the per-itemid
+> normalised-unit total is one harmonised `count(*)` away); `test_ep29` (two pins) and
+> `test_ep32` (two pins) — the "sidecar pending EP-43" header lines became the check +
+> sidecar lines. Every earlier `mwh verify EP-k` still exits 0 (the full `poe check` gate
+> below). Behaviour change to record for sessions: `mwh sql` results may now lose
+> complementary rows as well as small ones, and a dev-tier `concepts.pins --refresh`
+> may report extra suppressed cells for the same reason (the demo pins are unaffected:
+> k = 1 there).
+>
+> **Owner decisions (end-of-session round, 2026-09-07):** (1) commit as the two-step
+> pair — done, hashes in `roadmap/README.md`; (2) **keep the complementary hook** (the
+> alternative, a primary-only hook with complementary suppression only on export, was
+> declined: a session read is a release path); (3) the fixture sidecar
+> `tests/fixtures/disclose/good_aggregate.csv.disclosure.json` that the acceptance
+> command writes (timestamp + git sha of the moment) is **ignored** — one
+> `.gitignore` line, `mimicwarehouse/tests/fixtures/disclose/*.disclosure.json`
+> (CLAUDE.md §6 change, owner-approved); (4) the **regenerated `DATA-DICTIONARY.md`** is
+> accepted as is (build id moved to the live full catalog's; the never-edit-by-hand rule
+> holds).
+>
+> **Gates:** `uv run mwh verify EP-43` 18 passed; `uv run poe check` green — ruff check,
+> ruff format --check, pyright 0 errors, pytest **1,012 passed** (44 dev/full/demo probes
+> deselected) in 535 s; `uv run poe roadmap-check --strict` 0 errors, 0 warnings;
+> `mwh guard` clean on every new and edited file. Docs: DESIGN §14 note + §15 lines, DECISIONS addenda under
+> D-31 (SGT-2), D-33 (the one implementation, the hook swap) and D-40 (the first
+> sidecars), README § State row + quick start, `final-roadmap.md` DIS-4.

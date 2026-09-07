@@ -1,0 +1,51 @@
+{
+  "schema": "mimicwarehouse.disclosure/1",
+  "path": "00-staging-benchmark.md",
+  "sha256": "3b0fc63dc8ac688513352624f2878b8c0d9aeccd1b8c98c2580c423eb372099b",
+  "size": 10046,
+  "k": 11,
+  "passed": true,
+  "checks": [
+    {
+      "code": "ID_COL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "ID_BAND",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "FREE_TEXT",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "SMALL_CELL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "EMBEDDED_ROWS",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "NO_SOURCE",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "OVERSIZE",
+      "status": "pass",
+      "detail": "clean"
+    }
+  ],
+  "n_warn": 0,
+  "allow_text": [],
+  "reviewer": "owner",
+  "timestamp": "2026-09-07T15:46:24+00:00",
+  "tool_version": "0.1.0",
+  "git_sha": "b5a9bd8"
+}

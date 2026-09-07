@@ -15,7 +15,10 @@
   ``README.md``, :func:`build_frames`, :func:`build_and_write`;
 - :mod:`mimicwarehouse.fixtures.catalog` - :func:`build_fixture_catalog` (in-memory DuckDB over
   the 31 fixture CSVs with contract types - the ``fixture`` pytest tier until EP-21);
-- :mod:`mimicwarehouse.fixtures.cli` - ``mwh fixtures build [--out] [--seed] [--subjects]``.
+- :mod:`mimicwarehouse.fixtures.cli` - ``mwh fixtures build [--out] [--seed] [--subjects]``
+  and ``mwh fixtures disclose [--out]`` (EP-43);
+- :mod:`mimicwarehouse.fixtures.disclose` - the three hand-typed disclosure-gate fixtures
+  under ``tests/fixtures/disclose/`` (:data:`FILES`, :func:`write_disclose_fixtures`).
 
 Public names are re-exported **lazily** (module ``__getattr__``): ``mimicwarehouse.cli`` imports
 :mod:`mimicwarehouse.fixtures.cli` at start-up and must not drag numpy / polars / pydantic models

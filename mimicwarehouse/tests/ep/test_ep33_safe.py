@@ -138,8 +138,9 @@ def test_cast_closed_set_refused(fixture_lake_settings: Settings, sql: str, frag
 
 def test_aliased_cast_count_still_k_suppressed(fixture_lake_settings: Settings) -> None:
     result = safe_query(SMALL_GROUP_CAST_SQL, tier="fixture", settings=fixture_lake_settings)
-    assert result.rows_suppressed == 1
-    assert result.df["age_bucket"].to_list() == ["rest"]
+    # EP-43: complementary — the 'rest' row leaves with the crafted cell (test_ep30)
+    assert result.rows_suppressed == 2
+    assert result.df["age_bucket"].to_list() == []
 
 
 # ---------------------------------------------------------------------------
@@ -203,11 +204,13 @@ def test_union_all_allowed_audited_and_suppressed_rowwise(fixture_lake_settings:
         f"FROM {HOSP}.patients"
     )
     result = safe_query(sql, tier="fixture", settings=fixture_lake_settings)
-    assert result.rows_suppressed == 1  # the 'index' row of branch 1
+    # EP-43: the 'index' row of branch 1 and, complementarily, the 'rest' row (the 'all'
+    # total published beside it would back the cell out); the combined frame is one margin
+    assert result.rows_suppressed == 2
     rows = dict(zip(result.df["age_bucket"].to_list(), result.df["n"].to_list(), strict=True))
-    assert rows == {"rest": N_SUBJECTS - 1, "all": N_SUBJECTS}
+    assert rows == {"all": N_SUBJECTS}
     last = _audit_lines(fixture_lake_settings)[-1]
-    assert last["allowed"] is True and last["rows_suppressed"] == 1 and last["n_rows"] == 2
+    assert last["allowed"] is True and last["rows_suppressed"] == 2 and last["n_rows"] == 1
 
 
 @pytest.mark.parametrize(

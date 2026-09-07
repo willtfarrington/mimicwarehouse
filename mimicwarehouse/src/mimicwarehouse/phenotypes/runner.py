@@ -162,7 +162,9 @@ SMALL_CELL = "<k"
 PREVALENCE_REPORT = "phenotype_prevalence.md"
 CLAIM_TYPE = "exploratory"
 RETROSPECTIVE_SENTENCE = "MIMIC-IV analyses are retrospective."
-SIDECAR_PENDING = "Disclosure sidecar pending EP-43"
+#: The header line's disclosure sentence (the name dates from EP-42, when the sidecar was
+#: pending; since EP-43 it names the gate the file must pass before promotion).
+SIDECAR_PENDING = "Disclosure: run `mwh disclose check --write-sidecar` before promoting this file"
 
 _COLUMN_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -1449,7 +1451,7 @@ def _count_text(value: int | None, k: int) -> str:
 def render_prevalence_report(report: PrevalenceReport) -> str:
     """``phenotype_prevalence.md`` (module docstring): ASCII, every integer through
     ``fmt_int``, no identifier column anywhere, the claim-type label, the retrospective
-    statement and the "sidecar pending EP-43" line in the header."""
+    statement and the disclosure line (:data:`SIDECAR_PENDING`) in the header."""
     from mimicwarehouse.inventory import fmt_int
 
     k = report.k
@@ -1458,10 +1460,10 @@ def render_prevalence_report(report: PrevalenceReport) -> str:
         "",
         f"**Claim type: {CLAIM_TYPE}.** {RETROSPECTIVE_SENTENCE}",
         "",
-        f"{SIDECAR_PENDING} - every number below came through `safe_query` (row-wise "
-        f"k = {fmt_int(k)} suppression: a row with any count in 1..{fmt_int(k - 1)} is "
-        "dropped; audited), so `mwh disclose check` verifies this file retroactively once "
-        "EP-43 ships (EP-42 amendment, D-43 item 14).",
+        f"{SIDECAR_PENDING} - every number below came through `safe_query` (k = "
+        f"{fmt_int(k)} suppression through the `disclose` hook: a row with any count in "
+        f"1..{fmt_int(k - 1)}, or a row that would let such a cell be backed out, is "
+        "withheld; audited), so the check is a re-verification (EP-42 amendment, EP-43).",
         "",
         f"Run `{report.run_id or '-'}` - tier `{report.tier}` - core snapshot "
         f"`{report.snapshot_id or '-'}` - generated {report.generated or '-'} - "

@@ -27,7 +27,8 @@ from mimicwarehouse.console import EXIT_FINDINGS, EXIT_USAGE, console, emit_json
 fixtures_app = typer.Typer(
     name="fixtures",
     help="Synthetic mini-MIMIC fixture generator (ids >= 90 000 000, D-27): "
-    "build [--out] [--seed] [--subjects]. Writes tests/fixtures/ in the checkout - never data.",
+    "build [--out] [--seed] [--subjects]; disclose [--out] (EP-43 gate fixtures). "
+    "Writes tests/fixtures/ in the checkout - never data.",
     no_args_is_help=True,
     rich_markup_mode="rich",
 )
@@ -110,6 +111,33 @@ def build_command(
         f"manifest {escape(str(result.manifest_path))}",
         highlight=False,
     )
+
+
+@fixtures_app.command("disclose")
+def disclose_command(
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            help="Output directory (default: <workspace>/tests/fixtures/disclose).",
+            show_default=False,
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Machine-readable summary.")] = False,
+) -> None:
+    """Write the three synthetic disclosure-gate fixtures (EP-43): bad_ids.csv,
+    bad_small_cell.md, good_aggregate.csv (byte-identical on every run)."""
+    from mimicwarehouse.fixtures.disclose import write_disclose_fixtures
+
+    try:
+        written = write_disclose_fixtures(out)
+    except OSError as exc:
+        fail("mwh fixtures", f"cannot write disclose fixtures: {exc}", code=EXIT_FINDINGS)
+    if as_json:
+        emit_json({"files": [str(p) for p in written]})
+        return
+    for path in written:
+        console.print(f"wrote {escape(str(path))} ({path.stat().st_size:,} bytes)", highlight=False)
 
 
 __all__ = ["fixtures_app"]

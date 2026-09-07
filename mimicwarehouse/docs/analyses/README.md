@@ -44,15 +44,18 @@ Near the top, before **Question**, every case study carries a **claim-type label
 
 Every case study, and every table or figure it embeds, passes
 `uv run --group dev mwh disclose check <path>` and carries a `.disclosure.json`
-sidecar (EP-43). Files written before EP-43 exists state "disclosure sidecar pending
-EP-43" in their header; EP-43 checks them retroactively and adds the sidecars.
-Until EP-43, nothing derived from patient-level data enters this directory — build
+sidecar (EP-43; the rules and codes are in [../methods/disclosure.md](../methods/disclosure.md)).
+Files written before EP-43 existed stated "disclosure sidecar pending EP-43" in their
+header; EP-43 checked them retroactively (2026-09-07) and added the sidecars, and
+`test_ep43` re-verifies every committed pair. After regenerating a note,
+re-run `mwh disclose check <path> --write-sidecar` so the sidecar's sha256 matches.
+Before EP-43, nothing derived from patient-level data entered this directory — build
 telemetry (counts also published in the vendored `validate.sql`, bytes, timings, RSS,
-file counts) is the one admissible content class (GOVERNANCE §3 manifests rule).
+file counts) was the one admissible content class (GOVERNANCE §3 manifests rule).
 
 ## Index
 
 | # | Case study | Claim type | Status |
 |---|---|---|---|
-| 00 | [Staging benchmark](00-staging-benchmark.md) | exploratory (build telemetry) | committed; disclosure sidecar pending EP-43 |
-| — | Tracer bullet: first-ICU-stay adults → in-hospital mortality (EP-31) | associational (exploratory) | **pending promotion at EP-43/EP-53** — report stays under `runs/tracer/` (full-tier run `20260830T011037-full`, dev run `20260830T011025-dev`); no results copied here |
+| 00 | [Staging benchmark](00-staging-benchmark.md) | exploratory (build telemetry) | committed; passed `mwh disclose check` at EP-43, sidecar `00-staging-benchmark.md.disclosure.json` |
+| — | Tracer bullet: first-ICU-stay adults → in-hospital mortality (EP-31) | associational (exploratory) | **pending promotion at EP-53** (EP-43 shipped the gate; the report's cohort table is the chain-rule regression case `disclose.suppress(mode="chain")` resolves) — report stays under `runs/tracer/` (full-tier run `20260830T011037-full`, dev run `20260830T011025-dev`); no results copied here |

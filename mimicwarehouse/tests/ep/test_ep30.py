@@ -176,14 +176,15 @@ def test_unknown_tier_is_an_error_not_a_refusal(fixture_lake_settings: Settings)
 
 def test_small_group_suppressed_rowwise(fixture_lake_settings: Settings) -> None:
     result = safe_query(SMALL_GROUP_SQL, tier="fixture", settings=fixture_lake_settings)
-    assert result.rows_suppressed == 1
-    assert result.n_rows == 1
-    assert result.df["age_bucket"].to_list() == ["rest"]
-    assert int(result.df["n"][0]) == N_SUBJECTS - 1  # the subjects minus the crafted cell
+    # EP-43: the hook is complementary — the 'rest' row (N_SUBJECTS - 1, with the total a
+    # trivial second query away) would back the crafted cell out, so it is withheld too
+    assert result.rows_suppressed == 2
+    assert result.n_rows == 0
+    assert result.df["age_bucket"].to_list() == []
     assert result.k == 11
     last = _audit_lines(fixture_lake_settings)[-1]
     assert last["allowed"] is True
-    assert last["rows_suppressed"] == 1 and last["n_rows"] == 1
+    assert last["rows_suppressed"] == 2 and last["n_rows"] == 0
     assert last["snapshot_ids"].get("core"), "audit carries the {layer: id} dict (ARCH-6)"
     assert result.snapshot_id == last["snapshot_ids"]["core"]
 
@@ -362,8 +363,9 @@ def test_sql_cli_csv_format(fixture_lake_settings: Settings) -> None:
         )
         assert result.exit_code == 0, result.output
         assert "age_bucket,n" in result.output
-        assert f"rest,{N_SUBJECTS - 1}" in result.output
         assert "index" not in result.output, "the small cell stays suppressed in CSV too"
+        # EP-43: the complementary 'rest' row is withheld as well (see test_small_group_*)
+        assert f"rest,{N_SUBJECTS - 1}" not in result.output
     finally:
         config.configure()
 

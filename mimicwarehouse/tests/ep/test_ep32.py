@@ -240,7 +240,7 @@ def test_convention_doc_required_content() -> None:
 
 def test_convention_index_tracer_row_is_pending_only() -> None:
     text = CONVENTION.read_text(encoding="utf-8")
-    assert "pending promotion at EP-43/EP-53" in text
+    assert "pending promotion at EP-53" in text  # EP-43 shipped the gate; EP-53 promotes
     assert "20260830T011037-full" in text, "tracer full-tier run id missing from the index"
     assert "runs/tracer/" in text and "no results copied" in text
 
@@ -257,7 +257,9 @@ def test_benchmark_note_required_content() -> None:
         "## Provenance",
     ):
         assert heading in text, f"00-staging-benchmark.md is missing {heading!r}"
-    assert "Disclosure sidecar pending EP-43" in text
+    # EP-43: the pending line became the check + sidecar line (the sidecar is committed)
+    assert "00-staging-benchmark.md.disclosure.json" in text
+    assert "sidecar pending" not in text.lower()
     assert "Claim type: exploratory" in text
     assert "MIMIC-IV" in text and "retrospective" in text
     assert text.count(MARK_BEGIN) == 1 and text.count(MARK_END) == 1

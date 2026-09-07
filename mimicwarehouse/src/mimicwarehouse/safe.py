@@ -57,7 +57,9 @@ From this module on, *every* result a Claude session or an export can see comes 
    only; on ``dev``/``full`` a ``k`` below 11 is refused (D-31/D-33); on
    ``fixture``/``demo`` (synthetic / ODbL) the caller may lower it. Extreme-value
    aggregates (``min`` / ``max`` / ``mode`` / ``median`` / quantiles) stay admitted and are
-   released only inside k-gated rows (SGT-2, owner decision).
+   released only inside k-gated rows (SGT-2, owner decision; since EP-43 the gate is
+   complementary — a row needed to keep a small cell from being backed out is withheld
+   too, ``docs/methods/disclosure.md``).
 
 Errors are three-way (EP-33 B1d): :class:`SafeQueryRefused` is a governance verdict
 (exit :data:`EXIT_REFUSED` = 3), raised **after** auditing; :class:`SafeQueryError` is a
@@ -87,10 +89,14 @@ ledger views need a real count-family column like any subject-level read, and a
 
 **Suppression hook contract**: :data:`SUPPRESSOR` is a module-level
 ``Callable[[polars.DataFrame, int, list[str]], tuple[polars.DataFrame, int]]`` —
-``(df, k, count_columns) -> (suppressed_df, rows_suppressed)``. The default
-(:func:`rowwise_suppress`) drops every row in which any count-family column has a value
-in ``1 .. k-1``. EP-43 replaces it with ``disclose.suppress`` (complementary
-suppression) by assigning the module attribute; callers never bypass it.
+``(df, k, count_columns) -> (suppressed_df, rows_suppressed)``. Since EP-43 the
+default is :func:`mimicwarehouse.disclose.safe_suppressor` — ``disclose.suppress``
+(complementary suppression: a margin with exactly one small cell also loses its
+next-smallest cell, two nested totals whose difference is small lose the smaller one)
+released **row-wise**: every row with a hidden cell is withheld, so the extreme-value
+aggregates it carries leave with it (SGT-2, D-31 addendum). :func:`rowwise_suppress`
+(the EP-30 primary-only rule) stays importable for comparison and tests; callers never
+bypass the hook, and a test may still swap it by assigning the module attribute.
 
 Owner row viewing is **not** here — that is the app's audited ``owner_rows()`` path
 (EP-58); this module behaves the same for every role.
@@ -116,6 +122,7 @@ from pydantic import BaseModel, ConfigDict
 
 from mimicwarehouse.config import Settings, Tier, get_settings
 from mimicwarehouse.console import EXIT_REFUSED, EXIT_USAGE
+from mimicwarehouse.disclose import safe_suppressor
 
 if TYPE_CHECKING:  # pragma: no cover
     import polars
@@ -370,15 +377,16 @@ def _git_sha() -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Suppression hook (item 2) — EP-43 replaces SUPPRESSOR with disclose.suppress
+# Suppression hook (item 2) — since EP-43 the default is disclose.safe_suppressor
 # ---------------------------------------------------------------------------
 
 
 def rowwise_suppress(
     df: polars.DataFrame, k: int, count_columns: list[str]
 ) -> tuple[polars.DataFrame, int]:
-    """The default row-wise rule: drop every row in which any numeric count-family
-    column has a value in ``1 .. k-1``; return ``(kept, dropped_count)``."""
+    """The EP-30 primary-only rule: drop every row in which any numeric count-family
+    column has a value in ``1 .. k-1``; return ``(kept, dropped_count)``. Kept for
+    comparison — the live hook is :func:`mimicwarehouse.disclose.safe_suppressor`."""
     import polars as pl
 
     cols = [c for c in count_columns if c in df.columns and df.schema[c].is_numeric()]
@@ -390,7 +398,7 @@ def rowwise_suppress(
 
 
 SUPPRESSOR: Callable[[polars.DataFrame, int, list[str]], tuple[polars.DataFrame, int]] = (
-    rowwise_suppress
+    safe_suppressor
 )
 
 

@@ -7,7 +7,8 @@ set (the ``# --- commands`` block below is authoritative; retro CLI-4):
 :mod:`mimicwarehouse.canary`) · ``catalog``/``sql`` (EP-21, :mod:`mimicwarehouse.catalog.cli`;
 since EP-30 ``sql`` routes everything through ``safe_query`` — aggregate-only, audited,
 refusals exit 3) · ``codeset`` (EP-40, :mod:`mimicwarehouse.codesets.cli`) · ``demo``
-(EP-22, :mod:`mimicwarehouse.demo`) · ``doctor`` (EP-2,
+(EP-22, :mod:`mimicwarehouse.demo`) · ``disclose`` (EP-43, :mod:`mimicwarehouse.disclose`;
+the release gate: ``check`` / ``verify``) · ``doctor`` (EP-2,
 :mod:`mimicwarehouse.doctor`) · ``fixtures`` (EP-11, :mod:`mimicwarehouse.fixtures.cli`) ·
 ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``inventory`` (EP-10,
 :mod:`mimicwarehouse.inventory`) · ``paths`` (EP-3, :mod:`mimicwarehouse.config`) ·
@@ -58,6 +59,7 @@ from mimicwarehouse.config import Settings, paths_command
 from mimicwarehouse.console import EXIT_USAGE, err_console, fail
 from mimicwarehouse.dag.cli import build_command, jobs_command
 from mimicwarehouse.demo import demo_app
+from mimicwarehouse.disclose import disclose_app
 from mimicwarehouse.doctor import doctor_command
 from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
@@ -188,6 +190,7 @@ app.add_typer(canary_app, name="canary")
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(codeset_app, name="codeset")
 app.add_typer(demo_app, name="demo")
+app.add_typer(disclose_app, name="disclose")
 app.command("doctor")(doctor_command)
 app.add_typer(fixtures_app, name="fixtures")
 app.command("guard")(guard_command)

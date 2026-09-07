@@ -718,6 +718,20 @@ same access as the owner.
 > need them; the k-row gate is the standard release condition), or a separate brief
 > (rejected: nothing to build until EP-43's module exists).
 
+> **Addendum (2026-09-07, EP-43 — SGT-2 decided in the `disclose` module).** No
+> per-column tightening: extreme-value aggregates over subject-keyed columns stay
+> admitted, because the hook that now gates every `safe_query` result
+> (`safe.SUPPRESSOR = disclose.safe_suppressor`) releases **complementary** suppression
+> **row-wise** — a row with any hidden count cell is withheld, and so is any row a
+> published margin or a nested total (`n` / `n_fit`) would use to back that cell out — so a
+> `max(x)` can only leave inside a group of at least `k` units that no margin shrinks. The
+> residual risk (an extreme value that describes one member of a group of eleven) is the
+> one D-33 accepts; dates are patient-shifted. Recorded in `docs/methods/disclosure.md` §2
+> per the EP-33 amendment (d). *Alternatives:* refusing `min` / `max` over subject-keyed
+> non-count columns in the checker (rejected: the tracer's descriptives, EP-44's QC and
+> EP-71's Table 1 need them, and the row gate already binds them); coarsening extreme
+> values to bands (parked with the DP item, DIS-1).
+
 **D-32 Row display allowed in-app for the owner** behind an explicit toggle with audit
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
 unrestricted.
@@ -770,6 +784,30 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > hook) until EP-43 replaces it — no second implementation in a brief. *Alternatives:*
 > wait for EP-43 before writing any artefact (loses the acceptance record); an ad-hoc
 > complementary rule in the renderer (a second implementation; parked as PHE-9).
+
+> **Addendum (2026-09-07, EP-43 — the one implementation, and what "complementary"
+> means here).** `mimicwarehouse.disclose.suppress` is the implementation GOVERNANCE §5
+> promised: cells in `0 < n < k` are nulled with `<col>_suppressed` markers, and
+> complementary suppression follows an explicit margin model — within a count column
+> every proper subset of the group columns is a publishable margin (the whole column when
+> there is at most one group column, because the grand total is one `count(*)` away), a
+> margin with exactly one hidden cell hides its next-smallest published cell, two nested
+> count columns whose published difference lies in `(0, k)` lose the smaller one, rates
+> are blanked beside a hidden count, chain mode bands the totals around a withheld
+> attrition drop (`~1,000`, nearest 10), and the call is idempotent. **The safe-query
+> hook is swapped** (EP-33 amendment c): `mwh sql` and every `safe_query` caller now
+> lose complementary rows as well as small ones — the crafted small group of `test_ep30`
+> (one subject at the minimum age against a published patient total) loses its `rest`
+> row, which the pre-EP-43 test had asserted *survives* with `n = total - 1`; that
+> assertion was the leak this decision closes, so `test_ep30`, `test_ep33_safe` (and the
+> pending-header pins in `test_ep29` / `test_ep32`) were updated with the reason in
+> the EP-43 completion note (roadmap CMP-6 rule). Rows are withheld, never nulled, on
+> the hook path so `units.suppress_variants` and `concepts.pins` keep their EP-39 / EP-37
+> contract. *Why:* one mechanism, and the EP-31 "n vs n_fit" back-out had shown that
+> primary-only suppression is not the GOVERNANCE §5 rule. *Alternatives:* keep the hook
+> primary-only and apply complementary suppression only on export (rejected: a session
+> is a release path, GOVERNANCE §4); functional-dependency-aware margins (parked,
+> DIS-4: the subset model over-protects rather than under-protects).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
@@ -1009,6 +1047,20 @@ PreToolUse output-scanning hook is parked. *Alternatives:* prose only; hook.
 > nothing else derived from real data enters `docs/` or git. CLAUDE.md §5's blanket
 > sentence gains the one-line manifest exception with EP-167's commit (pickup note on that
 > brief); no retro-fit sidecar for `raw-inventory.md`.
+
+> **Addendum (2026-09-07, EP-43 — the gate exists; the first sidecars).** `mwh disclose
+> check` (codes `ID_COL` `ID_BAND` `FREE_TEXT` `SMALL_CELL` `EMBEDDED_ROWS` `NO_SOURCE`
+> `OVERSIZE`) and `mwh disclose verify` ship; a sidecar is written only for a passing
+> result and names the artefact's sha256, so an edited artefact fails `verify` until it
+> is re-checked. The two pre-EP-43 exceptions got their retroactive sidecars (EP-33
+> amendment a): `DATA-DICTIONARY.md` (regenerated from the full catalog with the new
+> header line, then checked) and `docs/analyses/00-staging-benchmark.md`; both pairs are
+> committed and `test_ep43` re-verifies them. EP-42's `runs/<run_id>/phenotype_prevalence.md`
+> (the dev and full runs of 2026-09-07) pass the check; they stay under the data root for
+> EP-53 to promote. The fixture sidecar the acceptance command writes
+> (`tests/fixtures/disclose/good_aggregate.csv.disclosure.json`) is **not** committed —
+> it carries a timestamp and the git sha of the moment — and the three gate fixtures are
+> written by `mwh fixtures disclose`, never by hand.
 
 **D-41 MIT now; repo public at v1.0.0 after a full-history guard sweep.**
 *Alternatives:* public from day one; private indefinitely.

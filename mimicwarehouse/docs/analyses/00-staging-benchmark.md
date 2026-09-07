@@ -1,7 +1,10 @@
 # 00 — Staging benchmark: raw CSV → core lake (P2)
 
-> Build telemetry only — no patient-level aggregates. Disclosure sidecar pending EP-43
-> (checked retroactively; see [README.md](README.md)).
+> Build telemetry only — no patient-level aggregates. Passed `mwh disclose check` at EP-43
+> (the retroactive check of EP-33 amendment a; see [README.md](README.md)); the sidecar
+> `00-staging-benchmark.md.disclosure.json` sits beside this file — re-run
+> `mwh disclose check docs/analyses/00-staging-benchmark.md --write-sidecar` after
+> regenerating the table.
 
 **Claim type: exploratory** (build telemetry; single machine, single runs). All MIMIC-IV
 analyses in this project are retrospective.

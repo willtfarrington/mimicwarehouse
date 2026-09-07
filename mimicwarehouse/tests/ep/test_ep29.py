@@ -334,7 +334,9 @@ def test_dictionary_header_and_sections(
     assert info is not None
     assert _dictionary_build_id(dictionary_text) == info[0]
     assert info[1] in dictionary_text and info[2] in dictionary_text
-    assert "Disclosure sidecar pending EP-43" in dictionary_text
+    # EP-43: the pending line became the check + sidecar line
+    assert "mwh disclose check" in dictionary_text and ".disclosure.json" in dictionary_text
+    assert "sidecar pending" not in dictionary_text.lower()
     assert "anchor_year_group" in dictionary_text and "91" in dictionary_text
     for table in _hosp_icu_tables(contract):
         assert f"### {table.qualified_name}\n" in dictionary_text
@@ -478,4 +480,4 @@ def test_committed_dictionary_matches_full_catalog(full_catalog: Path) -> None:
         con.close()
     assert info is not None and info[1] == "full"
     assert _dictionary_build_id(text) == info[0]
-    assert "Disclosure sidecar pending EP-43" in text
+    assert ".disclosure.json" in text and "sidecar pending" not in text.lower()  # EP-43

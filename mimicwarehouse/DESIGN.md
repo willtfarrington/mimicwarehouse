@@ -1108,6 +1108,44 @@ schema (GOVERNANCE §3); the two P2 exceptions that carry telemetry only —
 
 *History:* planning text (2026-08-16), reconciled with EP-29/31/32's pending-sidecar consumers and EP-30's hook; EP-43 planned; consolidated at EP-33.
 
+> **Note (2026-09-07, EP-43) — `disclose.py` as built.** One module on the `mwh --help`
+> path (polars / pandas / yaml parsing and `safe` load inside function bodies;
+> `FREE_TEXT_MAX_CHARS` mirrors `safe.FREE_TEXT_MAX_CHARS` the way `tracer` does).
+> **`suppress`** is cell-level with marker columns (`<col>_suppressed`) and a
+> `SuppressionReport` (`n_primary`, `n_complementary`, `n_banded`, `cells`,
+> `rows_suppressed`); its margin model is explicit and documented rather than
+> functional-dependency-aware: within one count column every proper subset of the group
+> columns (the grand total included; the whole column when there is at most one group
+> column) is a publishable margin, a margin with exactly one hidden cell hides its
+> next-smallest published cell (preferring an already-damaged row), two nested count
+> columns (`n` / `n_fit`, `n_units` / `n_positive`) whose published difference is small
+> lose the smaller one, rate-like columns are blanked beside a hidden count, and the
+> loop runs to a fixpoint; **chain mode** (EP-48) withholds a drop in `(0, k)`, bands both
+> adjacent totals to the nearest 10 (`~1,000`) and publishes a drop only between two
+> exact totals. **The hook** `safe.SUPPRESSOR = disclose.safe_suppressor` releases the
+> same suppression row-wise (a row with any hidden cell is withheld), which keeps the
+> `mwh sql` / `units.suppress_variants` / `concepts.pins` contract of EP-30 (rows kept or
+> dropped, never nulled) and records the SGT-2 decision: no per-column tightening of
+> extreme-value aggregates, because every such value leaves only inside a k-gated,
+> complementarily protected row. **`check`** dispatches on the extension: frames
+> (`check_frame`), a structural JSON / YAML walk (record arrays are sized then checked as
+> frames; identifier keys and band integers under non-count keys refused), Markdown /
+> HTML text tables (`check_table`: exempt-header list for levels / codes / telemetry,
+> nested-total and attrition-chain rules), the guard's line scanner for band literals
+> (`guard.id_band_hits`, masked examples), the `n = 4` prose rule, `<script>` array
+> extraction (whole-JSON scripts, `"values":` / `"data":` / `Plotly.newPlot(` values by
+> bracket matching), the figure → sibling-source rule (`NO_SOURCE`) and image size
+> (`OVERSIZE`, a seventh code beyond the brief's six). Findings are value-free and any
+> parser / engine text is sanitised (`safe.sanitize_error_text`). The sidecar is
+> `mimicwarehouse.disclosure/1` (`path` = file name so the pair moves together; one
+> `checks` entry per code); `verify` re-hashes. `mwh disclose` is **not** a
+> `DIAGNOSTIC_COMMANDS` member: it opens only the paths it is given, but `--k` defaults
+> to `settings.k_suppression`, so the settings validate as for every non-diagnostic
+> command. The three committed fixtures under `tests/fixtures/disclose/` are written by
+> `mwh fixtures disclose` (the session deny rules refuse the Write tool on `*.csv`, so a
+> generator is the one sanctioned writer, as for the hosp / icu tree). Prose twin:
+> `docs/methods/disclosure.md`.
+
 ## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
 The shipped-vs-planned map as of EP-33. Shipped rows name the EPs that built and last
@@ -1118,7 +1156,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol disclose backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1127,7 +1165,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── verify.py                  EP-6, EP-167 shipped   `mwh verify EP-n | --list | --roadmap`; roadmap_check
 │   ├── schema/                    EP-9, EP-169 shipped   contract.py, transcribe.py, csv_dialect.py, cli.py; tables/*.yaml package data
 │   ├── inventory.py               EP-10, EP-167 shipped  raw manifest + raw_snapshot_id; fmt_int / fmt_bytes_mb
-│   ├── fixtures/                  EP-11/12, EP-169 shipped   spec, vocab, hosp, icu, check, write, catalog, cli
+│   ├── fixtures/                  EP-11/12, EP-169, EP-43 shipped   spec, vocab, hosp, icu, check, write, catalog, cli (+ `mwh fixtures disclose`), disclose (the EP-43 gate fixtures)
 │   ├── canary.py                  EP-171 shipped write canary (synthetic write-shape rehearsal; raw-OS sequence kept on purpose)
 │   ├── fsio.py                    EP-33 shipped  the JSONL ledger canon + atomic_write_text
 │   ├── publish.py                 EP-17/21 → EP-33 shipped   the one rename-aside publish primitive (swap_dir, swap_file, retry helpers); supersedes paths.py and catalog.build.swap_catalog
@@ -1145,7 +1183,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── units.py                   EP-39 shipped  curated item catalogue (data/item_units.yaml), normalize_unit + affine FORMULAS, harmonize / harmonize_frame / plausible_mask / bounds, the mwh_harmonize macro family (CATALOG_EXTENSIONS entry), the units.* DAG steps (dag/specs/units.yaml -> meta.item_units / item_unit_variants / item_dictionary), report + `mwh units`, docs/methods/units.md renderer
 │   ├── codesets/                  EP-40 shipped  spec (CodeSet, def_hash, id@version refs), registry (defs/*.yaml + codesets.lock.json, dictionary expansion, the codesets.compile step -> meta.codesets / meta.codeset_members, register_codesets extension, validate, docs/methods/codesets.md renderer), gem (CMS 2018 GEM fetch + source.yaml, parser, forward / backward, the codesets.gem step -> meta.gem_i9_to_i10 / meta.gem_i10_to_i9, the .gem-review.md author aid), cli (`mwh codeset`)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
-│   ├── disclose.py                EP-43
+│   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
 │   ├── qc/                        EP-44/45 profiles, measurement process
 │   ├── cohort/                    EP-46/47/48 spec, compiler, attrition
 │   ├── timeline.py                EP-49

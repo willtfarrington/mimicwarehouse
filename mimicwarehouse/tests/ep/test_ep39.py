@@ -503,12 +503,16 @@ def test_variants_on_crafted_tables_and_suppression(monkeypatch: pytest.MonkeyPa
     published = units.suppress_variants(shrunk, 11)
     assert published.columns == [c for c, _t in VARIANTS_COLUMNS if c not in ("tier", "build_id")]
     rows = {(r["itemid"], r["valueuom"]): r for r in published.rows(named=True)}
-    for key in ((HR, None), (HR, "BPM")):
+    # EP-43: the hook is complementary — the two small HR cells blank, and so does the
+    # (HR, "bpm") spelling, because the per-itemid normalised-unit total (bpm + BPM, one
+    # harmonised count(*) away) would otherwise back the BPM cell out
+    for key in ((HR, None), (HR, "BPM"), (HR, "bpm")):
         small = rows[key]
         assert small["suppressed"] is True and small["n_rows"] is None, key
         assert small["share"] is None, key
-    assert rows[(HR, "bpm")]["suppressed"] is False and rows[(HR, "bpm")]["n_rows"] == 30
-    assert _close(rows[(HR, "bpm")]["share"], 1.0), "share is over the released rows"
+    assert rows[(TEMP_F, "°F")]["suppressed"] is False and rows[(TEMP_F, "°F")]["n_rows"] == 12
+    assert rows[(CREATININE, "mg/dL")]["suppressed"] is False
+    assert _close(rows[(CREATININE, "mg/dL")]["share"], 20 / 35), "share over the released rows"
     assert all(r["k"] == 11 for r in rows.values())
     released = published.filter(~pl.col("suppressed"))
     for _itemid, group in released.group_by("itemid"):
