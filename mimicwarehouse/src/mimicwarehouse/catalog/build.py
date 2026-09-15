@@ -66,6 +66,7 @@ from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot
 from mimicwarehouse.loader.manifest import read_status, utc_now_iso
 from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
 from mimicwarehouse.phenotypes.runner import register_phenotypes as _phenotypes_register
+from mimicwarehouse.qc.profile import register_qc as _qc_register
 from mimicwarehouse.timesem import create_views as _timesem_create_views
 from mimicwarehouse.units import register_units as _units_register
 
@@ -100,13 +101,17 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: ``meta.codeset_members`` / ``meta.gem_*`` tables the walker registered), EP-41's
 #: ``phenotypes.runner.register_phenotypes`` (``mimiciv_derived.phenotype_<id>`` = the
 #: latest built version over the walker's ``phenotypes."<id>@<version>"`` views, the
-#: ``_hadm`` companions, the ``meta.phenotype_versions`` comment) and EP-39's
+#: ``_hadm`` companions, the ``meta.phenotype_versions`` comment), EP-44's
+#: ``qc.profile.register_qc`` (comments on the ``meta.qc_*`` tables the walker
+#: registered; slotted between the code sets and the phenotypes so the EP-39 / EP-41
+#: order pins — units last, phenotypes second to last — hold) and EP-39's
 #: ``units.register_units`` (the ``mwh_harmonize`` macro family + comments on the
 #: ``meta.item_*`` tables) run after it, ``units`` last.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
     _codesets_register,
+    _qc_register,
     _phenotypes_register,
     _units_register,
 ]

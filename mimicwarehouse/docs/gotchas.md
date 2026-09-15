@@ -88,6 +88,21 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   took 14.1 s; the per-bucket sorts of pass 2 dominate staging (pass 2 ≥ pass 1 on most
   large tables). Size estimates by *shape*, not by CSV GB — VARCHAR-heavy tables
   (emar_detail) are CSV-parse-bound at ~14 MB/s. *(EP-24/EP-28/EP-29.)*
+- **The concept runner's source views are cached per build connection.**
+  `concepts.runner.ensure_source_views` creates `<schema>.<table>` views once per build
+  for the tables complete *at that moment* and remembers the count in `ctx.state`; a
+  step that runs after a later stage step (the session fixture lake orders a concept
+  before `stage.emar_detail`) then finds no view for the newly staged table. A handler
+  that needs a specific table creates its own view (`qc.profile.ensure_table_views`,
+  uncached, `CREATE OR REPLACE VIEW`) instead of trusting the cache. *(EP-44; the
+  session-lake build failure of `qc.profile.mimiciv_hosp.emar_detail`.)*
+- **A `count(*)` over a registry table still meets the safe-query suppressor.** The
+  `meta.*` exemption waives the *count-column requirement*, not the k-rule over a count
+  column that is present: `SELECT check_id, status, count(*) AS n FROM meta.qc_checks
+  GROUP BY 1, 2` loses every `(check, status)` pair with fewer than 11 rows (and its
+  complementary neighbours). Read the plain columns and count in Python (`mwh qc
+  status`), or accept that the grouped counts are about *rows of a registry table* and
+  still get suppressed. *(EP-44.)*
 
 ## 2. Windows process and file-system reality
 

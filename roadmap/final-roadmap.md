@@ -24,6 +24,8 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 |---|---|---|---|
 | great_expectations / pandera declarative suites | if hand-rolled DuckDB checks sprawl | extra framework; overlap with `mwh verify` | v2 QC-1 |
 | Data-quality dashboards over time (drift of profiles across builds) | after ≥ 3 full rebuilds | needs build history | v2 QC-2 |
+| Era-stratified QC checks (every `meta.qc_checks` metric by `anchor_year_group`, e.g. unit variants or store-lag rates drifting across eras; EP-44 uses `timesem.ERAS` for coverage only) | when EP-45's care-unit × era structural map shows era effects worth chasing, or EP-61's browser wants an era axis | five-fold check matrix; the joins to `patients` on every event table; suppression per era cell | v2 QC-3 |
+| Multi-column foreign keys and the documented links `keys.yaml` leaves to integrity tests (`emar -> poe`, `transfers -> admissions`, ICD codes -> `d_icd_*` with `icd_version`) in `fk_orphans` (EP-44 checks the single-column `constraint.sql` keys only) | when a cohort builder relies on one of those joins | composite anti-joins over the large tables; the ED / Note `source: docs` keys arrive with EP-142 / EP-148 | v2 QC-4 |
 
 ## 2 Reproducible cohort construction
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

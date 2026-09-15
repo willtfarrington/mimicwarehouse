@@ -809,6 +809,28 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > is a release path, GOVERNANCE §4); functional-dependency-aware margins (parked,
 > DIS-4: the subset model over-protects rather than under-protects).
 
+> **Addendum (2026-09-14, EP-44 — QC counts inside registry tables, and a report born
+> suppressed).** The four `meta.qc_*` tables follow the EP-39 rule above (suppress when
+> the table is **built**, because `meta.*` is read unsuppressed through `mwh sql`):
+> `meta.qc_checks.n_affected` in `0 < n < k` is blanked with `n_affected_suppressed =
+> true` **and its metric `value` is blanked beside it** (a share over a public row count
+> would restore the count); `meta.qc_topk` — the only value-level counts the profile
+> keeps, and only for dictionary-coded columns — goes through `disclose.suppress`
+> per column, complementary (a lone small value takes its next-smallest neighbour; `share`
+> blanked beside a hidden `n`); the raw twins stay under `lake/meta/<tier>/raw/` (never
+> walked into a catalog, never exported). `check_id` joins the `*_id` allow-list of the
+> disclosure gate (a project name, like `codeset_id`). `qc_report.md` and its two CSVs
+> are written already suppressed into the `kind: qc` run's folder and pass `mwh disclose
+> check` on every tier, so EP-53 promotes them with a sidecar and nothing else. *Why:*
+> one mechanism (EP-43's primitives) applied at the one point where a registry read
+> cannot re-apply it; primary-only on `n_affected` because check rows are not cells of
+> one published margin — each has its own denominator — and the rate blanking closes
+> the only back-out. *Alternatives:* leave `n_affected` raw and rely on `mwh qc status`
+> to render `<11` (rejected: `mwh sql` reads the table directly); drop suppressed check
+> rows (rejected: the status column is the finding; the count is what is hidden); a
+> `count(*)`-based status summary (rejected: the safe-query suppressor would hide the
+> number of checks per status — `mwh qc status` counts plain column reads in Python).
+
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.

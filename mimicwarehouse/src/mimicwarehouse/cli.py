@@ -12,7 +12,8 @@ the release gate: ``check`` / ``verify``) · ``doctor`` (EP-2,
 :mod:`mimicwarehouse.doctor`) · ``fixtures`` (EP-11, :mod:`mimicwarehouse.fixtures.cli`) ·
 ``guard`` (EP-4, :mod:`mimicwarehouse.guard`) · ``inventory`` (EP-10,
 :mod:`mimicwarehouse.inventory`) · ``paths`` (EP-3, :mod:`mimicwarehouse.config`) ·
-``phenotype`` (EP-41, :mod:`mimicwarehouse.phenotypes.cli`) · ``runs``
+``phenotype`` (EP-41, :mod:`mimicwarehouse.phenotypes.cli`) · ``qc`` (EP-44,
+:mod:`mimicwarehouse.qc.cli`; ``status``) · ``runs``
 (``refresh`` EP-30, ``benchmarks`` EP-32, :mod:`mimicwarehouse.runs_cli`) · ``schema`` (EP-9,
 :mod:`mimicwarehouse.schema.cli`) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
 ``units`` (EP-39, :mod:`mimicwarehouse.units`) · ``verify`` (EP-6,
@@ -65,6 +66,7 @@ from mimicwarehouse.fixtures.cli import fixtures_app
 from mimicwarehouse.guard import guard_command
 from mimicwarehouse.inventory import inventory_app
 from mimicwarehouse.phenotypes.cli import phenotype_app
+from mimicwarehouse.qc.cli import qc_app
 from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
 from mimicwarehouse.tracer import tracer_command
@@ -198,6 +200,7 @@ app.add_typer(inventory_app, name="inventory")
 app.command("jobs")(jobs_command)
 app.command("paths")(paths_command)
 app.add_typer(phenotype_app, name="phenotype")
+app.add_typer(qc_app, name="qc")
 app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
 app.command("sql")(sql_command)

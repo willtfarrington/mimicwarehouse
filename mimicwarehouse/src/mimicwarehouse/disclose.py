@@ -176,10 +176,12 @@ IDENTIFIER_COLUMN_NAMES: frozenset[str] = frozenset(
         "ab_itemid",
     }
 )
-#: ``*_id`` names that are project / vocabulary ids, never patient-level (brief item 2a).
+#: ``*_id`` names that are project / vocabulary ids, never patient-level (brief item 2a;
+#: ``check_id`` = the EP-44 QC check name, added with ``meta.qc_checks``).
 ID_NAME_ALLOW: frozenset[str] = frozenset(
     {
         "itemid",
+        "check_id",
         "codeset_id",
         "phenotype_id",
         "cohort_id",

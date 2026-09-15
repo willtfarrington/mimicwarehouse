@@ -1146,6 +1146,25 @@ schema (GOVERNANCE §3); the two P2 exceptions that carry telemetry only —
 > generator is the one sanctioned writer, as for the hosp / icu tree). Prose twin:
 > `docs/methods/disclosure.md`.
 
+> **Note (2026-09-14, EP-44) — the first consumer: `meta.qc_*` and the QC report.**
+> `qc.profile` applies the primitives at **build time**, the EP-39 rule for a count that
+> lives inside a registry table: `meta.qc_checks.n_affected` in `0 < n < k` is blanked
+> with `n_affected_suppressed = true` and its metric `value` blanked beside it (primary
+> only — check rows are not cells of one published total, each has its own denominator,
+> and the rate blanking is the complementary half), and `meta.qc_topk` goes through
+> `suppress(count_cols=["n"], group_cols=["value"], complementary=True)` per
+> dictionary-coded column so a lone small value takes its next-smallest neighbour with it
+> and `share` is blanked beside a hidden `n`; the raw twins stay under
+> `lake/meta/<tier>/raw/`. `qc.report` runs `suppress` again over the frames it renders
+> (idempotent; the table summary's `rows` gains its own marker), renders every suppressed
+> count through `render_cell` and every integer through `fmt_int`, and `check` passes on
+> `qc_report.md` / `qc_tables.csv` / `qc_checks.csv` (`test_ep44` asserts it on the
+> fixture) — the first artifact EP-53 promotes with a sidecar. One allow-list addition:
+> `check_id` (the QC check name) joined `ID_NAME_ALLOW`, the project-id names the
+> `*_id` shape rule skips. A caveat the CLI documents: a `count(*)` over a registry table
+> still meets the safe-query suppressor, so `mwh qc status` counts check rows in Python
+> from plain column reads instead of grouping in SQL.
+
 ## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
 The shipped-vs-planned map as of EP-33. Shipped rows name the EPs that built and last
@@ -1156,7 +1175,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1184,7 +1203,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── codesets/                  EP-40 shipped  spec (CodeSet, def_hash, id@version refs), registry (defs/*.yaml + codesets.lock.json, dictionary expansion, the codesets.compile step -> meta.codesets / meta.codeset_members, register_codesets extension, validate, docs/methods/codesets.md renderer), gem (CMS 2018 GEM fetch + source.yaml, parser, forward / backward, the codesets.gem step -> meta.gem_i9_to_i10 / meta.gem_i10_to_i9, the .gem-review.md author aid), cli (`mwh codeset`)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
-│   ├── qc/                        EP-44/45 profiles, measurement process
+│   ├── qc/                        EP-44 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), cli (`mwh qc status`); EP-45 adds measurement.py
 │   ├── cohort/                    EP-46/47/48 spec, compiler, attrition
 │   ├── timeline.py                EP-49
 │   ├── spine.py                   EP-50

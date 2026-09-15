@@ -1,0 +1,232 @@
+# dag/specs/qc.yaml -- the data-quality profiling steps (EP-44; ASCII only). GENERATED
+# by `python -m mimicwarehouse.qc` from the EP-9 contract + qc/thresholds.yaml
+# (mimicwarehouse.qc.profile.spec_document; test_ep44 asserts no drift) - edit the
+# generator, not this file. Merged into the one graph by dag.spec.load_dag() (EP-37
+# discovery): one python step per contract table of the staged schemas (its profile +
+# checks on the build connection, a JSON slice under lake/meta/<tier>/raw/qc/), the
+# qc.checks step (thresholds, the four meta.qc_* tables inside a kind: qc run), the
+# qc.report step (runs/<run_id>/qc_report.md + CSVs) and the shared catalog step, whose
+# depends_on / tags are unioned with the other specs' so `mwh build --tier <t> --tag qc`
+# ends in a catalog rebuild. No target: the steps re-run whenever selected. A profile
+# step depends on meta.profile (it reuses EP-29's null / distinct / min / max), on its
+# table's stage step, on the stage steps of the tables its foreign keys reference and on
+# icustays where the event-window rule applies.
+version: 1
+steps:
+- name: qc.profile.mimiciv_hosp.admissions
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.admissions, meta.profile, stage.mimiciv_hosp.patients]
+- name: qc.profile.mimiciv_hosp.d_hcpcs
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.d_hcpcs, meta.profile]
+- name: qc.profile.mimiciv_hosp.diagnoses_icd
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.diagnoses_icd, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.d_icd_diagnoses
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.d_icd_diagnoses, meta.profile]
+- name: qc.profile.mimiciv_hosp.d_icd_procedures
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.d_icd_procedures, meta.profile]
+- name: qc.profile.mimiciv_hosp.d_labitems
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.d_labitems, meta.profile]
+- name: qc.profile.mimiciv_hosp.drgcodes
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.drgcodes, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.emar_detail
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.emar_detail, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.emar]
+- name: qc.profile.mimiciv_hosp.emar
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.emar, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.hcpcsevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.hcpcsevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_hosp.d_hcpcs]
+- name: qc.profile.mimiciv_hosp.labevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.labevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.d_labitems]
+- name: qc.profile.mimiciv_hosp.microbiologyevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.microbiologyevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.omr
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.omr, meta.profile]
+- name: qc.profile.mimiciv_hosp.patients
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.patients, meta.profile]
+- name: qc.profile.mimiciv_hosp.pharmacy
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.pharmacy, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.poe_detail
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.poe_detail, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.poe]
+- name: qc.profile.mimiciv_hosp.poe
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.poe, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.prescriptions
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.prescriptions, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.procedures_icd
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.procedures_icd, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.provider
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.provider, meta.profile]
+- name: qc.profile.mimiciv_hosp.services
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.services, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_hosp.transfers
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_hosp.transfers, meta.profile, stage.mimiciv_hosp.patients]
+- name: qc.profile.mimiciv_icu.caregiver
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.caregiver, meta.profile]
+- name: qc.profile.mimiciv_icu.chartevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.chartevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_icu.icustays, stage.mimiciv_icu.d_items]
+- name: qc.profile.mimiciv_icu.datetimeevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.datetimeevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_icu.icustays, stage.mimiciv_icu.d_items]
+- name: qc.profile.mimiciv_icu.d_items
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.d_items, meta.profile]
+- name: qc.profile.mimiciv_icu.icustays
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.icustays, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions]
+- name: qc.profile.mimiciv_icu.ingredientevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.ingredientevents, meta.profile, stage.mimiciv_icu.icustays]
+- name: qc.profile.mimiciv_icu.inputevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.inputevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_icu.icustays, stage.mimiciv_icu.d_items]
+- name: qc.profile.mimiciv_icu.outputevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.outputevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_icu.icustays, stage.mimiciv_icu.d_items]
+- name: qc.profile.mimiciv_icu.procedureevents
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_profile_table
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [stage.mimiciv_icu.procedureevents, meta.profile, stage.mimiciv_hosp.patients, stage.mimiciv_hosp.admissions,
+    stage.mimiciv_icu.icustays, stage.mimiciv_icu.d_items]
+- name: qc.checks
+  kind: python
+  callable: mimicwarehouse.qc.profile:run_checks
+  tags: [qc, meta]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [qc.profile.mimiciv_hosp.admissions, qc.profile.mimiciv_hosp.d_hcpcs, qc.profile.mimiciv_hosp.diagnoses_icd,
+    qc.profile.mimiciv_hosp.d_icd_diagnoses, qc.profile.mimiciv_hosp.d_icd_procedures, qc.profile.mimiciv_hosp.d_labitems,
+    qc.profile.mimiciv_hosp.drgcodes, qc.profile.mimiciv_hosp.emar_detail, qc.profile.mimiciv_hosp.emar,
+    qc.profile.mimiciv_hosp.hcpcsevents, qc.profile.mimiciv_hosp.labevents, qc.profile.mimiciv_hosp.microbiologyevents,
+    qc.profile.mimiciv_hosp.omr, qc.profile.mimiciv_hosp.patients, qc.profile.mimiciv_hosp.pharmacy, qc.profile.mimiciv_hosp.poe_detail,
+    qc.profile.mimiciv_hosp.poe, qc.profile.mimiciv_hosp.prescriptions, qc.profile.mimiciv_hosp.procedures_icd,
+    qc.profile.mimiciv_hosp.provider, qc.profile.mimiciv_hosp.services, qc.profile.mimiciv_hosp.transfers,
+    qc.profile.mimiciv_icu.caregiver, qc.profile.mimiciv_icu.chartevents, qc.profile.mimiciv_icu.datetimeevents,
+    qc.profile.mimiciv_icu.d_items, qc.profile.mimiciv_icu.icustays, qc.profile.mimiciv_icu.ingredientevents,
+    qc.profile.mimiciv_icu.inputevents, qc.profile.mimiciv_icu.outputevents, qc.profile.mimiciv_icu.procedureevents]
+- name: qc.report
+  kind: python
+  callable: mimicwarehouse.qc.report:run_report
+  tags: [qc]
+  tiers: [fixture, demo, dev, full]
+  depends_on: [qc.checks]
+- name: catalog
+  kind: catalog
+  tags: [catalog, qc]
+  depends_on: [qc.checks]

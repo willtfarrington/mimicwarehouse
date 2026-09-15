@@ -1,0 +1,127 @@
+# mimicwarehouse QC thresholds (EP-44; ASCII only). Package data read by
+# mimicwarehouse.qc.profile.load_thresholds(); validated against the EP-9 contract. Every
+# check named here is a function in qc/profile.py returning an aggregate (n_affected counts,
+# shares) - never a row. Thresholds are evaluated by the `qc.checks` step, so a change here
+# is picked up by `mwh build --tier <t> --select qc.checks,qc.report,catalog` without a
+# re-scan. `above` / `below` are strict comparisons on the metric value; a check with no
+# thresholds is informational (status pass, value recorded). Status precedence: fail > warn.
+version: 1
+version_note: "EP-44 (2026-09-14): the first threshold set - the brief's rules, with the informational store-lag rate and age-cap share given explicit (non-failing) bounds."
+# top-k values kept per dictionary-coded column (meta.qc_topk); k-suppressed at build time.
+top_k: 10
+checks:
+  pk_unique:
+    metric: duplicate_rows
+    fail_above: 0
+    note: "rows beyond the first per declared primary key (keys.yaml primary_keys); the loader never deduplicates"
+  natural_key_dupes:
+    metric: duplicate_rows
+    warn_above: 0
+    note: "rows beyond the first per uniqueness_hint key (tables without an upstream PK; chartevents has known upstream duplicates - a MIMIC fact, documented, never 'cleaned')"
+  fk_orphans:
+    metric: orphan_share
+    warn_above: 0
+    fail_above: 0.01
+    note: "share of non-null foreign-key values without a match in the referenced table (keys.yaml foreign_keys); NULL keys are not orphans"
+  null_share:
+    metric: null_share
+    warn_above: 0.5
+    note: "null fraction per column (reused from the EP-29 profile)"
+  ts_order:
+    metric: violation_share
+    warn_above: 0
+    fail_above: 0.01
+    note: "rows whose later timestamp precedes the earlier one, among rows with both set (timestamp_order rules below)"
+  ts_store_lag:
+    metric: violation_share
+    warn_above: 0.1
+    note: "rows stored before they were charted (storetime < charttime); a rate, not a defect - back-charting is normal, a high share is a data-flow warning"
+  event_window:
+    metric: outside_share
+    warn_above: 0.01
+    fail_above: 0.05
+    note: "ICU events outside [intime - slack, outtime + slack] of their stay, among events joined to a stay with both bounds"
+  unit_consistency:
+    metric: dominant_unit_share
+    warn_below: 0.95
+    note: "share of a curated itemid's rows charted in its dominant (normalised) unit string; EP-39 catalogue items only"
+  implausible_values:
+    metric: implausible_share
+    warn_above: 0.01
+    fail_above: 0.05
+    note: "share of a curated itemid's valued rows outside the EP-39 plausibility bounds after unit harmonisation (unknown units judged on the raw value, as mwh_harmonize does)"
+  age_cap:
+    metric: capped_share
+    note: "share of patients whose anchor_age is the 91 cap (ages >= 89); informational"
+  era_coverage:
+    metric: empty_eras
+    fail_above: 0
+    note: "anchor_year_group eras (timesem.ERAS) with no patient row; every real tier covers all five"
+# Columns whose top-k values enter meta.qc_topk beyond the automatic rule (a foreign key
+# into a dimension table: itemid, hcpcs_cd). Categorical vocabularies documented by
+# MIMIC-IV; never an identifier or a free-text column (validated).
+dictionary_coded:
+  mimiciv_hosp.admissions: [admission_type, admission_location, discharge_location, insurance, language, marital_status, race]
+  mimiciv_hosp.patients: [gender, anchor_year_group]
+  mimiciv_hosp.transfers: [eventtype, careunit]
+  mimiciv_hosp.services: [prev_service, curr_service]
+  mimiciv_hosp.diagnoses_icd: [icd_code, icd_version]
+  mimiciv_hosp.procedures_icd: [icd_code, icd_version]
+  mimiciv_hosp.d_icd_diagnoses: [icd_version]
+  mimiciv_hosp.d_icd_procedures: [icd_version]
+  mimiciv_hosp.drgcodes: [drg_type, drg_severity, drg_mortality]
+  mimiciv_hosp.labevents: [flag, priority]
+  mimiciv_hosp.d_labitems: [fluid, category]
+  mimiciv_hosp.microbiologyevents: [interpretation]
+  mimiciv_hosp.emar: [event_txt]
+  mimiciv_hosp.emar_detail: [administration_type]
+  mimiciv_hosp.poe: [order_type, transaction_type, order_status]
+  mimiciv_hosp.poe_detail: [field_name]
+  mimiciv_hosp.pharmacy: [proc_type, status]
+  mimiciv_hosp.prescriptions: [drug_type, route]
+  mimiciv_hosp.omr: [result_name]
+  mimiciv_hosp.d_hcpcs: [category]
+  mimiciv_icu.icustays: [first_careunit, last_careunit]
+  mimiciv_icu.d_items: [linksto, category, param_type]
+  mimiciv_icu.chartevents: [warning]
+  mimiciv_icu.datetimeevents: [valueuom, warning]
+  mimiciv_icu.inputevents: [ordercategoryname, ordercategorydescription, statusdescription]
+  mimiciv_icu.ingredientevents: [statusdescription]
+  mimiciv_icu.procedureevents: [ordercategoryname, locationcategory, statusdescription]
+# `earlier <= later` pairs (check ts_order): a violation is later < earlier with both set.
+# A pair may override the check's warn_above / fail_above, with a note saying why (an
+# override without a note is refused): the medication-order pairs are rates, not hard
+# orderings - a discontinued pharmacy / prescription order keeps its intended starttime
+# and gets the discontinuation time as stoptime, so stoptime < starttime on a few percent
+# of rows is a MIMIC-IV fact (dev tier: about 4 %), documented, never 'cleaned'.
+timestamp_order:
+  - {table: mimiciv_hosp.admissions, earlier: admittime, later: dischtime}
+  - {table: mimiciv_hosp.admissions, earlier: admittime, later: deathtime}
+  - {table: mimiciv_hosp.admissions, earlier: edregtime, later: edouttime}
+  - {table: mimiciv_hosp.transfers, earlier: intime, later: outtime}
+  - {table: mimiciv_hosp.pharmacy, earlier: starttime, later: stoptime, warn_above: 0.01, fail_above: 0.1, note: "discontinued orders carry stoptime < starttime (MIMIC-IV fact); a rate, warn above 1 %, fail above 10 %"}
+  - {table: mimiciv_hosp.prescriptions, earlier: starttime, later: stoptime, warn_above: 0.01, fail_above: 0.1, note: "discontinued orders carry stoptime < starttime (MIMIC-IV fact); a rate, warn above 1 %, fail above 10 %"}
+  - {table: mimiciv_icu.icustays, earlier: intime, later: outtime}
+  - {table: mimiciv_icu.inputevents, earlier: starttime, later: endtime}
+  - {table: mimiciv_icu.ingredientevents, earlier: starttime, later: endtime}
+  - {table: mimiciv_icu.procedureevents, earlier: starttime, later: endtime}
+# `charttime <= storetime` rate pairs (check ts_store_lag).
+store_lag:
+  - {table: mimiciv_hosp.labevents, earlier: charttime, later: storetime}
+  - {table: mimiciv_hosp.emar, earlier: charttime, later: storetime}
+  - {table: mimiciv_hosp.microbiologyevents, earlier: charttime, later: storetime}
+  - {table: mimiciv_icu.chartevents, earlier: charttime, later: storetime}
+  - {table: mimiciv_icu.datetimeevents, earlier: charttime, later: storetime}
+  - {table: mimiciv_icu.outputevents, earlier: charttime, later: storetime}
+# ICU event times inside [intime - slack_hours, outtime + slack_hours] of the stay they
+# carry (check event_window); the stay bounds come from stay_table grouped by stay_id.
+event_window:
+  slack_hours: 24
+  stay_table: mimiciv_icu.icustays
+  tables:
+    - {table: mimiciv_icu.chartevents, time: charttime}
+    - {table: mimiciv_icu.datetimeevents, time: charttime}
+    - {table: mimiciv_icu.outputevents, time: charttime}
+    - {table: mimiciv_icu.inputevents, time: starttime}
+    - {table: mimiciv_icu.ingredientevents, time: starttime}
+    - {table: mimiciv_icu.procedureevents, time: starttime}
