@@ -149,7 +149,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-41 | [Phenotype engine + T2DM phenotype](EP-41-phenotype-engine-t2dm.md) | M | EP-40 | core | ☑ `f72b7d7` |
 | EP-42 | [Phenotypes: sepsis-3 + KDIGO AKI stage](EP-42-phenotypes-sepsis-aki.md) | M | EP-41, EP-38 | core | ☑ `1f1f242` |
 | EP-43 | [Disclosure primitives (`disclose` module)](EP-43-disclose-primitives.md) | M | EP-30 | core | ☑ `73e7466` |
-| EP-44 | [Data-quality profiling](EP-44-qc-profiling.md) | M | EP-29, EP-39, EP-43 | core | ☐ |
+| EP-44 | [Data-quality profiling](EP-44-qc-profiling.md) | M | EP-29, EP-39, EP-43 | core | ☑ `ad1bb6d` |
 | EP-45 | [Measurement-process summaries](EP-45-measurement-process.md) | M | EP-44 | core | ☐ |
 | EP-46 | [Cohort spec + registry](EP-46-cohort-spec-registry.md) | M | EP-34, EP-40 | core | ☐ |
 | EP-47 | [Cohort compiler, materialization, attrition, snapshot](EP-47-cohort-compiler-attrition.md) | M | EP-46, EP-35 | core | ☐ |
