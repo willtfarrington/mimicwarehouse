@@ -820,7 +820,57 @@ outcomes — real on every tier, EP-31) belongs here and in the model engines (E
 each analysis. Attrition diagram (EP-48) renders from the attrition table (Mermaid
 primary, Altair fallback), disclosure-aware.
 
-*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 … EP-48 planned; consolidated at EP-33.
+> **Note (2026-09-16, EP-46) — the spec as built.** `src/mimicwarehouse/cohort/spec.py`
+> ships the pydantic `CohortSpec` (prose twin `docs/methods/cohorts.md`): `id` / `version`
+> (semver) / `title`, `grain` (an *available* `timesem.GRAINS` entry — `edstay` / `note`
+> refused with the EP that ships them), `index_event` (exactly one of a `rule` the grain
+> lists, `phenotype_onset: id@version` or `concept_time: {table, column, pick}`), ordered
+> `inclusion` / `exclusion` lists of labelled criteria with exactly one kind key — `age`
+> (`[min, max)` at the index; a bound in `(89, 91]` refused, `min: 89` = the capped
+> bucket), `demographic` (set membership on eight admission / patient / first-ICU-unit
+> fields, `discharge_location` included as a stated post-index attribute), `codeset`
+> (a dual EP-40 set: `same_admission` / `prior_days N` / `any_prior`, `position`),
+> `phenotype` (`before` / `at` / `within_hours N`), `concept` (`table.column op value`,
+> optional `time_column` + `window`), `los` (`[min_hours, max_hours)` of `icu` / `hosp`),
+> `data_availability` (`>= min_rows` rows of a contract table, optional `itemids`, the
+> observation window by default), `prior_admissions` (inclusive counts within a lookback)
+> and `custom_sql` (a hashed SELECT yielding the grain keys, flagged `custom`) —
+> `observation_window` `[start_h, end_h)` (default `[-24, 0)`), `washout` (`none` /
+> `no_prior_hadm [days] [codeset]` / `no_prior_icu [days]`), `follow_up` (a
+> `timesem.CENSORING_RULES` outcome, the horizon defaulting to the rule's and forbidden
+> for in-hospital outcomes, `discharge_alive` competing for those only), `era_filter` ⊆
+> `timesem.ERAS`, the `degeneracy_probe` columns (the tracer's four by default) and an
+> optional `references` block that must match what the definition names. A date-like
+> string or a YAML date anywhere in the definition is refused (documentation fields are
+> exempt). **Hash + registry** (`registry.py`): `def_hash` = sha256 of the canonical JSON
+> of everything but the documentation fields with the referenced code-set and phenotype
+> `def_hash`es inlined (defaults made explicit, so an omitted `lookback` hashes as
+> `same_admission`); `cohorts.lock.json` + `CohortSpecFrozenError` are the EP-40/41
+> rule verbatim, and a frozen code set / phenotype refuses the specs that read it. The
+> registry index `meta.cohort_specs` is written by the `cohorts.specs` python step
+> (`dag/specs/cohorts.yaml`, tag `cohorts`, no data dependency) as
+> `lake/meta/<tier>/cohort_specs.parquet` and registered by the EP-37 walker — a
+> `meta.*` registry read, so no second `safe.REGISTRY_TABLES` mechanism (EP-33 B1c:
+> `marts.cohorts` stays EP-47's build registry). **Tier checks** (`probe.py`, through
+> `safe_query`): every reference compiled / built on the tier with the resolved hash
+> (`meta.codesets` / `meta.phenotype_versions`, remedy named), and the level-degeneracy
+> probe — level × outcome over the grain's index population (the index rule joined to
+> admissions and patients under the era filter; the event is `hospital_expire_flag = 1`
+> or `dod` within the horizon) with `count(*)` / `count(*) FILTER`, so small levels come
+> back withheld, never as counts; degenerate levels are warnings the model side (tracer
+> today, EP-79) must exclude and name. A `phenotype_onset` / `concept_time` index has no
+> population before EP-47 compiles it, so the probe is skipped with a warning and EP-47
+> re-runs it over the compiled cohort. The two seeds: `first_icu_adults@1.0.0` (icustay,
+> `first_icu_stay`, adult ≥ 18, ICU LOS < 4 h excluded, in-hospital mortality with
+> discharge alive competing — EP-31's `complete` step is implied by the outcome and drops
+> nothing on 3.1; EP-47 reconciles the counts) and `hf_admissions@1.0.0` (hadm,
+> `each_hadm`, `heart_failure@1.0.0` any position same admission + adult, hospice
+> discharge excluded, `no_prior_hadm` 365 d carrying the same set, `mortality_30d`).
+> The JSON schema (`cohort.spec.json_schema()`, `mwh cohort schema`) is pydantic's plus
+> the exactly-one-kind-key `oneOf` on criteria and index events, and re-validates the
+> seeds; `save_spec` writes `<id>_<major>_<minor>_<patch>.yaml` for EP-62.
+
+*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry (note above); EP-47 … EP-48 planned; consolidated at EP-33.
 
 ## 10. Events spine (MEDS-compatible)
 
@@ -1207,7 +1257,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44) cohort (EP-46); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1236,7 +1286,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
 │   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
-│   ├── cohort/                    EP-46/47/48 spec, compiler, attrition
+│   ├── cohort/                    EP-46 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query), cli (`mwh cohort`); EP-47/48 compiler, attrition
 │   ├── timeline.py                EP-49
 │   ├── spine.py                   EP-50
 │   ├── protocol/                  EP-51 (+ EP-128/129)
@@ -1377,6 +1427,26 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > summarised without them); its `--json` keeps the EP-41 single-phenotype shape at the
 > top level for one reference. The import budget is unchanged: `dag.jobs`, `run`, the
 > concept inventory and patch registry load inside command bodies (`test_ep42` pins it).
+
+> **Note (2026-09-16, EP-46) — `mwh cohort`, the `cohort/` package.** A sixth package
+> under the B6 doctrine: `cohort/__init__.py` is docstring-only, `spec.py` / `registry.py`
+> are pydantic + yaml + stdlib plus `timesem` (stdlib-only, already on the start-up path
+> through `tracer`) and the EP-40 / EP-41 spec and registry modules, so the `cohort`
+> sub-app sits on the `mwh --help` path; `probe.py`, `safe`, duckdb, polars, the runner,
+> the contract and the concept inventory load inside function bodies (`test_ep46` pins
+> the budget; the catalog builder imports `cohort.registry` for its extension, as it does
+> the code-set and phenotype modules). The command group: `list` / `show [--yaml]` /
+> `schema [--out PATH]` / `lock [--specs DIR] [--check]` (no data access; `--specs` /
+> `--codesets` / `--phenotypes` add study directories to the three registries) and
+> `validate <ref> [--tier t] [--k n] [--json]` — the static checks always, and with
+> `--tier` the reference and degeneracy checks through `safe_query` (a refusal exits 3,
+> a missing / stale reference exits 1, degenerate levels are warnings). The registry
+> index is built by `mwh build --tier <t> --tag cohorts` (the `cohorts.specs` step +
+> catalog); there is no `mwh cohort compile` — EP-47 adds `build` / `attrition`. The §9
+> note carries the as-built schema; the prose twin is `docs/methods/cohorts.md`.
+> `register_cohorts` sits between the measurement and phenotype extensions in
+> `CATALOG_EXTENSIONS`, so the EP-39 / EP-41 order pins (units last, phenotypes second to
+> last) hold.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

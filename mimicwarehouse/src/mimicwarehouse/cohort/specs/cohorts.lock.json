@@ -1,0 +1,15 @@
+{
+  "cohorts": {
+    "first_icu_adults@1.0.0": {
+      "def_hash": "2724fd71176785c271991c3dfb79b82701842ce668c7e74d169097818f91e47f",
+      "grain": "icustay",
+      "locked_at": "2026-09-16"
+    },
+    "hf_admissions@1.0.0": {
+      "def_hash": "3b5f5efc1c6e335a63b3989fbc50f6931cb465e00b51b5f5b7d6eaf37f0f0c05",
+      "grain": "hadm",
+      "locked_at": "2026-09-16"
+    }
+  },
+  "version": 1
+}

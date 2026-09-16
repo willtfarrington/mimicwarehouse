@@ -107,3 +107,87 @@ its attrition. D-5, D-18, D-25 (specs are hashed like protocols) apply.
   schema` prints a JSON schema; `mwh cohort validate hf_admissions@1.0.0 --tier dev` exits 0.
 - A test demonstrates refusal of an absolute-date criterion and of an edited-without-bump spec.
 - `docs/methods/cohorts.md` exists with the criterion semantics table.
+
+> **Completion note (2026-09-16).** Executed as briefed on fixture + dev (the gate held:
+> EP-172 ☑ `e00aad7`, so the seeds reference the reviewed pairs — `hf_admissions@1.0.0`
+> reads `heart_failure@1.0.0`, unchanged since EP-40; neither seed needs `t2dm` or
+> `sepsis_explicit`). Shipped: `src/mimicwarehouse/cohort/` — `spec.py` (the pydantic
+> `CohortSpec` with the nine criterion kinds, the three index-event forms, windows /
+> washout / follow-up over `timesem`, the era filter, the `degeneracy_probe` block —
+> field name as chosen here — the date / grain / cap-band refusals, `to_yaml` /
+> `from_yaml` / `save_yaml`, `json_schema()`), `registry.py` (`specs/` + `cohorts.lock.json`,
+> `CohortSpecFrozenError`, reference resolution against the EP-40 / EP-41 registries,
+> static `validate`, `save_spec`, the `cohorts.specs` DAG step → `meta.cohort_specs`,
+> `register_cohorts`, the docs renderer), `probe.py` (references on the tier + the
+> degeneracy probe through `safe_query`), `cli.py` (`mwh cohort list | show [--yaml] |
+> validate [--tier] [--k] | schema [--out] | lock [--check]`), `__main__.py`;
+> `dag/specs/cohorts.yaml`; the seeds `first_icu_adults@1.0.0` (def_hash `2724fd711767`) and
+> `hf_admissions@1.0.0` (`3b5f5efc1c6e`); `docs/methods/cohorts.md` (three generated blocks:
+> the schema reference from the JSON schema, the seed cards, the tracer spec as the worked
+> example; the criterion semantics table and the level-degeneracy policy are prose);
+> `tests/ep/test_ep46.py` (11 fixture + 1 dev tests); the DESIGN §9 / §15 notes, the D-25
+> addendum, the README state row + quick-start lines.
+>
+> **Interpretation choices (owner review at the end of the session).** (1) `mwh cohort
+> lock [--check]` was added beside the four commands the brief lists — the `(id, version)`
+> immutability rule is a lock file exactly as EP-40 / EP-41 built it, and the frozen-version
+> test needs the command. (2) The "hospice discharge" exclusion is a `demographic`
+> criterion on `discharge_location` — the field joins the brief's seven because no listed
+> kind could express it; the docs state that it conditions on a post-index disposition.
+> (3) `hf_admissions` follows up `mortality_30d` (the brief names no outcome; the seed
+> exercises the `dod` horizon rule) with an empty competing-event list. (4) The tracer
+> seed omits EP-31's `complete` step (non-null `dischtime` / `hospital_expire_flag`): it is
+> implied by the in-hospital outcome and drops nothing on MIMIC-IV 3.1 — EP-47 compares
+> the compiled counts with the tracer report and records any difference, as its brief
+> says; the 4-hour ICU exclusion is the brief's addition and is expected to move the final
+> count. (5) The degeneracy probe runs over the **index population** (the grain's index
+> rule joined to admissions / patients under the era filter) — there is no compiled cohort
+> before EP-47, which re-runs the probe over the materialised cohort; a `phenotype_onset`
+> / `concept_time` index skips it with a warning. (6) Criterion labels enter the hash and
+> defaults are explicit in the canonical form (D-25 addendum). (7) The `custom_sql`
+> contract is "a SELECT yielding the grain keys, semi-joined by EP-47" — the least
+> compiler-coupled shape.
+>
+> **Dev tier (2026-09-16).** `mwh build --tier dev --tag cohorts` (build
+> `20260916T212735-dev-e4dd6fb`, run `20260916T212735Z-c0072b`): `cohorts.specs` 2 rows in
+> 0.4 s, catalog 3.0 s, 7.1 s end to end; `meta.cohort_specs` carries both seeds with the
+> registry hashes. `mwh cohort validate first_icu_adults@1.0.0 --tier dev` (k = 11): index
+> population 3,208 first ICU stays; gender 2 levels released, admission_type 4 released /
+> 4 withheld, first_careunit 7 / 7, anchor_year_group 5 / 0; **0 degenerate levels**
+> (every released level has ≥ 14 in-hospital deaths), exit 0. `mwh cohort validate
+> hf_admissions@1.0.0 --tier dev`: `heart_failure@1.0.0` compiled on dev with the registry
+> hash (`f993dad36b9c`); index population 27,263 admissions; admission_type 5 released / 4
+> withheld, first_careunit 9 / 6 (the `(null)` level = admissions without an ICU stay,
+> 23,056), anchor_year_group 5 / 0; 0 degenerate, exit 0. On the **fixture** the probe
+> already earns its keep: `hf_admissions`' `admission_type = DIRECT OBSERVATION` is
+> zero-event for `mortality_30d` (6 admissions, 0 deaths at k = 1) and is named as a
+> warning, the EP-31 policy in miniature. No full-tier run (the brief's tier is
+> fixture+dev; `meta.cohort_specs` lands on full with EP-47's first full build).
+>
+> **Gates.** `uv run poe test -m ep_46`: 11 passed (fixture, ≈ 60 s); `poe test-dev -m
+> ep_46`: 12 passed; `mwh verify EP-46`: 11 passed; `poe check` green (ruff, `ruff format
+> --check`, pyright 0 errors, the full fixture suite); `mwh guard` clean over the changed
+> files; `poe roadmap-check --strict` 0 errors, 0 warnings. Earlier tests untouched: the
+> catalog extension slots between the measurement and phenotype extensions so `test_ep41`'s
+> order pins (phenotypes second to last, units last) hold, and `test_ep20`'s catalog
+> dependency check is a superset check. `jsonschema` (already in `uv.lock` as altair's
+> transitive dependency, pure Python) re-validates the seeds in `test_ep46`; no new
+> dependency was added.
+>
+> **Owner decisions at the interactive review (2026-09-16, every recommended option
+> taken).** (1) Commit in the standard two steps, no push (the owner pushes). (2) Keep
+> `discharge_location` as a `demographic` field and the hospice exclusion as
+> `demographic: {discharge_location: [HOSPICE]}` (rejected: a `concept` criterion over
+> `admissions.discharge_location`; dropping the exclusion). (3) Keep `mortality_30d` as
+> `hf_admissions@1.0.0`'s follow-up (rejected: in-hospital mortality with `discharge_alive`;
+> `mortality_1y`). (4) Keep EP-31's `complete` step omitted from `first_icu_adults@1.0.0`;
+> EP-47 reconciles the counts (rejected: an explicit `outcome_recorded` concept criterion).
+> The remaining choices (the `lock` command, the index-population probe, hashed labels /
+> explicit defaults, the `custom_sql` contract) are routine and logged above.
+>
+> **Handed on.** EP-47: re-run the degeneracy probe over the compiled cohort (the
+> `probe.probe_sql` shape over the materialised table), reconcile `first_icu_adults@1.0.0`
+> with the EP-31 counts (the 4-hour exclusion), compile `custom_sql` as a semi-join on the
+> grain keys, and register `marts.cohorts` beside `meta.cohort_specs`. EP-62: `save_spec`
+> and `json_schema()` are the two seams the form uses. EP-79: the model-side half of the
+> degeneracy policy.

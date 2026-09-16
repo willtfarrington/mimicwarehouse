@@ -1,0 +1,23 @@
+# dag/specs/cohorts.yaml -- the cohort-spec registry step (EP-46 item 2; ASCII only). Merged
+# into the one graph by dag.spec.load_dag() (EP-37 discovery): one python step (the handler
+# in mimicwarehouse.cohort.registry) and the shared catalog step, whose depends_on / tags
+# are unioned with the other specs' so `mwh build --tier <t> --tag cohorts` ends in a
+# catalog rebuild. No target and no data dependency: the step reads definition text only
+# (the packaged specs + their code-set / phenotype references) and is cheap, so it re-runs
+# whenever selected.
+#   cohorts.specs -> lake/meta/<tier>/cohort_specs.parquet (meta.cohort_specs: id, version,
+#                    def_hash, grain, index event, criterion counts, custom flag, refs,
+#                    outcome, locked, path -- the registry index EP-47's marts.cohorts
+#                    build registry sits beside)
+version: 1
+steps:
+  - name: cohorts.specs
+    kind: python
+    callable: mimicwarehouse.cohort.registry:run_specs
+    tags: [cohorts, meta]
+    tiers: [fixture, demo, dev, full]
+  - name: catalog
+    kind: catalog
+    tags: [catalog, cohorts]
+    depends_on:
+      - cohorts.specs

@@ -1,0 +1,47 @@
+# mimicwarehouse cohort spec (EP-46). ASCII only; no calendar dates (per-patient date shift);
+# the (id, version) pair is frozen in cohorts.lock.json - bump version to change anything
+# below `grain`. Admission-grain cohort referencing a code set by id@version: heart-failure
+# admissions of adults, no hospice discharge, first such admission in a year.
+id: hf_admissions
+version: "1.0.0"
+title: Heart-failure admissions of adults (first in 365 days)
+description: >
+  One row per hospital admission that carries a heart-failure diagnosis code
+  (heart_failure@1.0.0, the Quan 2005 Charlson definition, any position, same admission)
+  for a patient aged 18 or more at admission, excluding admissions discharged to hospice,
+  with a 365-day washout: no earlier admission carrying the same code set within 365 days
+  of the index. Followed for 30-day mortality from the admission time under the dod
+  visibility rule (min(index + 30 d, last discharge + 365 d)).
+grain: hadm
+index_event: {rule: each_hadm}
+inclusion:
+  - label: hf_coded
+    description: a heart_failure@1.0.0 code billed on the index admission, any position
+    codeset: {ref: heart_failure@1.0.0, position: any, lookback: same_admission}
+  - label: adult
+    description: age at admission of at least 18 (capped at 91)
+    age: {min: 18, at: index}
+exclusion:
+  - label: hospice_discharge
+    description: discharge_location HOSPICE (a post-index disposition)
+    demographic: {discharge_location: [HOSPICE]}
+observation_window: {start_h: -24, end_h: 0}
+washout: {rule: no_prior_hadm, days: 365, codeset: heart_failure@1.0.0}
+follow_up: {outcome: mortality_30d, horizon_days: 30, competing_events: []}
+era_filter: []
+degeneracy_probe: {columns: [gender, admission_type, first_careunit, anchor_year_group]}
+references: {codesets: [heart_failure@1.0.0], phenotypes: []}
+notes: >
+  Seeded by EP-46 as the second registered spec (In scope 3): the code-set reference is
+  resolved to heart_failure@1.0.0's def_hash at registration, so a new code-set version
+  never changes this cohort silently. The hospice exclusion conditions on a disposition
+  known only at discharge - acceptable for a retrospective definition, and stated. The
+  washout's code set is the same set (an admission-level "first heart-failure admission
+  in a year"); EP-84 (utilization) and EP-111 (30-day readmission) reuse the grain.
+what_it_does_not_claim:
+  - A billed code is not an adjudicated diagnosis; coding practice varies by era.
+  - 30-day mortality counts deaths dod records - deaths after the dod visibility horizon
+    (about one year after the last discharge) are unobservable.
+  - The hospice exclusion removes admissions by their outcome-adjacent disposition; a
+    survival analysis should treat it as a design choice, not a covariate.
+  - No calendar-time claim; anchor_year_group is the only era axis.

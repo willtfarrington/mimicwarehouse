@@ -54,6 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from mimicwarehouse import __version__, publish
 from mimicwarehouse.codesets.registry import register_codesets as _codesets_register
+from mimicwarehouse.cohort.registry import register_cohorts as _cohorts_register
 from mimicwarehouse.concepts.runner import register_derived as _concepts_register_derived
 from mimicwarehouse.config import (
     Settings,
@@ -107,14 +108,17 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: registered; slotted between the code sets and the phenotypes so the EP-39 / EP-41
 #: order pins — units last, phenotypes second to last — hold), EP-45's
 #: ``qc.measurement.register_measurement`` (comments on the ``meta.mp_*`` tables, right
-#: after the qc extension) and EP-39's ``units.register_units`` (the ``mwh_harmonize``
-#: macro family + comments on the ``meta.item_*`` tables) run after it, ``units`` last.
+#: after the qc extension), EP-46's ``cohort.registry.register_cohorts`` (the comment on
+#: ``meta.cohort_specs``, right after the measurement extension) and EP-39's
+#: ``units.register_units`` (the ``mwh_harmonize`` macro family + comments on the
+#: ``meta.item_*`` tables) run after it, ``units`` last.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
     _codesets_register,
     _qc_register,
     _measurement_register,
+    _cohorts_register,
     _phenotypes_register,
     _units_register,
 ]

@@ -30,7 +30,7 @@ latest addendum's date and EP.
 | D-20 | Custom `mwh build` runner | refined at EP-33 (⏱ job standard; lock identity; dry-run rule) | 2026-09-01, EP-33 |
 | D-21 … D-23 | Streamlit app · marimo scratch only · Jinja2/Typst reporting | settled | — |
 | D-24 | JSONL ledgers + `runs.duckdb` views | refined at EP-166, EP-33 (ledger practice; `fsio` canon) | 2026-09-01, EP-33 |
-| D-25 | Protocol freeze by content hash | settled | — |
+| D-25 | Protocol freeze by content hash | refined at EP-46 (cohort specs hashed and locked the same way) | 2026-09-16, EP-46 |
 | D-26 | Raw provenance = local manifest | refined at EP-10, EP-166, EP-16 | 2026-08-28, EP-16 |
 | D-27 | Synthetic fixture generator | refined at EP-9, EP-166, EP-16 (id floors, 0.2.0, regen protocol), EP-41 (0.3.0: T2DM inputs, outcome enrichment, NULLS LAST) | 2026-09-06, EP-41 |
 | D-28 | ≤ 5 s latency via marts | settled | — |
@@ -514,6 +514,28 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
+
+> **Addendum (2026-09-16, EP-46 — cohort specs are hashed like protocols).** The cohort
+> spec (`cohort/spec.py`) applies this decision one layer below the protocol, in the
+> EP-40 / EP-41 shape: `def_hash` = sha256 of the canonical JSON of the *definition* —
+> grain, index event, the ordered criteria, windows, washout, follow-up, era filter, the
+> probe columns — with the referenced code-set and phenotype `def_hash`es inlined, so a
+> spec version pins the definitions it was written against and moves when any of them
+> moves; the documentation fields (`title`, `description`, `notes`,
+> `what_it_does_not_claim`, a criterion's `description`) stay out of the hash; every
+> `(id, version)` pair is recorded in `cohorts.lock.json` and an edited released version
+> is refused (`CohortSpecFrozenError`, exit 3) — the fix is a version bump. Three
+> as-built choices recorded here: (1) **criterion labels are hashed** (they name the
+> attrition steps EP-47's CTE chain and reports carry, so a renamed step is a new
+> version); (2) **defaults are made explicit in the canonical form** (an omitted
+> `lookback` hashes as `same_admission`, an omitted horizon as the censoring rule's), so
+> spelling never moves the hash while a real change always does; (3) **`custom_sql`
+> criteria are allowed but carry their own sha256 and are flagged `custom`** in the
+> registry index, attrition and reports, so a study can express what the closed
+> criterion set cannot without hiding it. EP-51's protocol references a spec by
+> `id@version` and freezes over its `def_hash`. *Alternatives:* hashing the YAML text
+> (moves with whitespace and comments); leaving labels out of the hash (silent step
+> renames in reports); forbidding `custom_sql` (studies would fork the compiler).
 
 **D-26 Raw provenance = local manifest (SHA256/size/rows) + row-count reconciliation vs
 mimic-code `validate.sql`.** Plain CSVs cannot be checked against PhysioNet's

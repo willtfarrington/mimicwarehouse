@@ -1,0 +1,45 @@
+# mimicwarehouse cohort spec (EP-46). ASCII only; no calendar dates (per-patient date shift);
+# the (id, version) pair is frozen in cohorts.lock.json - bump version to change anything
+# below `grain`. The tracer bullet's cohort (EP-31, D-5): first ICU stay of adult patients
+# -> in-hospital mortality, so EP-47's compiler can reproduce its attrition (base ->
+# first_stay -> adult -> cohort; EP-31's `complete` step - non-null dischtime /
+# hospital_expire_flag - drops nothing on MIMIC-IV 3.1 and is implied by the outcome).
+id: first_icu_adults
+version: "1.0.0"
+title: First ICU stay of adult patients (the tracer bullet's cohort)
+description: >
+  One row per patient: the first ICU stay of the subject (ordered intime, stay_id), adults
+  only (age at the index >= 18; ages >= 89 are shipped as 91 and the bound is documented
+  as capped), ICU stays shorter than 4 hours excluded; followed for in-hospital mortality
+  with discharge alive as the competing event. The covariate window is the 24 hours
+  before the ICU admission. The definition mirrors the EP-31 tracer bullet so the
+  compiled attrition (EP-47) can be compared count for count.
+grain: icustay
+index_event: {rule: first_icu_stay}
+inclusion:
+  - label: adult
+    description: age at the ICU admission of at least 18 (timesem.sql_age_at; capped at 91)
+    age: {min: 18, at: index}
+exclusion:
+  - label: short_icu_stay
+    description: ICU stays under 4 hours (hours_since(intime, outtime) < 4)
+    los: {max_hours: 4, of: icu}
+observation_window: {start_h: -24, end_h: 0}
+washout: {rule: none}
+follow_up: {outcome: in_hospital_mortality, competing_events: [discharge_alive]}
+era_filter: []
+degeneracy_probe: {columns: [gender, admission_type, first_careunit, anchor_year_group]}
+references: {codesets: [], phenotypes: []}
+notes: >
+  Seeded by EP-46 as the first registered spec. EP-31's chain is base -> first_stay ->
+  adult -> complete -> cohort; `complete` (dischtime and hospital_expire_flag not null)
+  is implied by the in-hospital outcome and drops nothing on MIMIC-IV 3.1 - EP-47 verifies
+  the counts against the tracer report and records any difference; the 4-hour exclusion
+  is this brief's addition (EP-46 In scope 3). The degeneracy probe names the tracer's
+  four covariates (EP-31 lesson: rare admission types / care units with zero deaths).
+what_it_does_not_claim:
+  - No causal claim - the criteria are admission characteristics, not interventions.
+  - Ages >= 89 are indistinguishable (all appear as 91); `adult` keeps them.
+  - The era filter is empty - anchor_year_group is a covariate axis, never a calendar.
+  - The 4-hour ICU exclusion is a data-quality floor, not a clinical definition of an
+    ICU stay.
