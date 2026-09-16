@@ -152,7 +152,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-44 | [Data-quality profiling](EP-44-qc-profiling.md) | M | EP-29, EP-39, EP-43 | core | ☑ `ad1bb6d` |
 | EP-45 | [Measurement-process summaries](EP-45-measurement-process.md) | M | EP-44 | core | ☑ `321c0bc` |
 | EP-172 | [GEM review adjudication: t2dm + sepsis_explicit (owner-supervised)](EP-172-gem-review-adjudication.md) | M | EP-40, EP-41, EP-42 | core | ☑ `e00aad7` |
-| EP-46 | [Cohort spec + registry](EP-46-cohort-spec-registry.md) | M | EP-34, EP-40, EP-172 | core | ☐ |
+| EP-46 | [Cohort spec + registry](EP-46-cohort-spec-registry.md) | M | EP-34, EP-40, EP-172 | core | ☑ `6562222` |
 | EP-47 | [Cohort compiler, materialization, attrition, snapshot](EP-47-cohort-compiler-attrition.md) | M | EP-46, EP-35 | core | ☐ |
 | EP-48 | [Attrition diagram renderer](EP-48-attrition-diagram.md) | S | EP-47, EP-43 | core | ☐ |
 | EP-49 | [Event-aligned timeline API](EP-49-timeline-api.md) | M | EP-30, EP-34 | core | ☐ |
