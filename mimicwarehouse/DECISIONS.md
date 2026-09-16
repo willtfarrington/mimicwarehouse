@@ -88,6 +88,14 @@ picks its own best-fit clinical theme (portfolio variety); the tracer bullet is
 first-ICU-stay adults → in-hospital mortality. *Alternatives:* a single sepsis-3 anchor;
 AKI; ventilation.
 
+> **Addendum (2026-09-16, EP-45 — capability 7's theme).** The measurement-process
+> summaries take **first-24-h vitals and labs** as their theme: the population is every
+> ICU stay with a valid window, the items are the 63 curated itemids of the EP-39
+> catalogue (vitals, anthropometrics, GCS, FiO2, the core labs, urine output), the
+> informative-presence contrast is measured vs not measured in the first 24 h against
+> in-hospital mortality, labelled exploratory. EP-72 (missing-data views) and EP-87
+> (imputation strategies) inherit the theme and the six `meta.mp_*` tables.
+
 **D-6 Signature depth = prediction + assessment + leakage/drift.** Three representative
 workflows and the most polish; every other category exactly one. *Alternatives:* causal /
 target-trial; cohort-tooling; survival/longitudinal.
@@ -830,6 +838,34 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > rows (rejected: the status column is the finding; the count is what is hidden); a
 > `count(*)`-based status summary (rejected: the safe-query suppressor would hide the
 > number of checks per status — `mwh qc status` counts plain column reads in Python).
+
+> **Addendum (2026-09-16, EP-45 — counts that two registry tables share, and
+> statistics beside a hidden count).** The six `meta.mp_*` tables (measurement process)
+> follow the EP-39 / EP-44 rule (suppress when the table is **built**), with three
+> extensions of the primitive's margin model, recorded in DESIGN §14: the item summary
+> and the absence summary are suppressed as **one** frame with an additive-identity pass
+> (`n_stays = measured-in-window + missing`, `missing = structural + unmeasured`: a lone
+> hidden term hides the smallest published part, never the population total), so neither
+> table can back out the other's hidden cell; a statistic is blanked when the count of
+> stays it describes (`n_stays_measured`) is hidden, and a structural flag is blanked when
+> its measured count is hidden (a flag would bound the count; a structural cell's zero is
+> never small); the presence-outcome arms hide across the two contrasts (the binary
+> `measured` arm is the sum of two count arms) and the rate ratio + CI are computed from
+> released counts only, blank wherever the group lost a cell. `measurement_process.md`
+> and its six CSVs are written already suppressed into the `kind: qc` run's folder and
+> pass `mwh disclose check` (asserted on the fixture), so EP-53 promotes them with a
+> sidecar. *Why:* the EP-43 margin model is per frame and pairwise; two published tables
+> derived from one population, and rates / medians published beside a hidden count, are
+> the two shapes it cannot see, and the report is the first artefact that carries
+> both. *Alternatives:* suppress each table on its own (rejected: `n_stays -
+> n_missing_first_24h` in one table restores the other's hidden `n_stays_measured_first_24h`);
+> keep statistics beside hidden counts (rejected: a median over a hidden handful of stays
+> is the SGT-2 extreme-value case); publish only the count contrast and derive the binary
+> one (rejected: the brief's binary rate ratio with its n per arm is the headline
+> summary). *Known residual (owner to decide at EP-53 / EP-72):* consecutive
+> `n_stays_at_risk` values of the hourly grid are a non-increasing sequence whose
+> differences (stays leaving per bin) can be small and are derivable; neither the
+> table-mode primitive nor the gate treats an at-risk curve as an attrition chain.
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;

@@ -163,6 +163,13 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `mwh doctor` `power_scheme` before heavy work and ask rather than change it.
 - **Commit messages via `git commit -F <scratch file>`**; never `--no-verify`; no
   AI-attribution trailers.
+- **DAG tags are shared across every spec file.** The concept steps carry their mimic-code
+  group name as a tag (`concept.measurement.vitalsign` is tagged `concepts` *and*
+  `measurement`), so `mwh build --tag measurement` selects EP-45's four steps **and** the
+  sixteen `measurement/` concepts — skipped when complete (every tier today), rebuilt on a
+  fresh lake. Check `mwh build --tier <t> --tag <tag> --dry-run` before naming a tag after a
+  concept group (`comorbidity`, `demographics`, `firstday`, `measurement`, `medication`,
+  `organfailure`, `score`, `sepsis`, `treatment`). *(EP-45; the dev job log.)*
 - **Quote every code in a code-set YAML.** PyYAML (1.1) reads an unquoted `0010` as the
   octal integer 8 and `496` as an int, so a leading zero is lost before the loader sees
   it; `codesets.spec.normalize_code` refuses integer codes with that message. The same
@@ -196,6 +203,16 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
 - `import helpers` (tests/ is on `sys.path` via `conftest.py`); import-budget probes use
   `helpers.assert_import_budget` — heavy libraries stay out of the `mwh --help` path
   (DESIGN §15 doctrine).
+- **`disclose.suppress` reads nested totals off the whole frame.** Two count columns are
+  a "total / part" pair whenever `a >= b` holds on *every* row (and `a > b` on one), and
+  every proper subset of the group columns — the grand total included — is a margin. A
+  crafted frame of three items whose counts happen to be ordered the same way on every
+  row therefore hides far more than the real 63-item frame would (an item measured in
+  fewer stays than it is missing from breaks the coincidence), and a lone hidden cell in a
+  column takes its next-smallest neighbour with it — preferring an already-damaged row,
+  which can be a structural cell's zero. Craft suppression tests with a row that breaks
+  the coincidental orderings, and assert the *rules* (markers, no unmarked small cells,
+  `check_frame` clean), not the exact cascade. *(EP-45; the first ep_45 run.)*
 
 ## 6. One way to do each thing (the EP-33 B8 canon)
 

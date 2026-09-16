@@ -27,7 +27,10 @@ rely on the same mechanism; there is no ``--spec`` option.
 
 ``python`` steps may carry an optional ``target`` — the ``status.json`` key of the
 per-tier table they publish (EP-37's concept steps) — which makes them resumable
-through the runner's skip logic exactly like a stage step (:attr:`Step.qualified_table`).
+through the runner's skip logic exactly like a stage step (:attr:`Step.qualified_table`),
+and an optional ``params`` mapping (EP-45) the handler validates itself — the
+measurement steps' itemid set and thresholds — so one handler serves several
+configured steps without a second spec mechanism.
 
 Step *handlers* live in :data:`mimicwarehouse.dag.runner.STEP_HANDLERS` — a registry
 dict keyed by kind, so later EPs add kinds without touching the runner.
@@ -66,8 +69,9 @@ KIND_FIELDS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
         frozenset({"size_class", "partitioned", "sort_by", "demo_source"}),
     ),
     "sql": (frozenset({"file", "target"}), frozenset()),
-    # EP-37: ``target`` = the status.json key a python step publishes (resumable steps)
-    "python": (frozenset({"callable_name"}), frozenset({"target"})),
+    # EP-37: ``target`` = the status.json key a python step publishes (resumable steps);
+    # EP-45: ``params`` = a free-form mapping the handler validates
+    "python": (frozenset({"callable_name"}), frozenset({"target", "params"})),
     "catalog": (frozenset(), frozenset()),
 }
 #: Every kind-specific field (to refuse, per step, the ones another kind owns).
@@ -125,6 +129,12 @@ class Step(_Frozen):
         default=None,
         alias="callable",
         description="module:function called with (step, ctx) (EP-29's meta.profile; EP-50)",
+    )
+    params: dict[str, Any] | None = Field(
+        default=None,
+        description="free-form parameters a python step's handler reads and validates "
+        "(EP-45: the measurement steps' itemid set and thresholds); never interpreted "
+        "by the runner",
     )
 
     @model_validator(mode="after")

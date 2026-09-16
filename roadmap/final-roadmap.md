@@ -61,6 +61,8 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 |---|---|---|---|
 | miceforest / IterativeImputer with tree learners; multiple-imputation pooling for prediction | after EP-87 comparison | compute; leakage across folds | v2 MISS-1 |
 | Informative-presence models (measurement indicators as features, formal MNAR sensitivity) | after EP-45/72 | — | v2 MISS-2 |
+| Measurement frequency stratified by care unit × era (per-cell hourly / daily profiles and interval quantiles; EP-45 stratifies only the structural map) and measurement summaries for uncurated itemids (any `meta.item_dictionary` row, not only the EP-39 catalogue) | when EP-72's views or a linkage mapping (EP-138) need a per-unit profile | 45 × 63 × 168 cells on the hourly grid — suppression per cell; a label / unit source for uncurated items | v2 MISS-3 |
+| At-risk curve banding (the `n_stays_at_risk` sequence of `meta.mp_item_hourly` is non-increasing; consecutive differences — stays leaving per bin — can be small and derivable; `disclose.suppress(mode="chain")` bands 11–14 to 10, below k, so the chain mode needs a floor first) | at EP-53 (promotion) or EP-72 (views) — owner decision recorded at EP-45 | the gate does not flag it; `disclose` chain-mode fix + a `check` rule for monotone count columns | v2 MISS-4 |
 
 ## 8–10 Event-aligned timelines · Trajectories · Care pathways
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

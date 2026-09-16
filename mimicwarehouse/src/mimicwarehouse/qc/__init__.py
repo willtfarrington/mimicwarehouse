@@ -12,9 +12,14 @@ Docstring-only package (the EP-33 B6 form): nothing is imported eagerly, so the
 * :mod:`~mimicwarehouse.qc.report` — the ``qc.report`` step: ``runs/<run_id>/qc_report.md``
   (+ CSV tables), every frame through ``disclose.suppress`` before rendering, the EP-35
   reproduction block at the end, and the ``docs/methods/qc.md`` generated blocks;
-* :mod:`~mimicwarehouse.qc.cli` — ``mwh qc status``.
+* :mod:`~mimicwarehouse.qc.measurement` — the measurement-process summaries (EP-45): the
+  ``measurement.hourly`` / ``measurement.structural`` / ``measurement.presence`` /
+  ``measurement.report`` DAG step handlers (``dag/specs/measurement.yaml``) that write
+  ``meta.mp_item_hourly`` / ``mp_item_daily`` / ``mp_item_summary`` / ``mp_structural`` /
+  ``mp_absence_summary`` / ``mp_presence_outcome`` and
+  ``runs/<run_id>/measurement_process.md``, the catalog extension and the report renderer;
+* :mod:`~mimicwarehouse.qc.cli` — ``mwh qc status`` and ``mwh qc measurement``.
 
 ``python -m mimicwarehouse.qc`` re-renders ``dag/specs/qc.yaml`` and the generated blocks
-of ``docs/methods/qc.md``. Measurement-process summaries (``qc.measurement``) arrive with
-EP-45.
+of ``docs/methods/qc.md``.
 """

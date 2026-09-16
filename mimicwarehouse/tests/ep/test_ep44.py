@@ -425,9 +425,11 @@ def test_session_lake_report_run_and_benchmarks(
         for r in run_mod.read_ledger(fixture_lake_settings)
     )
     bench = benchmarks.summarize(fixture_lake_settings, tier="fixture", kind=qc.BENCH_KIND)
-    assert bench.height == 31
-    assert all(str(s).startswith(qc.STEP_PREFIX) for s in bench.get_column("step").to_list())
-    assert (bench.get_column("ok")).all()
+    # EP-45's measurement steps write kind: query lines beside these (the EP-33 amendment
+    # to EP-45), so the pin is over the qc.profile.* steps only
+    profile_lines = bench.filter(pl.col("step").str.starts_with(qc.STEP_PREFIX))
+    assert profile_lines.height == 31
+    assert (profile_lines.get_column("ok")).all()
 
 
 # ---------------------------------------------------------------------------

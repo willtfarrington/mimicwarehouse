@@ -1165,6 +1165,38 @@ schema (GOVERNANCE §3); the two P2 exceptions that carry telemetry only —
 > still meets the safe-query suppressor, so `mwh qc status` counts check rows in Python
 > from plain column reads instead of grouping in SQL.
 
+> **Note (2026-09-16, EP-45) — the second consumer: `meta.mp_*`, suppression across
+> tables, and a report born suppressed.** `qc.measurement` (the descriptive half of
+> capability 7) publishes six `meta.mp_*` tables and `runs/<run_id>/measurement_process.md`
+> the EP-44 way — suppressed at **build time** because `meta.*` is read unsuppressed —
+> with three refinements the primitives' margin model did not cover. (1) **Two tables
+> that share counts are suppressed as one frame**: `meta.mp_item_summary` and
+> `meta.mp_absence_summary` hold `n_stays = n_stays_measured_first_24h +
+> n_missing_first_24h` and `n_missing = n_structural + n_unmeasured` per itemid, so the
+> item frame goes through `suppress` with all six count columns (its nested-total rule
+> sees the pairs) plus an additive-identity pass to a fixpoint (`ITEM_IDENTITIES`: exactly
+> one hidden term of an identity hides the smallest published *part*, never the population
+> total) before the two tables are split off — a hidden count in one table cannot be
+> backed out from the other. (2) **A statistic leaves with its denominator**: the medians
+> and interval quantiles of `mp_item_summary` are blanked where `n_stays_measured` is
+> hidden, and `mp_structural.structural_flag` is blanked where `n_stays_measured` is hidden
+> (a flag would bound the hidden count; a structural cell's zero is never small). (3)
+> **The presence arms carry a cross-contrast rule**: the binary `measured` arm is the sum
+> of the `1-2` and `>=3` count arms and `not_measured` is the `0` arm, so hides propagate
+> between the two contrasts to a fixpoint, `mortality_rate` and the rate ratio + CI are
+> blank for any `(itemid, contrast)` group that lost a cell, and the rate ratio is computed
+> in Python from the released counts only (statsmodels `Table2x2`; arithmetic over
+> aggregates stays out of SQL, DIS-3). The compute steps write raw *slices* under
+> `lake/meta/<tier>/raw/measurement/` (never walked, never exported) and the report step
+> assembles inside the one `kind: qc` run, so `--select measurement.report,catalog`
+> re-suppresses without a rescan. Also new in the DAG spec: `python` steps take an optional
+> `params` mapping (`dag.spec.Step.params`) that the handler validates
+> (`MeasurementParams`: itemids, bins, thresholds). Known residual, documented for EP-53 /
+> EP-72: consecutive `n_stays_at_risk` values of the hourly grid are a non-increasing
+> sequence whose differences (stays leaving per bin) can be small and are derivable; the
+> table-mode primitive does not band them (the chain mode's 10-banding maps 11-14 to 10,
+> below k), and the gate does not flag it.
+
 ## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
 The shipped-vs-planned map as of EP-33. Shipped rows name the EPs that built and last
@@ -1203,7 +1235,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── codesets/                  EP-40 shipped  spec (CodeSet, def_hash, id@version refs), registry (defs/*.yaml + codesets.lock.json, dictionary expansion, the codesets.compile step -> meta.codesets / meta.codeset_members, register_codesets extension, validate, docs/methods/codesets.md renderer), gem (CMS 2018 GEM fetch + source.yaml, parser, forward / backward, the codesets.gem step -> meta.gem_i9_to_i10 / meta.gem_i10_to_i9, the .gem-review.md author aid), cli (`mwh codeset`)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
-│   ├── qc/                        EP-44 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), cli (`mwh qc status`); EP-45 adds measurement.py
+│   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
 │   ├── cohort/                    EP-46/47/48 spec, compiler, attrition
 │   ├── timeline.py                EP-49
 │   ├── spine.py                   EP-50
