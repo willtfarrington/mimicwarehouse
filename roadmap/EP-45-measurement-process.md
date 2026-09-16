@@ -10,6 +10,11 @@
 > via `mwh codeset lock` / `compile`, or reject them all and say so). The owner asked for
 > silence on this item from EP-42 through EP-45; EP-46's brief carries the matching
 > pickup gate. Sessions never open the files (data root); the owner relays verdicts.
+>
+> **Superseded 2026-09-16 (owner directive at EP-45 completion).** The review is now its own
+> owner-supervised brief, [EP-172](EP-172-gem-review-adjudication.md), slotted between EP-45
+> and EP-46: the owner pastes the two review files (public vocabulary text only) and rules on
+> every proposed code after the agent's explanation; EP-46's gate depends on EP-172.
 
 > **EP-33 amendment (2026-09-01).** Header facts unchanged. **Spec discovery** (ledger P3C-2,
 > implemented by EP-37): `dag/specs/measurement.yaml` is merged into the one graph by

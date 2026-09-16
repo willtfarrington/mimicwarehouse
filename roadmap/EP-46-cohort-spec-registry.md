@@ -1,15 +1,16 @@
 # EP-46 — Cohort spec + registry
 
-**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-34 (Time semantics + unit-of-analysis registry), EP-40 (Code-set registry + ICD-9→10 GEM utility) · **Blocks:** EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-54 (Re-plan P3)
+**Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-34 (Time semantics + unit-of-analysis registry), EP-40 (Code-set registry + ICD-9→10 GEM utility), EP-172 (GEM review adjudication: t2dm + sepsis_explicit (owner-supervised)) · **Blocks:** EP-47 (Cohort compiler, materialization, attrition, snapshot), EP-51 (Protocol schema + freeze registry + `mwh protocol`), EP-54 (Re-plan P3)
 
-> **Owner gate at pickup (owner directive 2026-09-06, at EP-41).** Do not start this brief
-> until the owner confirms the EP-40 GEM reviews are done — either "all rejected" or the
-> accepted codes locked as a new code-set version (`t2dm@1.1.0`, `sepsis_explicit@1.1.0`;
-> `mwh codeset lock` + `compile --tier dev`). Cohort specs reference code sets by
-> `id@version` from here on, so the versions this brief seeds must be the reviewed ones.
-> If the confirmation is missing, ask for it first (`AskUserQuestion`) and record the
-> answer in the completion note; then bump the phenotypes that should follow a new
-> code-set version (a phenotype pins its code-set hashes, so `t2dm@1.0.0` stays valid).
+> **Owner gate at pickup (owner directive 2026-09-06, at EP-41; re-pointed 2026-09-16 at
+> EP-45 completion).** Do not start this brief until
+> [EP-172](EP-172-gem-review-adjudication.md) is ☑ in the roadmap table: the owner-supervised
+> adjudication of the EP-40 GEM reviews, which either records "all rejected" for a set or locks
+> the accepted codes as `t2dm@1.1.0` / `sepsis_explicit@1.1.0` and bumps the phenotypes that
+> reference them. Cohort specs reference code sets by `id@version` from here on, so the
+> versions this brief seeds must be the reviewed ones (the latest locked pair of each set;
+> the 1.0.0 pairs stay valid). If EP-172's ☑ is missing, stop and ask (`AskUserQuestion`)
+> rather than seeding specs over unreviewed versions.
 
 > **EP-33 amendment (2026-09-01).** Header facts unchanged. (1) **Level-degeneracy policy**
 > (EP-31 lesson; EP-31's amendment names EP-46 and EP-79 as the two homes): EP-31's
