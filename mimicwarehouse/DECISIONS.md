@@ -38,7 +38,7 @@ latest addendum's date and EP.
 | D-30 | Plain CSVs untouched | settled | — |
 | D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy) | 2026-09-01, EP-33 |
 | D-32 … D-34 | owner row view in-app · small cells n < 11 · MIT + `gpl` group | settled | — |
-| D-35 | Vocabularies: free first | refined at EP-16 (register) | 2026-08-28, EP-16 |
+| D-35 | Vocabularies: free first | refined at EP-16 (register), EP-172 (GEM review policy) | 2026-09-16, EP-172 |
 | D-36, D-37 | future data via wizard · hupsim roadmap format | settled | — |
 | D-38 | Owner-side Windows tuning | refined at EP-0, EP-6/7, EP-164, EP-165, EP-166 (two AV products, nine-path allow list) | 2026-08-28, EP-166 |
 | D-39 | Enforcement chain for the Claude data policy | refined at EP-7, EP-165 (five layers) | 2026-08-28, EP-165 |
@@ -893,6 +893,33 @@ Elixhauser/Charlson code sets, CMS GEMs); UMLS/SNOMED/OMOP Athena as later optio
 > account (parked, v2 OMOP-1). The only *partial* coverage is EP-143's preferred ATC
 > ingestion target — it picks its free fallback (Elixhauser or the vendored LOINC
 > `concept_map`) at execution, as its brief already provides.
+
+> **Addendum (2026-09-16, EP-172 — the GEM review policy the first adjudication
+> settled).** The CMS GEMs are an *author aid*, never a crosswalk (EP-40): every
+> proposal of an `.gem-review.md` is ruled on by the owner, one `AskUserQuestion` per
+> code after the agent's explanation, and the ledger (set, direction, code, title, GEM
+> flags, ruling, reason) lives in the brief's completion note — public vocabulary text
+> only. Rules the rulings of 2026-09-16 settle for later reviews: (1) **manifestation
+> codes of combination entries are rejected as a rule** — the ICD-9-CM half the GEM
+> pairs with a `250.xx` / `249.xx` code is either not disease-specific on its own or,
+> where its title is (`357.2`, `362.0x`, `366.41`), never billed without the underlying
+> code, so accepting it only admits the excluded types; `t2dm` was all rejected (20/20)
+> and stays `t2dm@1.0.0`; (2) **exact and near-exact cross-era twins of a member are
+> accepted** (`A20.7`, `A39.4`, `B00.7`, `I76`; `003.1`, `112.5`, `670.22`, `670.24`,
+> `998.02` → `sepsis_explicit@1.1.0`, with the phenotype bumped to
+> `sepsis_explicit@1.1.0`), while a target that is the whole disease rather than its
+> septicaemic form (`027.0`, `027.1`, `098.89`) or a generic late-effect / aftercare code
+> (`909.3`, `V58.89`) is rejected; (3) sibling codes the GEM did not propose (`A39.2` /
+> `A39.3`, `670.20`) are recorded, not added — a later review rules on them; (4) an
+> "all rejected" set writes no new version and the ledger says so, which is the outcome
+> EP-46's gate accepts. *Why.* The review files carry dictionary titles only, so the
+> owner may paste them into a session (GOVERNANCE §4); the rulings have to be
+> reproducible from the ledger, and the immutability rule means every accepted code is a
+> new locked pair, never an edit. *Alternatives.* Apply exact GEM entries automatically
+> (rejected: even "exact" entries changed the set's era coverage and deserve a human
+> read); accept the diabetes-titled manifestation codes (rejected: type 1 / secondary
+> leakage); add the un-proposed siblings in the same version (rejected: scope — only
+> proposed codes were ruled on).
 
 **D-36 Future data = reference/knowledge tables + other PhysioNet datasets.** Wizard =
 profile → map concepts/units → validate keys/cardinality → measure linkage coverage →

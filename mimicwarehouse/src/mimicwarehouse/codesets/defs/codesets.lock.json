@@ -85,6 +85,11 @@
       "kind": "icd_dx",
       "locked_at": "2026-09-06"
     },
+    "sepsis_explicit@1.1.0": {
+      "def_hash": "c9aed261d647f8cd79f1443091f4d2eee5584d493500f3ee7729cb7294698520",
+      "kind": "icd_dx",
+      "locked_at": "2026-09-16"
+    },
     "t1dm@1.0.0": {
       "def_hash": "024460ebe6e4328fa9e0a22e0dbb3cf451f06d91dd502076a3f95c38857279f7",
       "kind": "icd_dx",

@@ -1500,11 +1500,16 @@ def test_session_fixture_lake_carries_the_three(
     """The full DAG (conftest's session lake) orders the concepts before the phenotypes."""
     con = fixture_lake_catalog
     latest = phen_runner.latest_versions(con)
-    assert {
-        "sepsis3": "1.0.0",
-        "kdigo_aki": "1.0.0",
-        "sepsis_explicit": "1.0.0",
-    }.items() <= latest.items()
+    # EP-172 (churn rule — a shipped fact changed): the session view follows the latest
+    # packaged version of each id (sepsis_explicit@1.1.0 since the GEM review), so the
+    # pin reads the registry instead of a literal 1.0.0
+    expected_latest = {
+        ref.partition("@")[0]: max(
+            registry.versions_of(ref.partition("@")[0]), key=phen_runner.semver_key
+        )
+        for ref in REFS
+    }
+    assert expected_latest.items() <= latest.items()
     views = {
         str(r[0])
         for r in con.execute(
@@ -1521,14 +1526,14 @@ def test_session_fixture_lake_carries_the_three(
         "kdigo_stages",
     } <= views
     rows = {
-        r[0]: (r[1], r[2])
+        f"{r[0]}@{r[1]}": (r[2], r[3])
         for r in con.execute(
-            "SELECT phenotype_id, def_hash, status FROM meta.phenotype_versions"
+            "SELECT phenotype_id, version, def_hash, status FROM meta.phenotype_versions"
         ).fetchall()
     }
-    for ref in REFS:
+    for ref in REFS:  # every 1.0.0 pair is still built beside any later version (EP-172)
         entry = registry.get(ref)
-        assert rows[entry.phenotype.id] == (entry.def_hash, "done")
+        assert rows[ref] == (entry.def_hash, "done")
     assert _scalar(con, f"SELECT count(*) FROM {DERIVED}.phenotype_kdigo_aki") == _scalar(
         con, f"SELECT count(*) FROM {ICU}.icustays"
     )
@@ -1611,6 +1616,7 @@ def _real_tier_probe(tier: str, registry: Registry) -> None:
     settings = config.load_settings()
     remedy = f"run `mwh phenotype compile {' '.join(REFS)} --tier {tier}` (EP-42) first"
     versions = phen_runner.built_versions(tier, settings=settings, actor="test_ep42")
+    latest_refs: list[str] = []  # the session view (and `summary`) follow the latest built
     for ref in REFS:
         phenotype_id = ref.partition("@")[0]
         mine = [v for v in versions if v["phenotype_id"] == phenotype_id and v["status"] == "done"]
@@ -1618,8 +1624,9 @@ def _real_tier_probe(tier: str, registry: Registry) -> None:
         latest = max(mine, key=lambda v: phen_runner.semver_key(str(v["version"])))
         entry = registry.get(f"{phenotype_id}@{latest['version']}")
         assert latest["def_hash"] == entry.def_hash, f"{tier}: {ref} carries the current def_hash"
+        latest_refs.append(entry.ref)  # EP-172: sepsis_explicit@1.1.0 on dev / full
     bundle = phen_runner.prevalence_report(
-        REFS, tier=tier, settings=settings, actor="test_ep42", registry=registry
+        latest_refs, tier=tier, settings=settings, actor="test_ep42", registry=registry
     )
     assert bundle.k >= 11
     for s in bundle.summaries:

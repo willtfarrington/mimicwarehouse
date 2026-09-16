@@ -122,7 +122,11 @@ to edit the released version: copy the file to the next version, change it, lock
 let the consumers reference the new pair. Both versions then coexist on disk and in
 `meta.phenotype_versions`; the session view follows the latest. `test_ep42` demonstrates
 all three refusals (the parameter edit, the moved concept hash) and the coexistence of
-`kdigo_aki@1.0.0` / `@1.1.0`.
+`kdigo_aki@1.0.0` / `@1.1.0`. The first *shipped* bump is `sepsis_explicit@1.1.0` (EP-172,
+2026-09-16): the criteria tree is the 1.0.0 one, only the referenced code set moved to the
+reviewed `sepsis_explicit@1.1.0`, so the hash moved with it, both versions are locked and
+built, and `mimiciv_derived.phenotype_sepsis_explicit` now reads 1.1.0. The `t2dm` review
+rejected every GEM proposal, so `t2dm@1.0.0` stays the latest.
 
 ## 3. Compile: the catalog surfaces
 
@@ -268,6 +272,24 @@ What it does not claim:
 - Explicit codes under-ascertain sepsis - coding practice varies by era and by organism-specific coding, and the ICD-10-CM codes T81.12- / T81.44- exist only from FY2017 / FY2020.
 - A billed code is not a clinical adjudication and says nothing about timing within the admission; the onset is the discharge time by convention.
 - Bacteremia without a sepsis code (790.7 / R78.81) is deliberately outside the set.
+
+### `sepsis_explicit@1.1.0` — Sepsis, explicitly coded per admission (Angus explicit septicemia / sepsis codes)
+
+- **grain** `hadm` · **def_hash** `034f3d6bd7e2` · **locked** yes · `defs/sepsis_explicit_1_1_0.yaml`
+- **criteria** `dx` · **onset** `earliest`
+- **references** `sepsis_explicit@1.1.0` (`c9aed261d647`)
+
+| leaf | kind | definition | polarity |
+|---|---|---|---|
+| `dx` | diagnosis | diagnosis(sepsis_explicit@1.1.0, position any, min_admissions 1) | positive |
+
+An admission carries explicit sepsis when any of its billed diagnoses is in the sepsis_explicit@1.1.0 code set (septicemia / sepsis by organism, severe sepsis, septic shock, puerperal and postprocedural sepsis; ICD-9-CM and ICD-10-CM - the 1.0.0 set plus the nine cross-era counterparts accepted at the EP-172 GEM review). The onset is the admission's discharge time (diagnoses carry no timestamp). The billing-code companion of sepsis3@1.0.0 for the classic explicit-codes vs Sepsis-3 agreement cross-tab.
+
+What it does not claim:
+
+- Explicit codes under-ascertain sepsis - coding practice varies by era and by organism-specific coding, and the ICD-10-CM codes T81.12- / T81.44- exist only from FY2017 / FY2020 (their ICD-9-CM twin 998.02 from FY2011, 670.2x from FY2009).
+- A billed code is not a clinical adjudication and says nothing about timing within the admission; the onset is the discharge time by convention.
+- Bacteremia without a sepsis code (790.7 / R78.81) is deliberately outside the set, as are the whole-disease ICD-9 codes for listeriosis, erysipelothrix and gonococcal infection (027.0 / 027.1 / 098.89) the GEM proposed and the EP-172 review rejected.
 
 ### `t2dm@1.0.0` — Type 2 diabetes mellitus (billed codes, non-insulin antidiabetics or HbA1c >= 6.5 %)
 

@@ -1,0 +1,78 @@
+# mimicwarehouse code set (EP-40; this version EP-172). ASCII only; codes quoted, dots
+# omitted as in MIMIC-IV; the (id, version) pair is frozen in codesets.lock.json - bump
+# version to change. 1.1.0 = 1.0.0 + the nine GEM proposals the owner accepted at the
+# EP-172 review (decision ledger in roadmap/EP-172-gem-review-adjudication.md); the 1.0.0
+# pair stays locked and valid.
+id: sepsis_explicit
+version: "1.1.0"
+name: Sepsis, explicitly coded (septicemia, sepsis, severe sepsis, septic shock)
+description: >
+  The "explicit" sepsis diagnosis codes: septicemia / sepsis by organism (ICD-9-CM 038.x
+  and the organism-specific septicemia codes, ICD-10-CM A40.- / A41.- and the
+  organism-specific sepsis codes), sepsis and severe sepsis (995.91 / 995.92; R65.20),
+  septic shock (785.52; R65.21), puerperal sepsis (670.22 / 670.24; O85) and postprocedural
+  sepsis / septic shock (998.02; T81.12- / T81.44-). A billing-code definition, not the
+  Sepsis-3 clinical criteria (EP-42 builds that from the mimic-code concept). Version
+  1.1.0 folds in the counterpart codes the CMS 2018 GEM review proposed and the owner
+  accepted (EP-172): the ICD-9 arm gains 003.1, 112.5, 670.22, 670.24 and 998.02; the
+  ICD-10 arm gains A20.7, A39.4, B00.7 and I76.
+kind: icd_dx
+members:
+  icd9:
+    - {code: "038", match: prefix}
+    - {code: "0031"}
+    - {code: "0202"}
+    - {code: "0223"}
+    - {code: "0362"}
+    - {code: "0545"}
+    - {code: "1125"}
+    - {code: "449"}
+    - {code: "67022"}
+    - {code: "67024"}
+    - {code: "78552"}
+    - {code: "99591"}
+    - {code: "99592"}
+    - {code: "99802"}
+  icd10:
+    - {code: "A40", match: prefix}
+    - {code: "A41", match: prefix}
+    - {code: "R652", match: prefix}
+    - {code: "T8112", match: prefix}
+    - {code: "T8144", match: prefix}
+    - {code: "A021"}
+    - {code: "A207"}
+    - {code: "A227"}
+    - {code: "A267"}
+    - {code: "A327"}
+    - {code: "A394"}
+    - {code: "A427"}
+    - {code: "A5486"}
+    - {code: "B007"}
+    - {code: "B377"}
+    - {code: "I76"}
+    - {code: "O85"}
+provenance:
+  source: hand
+  url: https://doi.org/10.1097/00003246-200107000-00002
+  ref: >-
+    Angus et al. 2001 explicit septicemia codes, extended to the ICD-10-CM era by hand
+    (1.0.0), plus the CMS 2018 GEM counterparts accepted at the EP-172 review (1.1.0)
+  accessed: "2026-09-16"
+references:
+  - https://doi.org/10.1097/00003246-200107000-00002
+  - https://doi.org/10.1056/NEJMoa022139
+notes: >
+  Superset of sepsis_explicit@1.0.0. The nine added codes are the accepted rows of the
+  EP-172 decision ledger (roadmap/EP-172-gem-review-adjudication.md, completion note): each
+  is the cross-era twin of a code the set already carried (020.2 -> A20.7, 036.2 -> A39.4,
+  054.5 -> B00.7, 449 -> I76; A02.1 -> 003.1, B37.7 -> 112.5, O85 -> 670.22 / 670.24,
+  T81.12- -> 998.02), and 112.5 is itself on the Martin et al. 2003 explicit list. Rejected
+  at the same review, on purpose: 027.0 / 027.1 / 098.89 (the whole disease, not its
+  septicaemic form - septicaemic cases carry 038.x), 909.3 / V58.89 (generic late-effect /
+  aftercare codes behind T81.12XS / T81.12XD). Not proposed by the GEM and therefore not
+  ruled on: the siblings A39.2 / A39.3 (acute / chronic meningococcemia) and 670.20
+  (puerperal sepsis, episode unspecified). Era caveats: 670.2x exists from FY2009 and
+  998.02 from FY2011 in ICD-9-CM; R65.2- covers severe sepsis with and without septic
+  shock; T81.44- (sepsis following a procedure) exists only from FY2020, T81.12-
+  (postprocedural septic shock) from FY2017 - earlier admissions carry none. Bacteremia
+  (790.7 / R78.81) is deliberately excluded.

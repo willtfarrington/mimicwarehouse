@@ -148,6 +148,24 @@ its choice lists) express one source; nothing here is applied automatically.
 4. A human reads the review, folds accepted codes into a **new version** of the YAML,
    `mwh codeset lock`s it and re-compiles. The review is never applied automatically.
 
+**The first adjudication (EP-172, 2026-09-16; D-35 addendum).** The owner ruled on every
+proposal of the two EP-40 review files in one supervised session (the decision ledger, one
+row per proposed code with its ruling and reason, is in the brief's completion note). Two
+rules came out of it. (1) **Manifestation codes of combination entries are rejected as a
+rule**: when the GEM maps an ICD-10-CM combination code (`E11.42`) to an ICD-9-CM pair
+(`250.6x` + `357.2`), the diabetes half is already a member and the manifestation half
+either has no diabetes meaning on its own (`349.89`, `785.4`) or, where its title is
+diabetes-specific (`357.2`, `362.0x`, `366.41`), is never billed without a `250.xx` /
+`249.xx` code, so it would only add the type 1 / secondary admissions the set excludes.
+`t2dm` was therefore *all rejected* (20 of 20) and stays at `t2dm@1.0.0`. (2) **Exact and
+near-exact cross-era twins of a member are accepted** (`020.2` -> `A20.7`, `A02.1` ->
+`003.1`, `O85` -> `670.22` / `670.24`, `T81.12-` -> `998.02`, ...), while a GEM target that
+is the *whole disease* rather than its septicaemic form (`027.0`, `027.1`, `098.89`) or a
+generic late-effect / aftercare code (`909.3`, `V58.89`) is rejected: `sepsis_explicit`
+gained nine codes as `sepsis_explicit@1.1.0` (9 accepted, 5 rejected) and the phenotype
+that reads it moved to `sepsis_explicit@1.1.0`. Sibling codes the GEM did not propose
+(`A39.2` / `A39.3`, `670.20`) were not ruled on and wait for a later review.
+
 In code: `gem.forward(codes)` / `gem.backward(codes)` return the GEM entries per source
 code (an unknown code maps to an empty tuple; `GemEntry.target` is None for a no-map
 line). `tests/fixtures/gem_sample.txt` is a tiny public excerpt of the real files used by
@@ -177,6 +195,7 @@ The packaged seeds (rendered from `defs/*.yaml`):
 | `mi@1.0.0` | `icd_dx` | Acute myocardial infarction (diagnosis codes) | icd9 1 (1 prefix), icd10 2 (2 prefix) | - | hand (`ICD-9-CM 410.- and ICD-10-CM I21.- / I22.- (public code tables)`) | `3c681d5b1e80` |
 | `noninsulin_antidiabetics@1.0.0` | `drug` | Non-insulin antidiabetic drugs (drug names) | names 62 (contains) | - | hand (`WHO ATC A10B "blood glucose lowering drugs, excl. insulins" members`) | `bba2843889fe` |
 | `sepsis_explicit@1.0.0` | `icd_dx` | Sepsis, explicitly coded (septicemia, sepsis, severe sepsis, septic shock) | icd9 9 (1 prefix), icd10 13 (5 prefix) | - | hand (`Angus et al. 2001 explicit septicemia codes, extended to the ICD-10-CM era by hand`) | `5d172007c621` |
+| `sepsis_explicit@1.1.0` | `icd_dx` | Sepsis, explicitly coded (septicemia, sepsis, severe sepsis, septic shock) | icd9 14 (1 prefix), icd10 17 (5 prefix) | - | hand (`Angus et al. 2001 explicit septicemia codes, extended to the ICD-10-CM era by hand (1.0.0), plus the CMS 2018 GEM counterparts accepted at the EP-172 review (1.1.0)`) | `c9aed261d647` |
 | `t1dm@1.0.0` | `icd_dx` | Type 1 diabetes mellitus (diagnosis codes) | icd9 20, icd10 1 (1 prefix) | - | hand (`ICD-9-CM 250.x1 / 250.x3 and ICD-10-CM E10.- (public code tables)`) | `024460ebe6e4` |
 | `t2dm@1.0.0` | `icd_dx` | Type 2 diabetes mellitus (diagnosis codes) | icd9 20, icd10 1 (1 prefix) | - | hand (`ICD-9-CM 250.x0 / 250.x2 and ICD-10-CM E11.- (public code tables)`) | `780eafccc3a8` |
 | `vasopressors@1.0.0` | `drug` | Vasopressors (drug names + ICU infusion itemids) | itemids 6, names 10 (contains) | - | mimic-code (`mimic-iv/concepts_duckdb/medication/{norepinephrine,epinephrine,phenylephrine,vasopressin,dopamine,dobutamine}.sql`) | `8d34953c5039` |

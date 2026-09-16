@@ -87,6 +87,11 @@ BRIEF_IDS: frozenset[str] = frozenset(
         "atc_c01ca_adrenergics",
     }
 )
+#: (version, provenance.accessed) of the packaged seeds: the EP-40 seeds and the
+#: EP-172 review version of sepsis_explicit (test_ep172 pins that pair precisely).
+SEED_VERSIONS: frozenset[tuple[str, str]] = frozenset(
+    {("1.0.0", "2026-09-06"), ("1.1.0", "2026-09-16")}
+)
 DIM_STEPS: tuple[str, ...] = (
     f"stage.{HOSP}.d_icd_diagnoses",
     f"stage.{HOSP}.d_icd_procedures",
@@ -180,7 +185,9 @@ def test_packaged_seeds_cover_the_brief_and_are_locked(registry: Registry) -> No
     for entry in registry:
         cs = entry.codeset
         assert entry.locked and entry.packaged and entry.display_path.startswith("defs/")
-        assert cs.version == "1.0.0" and cs.provenance.accessed == "2026-09-06"
+        # EP-172 (churn rule — a shipped fact changed): the GEM review added a second,
+        # later-dated version of one seed; every id's first version is still the 1.0.0 seed
+        assert (cs.version, cs.provenance.accessed) in SEED_VERSIONS, cs.ref
         assert cs.name and cs.notes and cs.references, cs.ref
         assert cs.n_declared >= 1 and cs.declared_systems, cs.ref
         if cs.kind in ("icd_dx", "icd_px"):
