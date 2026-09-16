@@ -870,7 +870,56 @@ primary, Altair fallback), disclosure-aware.
 > the exactly-one-kind-key `oneOf` on criteria and index events, and re-validates the
 > seeds; `save_spec` writes `<id>_<major>_<minor>_<patch>.yaml` for EP-62.
 
-*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry (note above); EP-47 … EP-48 planned; consolidated at EP-33.
+> **Note (2026-09-16, EP-47) — the compiler and the marts as built.**
+> `src/mimicwarehouse/cohort/compiler.py` emits **one deterministic CTE chain** per spec
+> (`compile_spec` / `compile_entry` → `CompiledCohort`: `sql`, `attrition_sql`, `steps`,
+> `keys`, `columns`, `sources`, `sql_sha256`): `base` (the grain's source relation — every
+> bin of every stay for the expanded grains, so the chain is non-increasing from the
+> first row) → `idx` (the index event — the grain's named rule, the flagged onset rows of
+> a `phenotype_onset` over `phenotypes."<id>@<version>"`, or a `concept_time` column's
+> first / last value — joined to the admission, the patient, the index stay or the
+> admission's first stay, and the subject's last discharge) → `era` (only with an era
+> filter) → one `crit_NN_<label>` per criterion in document order (`coalesce(pred,
+> false)` / `NOT coalesce(pred, false)`; a `custom_sql` SELECT becomes its own
+> `custom_NN` CTE semi-joined on the grain keys and the step is flagged) → `washout` →
+> `cohort`, which projects the grain keys + `index_time`, `era_index`, `age_at_index`
+> (capped) / `age_capped`, `obs_start` / `obs_end`, `follow_up_end` / `censor_reason`
+> (`death` / `discharge_alive` at discharge for in-hospital outcomes; `death` /
+> `horizon` / `dod_visibility` under `min(index + horizon, last discharge + 365 d)`) and
+> `custom_flag` under a total `ORDER BY` — no non-deterministic function anywhere, so a
+> rebuild from the same spec + snapshot ids is byte-identical (asserted on the fixture).
+> The criterion → predicate table is `docs/methods/cohorts.md` §7; the attrition
+> statement is one `UNION ALL` of `count(*)` / `count(DISTINCT subject_id)` per CTE. The
+> path the planning text names gained the **tier segment**: `lake/marts/<tier>/cohorts/
+> <id>@<version>/` (EP-37's per-tier layer convention; `cohort.parquet` ZSTD ordered by
+> the keys, `attrition.parquet` raw, `spec.yaml` verbatim, `manifest.json` with the spec
+> `def_hash`, `sql_sha256`, `cohort_sha256`, `run_id`, the snapshot ids of every layer
+> read, rows / subjects, `built_at`), written by the `cohorts.build` python step (tag
+> `marts`; `dag/specs/cohorts.yaml`) inside one `kind: cohort` run per spec (`sql/
+> cohort.sql`, `sql/attrition.sql`, the refs with hashes, the snapshot ids, a `kind: mart`
+> benchmark line), published by `publish.swap_dir`, its status entry `cohorts.<ref>` per
+> tier and its marts snapshot id stamped through `record_snapshot_once`. The catalog
+> extension (`cohort.build.register_marts`, called from `register_cohorts`) exposes the
+> latest built patch of each major as `marts.cohort_<id>_v<major>` and every build in the
+> registry table `marts.cohorts` (id, version, def_hash, grain, tier, rows / n_subjects
+> blanked below k, n_steps, custom, run / build ids, sql / cohort sha256, the snapshot
+> ids, k, built_at, path, the view it owns) — the `safe.REGISTRY_TABLES` member EP-33
+> B1c pre-registered, so `mwh sql "SELECT cohort_id, version, tier, rows FROM
+> marts.cohorts"` needs no count column while the views stay subject-keyed reads. Two
+> departures from the planning text: attrition counts are computed on the **build
+> connection** (one statement, raw into the mart), not through `safe_query` — the
+> `attrition()` accessor and `mwh cohort attrition` apply `disclose.suppress(mode=
+> "chain")` on both count columns before anything leaves the data root, and the run
+> manifest carries the suppressed chain (a banded cell is `None` there: `mwh runs show`
+> is a session surface); and the degeneracy probe (EP-46) now runs **over the compiled
+> cohort** (`probe.built_relation` → `marts.cohort_<id>_v<major>`) after every build and
+> in `mwh cohort validate --tier`, falling back to the index population while a cohort is
+> unbuilt. A relation the chain reads must be present on the tier with the hash the spec
+> resolved (`meta.codeset_members` / `meta.codesets`, the phenotype's built file, the
+> concept's) or the build refuses with the remedy; a directory built from a different
+> definition under the same `id@version` refuses unless `--force`.
+
+*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry, EP-47 the compiler + marts (notes above); EP-48 planned; consolidated at EP-33.
 
 ## 10. Events spine (MEDS-compatible)
 
@@ -1286,7 +1335,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
 │   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
-│   ├── cohort/                    EP-46 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query), cli (`mwh cohort`); EP-47/48 compiler, attrition
+│   ├── cohort/                    EP-46, EP-47 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), cli (`mwh cohort`); EP-48 attrition diagram
 │   ├── timeline.py                EP-49
 │   ├── spine.py                   EP-50
 │   ├── protocol/                  EP-51 (+ EP-128/129)
@@ -1447,6 +1496,24 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > `register_cohorts` sits between the measurement and phenotype extensions in
 > `CATALOG_EXTENSIONS`, so the EP-39 / EP-41 order pins (units last, phenotypes second to
 > last) hold.
+
+> **Note (2026-09-16, EP-47) — `mwh cohort build` / `attrition`, `compiler.py` +
+> `build.py`.** Two more modules under the same budget: `compiler.py` is stdlib + the spec
+> module + `timesem` (the contract loads lazily for `data_availability`), `build.py`
+> imports `fsio`, `publish`, the registry and the manifest / snapshot helpers at module
+> level and duckdb, polars, `run`, `disclose`, the concept runner, the code-set and
+> phenotype runners inside functions; `cli.py` imports both inside the command bodies
+> (`test_ep47` pins `cohort.build` and `cohort.compiler` as lazy). `build [refs …] --tier
+> t [--force] [--dry-run] [--background --job NAME] [--specs/--codesets/--phenotypes DIR]
+> [--json]` selects `cohorts.specs` + `cohorts.build` + `catalog` through the runner with
+> provenance (the phenotype `compile` shape; `--background` reuses `dag.jobs.launch` —
+> the lighter of the amendment's two options, no `--select cohort.<id>` discovery step),
+> prints the step table + one line per cohort (counts `<k` below the floor) and then the
+> degeneracy probe over the compiled cohort; `attrition <id@version | run_id> --tier t
+> [--k n] [--json]` prints the chain-suppressed table (`render_cell`: `<11`, `~1,000`).
+> The `cohorts.build` step carries the `marts` tag, not `cohorts`, so EP-46's `mwh build
+> --tag cohorts` (specs + catalog) is unchanged and `--tag marts` is the builds + catalog;
+> the conftest session lake (the full DAG) now builds both seeds.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

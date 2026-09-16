@@ -1,20 +1,27 @@
-"""``mwh cohort …`` — the cohort-spec registry commands (EP-46 item 2; attached in
-:mod:`mimicwarehouse.cli`).
+"""``mwh cohort …`` — the cohort-spec registry commands (EP-46 item 2) and the compiler /
+materialisation commands (EP-47 items 1-3); attached in :mod:`mimicwarehouse.cli`.
 
 ``list`` / ``show`` / ``schema`` / ``lock`` read the packaged specs (plus ``--specs DIR``
 study directories, resolved against the code-set registry plus ``--codesets DIR`` and the
 phenotype registry plus ``--phenotypes DIR``) and touch no data; ``validate <ref>`` runs
 the static checks (grain, index rule, reference kinds, tables) and, with ``--tier``, the
 tier-level ones through ``safe_query`` — every reference compiled / built on the tier
-with the resolved hash, and the level-degeneracy probe as suppressed aggregates
-(:mod:`~mimicwarehouse.cohort.probe`). Errors follow the EP-33 canon
-(:func:`mimicwarehouse.console.fail`): a frozen ``(id, version)`` — spec, code set or
-phenotype — refuses with ``EXIT_REFUSED`` (3), a ``safe_query`` refusal too; usage /
-environment errors exit 2; a validation with problems exits 1.
+with the resolved hash, and the level-degeneracy probe as suppressed aggregates over the
+compiled cohort when it is built on the tier, else over the index population
+(:mod:`~mimicwarehouse.cohort.probe`). ``build [refs …] --tier <t>`` runs the
+``cohorts.specs`` + ``cohorts.build`` DAG steps and the catalog step through the runner
+(the only lake writer; ``--dry-run`` prints the compiled SQL instead; ``--background
+--job NAME`` detaches it through the EP-19 launcher, the ⏱ standard for the full tier)
+and then re-runs the probe over the compiled cohort; ``attrition <ref | run_id> --tier
+<t>`` prints the suppressed attrition chain (:func:`mimicwarehouse.cohort.build.attrition`).
+Errors follow the EP-33 canon (:func:`mimicwarehouse.console.fail`): a frozen ``(id,
+version)`` — spec, code set or phenotype — refuses with ``EXIT_REFUSED`` (3), a
+``safe_query`` refusal too; usage / environment errors exit 2; a validation with
+problems or a failed build exits 1.
 
 Import budget: this module is on the ``mwh --help`` path — the spec / registry modules are
-pydantic + yaml + stdlib (+ ``timesem``); the probe, duckdb, polars and ``safe`` load
-inside the command bodies.
+pydantic + yaml + stdlib (+ ``timesem``); the compiler, the build module, the probe,
+duckdb, polars, the runner and ``safe`` load inside the command bodies.
 """
 
 from __future__ import annotations
@@ -39,6 +46,7 @@ from mimicwarehouse.console import (
     EXIT_FINDINGS,
     EXIT_REFUSED,
     EXIT_USAGE,
+    configure_progress_logging,
     console,
     console_safe,
     emit_json,
@@ -56,10 +64,12 @@ TIERS = ("fixture", "demo", "dev", "full")
 cohort_app = typer.Typer(
     name="cohort",
     help=(
-        "Cohort spec registry (EP-46): list | show | validate | schema | lock. Cohort specs are "
-        "versioned YAML (id@version, def_hash pinned to the code sets and phenotypes they "
-        "reference); EP-47 compiles and materialises them. Definition text only; "
-        "`validate --tier` reads aggregates through safe_query."
+        "Cohort specs (EP-46) + the compiler (EP-47): list | show | validate | schema | lock | "
+        "build | attrition. Cohort specs are versioned YAML (id@version, def_hash pinned to the "
+        "code sets and phenotypes they reference), compiled to one deterministic CTE chain and "
+        "materialised per tier under lake/marts/<tier>/cohorts/ (marts.cohort_<id>_v<major>, "
+        "marts.cohorts); sessions read them through safe_query as aggregates, the attrition "
+        "chain k-suppressed."
     ),
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -401,7 +411,9 @@ def validate_command(
     tables; no data access) and, with --tier, on a tier catalog through safe_query: every
     referenced code set / phenotype compiled with the resolved hash, and the
     level-degeneracy probe (zero-event / all-event levels of the probe columns against the
-    follow-up outcome, k-suppressed). Problems exit 1; degenerate levels are warnings."""
+    follow-up outcome, k-suppressed) over the compiled cohort when `mwh cohort build` has
+    materialised it on the tier, else over the index population. Problems exit 1;
+    degenerate levels are warnings."""
     prefix = "mwh cohort validate"
     state: CliState = ctx.obj
     registry = _registry(prefix, specs, codesets, phenotypes)
@@ -458,6 +470,13 @@ def _print_tier_result(result: Any) -> None:
             + ")",
             highlight=False,
         )
+    if result.probes:
+        over = (
+            f"the compiled cohort ({result.cohort_relation})"
+            if result.population == "cohort"
+            else "the index population (not built on the tier)"
+        )
+        console.print(f"degeneracy probe over {escape(over)}", highlight=False)
     for probe in result.probes:
         table = RichTable(
             title=f"degeneracy probe {probe.column} ({result.tier}, k={result.k})", pad_edge=False
@@ -484,6 +503,333 @@ def _print_tier_result(result: Any) -> None:
         console.print(f"[yellow]warning:[/] {escape(warning)}", highlight=False)
     for problem in result.problems:
         console.print(f"[red]problem:[/] {escape(problem)}", highlight=False)
+
+
+# ---------------------------------------------------------------------------
+# build (EP-47)
+# ---------------------------------------------------------------------------
+
+
+@cohort_app.command("build")
+def build_command(
+    ctx: typer.Context,
+    refs: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="Cohort specs to build as <id>@<version>; default: every registered one.",
+            show_default=False,
+        ),
+    ] = None,
+    tier: TierOption = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Print the compiled SQL and the steps; touch nothing."),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Rebuild a version already built with the same def_hash, or replace a directory "
+            "built from a different definition.",
+        ),
+    ] = False,
+    specs: SpecsOption = None,
+    codesets: CodesetsOption = None,
+    phenotypes: PhenotypesOption = None,
+    background: Annotated[
+        bool,
+        typer.Option(
+            "--background",
+            help="Detach: launch this build as a background job (requires --job) and return.",
+        ),
+    ] = False,
+    job: Annotated[
+        str | None,
+        typer.Option("--job", help="Job name for --background (state under runs/jobs/)."),
+    ] = None,
+    json_output: JsonOption = False,
+) -> None:
+    """Compile and materialise the selected cohort specs on a tier through the DAG runner
+    (build lock, one kind: cohort run each, a kind: mart benchmark line), rebuild the
+    catalog (marts.cohort_<id>_v<major>, marts.cohorts) and re-run the degeneracy probe
+    over the compiled cohort. A frozen (edited without a version bump) spec, code set or
+    phenotype is refused before anything runs; a referenced set / phenotype must be
+    compiled / built on the tier with the resolved hash."""
+    prefix = "mwh cohort build"
+    state: CliState = ctx.obj
+    registry = _registry(prefix, specs, codesets, phenotypes)
+    selection = [r.strip() for r in (refs or []) if r.strip()]
+    entries = [_entry(prefix, registry, ref) for ref in selection] or list(registry)
+    for entry in entries:
+        result = registry_mod.validate(entry, registry)
+        if not result.ok:
+            fail(
+                prefix,
+                f"{entry.ref} does not validate: " + "; ".join(result.problems),
+                code=EXIT_FINDINGS,
+            )
+    settings = state.settings
+    resolved_tier = _tier(prefix, tier, settings)
+    if dry_run:
+        if background:
+            fail(prefix, "--dry-run prints the SQL and touches nothing; drop --background")
+        from mimicwarehouse.cohort.compiler import CompileError, compile_entry, describe
+
+        payload: list[dict[str, Any]] = []
+        for entry in entries:
+            try:
+                compiled = compile_entry(entry, registry, resolved_tier)
+            except CompileError as exc:
+                fail(prefix, str(exc), code=EXIT_FINDINGS)
+            if json_output:
+                payload.append(
+                    {
+                        "ref": compiled.ref,
+                        "tier": compiled.tier,
+                        "sql": compiled.sql,
+                        "attrition_sql": compiled.attrition_sql,
+                        "steps": [s.to_dict() for s in compiled.steps],
+                        "keys": list(compiled.keys),
+                        "columns": list(compiled.columns),
+                        "sources": list(compiled.sources),
+                        "sql_sha256": compiled.sql_sha256,
+                        "custom": compiled.custom,
+                    }
+                )
+                continue
+            _raw(compiled.sql + "\n")
+            console.print(escape(describe(compiled)), highlight=False)
+        if json_output:
+            emit_json({"cohorts": payload})
+        return
+
+    if background:
+        if not job:
+            fail(prefix, "--background requires --job NAME")
+        from mimicwarehouse.dag import jobs as jobs_mod
+
+        argv: list[str] = []
+        if state.data_root_override is not None:
+            argv += ["--data-root", str(state.data_root_override)]
+        argv += ["cohort", "build", *selection, "--tier", resolved_tier]
+        if force:
+            argv.append("--force")
+        for directory in specs or []:
+            argv += ["--specs", str(directory)]
+        for directory in codesets or []:
+            argv += ["--codesets", str(directory)]
+        for directory in phenotypes or []:
+            argv += ["--phenotypes", str(directory)]
+        try:
+            info = jobs_mod.launch(argv, job, settings)
+        except jobs_mod.JobError as exc:
+            fail(prefix, str(exc))
+        console.print(
+            f"launched job [bold]{escape(info.job)}[/] (pid {info.pid}) - log {escape(info.log)}",
+            highlight=False,
+        )
+        console.print(f"check it with: mwh jobs --job {escape(info.job)}", highlight=False)
+        return
+
+    from mimicwarehouse import config
+    from mimicwarehouse.cohort import build as build_mod
+    from mimicwarehouse.dag import runner as runner_mod
+    from mimicwarehouse.dag.spec import DagError, load_dag
+
+    # --json keeps stdout for the payload: no progress handler (the console shares stdout
+    # with emit_json); warnings then reach stderr through logging's last-resort handler
+    if not json_output:
+        configure_progress_logging()
+    try:
+        with build_mod.build_options(
+            select=selection,
+            extra_dirs=specs or [],
+            codeset_dirs=codesets or [],
+            phenotype_dirs=phenotypes or [],
+            force=force,
+        ):
+            result = runner_mod.run(
+                load_dag(),
+                resolved_tier,
+                select=[registry_mod.STEP_SPECS, build_mod.STEP_BUILD, "catalog"],
+                settings=settings,
+                provenance=True,
+            )
+    except (DagError, runner_mod.BuildLockError, config.ConfigError) as exc:
+        fail(prefix, str(exc))
+
+    from mimicwarehouse.inventory import fmt_int
+
+    lake_root = settings.lake_root(resolved_tier)
+    builds: list[dict[str, Any]] = []
+    for entry in entries:
+        attempt = build_mod.cohort_attempt(lake_root, resolved_tier, entry.ref) or {}
+        mart = build_mod.read_mart_manifest(lake_root, resolved_tier, entry.ref) or {}
+        builds.append(
+            {
+                "ref": entry.ref,
+                "status": attempt.get("status"),
+                "def_hash": entry.def_hash,
+                "built_def_hash": mart.get("def_hash"),
+                "run_id": mart.get("run_id"),
+                "build_id": attempt.get("build_id"),
+                "rows": mart.get("rows"),
+                "n_subjects": mart.get("n_subjects"),
+                "sql_sha256": mart.get("sql_sha256"),
+                "cohort_sha256": mart.get("cohort_sha256"),
+                "snapshot_ids": mart.get("snapshot_ids"),
+                "error_class": attempt.get("error_class"),
+            }
+        )
+    if not json_output:
+        from rich.table import Table as RichTable
+
+        table = RichTable(title=f"mwh cohort build {result.build_id}", pad_edge=False)
+        for col, justify in (
+            ("step", "left"),
+            ("status", "left"),
+            ("rows", "right"),
+            ("wall s", "right"),
+        ):
+            table.add_column(col, justify=justify)  # type: ignore[arg-type]
+        for s in result.steps:
+            table.add_row(
+                escape(s.name),
+                s.status,
+                fmt_int(s.rows) if s.rows is not None else "-",
+                f"{s.wall_s:.1f}",
+            )
+        console.print(table)
+        k = settings.k_suppression
+
+        def cell(n: int | None) -> str:
+            return fmt_int(n) if n is None or n == 0 or n >= k else f"<{k}"
+
+        for b in builds:
+            counts = f"{cell(b['rows'])} units, {cell(b['n_subjects'])} subjects"
+            console.print(
+                console_safe(
+                    f"{b['ref']}: {b['status'] or 'not attempted'} - {counts} - run "
+                    f"{b['run_id'] or '-'} - cohort sha256 "
+                    f"{(b['cohort_sha256'] or '-')[:12]}"
+                    + (f" - {b['error_class']}" if b["error_class"] else "")
+                ),
+                highlight=False,
+            )
+    if not result.ok:
+        failed = [f"{s.name}: {s.error}" for s in result.steps if s.status in ("failed", "blocked")]
+        if json_output:
+            emit_json(
+                {"build_id": result.build_id, "ok": False, "failed": failed, "cohorts": builds}
+            )
+            raise typer.Exit(code=EXIT_FINDINGS)
+        fail(prefix, "; ".join(failed), code=EXIT_FINDINGS)
+    # the EP-31 policy's spec-level half, over the compiled cohort (EP-46 handoff)
+    from mimicwarehouse.catalog.cli import safe_cli_errors
+    from mimicwarehouse.cohort import probe as probe_mod
+
+    probes: list[dict[str, Any]] = []
+    with safe_cli_errors(prefix):
+        for entry in entries:
+            attempt = build_mod.cohort_attempt(lake_root, resolved_tier, entry.ref) or {}
+            if attempt.get("status") != "done":
+                continue
+            tier_result = probe_mod.validate_on_tier(
+                entry, tier=resolved_tier, settings=settings, population="auto"
+            )
+            probes.append(tier_result.to_dict())
+            if not json_output:
+                _print_tier_result(tier_result)
+    if json_output:
+        emit_json(
+            {
+                "build_id": result.build_id,
+                "ok": True,
+                "run_id": result.run_id,
+                "snapshot_ids": result.snapshot_ids,
+                "cohorts": builds,
+                "probes": probes,
+            }
+        )
+
+
+# ---------------------------------------------------------------------------
+# attrition (EP-47 item 3)
+# ---------------------------------------------------------------------------
+
+
+@cohort_app.command("attrition")
+def attrition_command(
+    ctx: typer.Context,
+    ref: Annotated[
+        str,
+        typer.Argument(help="A built cohort as <id>@<version>, or the run id of its build."),
+    ],
+    tier: TierOption = None,
+    k: Annotated[
+        int | None,
+        typer.Option("--k", help="Suppression threshold (>= 11 on dev/full)."),
+    ] = None,
+    json_output: JsonOption = False,
+) -> None:
+    """Print the attrition chain of a built cohort — one row per step: units and subjects
+    left, units and subjects dropped — k-suppressed in chain mode (small totals withheld,
+    small drops withheld and their neighbours banded to the nearest ten; disclose, EP-43).
+    The raw counts stay in the mart under the data root."""
+    prefix = "mwh cohort attrition"
+    state: CliState = ctx.obj
+    settings = state.settings
+    resolved_tier = _tier(prefix, tier, settings)
+    from mimicwarehouse.cohort import build as build_mod
+    from mimicwarehouse.cohort.spec import UnknownCohortSpecError
+
+    try:
+        result = build_mod.attrition(ref, resolved_tier, k=k, settings=settings)
+    except UnknownCohortSpecError as exc:
+        fail(prefix, str(exc), code=EXIT_FINDINGS)
+    except CohortSpecError as exc:
+        fail(prefix, str(exc), code=EXIT_USAGE)
+    if json_output:
+        emit_json(result.to_dict())
+        return
+    from rich.table import Table as RichTable
+
+    from mimicwarehouse.disclose import render_cell
+
+    table = RichTable(title=f"attrition {result.ref} ({result.tier}, k={result.k})", pad_edge=False)
+    for col, justify in (
+        ("step", "left"),
+        ("label", "left"),
+        ("n_units", "right"),
+        ("dropped_units", "right"),
+        ("n_subjects", "right"),
+        ("dropped_subjects", "right"),
+    ):
+        table.add_column(col, justify=justify)  # type: ignore[arg-type]
+    for row in result.df.to_dicts():
+        table.add_row(
+            escape(str(row["step"])) + (" [custom]" if row["custom"] else ""),
+            escape(str(row["label"])),
+            render_cell(row["n_units"], result.k, banded=bool(row["n_units_banded"])),
+            "-"
+            if row["dropped_units"] is None and row["step"] == result.df["step"][0]
+            else (render_cell(row["dropped_units"], result.k)),
+            render_cell(row["n_subjects"], result.k, banded=bool(row["n_subjects_banded"])),
+            "-"
+            if row["dropped_subjects"] is None and row["step"] == result.df["step"][0]
+            else (render_cell(row["dropped_subjects"], result.k)),
+        )
+    console.print(table)
+    hidden = sum(v for kk, v in result.report.items() if kk.endswith("_hidden"))
+    banded = sum(v for kk, v in result.report.items() if kk.endswith("_banded"))
+    console.print(
+        console_safe(
+            f"{len(result.df)} step(s); {hidden} cell(s) withheld, {banded} banded at "
+            f"k={result.k}; build run {result.run_id or '-'}, def_hash "
+            f"{(result.def_hash or '-')[:12]}"
+        ),
+        highlight=False,
+    )
 
 
 __all__ = ["TIERS", "cohort_app"]

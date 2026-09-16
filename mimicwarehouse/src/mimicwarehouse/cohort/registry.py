@@ -681,7 +681,7 @@ _SPECS_COMMENT = (
     "and phenotype hashes inlined), grain, index_event, n_inclusion / n_exclusion, custom "
     "(a custom_sql criterion is present), refs (JSON of codeset:<id@version> / "
     "phenotype:<id@version> -> def_hash), outcome, locked (recorded in cohorts.lock.json), "
-    "the YAML path, registered_at, tier, build_id. Definitions only — EP-47's marts.cohorts "
+    "the YAML path, registered_at, tier, build_id. Definitions only — marts.cohorts (EP-47) "
     "records the builds."
 )
 
@@ -689,7 +689,12 @@ _SPECS_COMMENT = (
 def register_cohorts(con: duckdb.DuckDBPyConnection, tier: str) -> None:
     """The catalog extension (:data:`mimicwarehouse.catalog.build.CATALOG_EXTENSIONS`
     entry, after EP-37's discovery walker): ``COMMENT ON`` ``meta.cohort_specs`` when the
-    walker registered it. DDL only; never opens a connection of its own."""
+    walker registered it, then (EP-47) the built cohorts —
+    ``marts.cohort_<id>_v<major>`` views over ``lake/marts/<tier>/cohorts/`` and the
+    ``marts.cohorts`` registry table (:func:`mimicwarehouse.cohort.build.register_marts`).
+    DDL and registry text only; never opens a connection of its own."""
+    from mimicwarehouse.cohort.build import register_marts
+
     present = {
         str(r[0])
         for r in con.execute(
@@ -704,6 +709,7 @@ def register_cohorts(con: duckdb.DuckDBPyConnection, tier: str) -> None:
         "commented" if SPECS_TABLE in present else "absent",
         tier,
     )
+    register_marts(con, tier)
 
 
 # ---------------------------------------------------------------------------

@@ -420,12 +420,115 @@ What it does not claim:
 - No calendar-time claim; anchor_year_group is the only era axis.
 <!-- cards:end -->
 
-## 7. What this does not claim
+## 7. Compilation, materialisation and attrition (EP-47)
+
+`src/mimicwarehouse/cohort/compiler.py` turns a spec into **one deterministic CTE chain**
+and `build.py` materialises it per tier. Nothing below is derived from patient data: the
+SQL is a pure function of the spec's canonical form (the golden file
+`tests/ep/golden/first_icu_adults@1.0.0.sql` pins the tracer cohort's text), and every
+count a session sees passes through `disclose`.
+
+**The chain.** `mwh cohort build <ref> --dry-run` prints it:
+
+```
+WITH base AS (...),            -- every unit of the grain's source (the attrition denominator)
+idx AS (...),                  -- the index event, joined to the admission, the patient [and the stay]
+era AS (...),                  -- only with an era_filter
+crit_01_<label> AS (SELECT c.* FROM idx AS c WHERE coalesce(<predicate>, false)),          -- inclusion
+crit_02_<label> AS (SELECT c.* FROM crit_01_<label> AS c WHERE NOT coalesce(<predicate>, false)),  -- exclusion
+washout AS (...),              -- only when washout.rule is not none
+cohort AS (SELECT <output columns> FROM <last step> AS c ORDER BY <grain keys>)
+SELECT * FROM cohort
+```
+
+`base` is the grain's source relation (`patients` / `admissions` / `icustays`; every bin
+of every stay for `icu_day` / `hour_bin`); `idx` is the index event - the grain's named
+rule (`timesem.Grain.index_event_sql`; `first_icu_stay` is the tracer's `first_stay`), the
+flagged onset rows of a `phenotype_onset` (`phenotypes."<id>@<version>"`, the built version
+the spec pins) or the `first` / `last` value of a `concept_time` column per unit - joined
+to `mimiciv_hosp.admissions`, `mimiciv_hosp.patients`, the index ICU stay (or the
+admission's first stay, for `first_careunit`) and the subject's last discharge (the `dod`
+visibility anchor). A subject-grain onset / concept index without an admission of its
+own takes the admission whose stay contains the index time, else the latest one started
+before it, else the earliest (one `row_number`, deterministic). Criteria are one CTE each
+in document order, named `crit_NN_<label>` so a label can never collide with the fixed
+names; a NULL predicate never includes and never excludes (`coalesce(..., false)`).
+The criterion -> predicate mapping:
+
+| kind | predicate over the previous step's alias `c` |
+|---|---|
+| `age` | `timesem.sql_age_at(anchor_age, anchor_year, index_time)` in `[min, max)` - uncapped in the test, as the tracer's `adult` step; the output carries the capped value |
+| `demographic` | `c.<field> IN (...)` per field, AND-ed; `first_careunit` is the index stay's (or the admission's first stay's) |
+| `codeset` | `EXISTS` over `diagnoses_icd` / `procedures_icd` (by the set's kind) joined to `meta.codeset_members` on `code` + `system` (`icd9` / `icd10` <-> `icd_version`) for `(codeset_id, version)`; `same_admission` = the index `hadm_id`; `prior_days N` / `any_prior` = an admission of the subject started before the index (within N days) - never the index admission; `position: primary` adds `seq_num = 1` |
+| `phenotype` | `EXISTS` over `phenotypes."<id>@<version>"` where `flag`: `at` joins on the finest key both grains share (`stay_id` > `hadm_id` > `subject_id`; a coarser phenotype also needs `onset_time <= index_time`); `before` = the subject's onset `< index_time`; `within_hours H` = `abs(hours_since(index_time, onset_time)) <= H` |
+| `concept` | `EXISTS` over `<table>` keyed on the grain's unit key (`stay_id` for the stay grains, `hadm_id`, `subject_id`) with `column op value` and, with a `window`, `time_column` in `[start_h, end_h)` hours from the index |
+| `los` | `hours_since(stay_intime, stay_outtime)` (icu - needs an index that yields a stay, else the compiler refuses) or `hours_since(admittime, dischtime)` (hosp) in `[min_hours, max_hours)` |
+| `data_availability` | `(SELECT count(*) FROM <table> ... WHERE <finest common key> = c.<key> [AND itemid IN (...)] AND <time_column> in the window) >= min_rows` - the contract's time column; the observation window by default |
+| `prior_admissions` | the count of the subject's admissions started before the index (within `lookback_days`; never the index admission) in `[min, max]` |
+| `custom_sql` | the SELECT is wrapped as its own CTE (`custom_NN`) and **semi-joined on the grain keys**; the step is flagged `custom` in the attrition table, the run and `marts.cohorts` |
+| washout | `NOT EXISTS` an earlier admission (`no_prior_hadm`, within `days`, optionally carrying the code set) or an earlier ICU stay (`no_prior_icu`) of the subject |
+
+**Output columns** (`cohort`): the grain keys (`subject_id`, `hadm_id`, `stay_id` as
+applicable, the bin index of an expanded grain), `index_time`, `era_index`
+(`timesem.sql_era_index`), `age_at_index` (capped at 91) with `age_capped`, `obs_start` /
+`obs_end` (the observation window in the patient's shifted time), `follow_up_end` and
+`censor_reason` - an in-hospital outcome ends at discharge (`death` when
+`hospital_expire_flag = 1`, else `discharge_alive`); a censored outcome at
+`min(index + horizon, last discharge + 365 d)` (`death` when `dod` falls inside, else
+`horizon` or `dod_visibility`, whichever bound) - and `custom_flag`. The statement ends
+in a total `ORDER BY` over the keys and uses no non-deterministic function, so a rebuild
+from the same spec and the same layer snapshot ids is **byte-identical**
+(`cohort_sha256` in the mart manifest; `test_ep47` asserts it on the fixture).
+
+**Materialisation** (`mwh cohort build <ref> --tier <t> [--force]`; on the full tier
+always `--background --job <name>`, EP-19): the `cohorts.build` DAG step (tag `marts`;
+`dag/specs/cohorts.yaml`) compiles the chain, binds every relation it reads on the build
+connection - the staged core, `meta.codeset_members` (a referenced set must be compiled
+on the tier with the resolved hash, else the step names `mwh codeset compile`),
+`phenotypes."<id>@<version>"` (built with the resolved hash, else `mwh phenotype compile`),
+`mimiciv_derived.<concept>` (built, else `mwh build --tag concepts`) - and writes, inside
+**one `kind: cohort` run** per spec, `lake/marts/<tier>/cohorts/<id>@<version>/`:
+`cohort.parquet` (ZSTD, ordered by the keys), `attrition.parquet` (the raw per-step
+counts), `spec.yaml` (the registered file verbatim) and `manifest.json` (spec `def_hash`,
+`sql_sha256`, `cohort_sha256`, `run_id`, the snapshot ids of every layer read, rows,
+subjects, `built_at`), staged under `.new` and published by `publish.swap_dir`. The run
+records `sql/cohort.sql`, `sql/attrition.sql`, the cohort / code-set / phenotype refs
+with hashes, the snapshot ids, a `kind: mart` benchmark line and the **suppressed**
+attrition chain (a run manifest is a session-readable surface: `mwh runs show`). Versions
+coexist on disk; a version already built with the same `def_hash` is skipped unless
+`--force`, and a directory built from a *different* definition under the same
+`id@version` is refused unless `--force` (the lock should already have refused the
+edit). The catalog step then registers `marts.cohort_<id>_v<major>` (the latest built
+patch of each major, a view over `cohort.parquet` - subject-keyed, so a session reads it
+through `safe_query` as aggregates) and the registry table `marts.cohorts` (one row per
+built `id@version`: hashes, ids, rows / subjects blanked below k, snapshot ids, path,
+the view it owns), which `safe.REGISTRY_TABLES` admits without a count column:
+`uv run mwh sql "SELECT cohort_id, version, tier, rows FROM marts.cohorts ORDER BY 1,2,3"
+--tier dev`.
+
+**Attrition** (`mwh cohort attrition <id@version | run_id> --tier <t>`;
+`cohort.build.attrition()`): one row per step - `step`, `label`, `polarity`, `kind`,
+`custom`, `n_units`, `n_subjects`, `dropped_units`, `dropped_subjects` - after
+`disclose.suppress(mode="chain")` (chain mode) on both count columns at the tier's k: a small total is
+withheld, a small drop is withheld and its two neighbours banded to the nearest ten
+(`~1,000`, the `*_banded` markers), a drop is released only between two exact
+neighbours. The raw counts never leave the data root (`attrition.parquet`, the mart
+manifest). The build re-runs the degeneracy probe (§4) **over the compiled cohort**
+(`marts.cohort_<id>_v<major>` joined to admissions / patients) and names the zero-event /
+all-event levels; `mwh cohort validate --tier` does the same once a cohort is built and
+falls back to the index population otherwise. EP-48 renders the chain as a diagram; EP-71
+builds the Table 1 over the view; EP-75 attaches endpoints to `follow_up_end` /
+`censor_reason`.
+
+## 8. What this does not claim
 
 A cohort spec is a **computable definition** of a study population, not a validated
 clinical cohort: it selects on billed codes, orders, charted values and mimic-code
 concepts as recorded, the index event is a recorded time, and the follow-up is bounded by
 what `dod` can show. It carries no exposure, outcome model, analysis plan or holdout -
 those are the protocol's (EP-51), which references a spec by `id@version`. Every seed
-states its own limits in `what_it_does_not_claim` (§6); the compiled attrition (EP-47),
-the diagram (EP-48) and the Table 1 over a cohort (EP-71) inherit them.
+states its own limits in `what_it_does_not_claim` (§6); the compiled attrition (§7,
+EP-47), the diagram (EP-48) and the Table 1 over a cohort (EP-71) inherit them. A
+compiled cohort is as good as its inputs: a `codeset` step counts billed codes, a
+`phenotype` step the EP-41 definition's flag, and the `dod` horizon bounds every
+out-of-hospital follow-up.

@@ -77,19 +77,26 @@ def event_sql(follow_up: FollowUp) -> str:
     )
 
 
-def population_sql(spec: CohortSpec) -> str | None:
-    """The index population of a rule-based spec as one SELECT (module docstring):
-    the probe columns plus ``event``; ``None`` for a ``phenotype_onset`` /
-    ``concept_time`` index (compiled by EP-47)."""
-    if spec.index_event.rule is None:
-        return None
+def population_sql(spec: CohortSpec, cohort_relation: str | None = None) -> str | None:
+    """The probe's population as one SELECT (module docstring): the probe columns plus
+    ``event``. Without ``cohort_relation`` it is the **index population** of a
+    rule-based spec (``None`` for a ``phenotype_onset`` / ``concept_time`` index, which
+    has none before it is compiled); with it — the session view of the compiled cohort,
+    ``marts.cohort_<id>_v<major>`` (EP-47) — it is the **compiled cohort**: the view's
+    keys and ``index_time`` joined the same way."""
     grain = spec.grain_entry
-    index_sql = grain.index_event_sql(spec.index_event.rule)
     has_stay = "stay_id" in grain.keys or spec.index_event.rule in (
         "first_icu_stay",
         "each_icustay",
         "first_icu_stay_of_first_hadm",
     )
+    if cohort_relation is not None:
+        keys = "subject_id, hadm_id, stay_id" if has_stay else "subject_id, hadm_id"
+        index_sql = f"SELECT {keys}, index_time\nFROM {cohort_relation}"
+    elif spec.index_event.rule is None:
+        return None
+    else:
+        index_sql = grain.index_event_sql(spec.index_event.rule)
     if has_stay:
         careunit = "i.first_careunit"
         stay_join = "JOIN mimiciv_icu.icustays AS i ON i.stay_id = idx.stay_id\n"
@@ -138,12 +145,12 @@ def population_sql(spec: CohortSpec) -> str | None:
     ).rstrip("\n")
 
 
-def probe_sql(spec: CohortSpec, column: str) -> str | None:
+def probe_sql(spec: CohortSpec, column: str, cohort_relation: str | None = None) -> str | None:
     """The suppressed cross-tab statement of one probe column: level, ``n``, ``n_events``
     (a CTE over :func:`population_sql`; identifiers stay inside the population)."""
     if column not in PROBE_COLUMNS:
         raise ValueError(f"{column!r} is not a probe column; expected one of {PROBE_COLUMNS}")
-    population = population_sql(spec)
+    population = population_sql(spec, cohort_relation)
     if population is None:
         return None
     body = "\n".join("    " + line for line in population.splitlines())
@@ -250,6 +257,10 @@ class TierValidation:
     skipped: str | None = None
     snapshot_id: str | None = None
     audit_ids: tuple[str, ...] = field(default=())
+    #: What the probe ran over: ``index`` (the index population, EP-46) or ``cohort``
+    #: (the compiled cohort's session view, EP-47); the relation when ``cohort``.
+    population: str = "index"
+    cohort_relation: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -264,6 +275,8 @@ class TierValidation:
             "references": [r.to_dict() for r in self.references],
             "probes": [p.to_dict() for p in self.probes],
             "probe_skipped": self.skipped,
+            "population": self.population,
+            "cohort_relation": self.cohort_relation,
             "snapshot_id": self.snapshot_id,
             "audit_ids": list(self.audit_ids),
             "problems": list(self.problems),
@@ -291,9 +304,11 @@ def _query(
     return safe_query(sql, tier=tier, k=k, row_cap=row_cap, settings=settings, actor=actor)
 
 
-def _meta_table_present(table: str, *, tier: str, settings: Settings, actor: str | None) -> bool:
+def _meta_table_present(
+    table: str, *, tier: str, settings: Settings, actor: str | None, schema: str = "meta"
+) -> bool:
     result = _query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'meta' "
+        f"SELECT table_name FROM information_schema.tables WHERE table_schema = {_sql_str(schema)} "
         f"AND table_name = {_sql_str(table)}",
         tier=tier,
         settings=settings,
@@ -377,6 +392,32 @@ def _level_text(value: Any) -> str:
     return NULL_LEVEL if value is None else str(value)
 
 
+def built_relation(
+    entry: Entry, *, tier: str, settings: Settings, actor: str | None = ACTOR
+) -> str | None:
+    """``marts.cohort_<id>_v<major>`` when ``marts.cohorts`` on the tier carries this
+    ``id@version`` built with the registry's ``def_hash`` **and** owning the view (the
+    latest patch of its major); None otherwise (not built, stale, superseded, or no
+    registry table yet). A registry read (no count column needed, EP-33 B1c)."""
+    if not _meta_table_present(
+        "cohorts", tier=tier, settings=settings, actor=actor, schema="marts"
+    ):
+        return None
+    spec = entry.spec
+    result = _query(
+        "SELECT def_hash, view FROM marts.cohorts WHERE cohort_id = "
+        f"{_sql_str(spec.id)} AND version = {_sql_str(spec.version)}",
+        tier=tier,
+        settings=settings,
+        actor=actor,
+        row_cap=REGISTRY_ROW_CAP,
+    )
+    for def_hash, view in result.df.rows():
+        if str(def_hash) == entry.def_hash and view:
+            return f"marts.{view}"
+    return None
+
+
 def run_probe(
     entry: Entry,
     *,
@@ -384,13 +425,15 @@ def run_probe(
     settings: Settings,
     k: int | None = None,
     actor: str | None = ACTOR,
+    cohort_relation: str | None = None,
 ) -> list[ProbeResult]:
     """The degeneracy probe of every column of the spec's ``degeneracy_probe`` (module
-    docstring); ``[]`` when the index event is not rule-based or the probe is off."""
+    docstring) over the index population, or over ``cohort_relation`` (the compiled
+    cohort's view, EP-47); ``[]`` when there is no population or the probe is off."""
     spec = entry.spec
     out: list[ProbeResult] = []
     for column in spec.degeneracy_probe.columns:
-        sql = probe_sql(spec, column)
+        sql = probe_sql(spec, column, cohort_relation)
         if sql is None:
             return []
         result = _query(sql, tier=tier, settings=settings, actor=actor, k=k)
@@ -423,8 +466,12 @@ def validate_on_tier(
     settings: Settings | None = None,
     k: int | None = None,
     actor: str | None = ACTOR,
+    population: str = "auto",
 ) -> TierValidation:
-    """Both tier-level checks of one entry (module docstring)."""
+    """Both tier-level checks of one entry (module docstring). ``population`` picks what
+    the probe runs over: ``"auto"`` (the compiled cohort when the tier's ``marts.cohorts``
+    carries this ``id@version`` with the registry's hash — EP-47 — else the index
+    population), ``"index"`` or ``"cohort"`` (a problem when it is not built)."""
     from mimicwarehouse.config import get_settings
 
     settings = settings or get_settings()
@@ -435,15 +482,37 @@ def validate_on_tier(
     skipped: str | None = None
     probes: list[ProbeResult] = []
     spec = entry.spec
+    if population not in ("auto", "index", "cohort"):
+        raise ValueError(f"population {population!r} is not auto | index | cohort")
+    relation: str | None = None
+    if population in ("auto", "cohort"):
+        relation = built_relation(entry, tier=tier, settings=settings, actor=actor)
+        if relation is None and population == "cohort":
+            problems.append(
+                f"{spec.ref} is not built on tier {tier} with def_hash {entry.def_hash[:12]} "
+                f"(or a later patch owns the view) - run `mwh cohort build {spec.ref} --tier "
+                f"{tier}` first"
+            )
+    probed = "cohort" if relation is not None else "index"
     if not spec.degeneracy_probe.columns:
         skipped = "degeneracy_probe.columns is empty"
-    elif spec.index_event.rule is None:
+    elif relation is None and spec.index_event.rule is None:
         skipped = (
             f"index event {spec.index_event.render()} has no population before it is "
-            "compiled (EP-47 re-runs the probe over the compiled cohort)"
+            f"compiled - run `mwh cohort build {spec.ref} --tier {tier}` and validate again "
+            "(the probe then runs over the compiled cohort)"
         )
+    elif relation is None and population == "cohort":
+        skipped = "the cohort is not built on the tier"
     else:
-        probes = run_probe(entry, tier=tier, settings=settings, k=resolved_k, actor=actor)
+        probes = run_probe(
+            entry,
+            tier=tier,
+            settings=settings,
+            k=resolved_k,
+            actor=actor,
+            cohort_relation=relation,
+        )
     if skipped:
         warnings.append(f"degeneracy probe skipped: {skipped}")
     for probe in probes:
@@ -480,6 +549,8 @@ def validate_on_tier(
         skipped=skipped,
         snapshot_id=snapshot_id,
         audit_ids=audit_ids,
+        population=probed,
+        cohort_relation=relation,
     )
 
 
@@ -494,6 +565,7 @@ __all__ = [
     "ProbeResult",
     "ReferenceCheck",
     "TierValidation",
+    "built_relation",
     "check_references",
     "event_sql",
     "population_sql",

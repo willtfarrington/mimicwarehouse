@@ -17,7 +17,15 @@ Docstring-only package (the EP-33 B6 form): nothing is imported eagerly, so the
   renderer;
 * :mod:`~mimicwarehouse.cohort.probe` — the tier-level checks through ``safe_query``:
   references against ``meta.codesets`` / ``meta.phenotype_versions`` and the
-  level-degeneracy probe (EP-31 policy, spec-level half);
+  level-degeneracy probe (EP-31 policy, spec-level half) — over the compiled cohort once
+  it is built (EP-47), else over the index population;
+* :mod:`~mimicwarehouse.cohort.compiler` — the spec -> one deterministic CTE chain
+  (``base`` -> ``idx`` -> one ``crit_NN_<label>`` per criterion -> ``cohort``), its
+  attrition statement and the ordered steps (EP-47);
+* :mod:`~mimicwarehouse.cohort.build` — the ``cohorts.build`` DAG step: materialisation
+  under ``lake/marts/<tier>/cohorts/<id>@<version>/`` inside a ``kind: cohort`` run, the
+  suppressed attrition accessor and the ``marts.cohort_<id>_v<major>`` / ``marts.cohorts``
+  catalog registration (EP-47);
 * :mod:`~mimicwarehouse.cohort.cli` — ``mwh cohort …``.
 
 ``python -m mimicwarehouse.cohort`` re-renders the generated blocks of

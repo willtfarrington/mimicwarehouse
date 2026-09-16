@@ -889,6 +889,27 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > differences (stays leaving per bin) can be small and are derivable; neither the
 > table-mode primitive nor the gate treats an at-risk curve as an attrition chain.
 
+> **Addendum (2026-09-16, EP-47 — attrition chains and the cohort build registry).**
+> A compiled cohort's per-step counts are computed once on the build connection and
+> stored **raw** in the mart (`lake/marts/<tier>/cohorts/<id>@<version>/attrition.parquet`
+> and the mart's `manifest.json`, data root only, read by code); every surface a session
+> can reach shows the chain after `disclose.suppress(mode="chain")` at the tier's k on
+> **both** count columns (`n_units`, `n_subjects`): the `attrition()` accessor and `mwh
+> cohort attrition` (small totals withheld, small drops withheld and their two neighbours
+> banded to the nearest ten with `*_banded` markers, a drop released only between exact
+> neighbours), and the `kind: cohort` run manifest, where a banded cell is recorded as
+> `None` too because `mwh runs show` prints the manifest without markers (a banded value
+> would read as exact). `marts.cohorts` follows the EP-41 rule for registry tables:
+> `rows` / `n_subjects` blanked (`*_suppressed`, `k` recorded) when `0 < n < k`; the
+> `marts.cohort_<id>_v<major>` views are subject-keyed non-registry reads under
+> `safe_query`'s own k rule. *Why:* the EP-45 Risk-17 lesson — a monotone count sequence
+> leaks its steps by subtraction, and an attrition chain is exactly that; chain mode is
+> the one implementation of the rule (GOVERNANCE §5), so briefs never re-implement it.
+> *Alternatives:* table mode per row (hides cells, not steps); `safe_query` per step as
+> the tracer does (row-wise, no banding, one audited call per CTE — the build runs on the
+> build connection, where `safe_query` does not apply); raw counts in the run manifest
+> with a warning (a session surface would carry small cells).
+
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.

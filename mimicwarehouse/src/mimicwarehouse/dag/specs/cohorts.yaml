@@ -1,14 +1,29 @@
-# dag/specs/cohorts.yaml -- the cohort-spec registry step (EP-46 item 2; ASCII only). Merged
-# into the one graph by dag.spec.load_dag() (EP-37 discovery): one python step (the handler
-# in mimicwarehouse.cohort.registry) and the shared catalog step, whose depends_on / tags
-# are unioned with the other specs' so `mwh build --tier <t> --tag cohorts` ends in a
-# catalog rebuild. No target and no data dependency: the step reads definition text only
-# (the packaged specs + their code-set / phenotype references) and is cheap, so it re-runs
-# whenever selected.
+# dag/specs/cohorts.yaml -- the cohort steps (EP-46 item 2, EP-47 item 2; ASCII only).
+# Merged into the one graph by dag.spec.load_dag() (EP-37 discovery): two python steps
+# (the handlers in mimicwarehouse.cohort.registry / .build) and the shared catalog step,
+# whose depends_on / tags are unioned with the other specs' so `mwh build --tier <t>
+# --tag cohorts` ends in a catalog rebuild.
 #   cohorts.specs -> lake/meta/<tier>/cohort_specs.parquet (meta.cohort_specs: id, version,
 #                    def_hash, grain, index event, criterion counts, custom flag, refs,
-#                    outcome, locked, path -- the registry index EP-47's marts.cohorts
-#                    build registry sits beside)
+#                    outcome, locked, path -- the registry index). No target and no data
+#                    dependency: the step reads definition text only and is cheap, so it
+#                    re-runs whenever selected.
+#   cohorts.build -> lake/marts/<tier>/cohorts/<id>@<version>/{cohort.parquet,
+#                    attrition.parquet, spec.yaml, manifest.json} (one directory per built
+#                    version; the catalog extension exposes the latest patch of each major
+#                    as marts.cohort_<id>_v<major> and the builds as marts.cohorts). No
+#                    target: the step keeps its own per-cohort status entries
+#                    (cohorts.<id>@<version>, per tier) and skips a version already built
+#                    with the same def_hash unless forced (`mwh cohort build --force`).
+# The build's depends_on names the core tables every compiled chain reads (patients,
+# admissions, icustays; diagnoses_icd for codeset criteria / washouts), the code-set
+# compile (meta.codeset_members) and the phenotype step (a phenotype criterion or a
+# phenotype_onset index reads phenotypes."<id>@<version>"), so a full build orders them
+# first. Tags: `--tag cohorts` = the registry index + catalog (EP-46, unchanged);
+# `--tag marts` = the builds + catalog (what `mwh cohort build` selects explicitly). Neither
+# pulls the dependencies in -- a referenced set / phenotype must already be compiled /
+# built on the tier with the resolved hash, or the step records the cohort as failed with
+# the remedy.
 version: 1
 steps:
   - name: cohorts.specs
@@ -16,8 +31,22 @@ steps:
     callable: mimicwarehouse.cohort.registry:run_specs
     tags: [cohorts, meta]
     tiers: [fixture, demo, dev, full]
-  - name: catalog
-    kind: catalog
-    tags: [catalog, cohorts]
+  - name: cohorts.build
+    kind: python
+    callable: mimicwarehouse.cohort.build:run_build
+    tags: [marts]
+    tiers: [fixture, demo, dev, full]
     depends_on:
       - cohorts.specs
+      - stage.mimiciv_hosp.patients
+      - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.diagnoses_icd
+      - stage.mimiciv_icu.icustays
+      - codesets.compile
+      - phenotypes.compile
+  - name: catalog
+    kind: catalog
+    tags: [catalog, cohorts, marts]
+    depends_on:
+      - cohorts.specs
+      - cohorts.build
