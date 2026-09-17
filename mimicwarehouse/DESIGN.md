@@ -1300,7 +1300,42 @@ append a new hash linked to the previous one. The Freezer page (EP-128) and
 temporal-holdout runner (EP-129) sit on top. Every report built from a frozen protocol
 states that MIMIC-IV analyses remain retrospective.
 
-*History:* planning text (2026-08-16), reconciled with the EP-33 B8 ledger canon; EP-51 planned; consolidated at EP-33.
+> **Note (2026-09-17, EP-51) — as shipped.** `src/mimicwarehouse/protocol/` (prose twin
+> `docs/methods/protocols.md`): `spec.py` (the pydantic `Protocol` — `claim_type`
+> exploratory / confirmatory / predictive / associational / causal, `cohort` as an EP-46
+> `id@version`, `unit_of_analysis` (an available `timesem` grain that must be the
+> cohort's), `exposure` {name, `Definition` codeset | phenotype | concept | column (+
+> `equals`), `Timing` window} or null, `outcomes` [{definition, `window_h` | `horizon_days`,
+> `censoring` from `timesem.CENSORING_RULES`, competing events}], `covariates` [{source
+> `cohort.<col>` | `<schema>.<table>.<col>`, window, transform}], `feature_windows`,
+> `analysis_plan` {method family, estimand, model spec, hyperparameter policy, subgroups,
+> sensitivity analyses, multiplicity, missing data, sample size}, `temporal_holdout`
+> {development / holdout / sealed eras — disjoint subsets of `timesem.ERAS`}, the fixed
+> `seeds_policy` and `retrospective_statement` texts, `references`, `amends`;
+> validators refuse absolute dates, unknown / overlapping eras, placeholder grains,
+> identifier columns and the claim / plan inconsistencies; **`content_hash`** = sha256 of
+> the canonical JSON minus the documentation fields with the resolved reference hashes
+> inlined — the cohort's `def_hash`, code-set / phenotype `def_hash`es, the concepts'
+> executed-SQL sha256), `registry.py` (`resolve`, `freeze` → byte-for-byte read-only
+> copy `runs/protocols/<hash>.yaml` + one `runs/protocols.jsonl` line + a `protocol
+> freeze` audit line; idempotent for the same content, `ProtocolFrozenError` for a frozen
+> `id@version` under another hash; `amend` — the link `amends` is hashed YAML content,
+> the reason a ledger field; `verify` ok / drift / unfrozen / unknown / missing_copy;
+> `check_frozen` — the run-side refusal; `PROTOCOLS_COLUMNS` for the `runs.protocols`
+> view `run.runs_db_views` adds and `safe.build_runs_db` creates), `runners.py`
+> (`RUNNERS` registry; `cohort_only` reuses the tier's cohort build under the frozen
+> `def_hash` or builds it through the DAG, records the mart's snapshot ids, the build's
+> run id and the **suppressed** attrition chain; `run_protocol` → `run.start(kind=
+> "protocol", protocol_id=, protocol_hash=, claim_type=)`, refs for every resolved
+> reference, `runs/<run_id>/protocol_summary.md` with the claim type, the retrospective
+> statement, the declared plan, the references and the reproduction block; a `protocol
+> run` audit line), `cli.py` (`mwh protocol freeze | verify | amend | list | show | run`;
+> refusals exit 3, drift 1). `run.start` gained the D-25 policy hook
+> (`ProtocolPolicyError`: a confirmatory / causal run without a `protocol_hash`, an
+> unknown claim type, a malformed hash). Seed: `specs/tracer_mortality.yaml`
+> (`tracer_mortality@1.0.0`, exploratory, over `first_icu_adults@1.0.0`).
+
+*History:* planning text (2026-08-16), reconciled with the EP-33 B8 ledger canon; EP-51 planned; consolidated at EP-33; built by EP-51 (2026-09-17, note above).
 
 ## 14. Disclosure primitives (D-33, D-40)
 
@@ -1448,7 +1483,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── cohort/                    EP-46, EP-47, EP-48 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), attrition (EP-48: the Mermaid / Altair-Vega-Lite / Markdown renderers over the suppressed frame, the pair guard, save_attrition -> runs/<run_id>/figures/attrition.{mmd,vl.json,png,csv,md} through disclose.check), cli (`mwh cohort`)
 │   ├── timeline.py                EP-49 shipped  anchors (Anchor / ANCHORS + med_start / procedure / vent_start / phenotype_onset / custom_anchor, anchor_sql), event sources (labs / vitals / inputs / outputs / meds / procedures / micro / transfers / custom_source), align / window_join / asof_join / event_at, hourly_bins / daily_bins / population_summary (the SUPPRESSOR seam) / to_mart, the owner-only stay_events (role stamp on open_catalog connections + the row_view audit line), run_benchmark + `mwh timeline anchors | bench`, docs/methods/timelines.md renderer
 │   ├── spine.py                   EP-50 shipped  the events spine (SpineSource registry + code grammar, build_source / build_union DAG steps of dag/specs/spine.yaml, validate (MEDS schema + governance checks), register_spine (CATALOG_EXTENSIONS entry), `mwh spine sources | validate`, docs/methods/spine.md renderer)
-│   ├── protocol/                  EP-51 (+ EP-128/129)
+│   ├── protocol/                  EP-51 shipped  spec (Protocol + content_hash, the fixed texts, json_schema), registry (resolve, freeze / amend / verify, runs/protocols.jsonl + read-only copies, PROTOCOLS_COLUMNS, docs/methods/protocols.md renderer), runners (RUNNERS, cohort_only, run_protocol, protocol_summary.md), cli (`mwh protocol`), specs/tracer_mortality.yaml; + EP-128/129
 │   ├── backup.py                  EP-52
 │   ├── marts/                     EP-55/56
 │   ├── viz/                       EP-64+  Altair specs, Plotly timeline, export

@@ -97,3 +97,60 @@ target-trial harness (EP-95) sit on this module; the seed protocol is the tracer
 - Editing the YAML then `mwh protocol verify` exits non-zero; `mwh protocol run` on an unfrozen
   copy exits non-zero with the refusal message (demonstrated in tests and once by hand).
 - `docs/methods/protocols.md` exists; the seed protocol hash is in the completion note.
+
+> **Completion note (2026-09-17).** Executed as briefed on fixture + dev (M, one session).
+> Shipped: `src/mimicwarehouse/protocol/` — `spec.py` (the pydantic `Protocol` with every
+> field of item 1; `Definition` codeset | phenotype | concept | column (+ `equals`),
+> `Outcome` over `timesem.CENSORING_RULES`, `Covariate` sources `cohort.<col>` |
+> `<schema>.<table>.<col>` with identifier columns refused, `TemporalHoldout`
+> development / holdout / sealed as disjoint era subsets — the EP-129 shape, so no field
+> rename is needed there — the fixed `seeds_policy` and `retrospective_statement` texts,
+> `amends`; `content_hash` = canonical JSON minus `title` / `description` / `notes` /
+> `amendment_reason` with the cohort `def_hash`, code-set / phenotype `def_hash`es and
+> concept executed-SQL hashes inlined; the four claim / plan consistency rules;
+> `json_schema`), `registry.py` (`resolve`, `freeze` — byte-for-byte read-only copy under
+> `runs/protocols/<hash>.yaml` + one `runs/protocols.jsonl` line + a `protocol freeze`
+> audit line, idempotent for the same content, `ProtocolFrozenError` (exit 3) for a
+> frozen `id@version` under another hash — `amend` (the link `amends` is hashed YAML
+> content, the reason a ledger field, same id + bumped version), `verify` (ok / drift /
+> unfrozen / unknown / missing_copy; an edited copy and a moved reference are told apart
+> through the recorded source sha256), `check_frozen`, `PROTOCOLS_COLUMNS`),
+> `runners.py` (`RUNNERS` + `register_runner`; `cohort_only` reuses the tier's cohort
+> build under the frozen `def_hash` or builds it through the `cohorts.specs` /
+> `cohorts.build` / `catalog` DAG steps, records the mart's snapshot ids, the build's run
+> id and the suppressed attrition chain; `run_protocol` → `run.start(kind="protocol",
+> protocol_id=, protocol_hash=, claim_type=)` + a ref per resolved reference +
+> `runs/<run_id>/protocol_summary.md` + a `protocol run` audit line), `cli.py`
+> (`mwh protocol freeze | verify | amend | list | show | run`; refusals exit 3, drift and a
+> failed run 1, usage 2), `specs/tracer_mortality.yaml`, `docs/methods/protocols.md`
+> (three generated blocks: the seed, the refusal table, the schema reference). Touched:
+> `run.py` (the D-25 hook `ProtocolPolicyError` in `start`; the `protocols` view in
+> `runs_db_views`), `safe.RUNS_DB_VIEWS` (+ `protocols`), `cli.py` (the `protocol`
+> sub-app), `cohort/registry.py` (`render_schema_reference(title=)` — backward
+> compatible, so the protocol page reuses the EP-46 renderer). **Seed protocol hash**
+> (`tracer_mortality@1.0.0`, frozen on dev this session, the same value on every root
+> because the hash is content + resolved hashes):
+> `d629a21d6d0912d078c2ae5368ea01656d892a812a3d0171c4514d578dcc6ed9`; cohort
+> `first_icu_adults@1.0.0` `def_hash` `2724fd71…` (EP-46's lock). **Dev run** (by hand,
+> `mwh protocol run <hash> --tier dev --runner cohort_only`): run
+> `20260917T175450Z-af8ec5`, reused the EP-47 dev build (cohort run
+> `20260916T224707Z-…`), wall ≈ 4 s; the manifest carries `protocol_hash` and
+> `claim_type: exploratory`, the attrition chain has no cell below k = 11, and
+> `protocol_summary.md` is ASCII with the claim type and the retrospective sentence. The
+> refusals were demonstrated by hand on dev: an edited copy → `verify` exit 1 (`drift`),
+> `run --yaml <edited>` exit 3, an unknown hash exit 3. Tests: `test_ep51.py` — 56 on the
+> fixture (`mwh verify EP-51` green, 37 s: the hash invariance / sensitivity matrix, 29
+> crafted schema refusals, freeze / verify / amend / run refusals with their audit lines,
+> the D-25 hook, the `cohort_only` runner building then reusing the cohort on a
+> module-scoped fixture lake, the CLI end to end, the `runs.protocols` view joined
+> through `safe_query`, the docs sync, the import budget) + 1 on dev (freeze + run the
+> seed). Earlier tests untouched; `test_ep35`'s `RUNS_DB_VIEWS[1:]` pin holds because the
+> view is added through `run.runs_db_views`. No new parked items (the OSF-style export
+> was already in `final-roadmap.md` PRO-1). Checkpoint decisions recorded as the D-25
+> addendum of 2026-09-17 in `DECISIONS.md`. **Owner review (2026-09-17, interactive):**
+> commit in the two-step recipe without pushing — taken; keep the amendment link as
+> hashed YAML content with the reason as a ledger field — taken; keep the claim-*label*
+> rule of the `run.start` hook (qualified spellings of the earlier reports allowed) —
+> taken. One regression caught by the full suite during the session: the first version
+> of the hook refused the qualified labels (`measurement.report` failed inside the
+> session fixture lake); fixed before commit, `poe check` 1,157 passed.

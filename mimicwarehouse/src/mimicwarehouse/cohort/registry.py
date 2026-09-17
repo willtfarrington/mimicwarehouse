@@ -789,12 +789,15 @@ def _schema_table(name: str, node: dict[str, Any], defs: dict[str, Any]) -> str:
     )
 
 
-def render_schema_reference(schema: dict[str, Any] | None = None) -> str:
-    """The schema reference (generated from :func:`json_schema`): the top-level fields,
-    then every nested object in the schema's ``$defs`` order."""
+def render_schema_reference(
+    schema: dict[str, Any] | None = None, *, title: str = "CohortSpec"
+) -> str:
+    """The schema reference (generated from :func:`json_schema`): the top-level fields
+    (labelled ``title``), then every nested object in the schema's ``$defs`` order. The
+    EP-51 protocol page renders its own schema through the same function."""
     doc = schema if schema is not None else json_schema()
     defs: dict[str, Any] = doc.get("$defs", {})
-    parts = [_schema_table("CohortSpec", doc, defs)]
+    parts = [_schema_table(title, doc, defs)]
     parts.extend(_schema_table(name, node, defs) for name, node in defs.items())
     return "\n".join(parts)
 

@@ -1,0 +1,68 @@
+# mimicwarehouse protocol (EP-51, D-25). ASCII only; no calendar dates (per-patient date
+# shift) - relative windows and anchor_year_group eras only. Freeze it before running it
+# (`mwh protocol freeze <this file>`): the content hash pins everything below except the
+# documentation fields (title, description, notes, amendment_reason) and inlines the
+# cohort's def_hash and every referenced hash; an edited frozen version is refused - bump
+# `version` and amend. The seed protocol is the tracer question (EP-31): first ICU stay of
+# adult patients -> in-hospital mortality, described (not modelled) over the EP-46 cohort.
+id: tracer_mortality
+version: "1.0.0"
+title: Tracer question - first ICU stay of adults and in-hospital mortality (descriptive)
+description: >
+  The tracer bullet's question as a frozen protocol: describe in-hospital mortality (with
+  discharge alive as the competing event) over the first ICU stay of adult patients, by
+  age, gender, admission type and first care unit, with the 24 hours before the ICU
+  admission as the covariate window. It exists so every later protocol-driven workflow
+  (the Freezer page, the temporal-holdout runner, the signature workflows, the
+  target-trial harness) has a frozen, registered example to run against.
+claim_type: exploratory
+cohort: first_icu_adults@1.0.0
+unit_of_analysis: icustay
+exposure: null
+outcomes:
+  - name: in_hospital_mortality
+    definition: {column: cohort.censor_reason, equals: death}
+    censoring: in_hospital_mortality
+    competing_events: [discharge_alive]
+covariates:
+  - {name: age, source: cohort.age_at_index, transform: age_band}
+  - {name: gender, source: mimiciv_hosp.patients.gender, transform: categorical}
+  - {name: admission_type, source: mimiciv_hosp.admissions.admission_type, transform: categorical}
+  - {name: first_careunit, source: mimiciv_icu.icustays.first_careunit, transform: categorical}
+feature_windows:
+  observation: {start_h: -24, end_h: 0}
+  gap_h: 0
+  prediction_h: null
+analysis_plan:
+  method_family: descriptive
+  estimand: >
+    The proportion of first ICU stays of adults ending in in-hospital death, overall and
+    by each covariate level (k-suppressed counts and proportions).
+  model_spec: >
+    Attrition chain of the cohort (EP-47) and descriptive tables per covariate level; no
+    model is fitted under this protocol (the EP-31 logistic fit is the tracer's own report).
+  hyperparameter_policy: none (no tuned hyperparameters)
+  subgroups: []
+  sensitivity_analyses:
+    - Ages at or above 89 are shipped as 91 (age_capped); the top age band is reported as capped.
+  multiplicity: none (single pre-specified descriptive analysis)
+  missing_data: complete-case; missingness reported per covariate
+  sample_size_note: fixed by the cohort (retrospective); no power calculation
+temporal_holdout:
+  development_eras: ["2008 - 2010", "2011 - 2013", "2014 - 2016"]
+  holdout_eras: ["2017 - 2019"]
+  sealed_eras: ["2020 - 2022"]
+seeds_policy: >-
+  derive_seed: every stochastic stage draws from run.derive_seed(protocol_id, stage, salt)
+  (docs/methods/determinism.md); the seed scope is this protocol's id
+retrospective_statement: >-
+  All MIMIC-IV analyses in this repository are retrospective: MIMIC-IV is a de-identified,
+  date-shifted record of care already delivered, so a frozen protocol pre-specifies the
+  analysis, never the data collection.
+references: {cohorts: [first_icu_adults@1.0.0], codesets: [], phenotypes: [], concepts: []}
+amends: null
+notes: >
+  Seeded by EP-51 as the first frozen protocol. The temporal holdout is declared and
+  unused until EP-129 (the same three-list shape its TemporalHoldout consumes); the
+  descriptive plan is served by the `cohort_only` runner, which builds (or reuses) the
+  cohort on the tier, records the suppressed attrition and writes protocol_summary.md.

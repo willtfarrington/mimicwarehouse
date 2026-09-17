@@ -30,7 +30,8 @@ identifier columns by name (GOVERNANCE §4). Attrition counts are raw inside the
 and go through ``disclose`` (EP-43) on any export.
 
 **Views.** :func:`runs_db_views` returns the ``ledger`` / ``benchmarks`` / ``manifests`` /
-``attrition`` view bodies that :func:`mimicwarehouse.safe.build_runs_db` creates beside the
+``attrition`` / ``protocols`` (EP-51, the freeze registry) view bodies that
+:func:`mimicwarehouse.safe.build_runs_db` creates beside the
 EP-30 ``audit`` view (``mwh runs refresh``; published with ``publish.swap_file``). They read
 the JSONL / JSON files with explicit column types (the dict-valued manifest fields as
 ``JSON``), so older lines without a newer field bind as NULL, a torn trailing line becomes
@@ -53,6 +54,14 @@ seed via sha256; :func:`rng` → the ``numpy.random.Generator`` a stochastic sta
 ``{stage: seed}`` in ``RunManifest.seeds`` (rewriting the manifest at once, so a killed
 run still shows what it seeded) and returns the Generator; ``Run.spawn_rngs`` is the
 worker form.
+
+**Protocol policy (EP-51 item 3, D-25).** ``start`` refuses a run whose ``claim_type``
+label is ``confirmatory`` or ``causal`` without a ``protocol_hash``
+(:class:`ProtocolPolicyError`), an unknown claim label and a malformed hash
+(:func:`_check_protocol_policy`; the vocabulary is ``protocol.spec``'s; the label is the
+first word — a parenthesised qualifier such as ``"exploratory (measurement process)"``
+is allowed, :func:`claim_label`). ``mwh protocol run`` opens every protocol run through
+``start(kind="protocol", protocol_id=, protocol_hash=, claim_type=)``.
 
 **Resource log (EP-36 item 3).** :class:`ResourceLog` is a daemon-thread sampler
 (:data:`SAMPLE_INTERVAL_S`) over psutil: process RSS every tick, the Windows
@@ -167,6 +176,12 @@ class RunLedgerError(RuntimeError):
 
 class SeedError(RunLedgerError):
     """A seed-derivation usage error (empty scope, bad stage name, salt, size or seed)."""
+
+
+class ProtocolPolicyError(RunLedgerError):
+    """The D-25 policy (EP-51): a run whose ``claim_type`` is confirmatory or causal must
+    cite a frozen ``protocol_hash``; an unknown claim type or a malformed hash is refused
+    the same way."""
 
 
 # ---------------------------------------------------------------------------
@@ -1215,6 +1230,45 @@ def _append_ledger(manifest: RunManifest, settings: Settings) -> Path:
     return fsio.append_jsonl(ledger_path(settings), manifest.ledger_line())
 
 
+def claim_label(claim_type: str) -> str:
+    """The claim label of a ``claim_type`` string: its first word, lower-cased — a
+    manifest may qualify the label in parentheses (``"exploratory (measurement
+    process)"``, ``"associational (exploratory)"``; the EP-31 / EP-44 / EP-45 / EP-49
+    reports do), and the D-25 policy judges the label alone."""
+    return (
+        claim_type.strip().split("(", 1)[0].strip().split()[0].lower() if claim_type.strip() else ""
+    )
+
+
+def _check_protocol_policy(claim_type: str | None, protocol_hash: str | None) -> None:
+    """The D-25 policy hook (EP-51 item 3): a ``claim_type``'s label (:func:`claim_label`)
+    must be one of the protocol schema's five, a ``protocol_hash`` must be a 64-hex
+    content hash, and a confirmatory or causal claim without a hash is refused
+    (:class:`ProtocolPolicyError`). The vocabulary lives in
+    :mod:`mimicwarehouse.protocol.spec` (imported here, lazily, so the ledger stays off
+    the ``mwh`` start-up path and the policy has one definition)."""
+    if claim_type is None and protocol_hash is None:
+        return
+    from mimicwarehouse.protocol.spec import CLAIM_TYPES, HASH_RE, HASH_REQUIRED_CLAIM_TYPES
+
+    label = claim_label(claim_type) if claim_type is not None else None
+    if label is not None and label not in CLAIM_TYPES:
+        raise ProtocolPolicyError(
+            f"unknown claim_type {claim_type!r}; expected one of {', '.join(CLAIM_TYPES)} "
+            "(a parenthesised qualifier may follow the label)"
+        )
+    if protocol_hash is not None and not HASH_RE.match(protocol_hash):
+        raise ProtocolPolicyError(
+            f"protocol_hash {protocol_hash!r} is not a frozen protocol hash (64 hex characters)"
+        )
+    if label in HASH_REQUIRED_CLAIM_TYPES and not protocol_hash:
+        raise ProtocolPolicyError(
+            f"a {label} run must cite a frozen protocol hash (D-25): freeze the protocol "
+            "(`mwh protocol freeze <yaml>`) and pass protocol_hash=, or label the run "
+            "exploratory / associational / predictive"
+        )
+
+
 @contextmanager
 def start(
     name: str,
@@ -1243,6 +1297,7 @@ def start(
         raise RunLedgerError(f"unknown kind {kind!r}; expected one of {', '.join(RUN_KINDS)}")
     if not name or not name.strip():
         raise RunLedgerError("a run needs a name")
+    _check_protocol_policy(claim_type, protocol_hash)
     run_id, directory = _new_run_dir(settings)
     manifest = RunManifest(
         run_id=run_id,
@@ -1369,10 +1424,12 @@ def _jsonl_select(path: Path, columns: Mapping[str, str], first: str) -> str:
 
 
 def runs_db_views(settings: Settings | None = None) -> list[tuple[str, str]]:
-    """``[(view_name, select_sql), ...]`` for ``ledger``, ``benchmarks``, ``manifests`` and
-    ``attrition`` (module note). Touches the ledgers so an empty file exists (a view over a
-    missing file would fail at query time); ``manifests`` falls back to a typed empty
-    SELECT when no ``runs/*/manifest.json`` exists yet."""
+    """``[(view_name, select_sql), ...]`` for ``ledger``, ``benchmarks``, ``manifests``,
+    ``attrition`` and — since EP-51 — ``protocols`` (the freeze registry
+    ``runs/protocols.jsonl``, typed by ``protocol.registry.PROTOCOLS_COLUMNS``; module
+    note). Touches the ledgers so an empty file exists (a view over a missing file would
+    fail at query time); ``manifests`` falls back to a typed empty SELECT when no
+    ``runs/*/manifest.json`` exists yet."""
     from mimicwarehouse.dag.benchmarks import benchmarks_path
 
     settings = settings or get_settings()
@@ -1405,6 +1462,13 @@ def runs_db_views(settings: Settings | None = None) -> list[tuple[str, str]]:
             f"UNNEST(json_transform(m.attrition, '{_ATTRITION_JSON_SHAPE}')) AS t(a)",
         )
     )
+    # the protocol registry (EP-51): typed like the ledger, over runs/protocols.jsonl
+    from mimicwarehouse.protocol.registry import PROTOCOLS_COLUMNS
+    from mimicwarehouse.protocol.registry import ledger_path as protocols_path
+
+    protocols = protocols_path(settings)
+    protocols.touch(exist_ok=True)
+    views.append(("protocols", _jsonl_select(protocols, PROTOCOLS_COLUMNS, "hash")))
     return views
 
 
@@ -1508,6 +1572,7 @@ __all__ = [
     "AttritionRow",
     "GpuMemMethod",
     "PeakRssMethod",
+    "ProtocolPolicyError",
     "RefEntry",
     "ResourceLog",
     "ResourceUsage",
@@ -1519,6 +1584,7 @@ __all__ = [
     "RunStatus",
     "SeedError",
     "bench",
+    "claim_label",
     "derive_seed",
     "environment_block",
     "git_dirty",

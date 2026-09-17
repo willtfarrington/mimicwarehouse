@@ -163,6 +163,15 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   check the Malwarebytes Quarantine and `mbamservice.log` **first**. Staging itself never
   tripped either product (five ⏱ jobs, EP-171 canary). *(D-42; EP-7/EP-164/EP-171.)*
 
+- **The read-only attribute is the immutability mechanism for frozen copies (EP-51).**
+  `os.chmod(path, stat.S_IREAD | …)` sets `FILE_ATTRIBUTE_READONLY` on Windows; a later
+  `write_text` raises `PermissionError`, `os.replace` onto it fails the same way (so
+  `fsio.atomic_write_text` cannot overwrite a frozen copy), and `os.access(path, os.W_OK)`
+  reports it — `protocol.registry.is_read_only` is that call. `shutil.copy2` carries the
+  attribute along (EP-52's backup copies will be read-only too, which is right); a test
+  that must edit a frozen copy clears it first (`os.chmod(path, stat.S_IWRITE | stat.S_IREAD)`),
+  and pytest's `tmp_path` cleanup clears it on its own. *(EP-51, 2026-09-17.)*
+
 ## 3. Session tooling (rules in CLAUDE.md §3; the why lives here)
 
 - **`uv` may be missing from a tool shell's PATH** (stale VS Code process). Fallback before

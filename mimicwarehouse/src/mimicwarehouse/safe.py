@@ -954,7 +954,14 @@ def safe_query(
 
 #: The views ``build_runs_db`` creates, in creation order (``attrition`` reads
 #: ``manifests``): EP-30's ``audit`` plus the EP-35 ledger views.
-RUNS_DB_VIEWS: tuple[str, ...] = ("audit", "ledger", "benchmarks", "manifests", "attrition")
+RUNS_DB_VIEWS: tuple[str, ...] = (
+    "audit",
+    "ledger",
+    "benchmarks",
+    "manifests",
+    "attrition",
+    "protocols",
+)
 
 
 def _ledger_has_record(path: Path) -> bool:

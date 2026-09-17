@@ -557,6 +557,44 @@ documentation only.
 > (moves with whitespace and comments); leaving labels out of the hash (silent step
 > renames in reports); forbidding `custom_sql` (studies would fork the compiler).
 
+> **Addendum (2026-09-17, EP-51 — the protocol freeze as built; checkpoint decisions
+> for the owner's review).** `mimicwarehouse.protocol` realises the decision: the
+> content hash is the sha256 of the canonical JSON of the *definition* (everything but
+> `title`, `description`, `notes`, `amendment_reason`; defaults made explicit) with the
+> resolved reference hashes inlined — the cohort's `def_hash` (which already inlines its
+> code sets and phenotypes), every code-set / phenotype `def_hash` and every vendored
+> concept's executed-SQL sha256 — so a frozen protocol pins its whole definition tree and
+> `verify` names a moved reference as such. The registry is `runs/protocols.jsonl`
+> (`fsio.append_jsonl`) plus a **byte-for-byte, read-only** copy
+> `runs/protocols/<hash>.yaml`; the line records the source file's sha256 beside the
+> content hash so an edited copy and a moved reference are distinguishable. Seven
+> as-built choices: (1) **freeze is idempotent** (the same content returns the same hash
+> and appends nothing) and an `id@version` already frozen under another hash is refused
+> (`ProtocolFrozenError`, exit 3) — the EP-40 / EP-41 / EP-46 immutability rule one layer
+> up; (2) **the amendment link is content**: `amends: <previous hash>` lives in the YAML
+> and is hashed, so the frozen copy is self-describing; the *reason* is a ledger field
+> (`--reason`, else the YAML's unhashed `amendment_reason`); an amendment keeps the
+> protocol id and bumps the version; (3) **`mwh protocol run` reuses** a tier build whose
+> status entry and mart manifest carry the frozen cohort `def_hash`, else builds through
+> the DAG steps with `provenance=False` — the protocol run *is* the provenance record and
+> the cohort build's own `kind: cohort` run nests inside it (the EP-47 pattern); (4) the
+> protocol run's manifest carries the **suppressed** attrition chain (chain mode at the
+> tier's k) and the summary renders `<k` / `~` markers — a run record is a
+> session-readable surface (D-33); (5) GOVERNANCE §8's "protocol freeze/run" audit
+> lines exist: `protocol freeze | amend | run <hash>` through the EP-30 `AuditLine`,
+> refusals with `allowed: false`; (6) the D-25 policy hook sits in `run.start` itself
+> (`ProtocolPolicyError` for a confirmatory / causal run without a hash, an unknown claim
+> label, a malformed hash — the label is the first word, so the earlier reports' qualified
+> spellings such as `exploratory (measurement process)` keep working), so no module can
+> produce such a run record outside a frozen protocol; (7) `runs.protocols` is a typed view beside `ledger` / `manifests`
+> (`safe.RUNS_DB_VIEWS` gained it) and `runs.*` stays **outside** the safe-query registry
+> exemption (the EP-33 checkpoint decision on the brief): a count-family `mwh sql` over
+> it is k-suppressed like any other statement, `mwh protocol list` is the session-side
+> listing. *Alternatives (rejected):* hashing the YAML bytes (comments and whitespace
+> would move the hash); a ledger-only amendment link (the frozen copy would not say what
+> it amends); injecting `amends` / the reason into the copy (breaks byte-for-byte);
+> requiring the reason inside the YAML (it is documentation, not definition).
+
 **D-26 Raw provenance = local manifest (SHA256/size/rows) + row-count reconciliation vs
 mimic-code `validate.sql`.** Plain CSVs cannot be checked against PhysioNet's
 `SHA256SUMS.txt` (covers `.csv.gz` only). *Alternatives:* re-download `.csv.gz` (parked);
