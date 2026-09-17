@@ -74,14 +74,17 @@ PowerShell, Task Scheduler) may still be cp1252. The `mwh` entry point is
 `errors="replace"` before the typer app runs (EP-167); new CLI strings stay ASCII or pass
 through `console.console_safe`; JSON outputs end in plain `\n`. Roadmap Risk 13 points here.
 
-**Host diagnostics.** `mwh doctor` runs 15 checks (`python uv duckdb settings disk_free
-data_root temp_dir cloud_mounts defender antivirus deny_coverage bitlocker power_scheme gpu
-longpaths`); on this host it ends 9 pass · 1 warn · 0 fail · 5 info, the warn being the
-`antivirus` row by design (a non-Defender product is *listed*; its exclusion list is not
-readable non-elevated). The owner toggles the Windows power mode off between sessions —
+**Host diagnostics.** `mwh doctor` runs 16 checks (`python uv duckdb settings disk_free
+data_root temp_dir cloud_mounts defender antivirus deny_coverage bitlocker last_backup
+power_scheme gpu longpaths`; `last_backup` since EP-52 — the age of the newest `mwh
+backup` under `MWH_BACKUP_TARGET`, warn past 7 days, info when no target is configured);
+on this host it ends 10 pass · 1 warn · 0 fail · 5 info (`last_backup` passes since the
+owner set `MWH_BACKUP_TARGET=C:\mimicbackup` in the gitignored `.env`, EP-52), the warn
+being the `antivirus` row by design (a non-Defender product is *listed*; its exclusion
+list is not readable non-elevated). The owner toggles the Windows power mode off between sessions —
 `power_scheme` must read Best performance before compute-heavy work (D-38).
 
-*History:* built by EP-1, EP-7, EP-164, EP-165, EP-166, EP-167 (completion notes); consolidated at EP-33.
+*History:* built by EP-1, EP-7, EP-164, EP-165, EP-166, EP-167 (completion notes); consolidated at EP-33; `last_backup` row added by EP-52 (2026-09-17).
 
 ## 3. Layers & disk budget
 
@@ -100,6 +103,28 @@ marts      lake\marts\…  + studies\<study_id>\…            cohorts, feature 
 Everything below `raw` is **rebuildable from raw + code**, so the honest backup of the
 warehouse is a tested rebuild recipe (`mwh init`, EP-158). Non-reproducible state (run
 ledger, protocol registry, audit) is backed up separately (EP-52).
+
+> **Note (2026-09-17, EP-52) — `mwh backup` as shipped.** `src/mimicwarehouse/backup.py`
+> (prose twin `docs/methods/provenance.md` §9) copies **the set** `BACKUP_SET` — globs
+> relative to the data root: `runs/*.jsonl` (the four ledgers), `runs/protocols/**` (the
+> frozen copies, read-only in the backup too — `shutil.copy2` carries the attribute),
+> `runs/*/manifest.json` + `runs/*/sql/**`, `models/registry/**` (`.json` / `.yaml`
+> only), `studies/**` minus the guard's data-shaped suffixes; `runs/*/tables/**` +
+> `runs/*/figures/**` only with `--include-run-artifacts`; never `runs/jobs/` (transient)
+> or `warehouse/runs.duckdb` (rebuilt) — to `<target>/mwh-backup-<UTC>/` mirroring the
+> paths, every file sha256-hashed before and re-hashed after the copy (a copy that does
+> not hash to its source is a hard error, the EP-171 rule), with `backup_manifest.json`
+> (files + sha256 + bytes, data root, git sha, timestamp, tool version) written by
+> `fsio.atomic_write_text`; the directory is staged as `.new` and published with
+> `publish.swap_dir`, so an interrupted backup never looks complete. The **target** is
+> refused (exit 3, no override flag) when the D-29 detector flags it, when it lies inside
+> the data root or the repository, or when its volume's BitLocker protection is off
+> (unknown → a warning); `MWH_BACKUP_TARGET` (`Settings.backup_target`) is the default.
+> `verify` re-hashes against the manifest (mismatched / missing / unexpected files
+> named); `restore --from --to` verifies first, never overwrites a non-empty `runs/`,
+> re-hashes every copy, and `mwh --data-root <to> runs refresh` completes the drill;
+> `list` and the doctor's `last_backup` row read the manifests only. Restore of the
+> whole warehouse = `mwh init` + `mwh build --tier full` (GOVERNANCE §11), never a backup.
 
 **The data-root tree** is fixed by `Settings.layout` (`config.py`, `LAYOUT_KEYS`; **18
 keys**, created idempotently by `mwh paths --create`, which also writes a `README.txt`
@@ -1451,10 +1476,10 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44) cohort (EP-46) timeline (EP-49); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44) cohort (EP-46) timeline (EP-49) spine (EP-50) protocol (EP-51) backup (EP-52); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
-│   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
+│   ├── doctor.py                  EP-2, EP-164, EP-167, EP-52 shipped   16 host checks (last_backup since EP-52); run_checks(settings) is what EP-35 embeds
 │   ├── guard.py                   EP-4, EP-165, EP-33 shipped   pre-commit data-leak guard G1–G5 (index blobs, path tokens, notebook/script scans)
 │   ├── theme.py                   EP-5 shipped   palette, Altair/Streamlit themes, brand SVGs
 │   ├── verify.py                  EP-6, EP-167 shipped   `mwh verify EP-n | --list | --roadmap`; roadmap_check
@@ -1484,7 +1509,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── timeline.py                EP-49 shipped  anchors (Anchor / ANCHORS + med_start / procedure / vent_start / phenotype_onset / custom_anchor, anchor_sql), event sources (labs / vitals / inputs / outputs / meds / procedures / micro / transfers / custom_source), align / window_join / asof_join / event_at, hourly_bins / daily_bins / population_summary (the SUPPRESSOR seam) / to_mart, the owner-only stay_events (role stamp on open_catalog connections + the row_view audit line), run_benchmark + `mwh timeline anchors | bench`, docs/methods/timelines.md renderer
 │   ├── spine.py                   EP-50 shipped  the events spine (SpineSource registry + code grammar, build_source / build_union DAG steps of dag/specs/spine.yaml, validate (MEDS schema + governance checks), register_spine (CATALOG_EXTENSIONS entry), `mwh spine sources | validate`, docs/methods/spine.md renderer)
 │   ├── protocol/                  EP-51 shipped  spec (Protocol + content_hash, the fixed texts, json_schema), registry (resolve, freeze / amend / verify, runs/protocols.jsonl + read-only copies, PROTOCOLS_COLUMNS, docs/methods/protocols.md renderer), runners (RUNNERS, cohort_only, run_protocol, protocol_summary.md), cli (`mwh protocol`), specs/tracer_mortality.yaml; + EP-128/129
-│   ├── backup.py                  EP-52
+│   ├── backup.py                  EP-52 shipped  BACKUP_SET (the globs of the non-reproducible state), run_backup (hash, copy2, re-hash, backup_manifest.json, swap_dir publish), target_problem (D-29 detector + data-root / repository containment + BitLocker), verify_backup, restore_backup, list_backups / last_backup (the doctor's last_backup row), `mwh backup run | verify | restore | list`; Settings.backup_target (MWH_BACKUP_TARGET)
 │   ├── marts/                     EP-55/56
 │   ├── viz/                       EP-64+  Altair specs, Plotly timeline, export
 │   ├── stats/                     P5     endpoints, boot, glm, mixed, trajectories, pathways, utilization, tsa, exposure, missing

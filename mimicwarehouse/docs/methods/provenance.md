@@ -56,7 +56,7 @@ a sanitised one-line message (never a traceback), and is re-raised.
 | `resources` | the `ResourceLog` measurement (EP-36): wall, CPU time, run-scoped peak RSS with its method, RSS start/end, the Windows `peak_wset`, disk delta, GPU memory (`null` without `pynvml` and a device), sample counts — [determinism.md](determinism.md) §6; `null` while `status: running` |
 | `protocol_id`, `protocol_hash`, `claim_type` | `None` until a protocol run (EP-51) or the caller states them |
 | `error` | `{type, message}` on failure |
-| `doctor` | the environment block: `mwh doctor`'s fifteen checks reduced to `{id, status, value}` (the machine-readable payloads — versions, paths, product names — never the prose detail), captured once per process because the probes cost seconds |
+| `doctor` | the environment block: `mwh doctor`'s sixteen checks (fifteen before EP-52's `last_backup`) reduced to `{id, status, value}` (the machine-readable payloads — versions, paths, product names — never the prose detail), captured once per process because the probes cost seconds |
 
 `runs/ledger.jsonl` receives the subset `run_id, name, kind, tier, status, started,
 wall_s, git_sha, protocol_hash` — one canonical JSON line per run through
@@ -140,12 +140,13 @@ hand-writing the block; the run id is quoted inline only.
 
 ## 7. Retention and backup
 
-Run folders and the three ledgers are **never auto-deleted**: they are the
+Run folders and the four ledgers are **never auto-deleted**: they are the
 non-reproducible state of the warehouse (the lake and catalogs rebuild from raw + code;
-the record of what was run does not). `mwh backup` (EP-52) copies `runs/` — ledgers,
-manifests, run folders — to the owner's encrypted local target; the ledgers are
-append-only and the manifests are rewritten only by the run that owns them. Deleting a
-run folder is an owner action, never a session's.
+the record of what was run does not). `mwh backup` (EP-52, section 9) copies the ledgers,
+the frozen protocol copies, every run's `manifest.json` + `sql/` and the study / registry
+metadata to the owner's encrypted local target; the ledgers are append-only and the
+manifests are rewritten only by the run that owns them. Deleting a run folder is an
+owner action, never a session's.
 
 ## 8. What the later briefs add
 
@@ -153,5 +154,73 @@ EP-36 (shipped 2026-09-05) filled `seeds` and `resources` — the seed-derivatio
 the resource sampler are documented in [determinism.md](determinism.md), the policy later
 briefs cite; EP-43 suppresses attrition counts on export and writes the
 `.disclosure.json` sidecars; EP-47 records cohort attrition through `record_attrition`;
-EP-51 fills `protocol_id` / `protocol_hash` for frozen protocols; EP-52 backs `runs/` up;
-EP-134 is the Runs & Provenance browser over the same views.
+EP-51 fills `protocol_id` / `protocol_hash` for frozen protocols; EP-52 (shipped
+2026-09-17, section 9) backs the non-reproducible state up; EP-134 is the Runs &
+Provenance browser over the same views.
+
+## 9. Backup & restore (EP-52)
+
+`mwh backup` copies the non-reproducible state — and only that — to an encrypted local
+target the owner chooses (GOVERNANCE §11). This section is the prose twin of
+`src/mimicwarehouse/backup.py`; the rebuildable layers (lake, catalogs, derived data,
+marts) are never backed up — `mwh init` (EP-158) + `mwh build` is their recovery path.
+
+**The set** (`backup.BACKUP_SET`, globs relative to the data root, enumerated in this
+order; a file is counted once):
+
+| Glob | What | Why it is in the set |
+|---|---|---|
+| `runs/*.jsonl` | `ledger.jsonl`, `audit.jsonl`, `benchmarks.jsonl`, `protocols.jsonl` | the append-only ledgers (sections 2 and 7; GOVERNANCE §8) |
+| `runs/protocols/**` | the frozen protocol copies (EP-51) | byte-for-byte and **read-only**; `shutil.copy2` carries the attribute into the backup and back out of it (`docs/gotchas.md` §2) |
+| `runs/*/manifest.json` · `runs/*/sql/**` | every run's record and the statements it issued | the record is the manifest, the index is the ledger (section 2) |
+| `models/registry/**` (`.json` / `.yaml` only) | model-registry metadata (EP-106) | weights are re-trainable from frozen protocols |
+| `studies/**` minus the guard's data-shaped suffixes | study specs, notes, JSONL review records | never a `.parquet` / `.duckdb` / `.csv` / archive — specs and notes only |
+| `runs/*/tables/**` · `runs/*/figures/**` | run artifacts — **only with `--include-run-artifacts`** | off by default: they may hold derived row-level tables inside the data root |
+
+Never copied: `runs/jobs/` (transient ⏱ job state and logs), `warehouse/runs.duckdb`
+(section 5 rebuilds it from the ledgers), the tracer's own report folder (its run
+record is under `runs/<run_id>/`), the lake, catalogs and marts.
+
+**Commands** (the target defaults to `MWH_BACKUP_TARGET`; `--target <dir>` overrides):
+
+- `uv run --group dev mwh backup run [--target <dir>] [--include-run-artifacts] [--json]`
+  — hashes every file of the set, copies it to `<target>\mwh-backup-<UTC>\…` mirroring
+  the data-root paths, re-hashes every copy (a copy that does not hash to its source is a
+  hard error — the EP-171 canary rule for a silent quarantine) and writes
+  `backup_manifest.json`: `backup_id`, tool + version, UTC timestamp, the data root, the
+  git sha, the rules in force, files per rule, `n_files`, `total_bytes` and one
+  `{path, sha256, bytes}` entry per file. The directory is staged as
+  `mwh-backup-<UTC>.new` and published with `publish.swap_dir`, so an interrupted backup
+  never looks complete and its leftover is swept by the next run. The plain output is
+  the path, the file count and the byte total (never a file name); `--json` prints the
+  manifest summary without the file list.
+- `uv run --group dev mwh backup verify <backup-dir> [--json]` — re-hashes every listed
+  file and walks the directory: a mismatched, missing or unexpected file is named and the
+  command exits 1.
+- `uv run --group dev mwh backup restore --from <backup-dir> --to <dir> [--dry-run] [--json]`
+  — verifies first (a damaged backup is never restored), refuses a `--to` whose `runs/`
+  is non-empty (a restore never overwrites a live record) or that the D-29 detector
+  flags, copies every file back with the same re-hash, and prints the drill's next step:
+  `uv run --group dev mwh --data-root <dir> runs refresh` rebuilds `runs.duckdb` over the
+  restored ledgers (section 5). A torn trailing ledger line (a backup taken mid-append)
+  survives the round trip: `fsio.read_jsonl` and the views tolerate it.
+- `uv run --group dev mwh backup list [--target <dir>] [--json]` — the backups under the
+  target, newest first, with age in days, file count and size; a directory without a
+  readable manifest is shown as such, `.new` staging leftovers are ignored.
+- `mwh doctor` gains the `last_backup` row: **pass** when the newest backup under
+  `MWH_BACKUP_TARGET` is at most 7 days old, **warn** when older or when the target holds
+  none, **info** when no target is configured.
+
+**Target safety** (`backup.target_problem`; refused with exit 3, and there is no
+override flag — the owner changes the target instead): the EP-3 detector
+(`config.location_problem` — a sync-client volume label, not a fixed disk, not
+NTFS/ReFS, under OneDrive, a forbidden drive letter such as G:/D:), a path inside the
+data root, a path inside the repository, and a volume whose BitLocker protection reads
+**off** through the doctor's probe (an unknown state is a warning, printed on stderr,
+and the backup proceeds). The same detector judges a restore destination.
+
+**What a session may see.** Everything `mwh backup` prints or writes is paths, counts,
+hashes and timestamps; the copied bytes are the ledgers (audit statement text, run
+parameters, counts), frozen protocol YAML and metadata — project state, never a row.
+Backups live outside git and outside the data root; nothing from a backup is promoted
+anywhere without the disclosure gate (GOVERNANCE §7).

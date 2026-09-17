@@ -749,6 +749,22 @@ nothing on G:/D:. *Alternatives:* inside repo `data/`; inside `source material/`
 > `source material\` are excluded from **both** real-time products (D-38 addenda) so no scanner
 > ever uploads a detected object from either location.
 
+> **Addendum (2026-09-17, EP-52 — the backup target is judged by the same detector).**
+> `mwh backup` (GOVERNANCE §11) applies `config.location_problem` — the five D-29
+> criteria above — to its **target** as well, plus three rules of its own: the target may
+> not lie inside the data root (a backup must survive it), nor inside the repository
+> (ledgers are never committed, GOVERNANCE §3), and its volume must report BitLocker
+> **on** through the doctor's probe (off = refused; an unknown state is a warning and the
+> backup proceeds). There is deliberately no `--i-know` override (the brief's rule): the
+> owner changes the target instead, and `MWH_BACKUP_TARGET` is only a default that every
+> run re-checks. The same detector judges a restore destination (`--to`), and a restore
+> never overwrites a non-empty `runs/`. *Why:* the ledgers hold audit statement text, run
+> parameters, counts and frozen protocol definitions — project state that D-29 keeps off
+> synced, virtual and network drives like everything else. *Alternatives (rejected):* an
+> override flag (one flag would be the path to a Google-Drive backup); trusting the
+> configured target unchecked (a typo would land the ledgers on D:); backing up into the
+> data root (a lost drive would take the record with the lake).
+
 **D-30 Keep plain CSVs untouched** (~180 GB total footprint). *Alternatives:* re-gzip;
 delete after verified Parquet.
 

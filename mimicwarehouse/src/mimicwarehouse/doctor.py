@@ -14,9 +14,11 @@ real-time endpoint-security product Windows Security Center lists (names + state
 EP-164 — warns when one besides Defender is present, because it keeps its own allow list),
 whether the ``.claude/settings.json`` deny rules cover the configured data root (EP-167,
 retro GOV-3 — a relocated ``MWH_DATA_ROOT`` has no prefix coverage until they are updated),
-BitLocker, the power scheme, GPU/driver (informational until EP-121, D-16) and
-``LongPathsEnabled`` (+ the git version, merged into that row). The ``settings`` check also
-warns on unknown ``MWH_*`` environment variables (names only; EP-167, retro CFG-1).
+BitLocker, the age of the newest ``mwh backup`` under ``MWH_BACKUP_TARGET`` (EP-52 —
+warns past :data:`mimicwarehouse.backup.MAX_AGE_DAYS` days or when none exists; info when
+no target is configured), the power scheme, GPU/driver (informational until EP-121, D-16)
+and ``LongPathsEnabled`` (+ the git version, merged into that row). The ``settings`` check
+also warns on unknown ``MWH_*`` environment variables (names only; EP-167, retro CFG-1).
 
 Nothing here opens a data file. Every external probe (``uv``, ``git``, ``nvidia-smi``,
 ``powercfg``, PowerShell, the registry, Win32 volume APIs via :mod:`mimicwarehouse.config`)
@@ -68,6 +70,7 @@ CHECK_IDS: tuple[str, ...] = (
     "antivirus",
     "deny_coverage",
     "bitlocker",
+    "last_backup",
     "power_scheme",
     "gpu",
     "longpaths",
@@ -799,6 +802,59 @@ def check_bitlocker(drives: Iterable[str]) -> CheckResult:
     return CheckResult("bitlocker", status, " · ".join(parts), value)
 
 
+def check_last_backup(settings: Settings) -> CheckResult:
+    """Age of the newest ``mwh backup`` under ``settings.backup_target`` (EP-52, GOVERNANCE
+    §11): **pass** within :data:`mimicwarehouse.backup.MAX_AGE_DAYS` days, **warn** when
+    older or when the target holds no backup, **info** when no target is configured. Reads
+    ``backup_manifest.json`` files only (ids, counts, timestamps) — never the copies."""
+    from mimicwarehouse.backup import MAX_AGE_DAYS, last_backup
+
+    target = settings.backup_target
+    value: dict[str, Any] = {
+        "target": None if target is None else str(target),
+        "backup_id": None,
+        "age_days": None,
+        "n_files": None,
+        "total_bytes": None,
+        "max_age_days": MAX_AGE_DAYS,
+    }
+    if target is None:
+        return CheckResult(
+            "last_backup",
+            "info",
+            "no backup target configured — set MWH_BACKUP_TARGET (an encrypted local "
+            "directory) and run `mwh backup run` (GOVERNANCE §11)",
+            value,
+        )
+    newest = last_backup(target)
+    if newest is None:
+        return CheckResult(
+            "last_backup",
+            "warn",
+            f"no backup under {target} — run `mwh backup run` (GOVERNANCE §11)",
+            value,
+        )
+    value.update(
+        {
+            "backup_id": newest.backup_id,
+            "age_days": newest.age_days,
+            "n_files": newest.n_files,
+            "total_bytes": newest.total_bytes,
+        }
+    )
+    age = "unknown age" if newest.age_days is None else f"{newest.age_days:.1f} day(s) old"
+    size = "-" if newest.total_bytes is None else f"{newest.total_bytes / 2**20:,.1f} MB"
+    detail = f"{newest.backup_id} under {target}: {age}, {newest.n_files} file(s), {size}"
+    if newest.age_days is None or newest.age_days > MAX_AGE_DAYS:
+        return CheckResult(
+            "last_backup",
+            "warn",
+            f"{detail} — older than {MAX_AGE_DAYS} days; run `mwh backup run`",
+            value,
+        )
+    return CheckResult("last_backup", "pass", detail, value)
+
+
 def check_power_scheme() -> CheckResult:
     """Active power scheme + Windows 11 AC overlay (D-38 wants Best performance) — info."""
     if not IS_WINDOWS:
@@ -895,6 +951,7 @@ def run_checks(settings: Settings) -> list[CheckResult]:
         check_antivirus,
         lambda: check_deny_coverage(data_root, repo),
         lambda: check_bitlocker(drives),
+        lambda: check_last_backup(settings),
         check_power_scheme,
         check_gpu,
         lambda: check_longpaths(repo),
@@ -953,8 +1010,8 @@ def doctor_command(
     ] = False,
 ) -> None:
     """Host health: python · uv · duckdb · settings · disk_free · data_root · temp_dir ·
-    cloud_mounts · defender · antivirus · deny_coverage · bitlocker · power_scheme · gpu ·
-    longpaths."""
+    cloud_mounts · defender · antivirus · deny_coverage · bitlocker · last_backup ·
+    power_scheme · gpu · longpaths."""
     state: CliState = ctx.obj
     results = run_checks(state.settings)
     report = doctor_report(results)

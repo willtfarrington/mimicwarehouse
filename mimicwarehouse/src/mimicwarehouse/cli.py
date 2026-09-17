@@ -3,7 +3,8 @@
 Commands live in their own modules and are attached here with **one** ``app.command()`` /
 ``app.add_typer()`` line each, so later briefs extend without restructuring. The registered
 set (the ``# --- commands`` block below is authoritative; retro CLI-4):
-``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``canary`` (EP-171,
+``backup`` (EP-52, :mod:`mimicwarehouse.backup`; ``run`` / ``verify`` / ``restore`` /
+``list``) · ``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``canary`` (EP-171,
 :mod:`mimicwarehouse.canary`) · ``catalog``/``sql`` (EP-21, :mod:`mimicwarehouse.catalog.cli`;
 since EP-30 ``sql`` routes everything through ``safe_query`` — aggregate-only, audited,
 refusals exit 3) · ``codeset`` (EP-40, :mod:`mimicwarehouse.codesets.cli`) · ``cohort``
@@ -58,6 +59,7 @@ from pydantic_settings import SettingsError
 from rich.markup import escape
 
 from mimicwarehouse import __version__, config
+from mimicwarehouse.backup import backup_app
 from mimicwarehouse.canary import canary_app
 from mimicwarehouse.catalog.cli import catalog_app, sql_command
 from mimicwarehouse.codesets.cli import codeset_app
@@ -196,6 +198,7 @@ def main(
 
 
 # --- commands (one line each; keep alphabetical as briefs add them) -----------------------
+app.add_typer(backup_app, name="backup")
 app.command("build")(build_command)
 app.add_typer(canary_app, name="canary")
 app.add_typer(catalog_app, name="catalog")

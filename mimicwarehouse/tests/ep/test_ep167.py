@@ -531,7 +531,7 @@ def test_check_deny_coverage_states(tmp_path: Path) -> None:
 
 def test_doctor_has_15_checks_with_deny_coverage_after_antivirus() -> None:
     ids = list(doctor.CHECK_IDS)
-    assert len(ids) == 15
+    assert len(ids) == 16  # 15 at EP-167; EP-52 added last_backup after bitlocker
     assert ids.index("deny_coverage") == ids.index("antivirus") + 1
 
 
@@ -694,5 +694,5 @@ def test_show_json_ends_with_a_newline(ed_settings: Settings) -> None:
 def test_workspace_readme_reflects_the_new_contracts() -> None:
     readme = (WORKSPACE / "README.md").read_text(encoding="utf-8")
     assert "deny_coverage" in readme
-    assert "15 host checks" in readme
+    assert "16 host checks" in readme  # 15 until EP-52 added last_backup
     assert "lake/fixture" in readme

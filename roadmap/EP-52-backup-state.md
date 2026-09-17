@@ -75,3 +75,50 @@ data is read. Windows: preserve long paths via `pathlib`, copy with hashes, no s
   `mwh backup verify` on it exits 0; `mwh backup run --target G:\anything` (or a temp path the
   detector flags) exits non-zero with the refusal message.
 - `uv run --group dev mwh doctor` prints the last-backup-age line.
+
+> **Completion note (2026-09-17).** Executed as briefed on fixture (S, one session).
+> Shipped: `src/mimicwarehouse/backup.py` — `BACKUP_SET` (the item-1 globs relative to
+> the data root, a file counted once; `runs/*/tables/**` + `runs/*/figures/**` only with
+> `--include-run-artifacts`; `runs/jobs/` and `warehouse/runs.duckdb` never), `run_backup`
+> (sha256 every file, `shutil.copy2` into `<target>/mwh-backup-<UTC>.new/` mirroring the
+> paths, re-hash every copy — a copy that does not hash to its source is a hard error —
+> `backup_manifest.json` through `fsio.atomic_write_text`, publish through
+> `publish.swap_dir`, stale `.new` leftovers swept by the next run; the frozen protocol
+> copies stay read-only), `target_problem` (the EP-3 detector + inside-the-data-root +
+> inside-the-repository + BitLocker-off refusals, exit 3, no `--i-know`; an unknown
+> BitLocker state warns on stderr and proceeds), `verify_backup` (mismatched / missing /
+> unexpected files named, exit 1), `restore_backup` (verify first, never over a non-empty
+> `runs/`, `--to` judged by the same detector, every copy re-hashed, `--dry-run`),
+> `list_backups` / `last_backup`, `mwh backup run | verify | restore | list`;
+> `Settings.backup_target` (`MWH_BACKUP_TARGET`, `.env.example`); `mwh doctor` gained
+> `last_backup` right after `bitlocker` (16 checks: pass within 7 days, warn when older
+> or none, info when no target is configured); `docs/methods/provenance.md` §9, DESIGN
+> §2 / §3 / §15 notes, the D-29 addendum, the GOVERNANCE §11 amendment (owner-approved),
+> the `docs/gotchas.md` §2 confirmation, `final-roadmap.md` BKP-1 (restic / borg, parked
+> per Out of scope). Judgment calls: the study-workspace exclusion is the guard's
+> data-shaped list (G1) minus `.jsonl` / `.ndjson` (a study's own append-only record is
+> state), and a restore destination is checked like a target (D-29 applies to restored
+> ledgers too). **Acceptance run (real; owner-chosen target `C:\mimicbackup`, recorded
+> as `MWH_BACKUP_TARGET` in the gitignored `mimicwarehouse\.env`):** backup id
+> `mwh-backup-20260917T194115Z` — 194 files, 2.6 MB (`runs/*.jsonl` 4,
+> `runs/protocols/**` 1, `runs/*/manifest.json` 82, `runs/*/sql/**` 105,
+> `models/registry/**` 0, `studies/**` 2), a few seconds; `mwh backup verify` on it exit
+> 0; `mwh backup run --target G:\anything` exit 3 ("volume G:\ is labelled 'Google
+> Drive'"); `mwh doctor` prints `last_backup ✓ pass — mwh-backup-20260917T194115Z under
+> C:\mimicbackup: 0.0 day(s) old, 194 file(s), 2.6 MB` and now ends 10 pass · 1 warn ·
+> 0 fail · 5 info. Tests: `test_ep52.py` — 13 on the fixture (`mwh verify EP-52` green,
+> 14 s): the set and its enumeration, the manifest, the read-only frozen copy, `verify`
+> naming a flipped byte / a missing / an unexpected file, `restore` + `mwh --data-root
+> <to> runs refresh` building the five views over the restored ledgers, the refusals
+> with a monkeypatched detector and the forbidden letter, BitLocker off / unknown, an
+> interrupted and a truncated copy never published, a torn trailing ledger line
+> round-tripping, `list` + the doctor row (info / warn / pass / warn past 7 days),
+> `MWH_BACKUP_TARGET`, the docs and the import budget; the module runs under a temp
+> workspace root so the machine's `.env` never reaches it. Earlier tests touched (the
+> EP-167 precedent for a count pin): `test_ep02`, `test_ep164`, `test_ep167` — the
+> doctor check count 15 → 16 and the README string `16 host checks`; every earlier `mwh
+> verify EP-k` still exits 0 (`poe check` 1,170 passed, 12 min 18 s). **Owner review
+> (2026-09-17, interactive):** target `C:\mimicbackup` + `.env` — taken (same physical
+> disk as the data root: protects against deletion / corruption, not disk loss; an
+> external BitLocker-To-Go drive remains the stronger hedge); append the GOVERNANCE §11
+> note — taken; commit in the two-step recipe without pushing — taken.

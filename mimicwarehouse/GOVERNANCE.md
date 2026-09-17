@@ -212,6 +212,15 @@ backed up. `mwh backup` (EP-52) copies the non-reproducible state — `runs/` le
 encrypted local target chosen by the owner (never a synced drive). Recovery of the
 warehouse = `mwh init` (EP-158) + `mwh build --tier full`.
 
+> **Amended 2026-09-17 (EP-52).** As built, the set is `runs/*.jsonl` (ledger, audit,
+> benchmarks, protocols), `runs/protocols/**` (the frozen copies, read-only),
+> `runs/*/manifest.json` + `runs/*/sql/**`, `models/registry/**` (`.json` / `.yaml`),
+> `studies/**` minus data-shaped files; per-run `tables/` and `figures/` only with
+> `--include-run-artifacts`; never `runs/jobs/` or `warehouse/runs.duckdb`. The target
+> must be a local fixed NTFS/ReFS volume with BitLocker on, outside the data root and the
+> repository (the D-29 detector; no override flag); `docs/methods/provenance.md` §9 is
+> the prose twin.
+
 ## 12. Reproducibility obligations
 
 Every run records: git sha, `uv.lock` hash, DuckDB version, snapshot ids of every layer

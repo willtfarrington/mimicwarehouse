@@ -170,7 +170,11 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   reports it — `protocol.registry.is_read_only` is that call. `shutil.copy2` carries the
   attribute along (EP-52's backup copies will be read-only too, which is right); a test
   that must edit a frozen copy clears it first (`os.chmod(path, stat.S_IWRITE | stat.S_IREAD)`),
-  and pytest's `tmp_path` cleanup clears it on its own. *(EP-51, 2026-09-17.)*
+  and pytest's `tmp_path` cleanup clears it on its own. *(EP-51, 2026-09-17.)* *(EP-52,
+  2026-09-17 — confirmed: `mwh backup run` copies with `shutil.copy2`, so the frozen
+  copies under `<backup>\runs\protocols\` are read-only, `mwh backup restore` puts them
+  back read-only, and `mwh protocol verify <hash>` passes against a restored data root;
+  `test_ep52` pins all three.)*
 
 ## 3. Session tooling (rules in CLAUDE.md §3; the why lives here)
 

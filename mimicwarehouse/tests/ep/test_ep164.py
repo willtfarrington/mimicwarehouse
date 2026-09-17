@@ -359,7 +359,7 @@ def test_check_never_fails(monkeypatch: pytest.MonkeyPatch) -> None:
 
 # ---------------------------------------------------------------------------
 # (f) mwh doctor --json: antivirus after defender, warn never fails the run
-#     (14 checks at EP-164; 15 since EP-167's deny_coverage)
+#     (14 checks at EP-164; 15 since EP-167's deny_coverage; 16 since EP-52's last_backup)
 # ---------------------------------------------------------------------------
 
 
@@ -373,7 +373,8 @@ def test_doctor_json_lists_the_checks_with_antivirus_after_defender(mocked_host:
     code, report = _doctor_json(["--data-root", str(mocked_host), "doctor", "--json"])
     assert code == 0 and report["ok"] is True
     ids = [c["id"] for c in report["checks"]]
-    assert ids == list(doctor.CHECK_IDS) and len(ids) == 15  # 14 + deny_coverage (EP-167)
+    # 14 + deny_coverage (EP-167) + last_backup (EP-52)
+    assert ids == list(doctor.CHECK_IDS) and len(ids) == 16
     assert ids.index("antivirus") == ids.index("defender") + 1
     for check in report["checks"]:
         assert set(check) == {"id", "status", "detail", "value"}

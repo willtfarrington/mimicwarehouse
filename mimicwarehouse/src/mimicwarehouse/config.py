@@ -547,6 +547,12 @@ class Settings(BaseSettings):
         "owner sets 'owner' in their own shell; Claude sessions never set MWH_ROLE "
         "(GOVERNANCE §4/§6).",
     )
+    backup_target: Path | None = Field(
+        default=None,
+        description="Default target of `mwh backup` (EP-52, GOVERNANCE §11): an encrypted "
+        "local directory outside the data root and the repository; checked by `mwh backup "
+        "run`, never here (a wrong value must not break every other command).",
+    )
 
     _init_fields: frozenset[str] = PrivateAttr(default=frozenset())
 
@@ -592,7 +598,7 @@ class Settings(BaseSettings):
 
     # -- validators ------------------------------------------------------------------------
 
-    @field_validator("data_root", "source_root", "duckdb_temp_dir", mode="after")
+    @field_validator("data_root", "source_root", "duckdb_temp_dir", "backup_target", mode="after")
     @classmethod
     def _absolute(cls, value: Path | None) -> Path | None:
         return None if value is None else _abspath(value)
