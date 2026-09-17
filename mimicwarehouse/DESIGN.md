@@ -1009,7 +1009,41 @@ build from the catalog, not the external ETL. It runs as DAG `python` steps unde
 EP-29 handler contract (`callable: module:function`, called with `(step, ctx)`), so it gets
 the build lock, the benchmark lines and the `derived` layer snapshot id for free.
 
-*History:* planning text (2026-08-16), reconciled with EP-29's `python` step handler and EP-33 item D3's sizing; EP-50 planned; consolidated at EP-33.
+> **Note (2026-09-17, EP-50) — as shipped.** `src/mimicwarehouse/spine.py` +
+> `dag/specs/spine.yaml` (prose twin `docs/methods/spine.md`). (1) **Columns:** the MEDS
+> 0.4 core five first (`subject_id` BIGINT, `time` TIMESTAMP µs, `code` VARCHAR,
+> `numeric_value` FLOAT, `text_value` VARCHAR; hard-coded, no `meds` dependency) then the
+> extras `hadm_id`, `stay_id`, `source_table`; every file sorted `(subject_id, time)` with
+> a total tie-break. (2) **Grammar:** `PREFIX//segment//segment`, `NONE` for a missing
+> segment; thirteen sources (`patients` → `MEDS_BIRTH` at the synthetic
+> `anchor_year - anchor_age` Jan 1 with `text_value = 'age_capped'` in the ≥ 89 bucket, and
+> `MEDS_DEATH` at `dod`; admissions / transfers / icustays / diagnoses (at `dischtime`,
+> `seq_num` numeric) / procedures / labs (`LAB//<itemid>//<valueuom>`, text only when
+> `valuenum` is NULL and ≤ 32 chars) / micro (`charttime`, else `chartdate`) / prescriptions
+> (start + stop, `route` text) / emar / inputs (+ `INPUT_RATE`) / outputs / ICU procedures).
+> Free-text-ish segments are cut (drug 46, eMAR medication 34 / event 22 chars) so every
+> `code` and `text_value` stays within `safe.FREE_TEXT_MAX_CHARS` = 64 — the property that
+> lets a session `GROUP BY code` through `mwh sql` (P3C-5); `validate` enforces it.
+> (3) **Layout:** `<lake_root(tier)>/derived/<tier>/spine/source=<s>/subject_bucket=NN/part-0.parquet`,
+> **one sorted single-file `COPY` per bucket** (the pass-2 shape): a sorted `COPY …
+> PARTITION_BY` leaves thread seams inside its partition files on DuckDB 1.5.5 whatever
+> `preserve_insertion_order` says (`docs/gotchas.md` §1; the same seams exist in the
+> loader's small-path core files on dev — `diagnoses_icd`, `outputevents` — handed to
+> EP-54). Per-source `status.json` entries `spine.<s>` (`per_tier`, resumable), manifest
+> lines with schema `spine` (`source_sha256` = the projection's sha256), `kind: mart`
+> ledger lines; the walker skips the `spine/` dir and `spine.register_spine`
+> (`CATALOG_EXTENSIONS`, after the cohort extension) creates `mimiciv_derived.spine` over
+> the complete sources once `spine.union` recorded the tier complete. (4) **Registry
+> tables:** `meta.spine_codes` (code prefix × source, `n_events` / `n_subjects`,
+> k-suppressed at build time — the EP-39 pattern, D-33 addendum; raw counts under
+> `lake/meta/<tier>/raw/`) and `meta.spine_validation` (one row per validation run).
+> (5) **Sizes:** fixture 20,254 rows / 1,027 files; dev **13,904,196 rows in 65 files,
+> ≈ 43 MB** (build ≈ 12 s incl. validation and the catalog); the full tier is the
+> `spine-full` background job EP-54 verifies — the dev bytes extrapolate to ≈ 0.9 GB for
+> ≈ 280 M rows, well under the §3 re-estimate of 2.5–4 GB (ZSTD on sorted, low-cardinality
+> codes compresses far better than the 10 bytes/row assumption).
+
+*History:* planning text (2026-08-16), reconciled with EP-29's `python` step handler and EP-33 item D3's sizing; EP-50 planned; consolidated at EP-33; built by EP-50 (2026-09-17, note above).
 
 ## 11. Run ledger, benchmark ledger, audit, snapshot ids
 
@@ -1413,7 +1447,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
 │   ├── cohort/                    EP-46, EP-47, EP-48 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), attrition (EP-48: the Mermaid / Altair-Vega-Lite / Markdown renderers over the suppressed frame, the pair guard, save_attrition -> runs/<run_id>/figures/attrition.{mmd,vl.json,png,csv,md} through disclose.check), cli (`mwh cohort`)
 │   ├── timeline.py                EP-49 shipped  anchors (Anchor / ANCHORS + med_start / procedure / vent_start / phenotype_onset / custom_anchor, anchor_sql), event sources (labs / vitals / inputs / outputs / meds / procedures / micro / transfers / custom_source), align / window_join / asof_join / event_at, hourly_bins / daily_bins / population_summary (the SUPPRESSOR seam) / to_mart, the owner-only stay_events (role stamp on open_catalog connections + the row_view audit line), run_benchmark + `mwh timeline anchors | bench`, docs/methods/timelines.md renderer
-│   ├── spine.py                   EP-50
+│   ├── spine.py                   EP-50 shipped  the events spine (SpineSource registry + code grammar, build_source / build_union DAG steps of dag/specs/spine.yaml, validate (MEDS schema + governance checks), register_spine (CATALOG_EXTENSIONS entry), `mwh spine sources | validate`, docs/methods/spine.md renderer)
 │   ├── protocol/                  EP-51 (+ EP-128/129)
 │   ├── backup.py                  EP-52
 │   ├── marts/                     EP-55/56

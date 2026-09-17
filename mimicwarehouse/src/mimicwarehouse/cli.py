@@ -16,7 +16,8 @@ the release gate: ``check`` / ``verify``) · ``doctor`` (EP-2,
 ``phenotype`` (EP-41, :mod:`mimicwarehouse.phenotypes.cli`) · ``qc`` (EP-44,
 :mod:`mimicwarehouse.qc.cli`; ``status``) · ``runs``
 (``refresh`` EP-30, ``benchmarks`` EP-32, :mod:`mimicwarehouse.runs_cli`) · ``schema`` (EP-9,
-:mod:`mimicwarehouse.schema.cli`) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
+:mod:`mimicwarehouse.schema.cli`) · ``spine`` (EP-50, :mod:`mimicwarehouse.spine`;
+``sources`` / ``validate``) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
 ``timeline`` (EP-49, :mod:`mimicwarehouse.timeline`; ``anchors`` / ``bench``) ·
 ``units`` (EP-39, :mod:`mimicwarehouse.units`) · ``verify`` (EP-6,
 :mod:`mimicwarehouse.verify`). Later briefs add theirs the same way; a
@@ -72,6 +73,7 @@ from mimicwarehouse.phenotypes.cli import phenotype_app
 from mimicwarehouse.qc.cli import qc_app
 from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
+from mimicwarehouse.spine import spine_app
 from mimicwarehouse.timeline import timeline_app
 from mimicwarehouse.tracer import tracer_command
 from mimicwarehouse.units import units_app
@@ -208,6 +210,7 @@ app.add_typer(phenotype_app, name="phenotype")
 app.add_typer(qc_app, name="qc")
 app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
+app.add_typer(spine_app, name="spine")
 app.command("sql")(sql_command)
 app.add_typer(timeline_app, name="timeline")
 app.command("tracer")(tracer_command)

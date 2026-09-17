@@ -1,0 +1,130 @@
+# dag/specs/spine.yaml -- the events-spine steps (EP-50 item 2; ASCII only). Merged into
+# the one graph by dag.spec.load_dag() (EP-37 discovery): thirteen python steps
+# spine.<source> (handler mimicwarehouse.spine:build_source; target = the status.json key
+# spine.<source>, per tier, so the runner skips / resumes each source and
+# `--select spine.<source>` rebuilds one), the spine.union step (build_union: the
+# meta.spine_codes aggregate, the validation row and the mimiciv_derived.spine status entry
+# the catalog extension reads; no target, so it re-runs whenever selected) and the shared
+# catalog step, whose depends_on / tags are unioned with the other specs' so
+# `mwh build --tier <t> --tag spine` ends in a catalog rebuild. Each source step depends on
+# its core table's stage step (diagnoses_icd also on admissions, whose dischtime it
+# borrows). Output layout (the one bucketed exception to EP-37's single-file rule):
+#   spine.<source> -> <lake_root(tier)>/derived/<tier>/spine/source=<source>/subject_bucket=NN/part-0.parquet
+#   spine.union    -> lake/meta/<tier>/spine_codes.parquet (+ raw/) and spine_validation.parquet
+# Full tier: `mwh build --tier full --tag spine --background --job spine-full` (EP-54 verifies).
+version: 1
+steps:
+  - name: spine.patients
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.patients
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.patients]
+  - name: spine.admissions
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.admissions
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.admissions]
+  - name: spine.transfers
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.transfers
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.transfers]
+  - name: spine.icustays
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.icustays
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_icu.icustays]
+  - name: spine.diagnoses_icd
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.diagnoses_icd
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.diagnoses_icd, stage.mimiciv_hosp.admissions]
+  - name: spine.procedures_icd
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.procedures_icd
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.procedures_icd]
+  - name: spine.labevents
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.labevents
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.labevents]
+  - name: spine.microbiologyevents
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.microbiologyevents
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.microbiologyevents]
+  - name: spine.prescriptions
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.prescriptions
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.prescriptions]
+  - name: spine.emar
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.emar
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_hosp.emar]
+  - name: spine.inputevents
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.inputevents
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_icu.inputevents]
+  - name: spine.outputevents
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.outputevents
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_icu.outputevents]
+  - name: spine.procedureevents
+    kind: python
+    callable: mimicwarehouse.spine:build_source
+    target: spine.procedureevents
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on: [stage.mimiciv_icu.procedureevents]
+  - name: spine.union
+    kind: python
+    callable: mimicwarehouse.spine:build_union
+    tags: [spine]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - spine.patients
+      - spine.admissions
+      - spine.transfers
+      - spine.icustays
+      - spine.diagnoses_icd
+      - spine.procedures_icd
+      - spine.labevents
+      - spine.microbiologyevents
+      - spine.prescriptions
+      - spine.emar
+      - spine.inputevents
+      - spine.outputevents
+      - spine.procedureevents
+  - name: catalog
+    kind: catalog
+    tags: [catalog, spine]
+    depends_on: [spine.union]

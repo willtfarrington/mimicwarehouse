@@ -258,6 +258,26 @@ native only; pandas primary.
 > `nulls_last=True` since generator 0.3.0, so the committed CSVs are in the order the
 > loader's DuckDB `ORDER BY` would produce for the same rows; no lake was restaged.
 
+> **Addendum (2026-09-17, EP-50 — a sorted partitioned `COPY` is not order-preserving;
+> owner decision: record for EP-54).** The events spine's first dev-tier validation found
+> 66 rows out of `(subject_id, time)` order in 65 files written by a sorted `COPY …
+> PARTITION_BY (subject_bucket)` under the build profile's 12 threads; a 3 M-row synthetic
+> probe reproduced 2 seams per 5 partition files with `preserve_insertion_order` on *and*
+> off, while a single-file `COPY (… ORDER BY …) TO '<file>'` was sorted in both. DuckDB
+> 1.5.5's partitioned writer combines per-thread buffers, so the DESIGN §5 sentence "each
+> partition file lands sorted" holds for the pass-2 large path (per-bucket single-file
+> sorts) but **not** for the small path's one partitioned `COPY` per table: on the dev
+> tier the core files of `diagnoses_icd` carry 2 seams and `outputevents` 1, the other
+> small tables none. The spine (EP-50) writes one sorted file per bucket and passes its
+> `sorted_within_file` check on dev and full; the loader is left as is — no reader depends
+> on physical order, the sha256 determinism tests still hold run to run — with roadmap
+> Risk 18, `final-roadmap.md` LOAD-5 and `docs/gotchas.md` §1 carrying the evidence for
+> EP-54. *Alternatives (rejected at the EP-50 review):* an in-place per-bucket re-sort of
+> the affected core tables this session (touches the credentialed lake and moves the
+> core snapshot id every derived layer cites); switching the small path to per-bucket
+> `COPY`s and restaging the 18 small partitioned tables (out of EP-50's scope; EP-54 may
+> still choose it).
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
@@ -762,6 +782,23 @@ same access as the owner.
 > EP-71's Table 1 need them, and the row gate already binds them); coarsening extreme
 > values to bands (parked with the DP item, DIS-1).
 
+> **Addendum (2026-09-17, EP-50 — the safe-query bound shapes a derived table; owner
+> decision: keep the cuts).** `mimiciv_derived.spine` is a subject-keyed read whose
+> natural group keys are its `code` and `text_value` strings, and the wrapper's free-text
+> heuristic refuses any result column with a value over `FREE_TEXT_MAX_CHARS` = 64 (or a
+> newline). The spine therefore guarantees the bound **at build time**: free-text-ish code
+> segments are cut (prescription drug names to 46 characters, eMAR medication names to
+> 34 and event text to 22 — so `MEDICATION_START//…` and `EMAR//…//…` never exceed 64),
+> lab text is carried only when non-numeric and at most 32 characters, every other
+> segment is a dictionary value, and `spine.validate` refuses a `code` or `text_value`
+> over the bound (`spine.CODE_MAX_CHARS` mirrors `safe.FREE_TEXT_MAX_CHARS`; `test_ep50`
+> asserts they agree). Free-text columns never enter the table at all (`comments`, `text`,
+> `note` and the contract's `free_text` flags are refused by a static walk of each
+> projection). *Why:* a derived table a session cannot aggregate over would defeat P3C-5.
+> *Alternatives (rejected):* full-length codes with sessions filtering by length (a
+> `GROUP BY code` over drug names would be refused); one uniform cut for every segment
+> (costs 6–12 characters on drug names for no governance gain).
+
 **D-32 Row display allowed in-app for the owner** behind an explicit toggle with audit
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
 unrestricted.
@@ -971,6 +1008,20 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > suppressor withhold every row with a small difference (guts the table); release an
 > events-per-unit rate (a float that restores the difference); relax the nested-totals
 > rule for timelines (a governance change for a convenience).
+
+> **Addendum (2026-09-17, EP-50 — a second registry table suppressed at build; owner
+> decision: keep both counts).** `meta.spine_codes` (one row per code prefix × source
+> table of the events spine) follows the EP-39 pattern for a `meta.*` table: it is built
+> through `disclose.suppress` (table mode, complementary, over both `n_events` and
+> `n_subjects`, k = `settings.k_suppression`) with the `*_suppressed` markers and a `k`
+> column, the raw counts kept under `lake/meta/<tier>/raw/` (never walked into a
+> catalog). Unlike the EP-49 timeline summary, both counts are released: the pair is
+> nested (`n_events >= n_subjects`), but on the dev and full tiers every prefix × source
+> cell is far above k and the difference is small nowhere (on the fixture the rule blanks
+> the two ICU subject counts — the gate doing its job on synthetic data), so the general
+> "one count column per released row" question stays with EP-54. *Alternatives
+> (rejected):* release `n_events` only (loses the subject census EP-83 wants); defer the
+> shape to EP-54 (the table is already gate-clean as built).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;

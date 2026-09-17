@@ -52,7 +52,9 @@ runner / catalog builder own (this module opens nothing itself):
     status entry is complete for the tier becomes a ``<schema>.<table>`` view (with a
     provenance comment), and every ``meta/<tier>/<table>.parquet`` a ``meta.<table>``
     table — except EP-29's ``profile_*`` pair, which is already folded into
-    ``meta.columns`` / ``meta.row_counts`` and carries per-column extrema. The walker
+    ``meta.columns`` / ``meta.row_counts`` and carries per-column extrema, and except the
+    ``derived/<tier>/spine/`` directory (EP-50's bucketed events spine, registered by its
+    own extension :func:`mimicwarehouse.spine.register_spine`). The walker
     reads ``meta.catalog_info.lake_root`` (populated before the extensions run) instead
     of settings, so a catalog built into a temp root by a test discovers that root.
 
@@ -646,6 +648,8 @@ def register_derived(con: duckdb.DuckDBPyConnection, tier: str) -> None:
     """The discovery walker (module docstring): derived views + meta tables of ``tier``
     on the catalog build connection. Skips (with a warning) a table directory whose
     status entry is not complete for the tier; never creates an empty view."""
+    from mimicwarehouse.spine import SPINE_DIRNAME
+
     lake_root = _catalog_lake_root(con)
     status = read_status(lake_root)["steps"]
     views = 0
@@ -653,6 +657,8 @@ def register_derived(con: duckdb.DuckDBPyConnection, tier: str) -> None:
     if root.is_dir():
         for schema_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             schema = schema_dir.name
+            if schema == SPINE_DIRNAME:
+                continue  # the bucketed events spine is not a schema: EP-50 registers it
             con.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
             for table_dir in sorted(p for p in schema_dir.iterdir() if p.is_dir()):
                 if table_dir.name.endswith((publish.NEW_SUFFIX, publish.OLD_SUFFIX)):

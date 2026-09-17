@@ -69,6 +69,7 @@ from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
 from mimicwarehouse.phenotypes.runner import register_phenotypes as _phenotypes_register
 from mimicwarehouse.qc.measurement import register_measurement as _measurement_register
 from mimicwarehouse.qc.profile import register_qc as _qc_register
+from mimicwarehouse.spine import register_spine as _spine_register
 from mimicwarehouse.timesem import create_views as _timesem_create_views
 from mimicwarehouse.units import register_units as _units_register
 
@@ -109,9 +110,11 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: order pins — units last, phenotypes second to last — hold), EP-45's
 #: ``qc.measurement.register_measurement`` (comments on the ``meta.mp_*`` tables, right
 #: after the qc extension), EP-46's ``cohort.registry.register_cohorts`` (the comment on
-#: ``meta.cohort_specs``, right after the measurement extension) and EP-39's
-#: ``units.register_units`` (the ``mwh_harmonize`` macro family + comments on the
-#: ``meta.item_*`` tables) run after it, ``units`` last.
+#: ``meta.cohort_specs``, right after the measurement extension), EP-50's
+#: ``spine.register_spine`` (``mimiciv_derived.spine`` over the bucketed spine directories
+#: the walker skips + comments on ``meta.spine_codes`` / ``meta.spine_validation``, right
+#: after the cohort extension) and EP-39's ``units.register_units`` (the ``mwh_harmonize``
+#: macro family + comments on the ``meta.item_*`` tables) run after it, ``units`` last.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
@@ -119,6 +122,7 @@ CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _qc_register,
     _measurement_register,
     _cohorts_register,
+    _spine_register,
     _phenotypes_register,
     _units_register,
 ]

@@ -115,6 +115,19 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   complementary neighbours). Read the plain columns and count in Python (`mwh qc
   status`), or accept that the grouped counts are about *rows of a registry table* and
   still get suppressed. *(EP-44.)*
+- **A sorted `COPY … PARTITION_BY` does not keep its partition files sorted.** Under the
+  build profile's 12 threads the partitioned writer combines per-thread buffers, so each
+  partition file carries a seam where the sort order restarts — whatever
+  `preserve_insertion_order` says (a 3 M-row synthetic probe: 2 seams in 5 files with the
+  setting on *and* off; the dev spine: 66 seams in 65 files, all subject-order breaks).
+  A single-file `COPY (… ORDER BY …) TO '<file>'` is sorted in both settings, so anything
+  that promises sorted files writes **one file per partition with its own `ORDER BY`**
+  (the loader's pass-2 `_sort_bucket` shape, which `spine.build_source` copies). The
+  loader's *small* path (one partitioned `COPY` per table, DESIGN §5) carries the same
+  seams on the dev tier — `diagnoses_icd` 2, `outputevents` 1, the other small tables
+  clean — a latent EP-18 finding handed to EP-54 (no reader depends on physical order;
+  the sha256-determinism tests never asserted sortedness at scale). *(EP-50; the first
+  dev-tier `spine.union` validation and the scratch probe.)*
 
 ## 2. Windows process and file-system reality
 
