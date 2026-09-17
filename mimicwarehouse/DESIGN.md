@@ -541,7 +541,45 @@ Every `duckdb.connect` in `src/` goes through `mimicwarehouse.engine.open_duckdb
 > descriptives cite the module and reproduce EP-31 count for count on fixture and dev
 > (`test_ep34` compares against the frozen EP-31 chain through `safe_query`).
 
-*History:* built by EP-8, EP-9, EP-17, EP-22, EP-28, EP-29, EP-169, EP-34 (completion notes); consolidated at EP-33.
+> **Note (2026-09-17, EP-49) — the event-aligned timeline API as built
+> (`timeline.py`; prose twin `docs/methods/timelines.md`).** Every builder is a pure
+> function returning SQL text (`anchor_sql`, `align_sql`, `hourly_bins_sql`,
+> `population_summary_sql`, `window_join_sql`, `asof_join_sql`, `event_at_sql`) with a
+> twin that runs it as a lazy relation on the connection handed in (`con.sql(text)`;
+> `rel.sql_query()` is what a run records). **Anchors** (`Anchor`, `ANCHORS`: `hosp_admit`
+> / `hosp_discharge` / `icu_in` / `icu_out` / `first_culture` / `first_antibiotic` /
+> `suspected_infection` / `vent_start` / `deterioration`, plus the factories `med_start`,
+> `procedure`, `vent_start(kinds)`, `phenotype_onset`, `custom_anchor`) normalise their
+> events to `(subject_id, hadm_id, stay_id, anchor_time)` — a stay-only concept view is
+> joined to `icustays` for the other keys — and reach a grain's units on the finest key
+> both sides carry (the **join-key rule**), `selector` `first` / `last` / `each` per unit;
+> a unit without an event keeps a NULL `anchor_time`. **Alignment**: `EventSource` presets
+> (`labs` subject-keyed, `vitals` / `inputs` / `outputs` / `procedures` stay-keyed,
+> `meds` by drug name or itemid, `micro`, `transfers`, `custom_source`), `code` / `valueuom`
+> VARCHAR cut to 64 (the safe-query free-text ceiling), `value` DOUBLE; `align` keeps
+> `window[0] <= hours < window[1]` and `clip_to_stay` the unit's own `[start, end)`;
+> `event_at` = `align` over `[-tolerance, 0]` + a `row_number()` pick (the as-of rule);
+> `asof_join` is DuckDB's `ASOF JOIN` (backward / forward, tolerance dropped or blanked).
+> **Bins**: `hourly_bins` / `daily_bins` over `timesem.sql_hour_bin` (`n_<col>` for count,
+> `<col>_<agg>` otherwise; `fill=True` adds the empty bins via `unnest(range(...))`);
+> `population_summary` releases one count column (`n_units`) plus pooled mean, per-unit
+> quartiles and extremes through the `safe.SUPPRESSOR` seam — an event count beside the
+> unit count is a nested pair whose small difference the gate reads as derivable, so it is
+> not released (D-33 addendum). `to_mart` writes Parquet through `publish.swap_file`.
+> **The owner gate**: `open_catalog` now stamps the resolved role on the connection
+> (`SET VARIABLE mwh_role`), `timeline.require_owner` reads it and `stay_events` — the one
+> row-level function — raises `PermissionError` for anything but `owner`, writing one
+> `row_view:` audit line per call (D-32 addendum). **Benchmark**: `run_benchmark` /
+> `mwh timeline bench` (`kind: bench` run, `kind: query` ledger line
+> `timeline_labs_icu_in_48h`, the released frame under `tables/`, four gated exports with
+> sidecars under `runs/<run_id>/exports/` — the first run folder to carry an `exports/`
+> directory; EP-59's `export_table` / `export_chart` inherit the stage → `disclose.check`
+> → publish → sidecar shape). Engine facts learned: `bin_index * 1.0` binds as DECIMAL and
+> reaches polars / Altair as `Decimal` (JSON-unserialisable) — bin bounds are cast to
+> DOUBLE; a relation's `sql_query()` round-trips a CTE-free statement, so the builders
+> compose subqueries, never `WITH`, except inside one builder.
+
+*History:* built by EP-8, EP-9, EP-17, EP-22, EP-28, EP-29, EP-169, EP-34, EP-49 (completion notes); consolidated at EP-33.
 
 ## 8. Concepts, code sets & phenotypes
 
@@ -1344,7 +1382,7 @@ carries the per-module CLI/test columns.
 mimicwarehouse/                    uv project root (nested, hupsim-style)
 ├── pyproject.toml                 EP-1 shipped   groups: core dev ui gpu gpl text; [tool.poe.tasks]; ../poe_tasks.toml (EP-33) runs the same tasks from the repo root
 ├── src/mimicwarehouse/
-│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44) cohort (EP-46); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
+│   ├── cli.py                     EP-2, EP-167, EP-33 shipped   `mwh` (typer): doctor paths guard verify schema inventory fixtures canary build jobs catalog sql demo runs tracer units (EP-39) codeset (EP-40) phenotype (EP-41/42) disclose (EP-43) qc (EP-44) cohort (EP-46) timeline (EP-49); lazy settings validation; DIAGNOSTIC_COMMANDS; planned: protocol backup app init
 │   ├── console.py                 EP-167, EP-33 shipped  shared consoles, UTF-8 `mwh` entry point, EXIT_* codes, fail, emit_json, configure_progress_logging
 │   ├── config.py                  EP-3, EP-167 shipped   Settings (pydantic-settings; MWH_ env · .env · mwh.toml); 18-key layout; per-tier lake roots; D-29 refusals; duckdb_settings(profile); role
 │   ├── doctor.py                  EP-2, EP-164, EP-167 shipped   15 host checks; run_checks(settings) is what EP-35 embeds
@@ -1374,7 +1412,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
 │   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
 │   ├── cohort/                    EP-46, EP-47, EP-48 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), attrition (EP-48: the Mermaid / Altair-Vega-Lite / Markdown renderers over the suppressed frame, the pair guard, save_attrition -> runs/<run_id>/figures/attrition.{mmd,vl.json,png,csv,md} through disclose.check), cli (`mwh cohort`)
-│   ├── timeline.py                EP-49
+│   ├── timeline.py                EP-49 shipped  anchors (Anchor / ANCHORS + med_start / procedure / vent_start / phenotype_onset / custom_anchor, anchor_sql), event sources (labs / vitals / inputs / outputs / meds / procedures / micro / transfers / custom_source), align / window_join / asof_join / event_at, hourly_bins / daily_bins / population_summary (the SUPPRESSOR seam) / to_mart, the owner-only stay_events (role stamp on open_catalog connections + the row_view audit line), run_benchmark + `mwh timeline anchors | bench`, docs/methods/timelines.md renderer
 │   ├── spine.py                   EP-50
 │   ├── protocol/                  EP-51 (+ EP-128/129)
 │   ├── backup.py                  EP-52
@@ -1406,10 +1444,11 @@ work over a broken or unsafe configuration. **`DIAGNOSTIC_COMMANDS`** = `{doctor
 guard, verify, schema, fixtures}` — the rule is stated once, on that constant: *a command is
 diagnostic iff it never touches the data root*; members receive the unchecked settings so
 they can report a bad root; membership is pinned by `test_ep167`. `inventory`, `canary`,
-`build`, `catalog`, `sql`, `demo`, `runs`, `tracer` all touch the data root and validate.
-Background work (`--background --job NAME` on `build` and `tracer`) detaches through
-`dag.jobs.launch`; `verify` passes `MWH_DATA_ROOT=<resolved --data-root>` to its pytest
-child without mutating `os.environ`, and spawned jobs pass the same env.
+`build`, `catalog`, `sql`, `demo`, `runs`, `tracer`, `timeline` all touch the data root and
+validate. Background work (`--background --job NAME` on `build`, `tracer`, `cohort build`
+and `timeline bench`) detaches through `dag.jobs.launch`; `verify` passes
+`MWH_DATA_ROOT=<resolved --data-root>` to its pytest child without mutating
+`os.environ`, and spawned jobs pass the same env.
 
 > **Note (2026-09-05, EP-37) — `mwh build` runs the merged DAG; `--keep-going`,
 > `--with-deps`.** `dag.spec.load_dag()` with no name merges every packaged
@@ -1564,6 +1603,16 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > default, recorded in its manifest) and prints one `written: … (disclose check PASS)`
 > line per file; a failing check refuses with exit 1 and writes nothing, an unknown
 > format / direction or a missing `vl-convert` exits 2, an unbuilt cohort exits 1.
+
+> **Note (2026-09-17, EP-49) — `mwh timeline anchors | bench`, `timeline.py`.** The
+> module attaches as one `add_typer` line and is light at import (stdlib, typer,
+> `timesem`, `config`): DuckDB, polars, altair, vl-convert, the code-set / phenotype
+> registries, `safe`, `disclose` and `run` load inside the functions (`test_ep49` pins
+> the CLI budget and the module's lazy set). `anchors [--json]` lists the registry and
+> names the factories (no data read); `bench --tier t [--json]` runs `run_benchmark` in
+> the foreground (fixture / dev), `--background --job NAME` detaches it exactly as
+> `tracer` does (the full-tier standard); a missing catalog or an unknown tier exits 2,
+> a disclosure refusal of an export exits 1 with nothing written under `exports/`.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

@@ -14,8 +14,14 @@ ones (EP-170/ARCH-8), and retries the sub-millisecond ``FileNotFoundError`` wind
 the rename-aside swap (DESIGN §6 note).
 
 ``role`` defaults to ``settings.role`` (``MWH_ROLE``): ``agent`` for every session;
-only the owner sets ``owner`` in their own shell (CLAUDE.md §2). Nothing here reads a
-row — the connection is handed to callers who are bound by GOVERNANCE §4/§5.
+only the owner sets ``owner`` in their own shell (CLAUDE.md §2). Since EP-49 the resolved
+role is stamped on the connection as the DuckDB session variable :data:`ROLE_VARIABLE`
+(``SET VARIABLE mwh_role = '<role>'``; per connection, never persisted), which is how
+``timeline.stay_events`` — the owner-only row-level path — tells an owner connection from
+an agent one (``timeline.require_owner``; any other connection reads ``NULL``). A
+convenience gate against accidental use inside a session, not a security boundary: the
+prose rules and the unset ``MWH_ROLE`` are the control. Nothing here reads a row — the
+connection is handed to callers who are bound by GOVERNANCE §4/§5.
 """
 
 from __future__ import annotations
@@ -42,6 +48,9 @@ HARDENING_SQL: tuple[str, ...] = (
     "SET autoload_known_extensions = false",
     "SET disabled_filesystems = 'HTTPFileSystem'",
 )
+#: The session variable carrying the resolved role (EP-49; read by
+#: ``timeline.connection_role``).
+ROLE_VARIABLE = "mwh_role"
 
 
 class CatalogOpenError(RuntimeError):
@@ -106,6 +115,7 @@ def open_catalog(
     try:
         for statement in HARDENING_SQL:
             con.execute(statement)
+        con.execute(f"SET VARIABLE {ROLE_VARIABLE} = '{resolved_role}'")
         try:
             row = con.execute(
                 "SELECT duckdb_version, dev_buckets FROM meta.catalog_info"
@@ -144,6 +154,7 @@ def open_catalog(
 __all__ = [
     "HARDENING_SQL",
     "OPEN_RETRY_S",
+    "ROLE_VARIABLE",
     "CatalogOpenError",
     "catalog_path",
     "open_catalog",

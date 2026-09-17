@@ -766,6 +766,27 @@ same access as the owner.
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
 unrestricted.
 
+> **Addendum (2026-09-17, EP-49 — the owner gate of the row-level timeline path).** The
+> planning-era `safe.owner_rows` never existed (D-45 renames), so EP-49 defines the gate
+> the owner's row-level features build on: `catalog.connect.open_catalog` stamps the
+> resolved role on every connection it returns as the DuckDB **session variable**
+> `mwh_role` (`SET VARIABLE`; per connection, never persisted, NULL on any other
+> connection), `timeline.require_owner(con)` reads it, and `timeline.stay_events` — the
+> one function that returns rows — raises `PermissionError` unless the connection was
+> opened as `open_catalog(tier, role="owner")`. Every call appends one EP-30 audit line
+> (`actor = owner`, `allowed = true`, `statement_sha256 = sha256("row_view:" + the
+> canonical request)`, `sql_text = "row_view:stay_events sources=<lanes>"`): the event is
+> visible in `runs.audit` while the row selection itself is never recorded. In a Claude
+> session `MWH_ROLE` is unset, so the default `agent` role closes the gate by
+> construction; tests exercise the owner branch on the fixture tier only. *Why:* a
+> convenience gate against accidental use inside a session that EP-58's `owner_rows()`
+> can wrap (token + TTL) rather than re-derive; it is **not** a security boundary — any
+> connection can set the variable — the prose rules and the unset `MWH_ROLE` remain the
+> control (GOVERNANCE §4/§6). *Alternatives:* a wrapper object around the connection
+> (equally spoofable, and every reader would have to thread it through); deferring the
+> row-level path behind EP-58 (EP-67 needs `stay_events` first); a role recorded in the
+> catalog file (a catalog is shared by both roles).
+
 **D-33 Small cells: warn at n < 11 in-app; suppress n < 11 on export/commit** with
 complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 
@@ -933,6 +954,23 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > beside a large banded step); band the guarded pair instead of withholding (k = 11
 > against a band width of 10 leaves a derivable difference of 10); relax the gate's
 > nested-totals rule for chains (a governance change for a rendering convenience).
+
+> **Addendum (2026-09-17, EP-49 — what a population timeline may show).** The released
+> shape of an event-aligned timeline (`timeline.population_summary`, the only frame a
+> session prints) carries **one** count column per bin — `n_units`, the units with at
+> least one event in the bin — beside the pooled mean, the quartiles of the per-unit
+> means and the extremes, released row-wise through the `safe.SUPPRESSOR` seam (every
+> row with `0 < n_units < k` withheld, complementary cells over `code` × `bin_index`
+> with it). The event count per bin is computed but **not released**: with
+> `n_events >= n_units` on every row the pair is a nested total whose difference in
+> `(0, k)` the gate reads as a derivable small cell (the EP-33 amendment b rule), and on
+> real hourly bins that difference is small on most rows, so releasing both would either
+> fail the gate or withhold most of the table. Extremes stay admitted inside k-gated rows
+> (SGT-2). *Why:* the gate is the release condition (D-40); the count of interest for a
+> trajectory is units, not events. *Alternatives:* release `n_events` and let the
+> suppressor withhold every row with a small difference (guts the table); release an
+> events-per-unit rate (a float that restores the difference); relax the nested-totals
+> rule for timelines (a governance change for a convenience).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;

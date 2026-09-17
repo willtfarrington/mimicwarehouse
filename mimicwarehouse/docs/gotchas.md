@@ -42,6 +42,18 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   `mwh_harmonize(223761, 100.4, 'F')` raised an *Out of Range* error until the generated
   macro casts its value argument to DOUBLE first — which also makes the SQL twin the same
   float arithmetic as the Python one. *(EP-39; `test_ep39`'s DECIMAL-literal probe.)*
+- **A DECIMAL literal turns an integer column into DECIMAL, and DECIMAL reaches Python as
+  `Decimal`.** `bin_index * 1.0` binds as `DECIMAL`, polars keeps it as `Decimal`, and
+  Altair's `to_dict()` then fails with *Object of type Decimal is not JSON serializable*
+  (the fixture run never showed it — its released frame was empty). Cast computed bounds
+  to DOUBLE in SQL (`CAST(bin_index * 1.0 AS DOUBLE)`), as `timeline.hourly_bins_sql`
+  does. *(EP-49; the first dev-tier benchmark.)*
+- **A relation's `sql_query()` is a deparse, not the original text.** `con.sql(text)` keeps
+  the parsed statement, and `rel.sql_query()` re-renders it — faithfully for the
+  subquery-composed statements the timeline builders emit (`test_ep49` round-trips them),
+  but a relation built with `rel.query("name", ...)` renders against that virtual name and
+  is not standalone. Builders that compose relations take the text (`rel.sql_query()`) and
+  wrap it as a subquery; they never nest `WITH` blocks across builders. *(EP-49.)*
 - **`offset` is a reserved word.** A column named `offset` cannot be selected unquoted, so
   `meta.item_units` calls the affine intercept `intercept`. *(EP-39.)*
 - **Macros persist in the catalog file and run under READ_ONLY.** `CREATE OR REPLACE MACRO`
@@ -217,6 +229,12 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
 - `import helpers` (tests/ is on `sys.path` via `conftest.py`); import-budget probes use
   `helpers.assert_import_budget` — heavy libraries stay out of the `mwh --help` path
   (DESIGN §15 doctrine).
+- **The gate's cell rules bite prose tables too.** A Markdown table whose header is not
+  in `disclose.EXEMPT_HEADER_RE` has every integer cell in `1..k-1` refused — a `bin`
+  column of hour indices, a `start_h` column of `0 … 47` — and any cell over 64
+  characters is free text. Name such headers with an exempt word (`bin_index`,
+  `start (hours)`) and keep generated descriptions under 64 characters (the timelines
+  docs page and the benchmark's `.md` twin both hit this at EP-49). *(EP-49.)*
 - **`disclose.suppress` reads nested totals off the whole frame.** Two count columns are
   a "total / part" pair whenever `a >= b` holds on *every* row (and `a > b` on one), and
   every proper subset of the group columns — the grand total included — is a margin. A

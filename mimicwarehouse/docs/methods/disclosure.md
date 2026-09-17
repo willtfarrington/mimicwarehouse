@@ -128,6 +128,13 @@ row, so a `max(anchor_age)` can only leave with a group of at least `k` subjects
 no margin can shrink. The residual risk - an extreme value that identifies one member of
 a group of eleven - is the D-33 policy's accepted one, and dates are patient-shifted.
 
+> **Note (2026-09-17, EP-49).** The event-aligned timeline API releases its population
+> summary (`timeline.population_summary`) through the `safe.SUPPRESSOR` seam with **one**
+> count column per bin (`n_units`): an event count beside it would be a nested pair
+> whose small difference the nested-totals rule reads as derivable, and on hourly bins
+> that difference is small on most rows (D-33 addendum). Its benchmark exports follow
+> the EP-48 stage -> `check` -> publish -> sidecar shape under `runs/<run_id>/exports/`.
+
 ## 3. `check(path, k=11, allow_text=())` and the finding codes
 
 The release gate over one artefact (`.csv .parquet .json .yaml .md .mmd .html .svg .png

@@ -17,6 +17,7 @@ the release gate: ``check`` / ``verify``) · ``doctor`` (EP-2,
 :mod:`mimicwarehouse.qc.cli`; ``status``) · ``runs``
 (``refresh`` EP-30, ``benchmarks`` EP-32, :mod:`mimicwarehouse.runs_cli`) · ``schema`` (EP-9,
 :mod:`mimicwarehouse.schema.cli`) · ``tracer`` (EP-31, :mod:`mimicwarehouse.tracer`) ·
+``timeline`` (EP-49, :mod:`mimicwarehouse.timeline`; ``anchors`` / ``bench``) ·
 ``units`` (EP-39, :mod:`mimicwarehouse.units`) · ``verify`` (EP-6,
 :mod:`mimicwarehouse.verify`). Later briefs add theirs the same way; a
 command is listed here only once its line exists below.
@@ -71,6 +72,7 @@ from mimicwarehouse.phenotypes.cli import phenotype_app
 from mimicwarehouse.qc.cli import qc_app
 from mimicwarehouse.runs_cli import runs_app
 from mimicwarehouse.schema.cli import schema_app
+from mimicwarehouse.timeline import timeline_app
 from mimicwarehouse.tracer import tracer_command
 from mimicwarehouse.units import units_app
 from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
@@ -207,6 +209,7 @@ app.add_typer(qc_app, name="qc")
 app.add_typer(runs_app, name="runs")
 app.add_typer(schema_app, name="schema")
 app.command("sql")(sql_command)
+app.add_typer(timeline_app, name="timeline")
 app.command("tracer")(tracer_command)
 app.add_typer(units_app, name="units")
 app.command("verify", context_settings=VERIFY_CONTEXT_SETTINGS)(verify_command)
