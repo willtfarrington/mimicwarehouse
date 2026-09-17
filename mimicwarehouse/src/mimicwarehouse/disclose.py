@@ -240,7 +240,8 @@ EXEMPT_HEADER_RE = re.compile(
     r"|byte|\bmb\b|\bgb\b|\bkb\b|\bs\b|\bsec|\bms\b|\bmin\b|wall|rss|pass|%|pct|share|rate"
     r"|ratio|mean|median|\bsd\b|std|avg|\bmax\b|\bq\d|\bp\d|\bci\b|\bor\b|\bhr\b|score|age"
     r"|hour|day|\bk\b|itemid|\bid\b|#|unit|type|name|label|column|term|scope|table|tier"
-    r"|status|width|height|depth|order|position|degree|dose|value|threshold|window|offset",
+    r"|status|width|height|depth|order|position|degree|dose|value|threshold|window|offset"
+    r"|default",  # a schema reference's default values (EP-48: docs/methods/cohorts.md)
     re.IGNORECASE,
 )
 #: Table headers that make a table an attrition chain (first column).
@@ -1579,8 +1580,9 @@ def _match_bracket(text: str, start: int) -> int | None:
 
 def _walk(obj: Any, where: str, k: int, allow: tuple[str, ...]) -> list[Finding]:
     """Structural scan of a JSON / YAML document (item 2b/2e): record arrays are tables
-    (sized, identifier keys refused, then :func:`check_frame`), scalar arrays are sized,
-    identifier keys and band integers under non-count keys are refused."""
+    (sized, identifier keys refused, then :func:`check_frame` over their scalar keys;
+    nested values are walked as structure — EP-48), scalar arrays are sized, identifier
+    keys and band integers under non-count keys are refused."""
     findings: list[Finding] = []
     if isinstance(obj, list):
         n = len(obj)
@@ -1602,16 +1604,30 @@ def _walk(obj: Any, where: str, k: int, allow: tuple[str, ...]) -> list[Finding]
                     )
                 )
             if n <= FRAME_SCAN_MAX_ROWS:
-                frame = _records_frame(obj)
+                # the scalar keys are a table (small cells, bands, free text); a nested
+                # value (a Vega-Lite `layer` entry's `encoding` / `mark`, a record's own
+                # list) is structure and is walked, never serialised into a text column
+                # (EP-48 amendment: the first layered spec through the gate)
+                scalars = [
+                    {str(key): v for key, v in rec.items() if not isinstance(v, dict | list)}
+                    for rec in obj
+                ]
+                frame = _records_frame(scalars) if any(scalars) else None
                 if frame is not None:
                     findings += [
                         f
                         for f in check_frame(frame, k, allow_text=allow, where=where)
                         if f.code != "ID_COL"
                     ]
-                else:
-                    for i, rec in enumerate(obj):
-                        findings += _walk(rec, f"{where}[{i}]", k, allow)
+                for i, rec in enumerate(obj):
+                    if frame is None:
+                        nested = rec
+                    else:
+                        nested = {
+                            str(key): v for key, v in rec.items() if isinstance(v, dict | list)
+                        }
+                    if nested:
+                        findings += _walk(nested, f"{where}[{i}]", k, allow)
             return findings
         if n and all(isinstance(x, list) for x in obj):
             findings += _size_findings(n, where)

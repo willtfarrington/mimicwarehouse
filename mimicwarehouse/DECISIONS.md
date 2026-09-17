@@ -910,6 +910,30 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > build connection, where `safe_query` does not apply); raw counts in the run manifest
 > with a warning (a session surface would carry small cells).
 
+> **Addendum (2026-09-16, EP-48 — what an attrition diagram may show).** The renderer
+> (`cohort/attrition.py`) draws only the chain-suppressed frame of the EP-47 accessor
+> and adds nothing a reader could not already derive from it: a total below k is `<11`,
+> a banded total `~1,000` (`disclose.render_cell`); a drop withheld only because a
+> neighbouring total is banded or below k is drawn as the **rounded difference of the
+> released totals** (`~20`), because `<11` for such a drop — often large — would be
+> false, and the difference of two released numbers discloses nothing new; a **pair
+> guard** withholds the subjects total, and the two drops beside it, of any step where
+> the *written* `n_units - n_subjects` would lie in `(0, k)`, rendered `suppressed`
+> (never `<11`), because `mwh disclose check` refuses such a pair of nested totals (the
+> EP-31 `n` / `n_fit` rule) and every artefact must pass the gate before it is written —
+> a banded units total counts with its band, so the guard can fire on a banding artefact
+> (over-protection, documented); the `cohort` step excludes nothing by construction and
+> carries no exclusion node, so chain mode's withheld zero drop there is never drawn as
+> `~10`. In the Markdown report the drops are `n = X` text cells, so the gate's prose
+> rule verifies each of them while its nested-totals heuristic (which pairs *any* two
+> integer columns of a table) cannot flag a drop column against a total. *Why:* the
+> gate is the release condition (D-40) and its heuristics are deliberately blunt; the
+> renderer meets them by withholding a little more rather than by weakening a rule.
+> *Alternatives:* render every withheld drop `<11` as the EP-47 table does (misleading
+> beside a large banded step); band the guarded pair instead of withholding (k = 11
+> against a band width of 10 leaves a derivable difference of 10); relax the gate's
+> nested-totals rule for chains (a governance change for a rendering convenience).
+
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
 no exceptions.
@@ -1189,6 +1213,23 @@ PreToolUse output-scanning hook is parked. *Alternatives:* prose only; hook.
 > (`tests/fixtures/disclose/good_aggregate.csv.disclosure.json`) is **not** committed —
 > it carries a timestamp and the git sha of the moment — and the three gate fixtures are
 > written by `mwh fixtures disclose`, never by hand.
+
+> **Addendum (2026-09-16, EP-48 — figures pass the gate before they exist).** The first
+> figure writer (`cohort.attrition.save_attrition`) renders every artefact into a
+> staging directory under `<data_root>/tmp`, runs `disclose.check` on each (the PNG
+> through its `.vl.json` source sibling) and publishes the set only when all pass; a
+> failing check raises `DisclosureError` and writes nothing, so a run folder never holds
+> an unchecked figure. The sidecar stays the owner's act at promotion (`mwh disclose
+> check --write-sidecar`), as before. Two gate refinements landed with it: `check`'s JSON
+> walk treats a record array's nested values as structure (a layered Vega-Lite spec's
+> `layer[].encoding` is not free text) while its scalar keys stay a table, and the
+> synthetic fixture-tier diagram in `docs/methods/cohorts.md` §8 is committed without a
+> sidecar under GOVERNANCE §3's synthetic-fixture allowance (the page passes the check;
+> `test_ep48` re-runs it). *Why:* EP-59 and EP-130 reuse the same write-behind-the-gate
+> shape; a figure that reaches `runs/` unchecked would be one `mwh disclose check` away
+> from a slip. *Alternatives:* write first and check on promotion only (the brief's
+> "refuse to write otherwise" says no); an `assert_clean` on the frame alone (a rendered
+> label or a Mermaid node is text the frame check never sees).
 
 **D-41 MIT now; repo public at v1.0.0 after a full-history guard sweep.**
 *Alternatives:* public from day one; private indefinitely.

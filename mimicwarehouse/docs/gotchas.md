@@ -156,7 +156,21 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
 - **The PreToolUse hook matches command *strings***: a shell command that merely mentions
   `mimicdata` / `source material` / `.csv` / `.parquet` / `.duckdb` is refused outside the
   allow-listed launchers — use the Read/Grep tools for docs that mention those tokens, and
-  put paths in script files rather than command lines.
+  put paths in script files rather than command lines. The launcher must be the **start**
+  of the command string: `cd … && uv run mwh …` and `uv run --no-sync mwh …` are refused
+  when the command names a data-root path (`ALLOW_RE` accepts only `--project` /
+  `--group` before `mwh`), so run such commands as a bare `uv run mwh …` from the
+  workspace directory; the same applies to a synthetic `attrition.csv` in the
+  scratchpad. *(EP-48.)*
+- **Altair 6 + vl-convert realities** (EP-48, the attrition figure): a layered chart whose
+  layers carry filter transforms **drops a field sort** on a shared nominal axis — pass an
+  explicit list (`sort=[...]`); `to_dict()` consolidates inline data into a top-level
+  `datasets` map (`data: {name: ...}`), so a self-contained spec re-inlines it under
+  `data.values` (`cohort.attrition.to_vegalite` does); the EP-5 theme is applied with
+  `alt.theme.enable(name)` as a **context manager** so the process-wide theme is never
+  switched; `vl-convert-python` 1.9.0 (core since EP-48) renders Vega-Lite 6.4 (Altair
+  6.2.2's schema is v6.4.1) offline; `mark_bar(yOffset=…)` / `mark_text(dy=…)` place a
+  bar in one half of its band and an annotation in the other.
 - **Foreground commands cap at ~10 min**; `sleep` is blocked in the Bash tool; anything
   longer is a background job with a log.
 - **Power mode**: the owner toggles *Best performance* off between sessions; check

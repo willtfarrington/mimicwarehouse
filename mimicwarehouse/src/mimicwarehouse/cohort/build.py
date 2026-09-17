@@ -43,7 +43,10 @@ DESIGN §3/§9/§11/§15; GOVERNANCE §4/§5/§12; D-17, D-20, D-24, D-33).
     n_subjects, dropped_units, dropped_subjects`` **after** :func:`disclose.suppress`
     (chain mode, ``k`` = the tier's, both count columns): a small total is ``None``, a
     small drop is withheld and its two neighbours banded to the nearest ten, marker
-    columns say which. Never the raw parquet.
+    columns say which (``*_suppressed`` / ``*_banded``; since EP-48 also
+    ``dropped_*_small`` — the withheld drops that are themselves below k, which the
+    diagram renderer draws as ``<k`` while a drop withheld beside a banded total is
+    drawn as the rounded difference of the released totals). Never the raw parquet.
 
 :func:`register_marts` (called by :func:`cohort.registry.register_cohorts`, a
 ``CATALOG_EXTENSIONS`` entry)
@@ -134,6 +137,11 @@ RUN_KIND = "cohort"
 BENCH_KIND = "mart"
 #: Free-text ceiling of a registry value (``safe.FREE_TEXT_MAX_CHARS`` mirrored).
 VALUE_MAX_CHARS = 64
+#: Chain-mode marker of a **small** drop (``0 < drop < k``, the primary case — EP-48
+#: renders it ``<k``) beside ``dropped_*_suppressed``, which also covers drops withheld
+#: only because a neighbouring total is banded or below k (EP-48 shows those as the
+#: rounded difference of the released totals).
+DROP_SMALL_SUFFIX = "_small"
 #: ``attrition.parquet`` columns.
 ATTRITION_COLUMNS: tuple[tuple[str, str], ...] = (
     ("step_index", "INTEGER"),
@@ -505,8 +513,9 @@ def suppress_attrition(
     """The chain-mode suppression of raw attrition rows (``step``, ``label``, ...,
     ``n_units``, ``n_subjects``): both count columns as chains, small totals ``None``,
     small drops withheld and their neighbours banded (``*_banded``), the drops derived
-    only from two exact neighbours. Returns ``(rows, report)`` with the counts of
-    hidden / banded cells per column."""
+    only from two exact neighbours; ``dropped_*_small`` (EP-48) marks the withheld drops
+    that are themselves below k. Returns ``(rows, report)`` with the counts of hidden /
+    banded cells per column."""
     import polars as pl
 
     from mimicwarehouse.disclose import (
@@ -539,6 +548,8 @@ def suppress_attrition(
         out[f"{column}{BAND_SUFFIX}"] = suppressed.get_column(f"{column}{BAND_SUFFIX}").to_list()
         out[drop_name] = suppressed.get_column(DROP_COLUMN).to_list()
         out[f"{drop_name}{MARKER_SUFFIX}"] = suppressed.get_column(DROP_MARKER).to_list()
+        small_rows = {c.row for c in rep.cells if c.column == DROP_COLUMN and c.kind == "drop"}
+        out[f"{drop_name}{DROP_SMALL_SUFFIX}"] = [i in small_rows for i in range(frame.height)]
         report[f"{column}_hidden"] = rep.n_primary + rep.n_complementary
         report[f"{column}_banded"] = rep.n_banded
     n = len(source)
@@ -1196,6 +1207,7 @@ __all__ = [
     "BENCH_KIND",
     "COHORT_FILE",
     "DAG_TAG",
+    "DROP_SMALL_SUFFIX",
     "MANIFEST_FILE",
     "MARTS_LAYER",
     "MARTS_SCHEMA",

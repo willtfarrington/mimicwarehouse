@@ -667,6 +667,7 @@ dependencies = [
     { name = "scipy" },
     { name = "statsmodels" },
     { name = "typer" },
+    { name = "vl-convert-python" },
 ]
 
 [package.dev-dependencies]
@@ -683,7 +684,6 @@ ui = [
     { name = "plotly" },
     { name = "streamlit" },
     { name = "vegafusion" },
-    { name = "vl-convert-python" },
 ]
 
 [package.metadata]
@@ -705,6 +705,7 @@ requires-dist = [
     { name = "scipy" },
     { name = "statsmodels" },
     { name = "typer" },
+    { name = "vl-convert-python" },
 ]
 
 [package.metadata.requires-dev]
@@ -724,7 +725,6 @@ ui = [
     { name = "plotly" },
     { name = "streamlit", specifier = "==1.61.*" },
     { name = "vegafusion" },
-    { name = "vl-convert-python" },
 ]
 
 [[package]]

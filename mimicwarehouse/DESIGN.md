@@ -919,7 +919,45 @@ primary, Altair fallback), disclosure-aware.
 > concept's) or the build refuses with the remedy; a directory built from a different
 > definition under the same `id@version` refuses unless `--force`.
 
-*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry, EP-47 the compiler + marts (notes above); EP-48 planned; consolidated at EP-33.
+> **Note (2026-09-16, EP-48) — the attrition diagram as built.**
+> `src/mimicwarehouse/cohort/attrition.py` draws the suppressed frame `cohort.attrition()`
+> returns — never a raw count — as (1) **Mermaid** (`render_mermaid`: one node per step
+> with `units n = X` / `subjects n = Y`, a dotted `Excluded at <step>` side node per
+> non-zero drop, a footer node `id@version - tier - run - def_hash - k` pinned under the
+> last step with an invisible `~~~` link, deterministic ids `s0…` / `x1…` / `f`, user
+> text escaped as Mermaid entity codes, palette colours from `theme.py`, optional
+> front-matter title and direction), (2) **Altair / Vega-Lite** (`render_altair`,
+> `to_vegalite`: a horizontal funnel of `n_units` per step with the counts beside each
+> bar and the exclusion written between the steps; a withheld total has no bar; the EP-5
+> theme is merged at serialisation inside `alt.theme.enable(...)` as a context manager, so
+> the process-wide theme is untouched; `to_png` through `vl-convert-python`, now a **core**
+> dependency — the `ui` group no longer lists it), (3) the **Markdown report**
+> (`render_markdown`: claim type `exploratory (cohort description)`, the retrospective
+> sentence, a disclosure line, the table with the drops as `n = X` text cells — the
+> gate's prose rule verifies them and its nested-totals heuristic cannot read a drop
+> column as a total — the Mermaid block, the spec's *what it does not claim*, the EP-35
+> `reproduction_block`), and (4) `save_attrition` → `runs/<run_id>/figures/attrition.
+> {mmd,vl.json,png,csv,md}` (committed-text rule 3: no run id in a name): every file is
+> rendered into a staging directory under `<data_root>/tmp`, checked with
+> `disclose.check`, and published only when all pass (a failing check raises
+> `DisclosureError` and writes nothing); written into the build run's own folder, the
+> five entries join that closed manifest's `figures` map (rewritten atomically; the
+> ledger line is untouched). The cell forms beyond `render_cell`'s three: a drop withheld
+> only because a neighbour is banded or below k is shown as the rounded difference of the
+> released totals (`~20`, derivable by any reader); `suppressed` marks a total withheld by
+> the **pair guard** (the gate refuses two published nested totals whose difference lies
+> in `(0, k)`, and a step's `n_units - n_subjects` is such a pair — the subjects total and
+> the two drops beside it are withheld before rendering); the `cohort` step excludes
+> nothing by construction and carries no exclusion. `cohort.build.suppress_attrition` gained
+> the `dropped_*_small` markers (which withheld drops are themselves below k) and
+> `disclose.check`'s JSON walk now treats a record array's nested values as structure
+> (a Vega-Lite `layer` is not a table) while its scalar keys stay a table. CLI: `mwh
+> cohort attrition <ref> --tier t --format table|mermaid|altair|all [--out DIR] [--title]
+> [--direction] [--json]`. Prose twin: `docs/methods/cohorts.md` §8 (the fixture-tier
+> example, `test_ep48` keeps it in sync); the Cohort Builder page (EP-62) embeds the same
+> renderers.
+
+*History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry, EP-47 the compiler + marts, EP-48 the attrition diagram (notes above); consolidated at EP-33.
 
 ## 10. Events spine (MEDS-compatible)
 
@@ -1335,7 +1373,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── phenotypes/                EP-41 shipped  spec (Phenotype: grain, criteria tree, leaves, onset, def_hash pinned to the code-set hashes), registry (defs/*.yaml + phenotypes.lock.json, reference resolution, validate), compiler (the CTE chain; golden SQL under tests/ep/golden/), runner (the phenotypes.compile step -> lake/derived/<tier>/phenotypes/<id>@<version>/ + meta.phenotype_versions, one kind: phenotype run each; register_phenotypes extension -> mimiciv_derived.phenotype_<id> (+ _hadm); summarize / summary; docs/methods/phenotypes.md renderer), cli (`mwh phenotype`); EP-42 adds sepsis3 / kdigo_aki through the concept leaf
 │   ├── disclose.py                EP-43 shipped  suppress (table / chain, complementary, markers, SuppressionReport), render_cell, safe_suppressor (the safe.SUPPRESSOR hook), check / check_frame / check_table / assert_clean / warn_badges, write_sidecar / verify, `mwh disclose check | verify`; docs/methods/disclosure.md
 │   ├── qc/                        EP-44, EP-45 shipped  profile (thresholds.yaml, the per-table profile + check engine, the qc.profile.<table> / qc.checks steps, meta.qc_* tables, register_qc, the dag/specs/qc.yaml renderer), report (qc.report -> runs/<run_id>/qc_report.md + CSVs, docs/methods/qc.md renderer), measurement (EP-45: MeasurementParams, the population / occasions / binned / at-risk / cells / presence SQL builders over timesem, compute_hourly / compute_structural / compute_presence, the measurement.* steps of dag/specs/measurement.yaml -> raw slices -> assemble + suppress -> meta.mp_item_hourly / mp_item_daily / mp_item_summary / mp_structural / mp_absence_summary / mp_presence_outcome inside a kind: qc run, runs/<run_id>/measurement_process.md + CSVs, register_measurement), cli (`mwh qc status`, `mwh qc measurement`)
-│   ├── cohort/                    EP-46, EP-47 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), cli (`mwh cohort`); EP-48 attrition diagram
+│   ├── cohort/                    EP-46, EP-47, EP-48 shipped  spec (CohortSpec, criteria, YAML I/O, JSON schema, def_hash), registry (specs/ + cohorts.lock.json, reference resolution, validate, save_spec, the cohorts.specs step -> meta.cohort_specs, register_cohorts, docs/methods/cohorts.md renderer), probe (tier checks + the degeneracy probe through safe_query, over the compiled cohort once built), compiler (spec -> the deterministic CTE chain + attrition statement, EP-47), build (the cohorts.build step -> lake/marts/<tier>/cohorts/<id>@<version>/, the kind: cohort run, the suppressed attrition accessor, marts.cohort_<id>_v<major> + marts.cohorts registration), attrition (EP-48: the Mermaid / Altair-Vega-Lite / Markdown renderers over the suppressed frame, the pair guard, save_attrition -> runs/<run_id>/figures/attrition.{mmd,vl.json,png,csv,md} through disclose.check), cli (`mwh cohort`)
 │   ├── timeline.py                EP-49
 │   ├── spine.py                   EP-50
 │   ├── protocol/                  EP-51 (+ EP-128/129)
@@ -1514,6 +1552,18 @@ child without mutating `os.environ`, and spawned jobs pass the same env.
 > The `cohorts.build` step carries the `marts` tag, not `cohorts`, so EP-46's `mwh build
 > --tag cohorts` (specs + catalog) is unchanged and `--tag marts` is the builds + catalog;
 > the conftest session lake (the full DAG) now builds both seeds.
+
+> **Note (2026-09-16, EP-48) — `mwh cohort attrition --format`, `attrition.py`.** One
+> more module under the same budget: `cohort/attrition.py` imports `disclose`, `fsio`,
+> `theme` and `cohort.build` at module level and altair, polars, vl-convert and `run`
+> inside the functions; `cli.py` imports it inside the command body (`test_ep48` pins
+> both). `attrition <ref | run_id> --tier t --format table` is EP-47's table; `--format
+> mermaid` / `altair` print the diagram / the Vega-Lite spec to stdout (`--json` wraps
+> them with ref, tier, k and run id); `--format all`, or any format with `--out DIR`,
+> writes the artefacts through `save_attrition` (the build run's `figures/` folder by
+> default, recorded in its manifest) and prints one `written: … (disclose check PASS)`
+> line per file; a failing check refuses with exit 1 and writes nothing, an unknown
+> format / direction or a missing `vl-convert` exits 2, an unbuilt cohort exits 1.
 
 **CLI conventions (EP-33 B8; `mimicwarehouse.console`).** Exit codes `EXIT_OK` 0 /
 `EXIT_FINDINGS` 1 / `EXIT_USAGE` 2 / `EXIT_REFUSED` 3, defined once in `console` and

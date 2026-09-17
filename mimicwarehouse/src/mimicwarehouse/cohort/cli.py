@@ -13,15 +13,21 @@ compiled cohort when it is built on the tier, else over the index population
 (the only lake writer; ``--dry-run`` prints the compiled SQL instead; ``--background
 --job NAME`` detaches it through the EP-19 launcher, the ⏱ standard for the full tier)
 and then re-runs the probe over the compiled cohort; ``attrition <ref | run_id> --tier
-<t>`` prints the suppressed attrition chain (:func:`mimicwarehouse.cohort.build.attrition`).
+<t>`` prints the suppressed attrition chain (:func:`mimicwarehouse.cohort.build.attrition`)
+and, with ``--format mermaid | altair | all [--out DIR]`` (EP-48), renders it — the
+diagram / spec to stdout, or the artefacts ``attrition.mmd`` / ``.vl.json`` / ``.png`` /
+``.csv`` / ``.md`` written through the disclosure gate by
+:func:`mimicwarehouse.cohort.attrition.save_attrition` (a failing check refuses with exit
+1; ``vl-convert`` missing exits 2).
 Errors follow the EP-33 canon (:func:`mimicwarehouse.console.fail`): a frozen ``(id,
 version)`` — spec, code set or phenotype — refuses with ``EXIT_REFUSED`` (3), a
 ``safe_query`` refusal too; usage / environment errors exit 2; a validation with
 problems or a failed build exits 1.
 
 Import budget: this module is on the ``mwh --help`` path — the spec / registry modules are
-pydantic + yaml + stdlib (+ ``timesem``); the compiler, the build module, the probe,
-duckdb, polars, the runner and ``safe`` load inside the command bodies.
+pydantic + yaml + stdlib (+ ``timesem``); the compiler, the build module, the attrition
+renderer, the probe, duckdb, polars, altair, the runner and ``safe`` load inside the
+command bodies.
 """
 
 from __future__ import annotations
@@ -64,12 +70,13 @@ TIERS = ("fixture", "demo", "dev", "full")
 cohort_app = typer.Typer(
     name="cohort",
     help=(
-        "Cohort specs (EP-46) + the compiler (EP-47): list | show | validate | schema | lock | "
-        "build | attrition. Cohort specs are versioned YAML (id@version, def_hash pinned to the "
-        "code sets and phenotypes they reference), compiled to one deterministic CTE chain and "
-        "materialised per tier under lake/marts/<tier>/cohorts/ (marts.cohort_<id>_v<major>, "
-        "marts.cohorts); sessions read them through safe_query as aggregates, the attrition "
-        "chain k-suppressed."
+        "Cohort specs (EP-46) + the compiler (EP-47) + the attrition diagram (EP-48): list | "
+        "show | validate | schema | lock | build | attrition. Cohort specs are versioned YAML "
+        "(id@version, def_hash pinned to the code sets and phenotypes they reference), compiled "
+        "to one deterministic CTE chain and materialised per tier under "
+        "lake/marts/<tier>/cohorts/ (marts.cohort_<id>_v<major>, marts.cohorts); sessions read "
+        "them through safe_query as aggregates, the attrition chain k-suppressed and rendered "
+        "as Mermaid / Vega-Lite through the disclosure gate."
     ),
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -758,6 +765,67 @@ def build_command(
 # ---------------------------------------------------------------------------
 
 
+ATTRITION_FORMATS = ("table", "mermaid", "altair", "all")
+
+
+def _save_attrition_files(
+    prefix: str,
+    ref: str,
+    tier: str,
+    out: Path | None,
+    fmt: str,
+    *,
+    k: int | None,
+    settings: Settings,
+    title: str | None,
+    direction: str,
+    json_output: bool,
+) -> None:
+    """``--format all`` / ``--out``: write the artefacts through the disclosure gate
+    (EP-48 ``save_attrition``) and print the paths."""
+    from mimicwarehouse.cohort import attrition as diagram
+    from mimicwarehouse.cohort.spec import UnknownCohortSpecError
+    from mimicwarehouse.disclose import DisclosureError
+
+    try:
+        saved = diagram.save_attrition(
+            ref,
+            tier,
+            out,
+            formats=(fmt,),
+            k=k,
+            settings=settings,
+            title=title,
+            direction=direction,
+        )
+    except UnknownCohortSpecError as exc:
+        fail(prefix, str(exc), code=EXIT_FINDINGS)
+    except DisclosureError as exc:
+        fail(prefix, f"refused: {exc}", code=EXIT_FINDINGS)
+    except diagram.AttritionRenderError as exc:
+        fail(prefix, str(exc), code=EXIT_USAGE)
+    except CohortSpecError as exc:
+        fail(prefix, str(exc), code=EXIT_USAGE)
+    if json_output:
+        emit_json(saved.to_dict())
+        return
+    for name, path in saved.files.items():
+        result = saved.checks[name]
+        console.print(
+            f"written: {escape(str(path))} (disclose check PASS, {result.n_warn} warn, "
+            f"k={saved.k})",
+            highlight=False,
+        )
+    console.print(
+        console_safe(
+            f"{len(saved.files)} file(s) under {saved.out_dir}; cohort {saved.ref} on "
+            f"{saved.tier}; build run {saved.run_id or '-'}"
+            + (" (figures recorded in its manifest)" if saved.recorded else "")
+        ),
+        highlight=False,
+    )
+
+
 @cohort_app.command("attrition")
 def attrition_command(
     ctx: typer.Context,
@@ -770,16 +838,62 @@ def attrition_command(
         int | None,
         typer.Option("--k", help="Suppression threshold (>= 11 on dev/full)."),
     ] = None,
+    fmt: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help="table (default) | mermaid (the diagram to stdout) | altair (the Vega-Lite "
+            "spec to stdout) | all (write attrition.mmd / .vl.json / .png / .csv / .md); "
+            "mermaid and altair write their files instead when --out is given.",
+        ),
+    ] = "table",
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            help="Directory the artefacts are written to (default for --format all: the "
+            "build run's figures/ folder, recorded in its manifest).",
+            show_default=False,
+        ),
+    ] = None,
+    title: Annotated[
+        str | None,
+        typer.Option("--title", help="Diagram / figure / report title.", show_default=False),
+    ] = None,
+    direction: Annotated[
+        str,
+        typer.Option("--direction", help="Mermaid flow direction: TD | TB | LR | BT | RL."),
+    ] = "TD",
     json_output: JsonOption = False,
 ) -> None:
     """Print the attrition chain of a built cohort — one row per step: units and subjects
     left, units and subjects dropped — k-suppressed in chain mode (small totals withheld,
-    small drops withheld and their neighbours banded to the nearest ten; disclose, EP-43).
-    The raw counts stay in the mart under the data root."""
+    small drops withheld and their neighbours banded to the nearest ten; disclose, EP-43);
+    or render it (EP-48): --format mermaid | altair | all, --out DIR. Every written file
+    passes `mwh disclose check` first (refused otherwise, exit 1). The raw counts stay in
+    the mart under the data root."""
     prefix = "mwh cohort attrition"
     state: CliState = ctx.obj
     settings = state.settings
     resolved_tier = _tier(prefix, tier, settings)
+    if fmt not in ATTRITION_FORMATS:
+        fail(prefix, f"unknown --format {fmt!r}; expected one of {', '.join(ATTRITION_FORMATS)}")
+    if fmt == "table" and out is not None:
+        fail(prefix, "--out needs --format mermaid, altair or all")
+    if fmt == "all" or out is not None:
+        _save_attrition_files(
+            prefix,
+            ref,
+            resolved_tier,
+            out,
+            fmt,
+            k=k,
+            settings=settings,
+            title=title,
+            direction=direction,
+            json_output=json_output,
+        )
+        return
     from mimicwarehouse.cohort import build as build_mod
     from mimicwarehouse.cohort.spec import UnknownCohortSpecError
 
@@ -789,6 +903,26 @@ def attrition_command(
         fail(prefix, str(exc), code=EXIT_FINDINGS)
     except CohortSpecError as exc:
         fail(prefix, str(exc), code=EXIT_USAGE)
+    if fmt in ("mermaid", "altair"):
+        from mimicwarehouse.cohort import attrition as diagram
+
+        meta = {"ref": result.ref, "tier": result.tier, "k": result.k, "run_id": result.run_id}
+        if fmt == "mermaid":
+            try:
+                text = diagram.render_mermaid(result, title=title, direction=direction)
+            except ValueError as exc:
+                fail(prefix, str(exc))
+            if json_output:
+                emit_json({"format": "mermaid", **meta, "mermaid": text})
+                return
+            _raw(text)
+            return
+        spec = diagram.to_vegalite(result, title=title)
+        if json_output:
+            emit_json({"format": "altair", **meta, "vegalite": spec})
+            return
+        _raw(json.dumps(spec, indent=2, sort_keys=True) + "\n")
+        return
     if json_output:
         emit_json(result.to_dict())
         return
@@ -832,4 +966,4 @@ def attrition_command(
     )
 
 
-__all__ = ["TIERS", "cohort_app"]
+__all__ = ["ATTRITION_FORMATS", "TIERS", "cohort_app"]

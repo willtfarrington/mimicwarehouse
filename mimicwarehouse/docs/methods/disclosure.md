@@ -93,6 +93,24 @@ Example - `[1000, 995, 400]`, `k = 11`:
 banded total and `1,234` (thousands-separated, `inventory.fmt_int`) otherwise; the
 attrition renderer (EP-48) and the Mermaid diagrams use exactly these three forms.
 
+> **Note (2026-09-16, EP-48).** The attrition renderer (`cohort/attrition.py`,
+> `docs/methods/cohorts.md` section 8) draws two more cases from the chain-mode markers
+> without releasing anything new: a drop withheld only because a neighbouring total is
+> banded or below k is shown as the rounded difference of the *released* totals
+> (`~20` - derivable by any reader), and `suppressed` marks a total withheld by the
+> renderer's **pair guard** - `check` refuses two published nested totals whose
+> difference lies in `(0, k)` (the `n` / `n_fit` rule of `SMALL_CELL`), and a step's
+> `n_units - n_subjects` is such a pair. Neither is a small cell; `<11` keeps meaning
+> "below k". The same brief amended `check`'s JSON walk: a record array's **nested**
+> values (a Vega-Lite `layer` entry's `encoding` / `mark`) are walked as structure while
+> its scalar keys stay a table - before, the serialised dict read as free text and no
+> layered spec could pass. The accessor's frame also gained `dropped_*_small`
+> (`cohort.build.suppress_attrition`), the withheld drops that are themselves below k.
+> A Markdown table header `default` (a schema reference's default values, never
+> people) joined the exempt headers beside `value` / `threshold` / `window`; the
+> prose tables of a methods page (`meaning`, `type`, `fields`, ...) stay long-text
+> columns a reviewer admits with `--allow-text`, as `docs/methods/cohorts.md` does.
+
 ### The safe-query hook
 
 `safe.SUPPRESSOR` is `disclose.safe_suppressor`: the table-mode suppression above,

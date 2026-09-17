@@ -33,6 +33,10 @@ dependencies = [
   # EP-19 (D-15 addendum, D-43 item 14): pid liveness for the build lock / jobs, RSS
   # sampling for the runner and EP-35/36; ships abi3 win_amd64 wheels (test_ep01).
   "psutil",
+  # EP-48 (BSD-3, no Python deps): static PNG export of the Vega-Lite attrition figure
+  # (`cohort.attrition.to_png`); core because `mwh cohort attrition --format all` writes
+  # the PNG without the ui group (EP-59 reuses it; the ui group no longer lists it).
+  "vl-convert-python",
 ]
 
 [project.scripts]
@@ -54,9 +58,8 @@ dev = [
 ui = [
   "streamlit==1.61.*",
   "vegafusion",
-  "vl-convert-python",
   "plotly",
-]
+]   # vl-convert-python moved to the core set at EP-48
 # Filled by later briefs; kept empty here on purpose:
 gpu = []   # EP-121: torch (cu130 index, D-16), xgboost
 gpl = []   # EP-93:  scikit-survival (GPL-3, D-34) — only ever through this group

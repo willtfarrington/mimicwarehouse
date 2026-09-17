@@ -107,7 +107,7 @@ before it; `timesem.sql_hours_since`); **lookbacks are within-patient relative t
 (days before the index, never a calendar); **durations and ages are half-open**; **counts
 are inclusive**.
 
-| kind | predicate (kept when true) | fields | notes |
+| kind | predicate (kept when true) | fields | remarks |
 |---|---|---|---|
 | `age` | `min <= age at index < max` | `min`, `max` (years), `at: index` | `timesem.sql_age_at` from `anchor_age` / `anchor_year`; a bound in `(89, 91]` is refused - write `89` (capped) |
 | `demographic` | every listed field's value is in its list (AND across fields) | `gender`, `admission_type`, `admission_location`, `discharge_location`, `insurance`, `first_careunit`, `language`, `marital_status` | equality / set membership only; `discharge_location` is known only at discharge (post-index) - allowed for a retrospective definition, stated in the docs |
@@ -453,9 +453,10 @@ own takes the admission whose stay contains the index time, else the latest one 
 before it, else the earliest (one `row_number`, deterministic). Criteria are one CTE each
 in document order, named `crit_NN_<label>` so a label can never collide with the fixed
 names; a NULL predicate never includes and never excludes (`coalesce(..., false)`).
-The criterion -> predicate mapping:
+The criterion -> predicate mapping (every predicate is over the previous step's alias
+`c`):
 
-| kind | predicate over the previous step's alias `c` |
+| kind | predicate |
 |---|---|
 | `age` | `timesem.sql_age_at(anchor_age, anchor_year, index_time)` in `[min, max)` - uncapped in the test, as the tracer's `adult` step; the output carries the capped value |
 | `demographic` | `c.<field> IN (...)` per field, AND-ed; `first_careunit` is the index stay's (or the admission's first stay's) |
@@ -516,11 +517,90 @@ neighbours. The raw counts never leave the data root (`attrition.parquet`, the m
 manifest). The build re-runs the degeneracy probe (§4) **over the compiled cohort**
 (`marts.cohort_<id>_v<major>` joined to admissions / patients) and names the zero-event /
 all-event levels; `mwh cohort validate --tier` does the same once a cohort is built and
-falls back to the index population otherwise. EP-48 renders the chain as a diagram; EP-71
-builds the Table 1 over the view; EP-75 attaches endpoints to `follow_up_end` /
+falls back to the index population otherwise. §8 renders the chain as a diagram (EP-48);
+EP-71 builds the Table 1 over the view; EP-75 attaches endpoints to `follow_up_end` /
 `censor_reason`.
 
-## 8. What this does not claim
+## 8. Attrition diagram (EP-48)
+
+`src/mimicwarehouse/cohort/attrition.py` renders the suppressed chain of §7 as a
+STROBE-style flow diagram - Mermaid first (GitHub and Streamlit render it), a Vega-Lite
+/ Altair funnel as the static fallback (PNG through `vl-convert-python`, a core
+dependency since EP-48), and a paste-ready Markdown report - and
+`mwh cohort attrition <id@version> --tier <t> --format all` writes the five artefacts
+into the build run's folder: `runs/<run_id>/figures/attrition.mmd`, `attrition.vl.json`,
+`attrition.png`, `attrition.csv` (the suppressed table) and `attrition.md` (claim type
+`exploratory (cohort description)`, the retrospective sentence, the table, the diagram,
+the spec's *what it does not claim*, the EP-35 reproduction block); the run manifest
+records them under `figures`. `--out DIR` writes elsewhere, `--format mermaid` /
+`--format altair` print the diagram / the spec to stdout (`--json` wraps them), `--title`
+and `--direction TD|LR|...` shape the diagram. The renderer never sees a raw count: it
+draws `cohort.attrition()`'s frame, and every file passes `mwh disclose check` inside
+`save_attrition` **before** it is written - a failing check refuses the whole set and
+writes nothing (the `.disclosure.json` sidecar remains the owner's, at promotion).
+
+The example below is the tracer cohort on the **fixture** tier (synthetic data),
+rendered through exactly the suppression a real tier gets - which is why a chain this
+small shows every form the renderer has:
+
+<!-- attrition:begin -->
+```mermaid
+flowchart TD
+    s0["Step 0 - base<br/>every icustay unit (mimiciv_icu.icustays)<br/>units n = ~80<br/>subjects n = 66"]
+    s1["Step 1 - idx<br/>index event first_icu_stay<br/>units n = ~70<br/>subjects n = suppressed"]
+    s2["Step 2 - crit_01_adult<br/>inclusion adult<br/>units n = ~70<br/>subjects n = ~70"]
+    s3["Step 3 - crit_02_short_icu_stay<br/>exclusion short_icu_stay<br/>units n = ~70<br/>subjects n = ~70"]
+    s4["Step 4 - cohort<br/>units n = 65<br/>subjects n = 65"]
+    s0 --> s1
+    s1 --> s2
+    s2 --> s3
+    s3 --> s4
+    x1["Excluded at idx<br/>units n = <11<br/>subjects n = suppressed"]
+    s0 -.-> x1
+    x2["Excluded at crit_01_adult<br/>units n = ~0<br/>subjects n = suppressed"]
+    s1 -.-> x2
+    x3["Excluded at crit_02_short_icu_stay<br/>units n = <11<br/>subjects n = <11"]
+    s2 -.-> x3
+    f["first_icu_adults@1.0.0 - tier fixture - run 20260917T000801Z-a64c79 - def_hash 2724fd711767 - k = 11"]
+    s4 ~~~ f
+    classDef step fill:#F5F7F9,stroke:#1F6F8B,color:#1B1F23
+    classDef excluded fill:#FFFFFF,stroke:#9AA0A6,color:#5F6B76
+    classDef footer fill:#FFFFFF,stroke:#E3E7EB,color:#5F6B76
+    class s0,s1,s2,s3,s4 step
+    class x1,x2,x3 excluded
+    class f footer
+```
+<!-- attrition:end -->
+
+How to read it - the cell forms, all from the markers `cohort.attrition()` returns:
+
+- `1,234` is an exact count; `<11` is a total below k, or a drop below k
+  (`disclose.render_cell`, the three forms `docs/methods/disclosure.md` documents);
+- `~70` is a total banded to the nearest ten because the drop into or out of it is
+  below k (chain mode, EP-43) - the diagram shows the band, never the exact count;
+- `~0` / `~20` on an exclusion is a drop withheld only because a neighbouring total is
+  banded (or below k), shown as the rounded difference of the *released* totals: any
+  reader could compute it, so it discloses nothing, and it is honest where `<11` would
+  not be (such a drop can be large);
+- `suppressed` is the **pair guard**: `mwh disclose check` refuses two published nested
+  totals whose difference lies in (0, k) - the EP-31 `n` / `n_fit` lesson - and a
+  step's `n_units - n_subjects` is such a pair, so the subjects total of that step and
+  the two drops beside it are withheld (a banded units total counts with its band, which
+  is why the guard fires at `idx` above although its units and subjects are equal);
+  `<11` therefore always means "below k";
+- the `cohort` step is the materialisation of the last criterion's result and excludes
+  nothing by construction, so it has no exclusion node; a step whose drop is exactly
+  zero has none either.
+
+In the Markdown report the drops are written as `n = X` text cells (`n = 12`,
+`n = <11`, `n = ~20`) so the gate's prose rule verifies each of them while its
+nested-totals heuristic cannot mistake a drop column for a total. Regenerate the block
+above with `uv run mwh cohort attrition first_icu_adults@1.0.0 --tier fixture --format
+mermaid` after `uv run mwh build --tier fixture` (`test_ep48` asserts it matches the
+fixture render, the run id aside); the Cohort Builder page (EP-62) embeds the same two
+renderers.
+
+## 9. What this does not claim
 
 A cohort spec is a **computable definition** of a study population, not a validated
 clinical cohort: it selects on billed codes, orders, charted values and mimic-code
@@ -528,7 +608,8 @@ concepts as recorded, the index event is a recorded time, and the follow-up is b
 what `dod` can show. It carries no exposure, outcome model, analysis plan or holdout -
 those are the protocol's (EP-51), which references a spec by `id@version`. Every seed
 states its own limits in `what_it_does_not_claim` (§6); the compiled attrition (§7,
-EP-47), the diagram (EP-48) and the Table 1 over a cohort (EP-71) inherit them. A
+EP-47), the diagram (§8, EP-48 - its report repeats the list) and the Table 1 over a
+cohort (EP-71) inherit them. A
 compiled cohort is as good as its inputs: a `codeset` step counts billed codes, a
 `phenotype` step the EP-41 definition's flag, and the `dod` horizon bounds every
 out-of-hospital follow-up.
