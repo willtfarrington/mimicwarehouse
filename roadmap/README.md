@@ -158,7 +158,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-49 | [Event-aligned timeline API](EP-49-timeline-api.md) | M | EP-30, EP-34 | core | ☑ `ed73fff` |
 | EP-50 | [Events spine (MEDS-compatible) ⏱](EP-50-events-spine.md) | M | EP-19, EP-34 | core | ☑ `1ae8375` |
 | EP-51 | [Protocol schema + freeze registry + `mwh protocol`](EP-51-protocol-freeze.md) | M | EP-35, EP-46 | core | ☑ `0c0cb21` |
-| EP-52 | [Backup of non-reproducible state (`mwh backup`)](EP-52-backup-state.md) | S | EP-35, EP-51 | core | ☐ |
+| EP-52 | [Backup of non-reproducible state (`mwh backup`)](EP-52-backup-state.md) | S | EP-35, EP-51 | core | ☑ `ec2c926` |
 | EP-53 | [Capstone #1: concepts/QC case study](EP-53-capstone-1-concepts-qc.md) | M | EP-38, EP-44 | core | ☐ |
 | EP-54 | [Re-plan P3](EP-54-replan-p3.md) | S | EP-34, EP-35, EP-36, EP-37, EP-38, EP-39, EP-40, EP-41, EP-42, EP-43, EP-44, EP-45, EP-172, EP-46, EP-47, EP-48, EP-49, EP-50, EP-51, EP-52, EP-53 | core | ☐ |
 
