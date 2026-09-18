@@ -355,7 +355,7 @@ with this table as their evidence.
 
 ## Commit series
 
-- `docs(roadmap): re-plan P3 (EP-54)` — this file, the EP-50 completion note, the roadmap
+- `f1c2536` — `docs(roadmap): re-plan P3 (EP-54)` — this file, the EP-50 completion note, the roadmap
   README (P3 → P4 name corrections, Risks 2/5/6/11/15/16/17/18, coverage, the EP-173 row),
   `final-roadmap.md` (SPINE-1, LOAD-5, MISS-4, AUDIT-1, CONC-2, PROV-2), the twenty P4
   pickup notes, `EP-173-debt-sweep-p4.md`, DESIGN §3/§5/§9/§10/§11/§13/§14/§15/§21 notes,

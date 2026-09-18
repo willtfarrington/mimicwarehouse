@@ -181,7 +181,7 @@ Standing decisions for phase P2: DuckDB + Parquet lake canonical (D-17); Hive `s
 | EP-51 | [Protocol schema + freeze registry + `mwh protocol`](EP-51-protocol-freeze.md) | M | EP-35, EP-46 | core | ☑ `0c0cb21` |
 | EP-52 | [Backup of non-reproducible state (`mwh backup`)](EP-52-backup-state.md) | S | EP-35, EP-51 | core | ☑ `ec2c926` |
 | EP-53 | [Capstone #1: concepts/QC case study](EP-53-capstone-1-concepts-qc.md) | M | EP-38, EP-44 | core | ☑ `c0ae216` |
-| EP-54 | [Re-plan P3](EP-54-replan-p3.md) | S | EP-34, EP-35, EP-36, EP-37, EP-38, EP-39, EP-40, EP-41, EP-42, EP-43, EP-44, EP-45, EP-172, EP-46, EP-47, EP-48, EP-49, EP-50, EP-51, EP-52, EP-53 | core | ☐ |
+| EP-54 | [Re-plan P3](EP-54-replan-p3.md) | S | EP-34, EP-35, EP-36, EP-37, EP-38, EP-39, EP-40, EP-41, EP-42, EP-43, EP-44, EP-45, EP-172, EP-46, EP-47, EP-48, EP-49, EP-50, EP-51, EP-52, EP-53 | core | ☑ `f1c2536` |
 
 Ordering rationale: Time semantics (EP-34) and the run ledger (EP-35/36) go first because cohorts, timelines, rates and temporal splits all depend on them; concepts (EP-37/38) need the demo tier (EP-22) for count-pinning; disclosure primitives (EP-43) precede QC (EP-44) so the first committed aggregates are already suppressed; the protocol freeze (EP-51) lands here so every P5+ workflow can be frozen; the events spine (EP-50) is ⏱ and verified at the re-plan. **EP-172** (added 2026-09-16 by the owner at EP-45 completion; the next free number, hupsim precedent for mid-phase additions) is the owner-supervised adjudication of the two EP-40 GEM review files — one ruling per proposed code, new `t2dm@1.1.0` / `sepsis_explicit@1.1.0` code-set versions and the matching phenotype bumps — and sits between EP-45 and EP-46 because EP-46's pickup gate needs the reviewed versions.
 
