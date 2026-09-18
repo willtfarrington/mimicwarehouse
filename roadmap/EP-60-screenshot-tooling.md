@@ -2,6 +2,15 @@
 
 **Size:** S · **Tier:** demo · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots), EP-162 (Executive one-pager + demo script + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: `mwh app` is EP-57's
+> sub-app (add `screenshot` to it here, light at import); `disclose.write_sidecar(path,
+> result, k, reviewer=)` takes a `CheckResult`, not a free `checks=` dict — record the tier
+> and source inside the sidecar's `checks` entries (one `CheckEntry` per code) or beside it
+> in `docs/screenshots/manifest.yaml`, and extend `disclose.check`'s image branch (the
+> `OVERSIZE` / `NO_SOURCE` codes exist; a `tier ∈ {demo, fixture}` rule is new and named in
+> the completion note + a DESIGN §14 note). The demo catalog is `warehouse/demo.duckdb`
+> (`mwh demo fetch` + `mwh build --tier demo`, EP-22).
 ## Context
 
 Screenshots may enter `docs/` or git only from the `demo` (ODbL MIMIC-IV Demo 2.2, EP-22) or

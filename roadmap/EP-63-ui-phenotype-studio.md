@@ -2,6 +2,30 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-42 (Phenotypes: sepsis-3 + KDIGO AKI stage) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-42 ☑ `1f1f242`); **EP-172**
+> (2026-09-16, ☑ `e00aad7`) adjudicated the two EP-40 GEM reviews this page displays — the
+> registries now hold `t2dm@1.0.0` (all 20 GEM proposals rejected; the rule "manifestation
+> codes of combination entries are rejected" is a D-35 addendum), `sepsis_explicit@1.1.0`
+> (9 of 14 proposals accepted; the phenotype bumped with it, the session view follows it),
+> `sepsis3@1.0.0`, `kdigo_aki@1.0.0`; the review ledger is EP-172's completion note and the
+> `.gem-review.md` files stay under the data root (`studies/codesets/reviews/`, dictionary
+> text only). Read the body against `roadmap/README.md` § "P3 → P4 name corrections".
+> Brief-specific: (1) registries are `codesets.registry.load_registry()` /
+> `phenotypes.registry.load_registry()` → `Registry` / `Entry` (`def_hash`, versions, the
+> lock state); the compiled SQL is `phenotypes.compiler.compile_phenotype` /
+> `mwh phenotype show --sql`; the version history is `meta.phenotype_versions`
+> (`n_positive` blanked below k). (2) Prevalence is **not** an `apply()` / `prevalence()`
+> call: `phenotypes.runner.summary` / `summarize` / `distribution` / `agreement` /
+> `prevalence_report` (all through `safe_query`; `mwh phenotype summary <ref …> --tier t
+> [--report]`) return counts only — `by=` strata beyond era go through `timesem.sql_age_band`
+> / `sql_icd_versions` / the `_hadm` companion view (`mimiciv_derived.phenotype_<id>_hadm`);
+> a two-version comparison is `agreement(...)` over the two built versions, and a session
+> can reach only the **latest built** version of an id through `mimiciv_derived.phenotype_
+> <id>` (PHE-6; the `phenotypes."<id>@<version>"` views are outside `safe.ALLOWED_SCHEMAS`)
+> — display the older version's numbers from its `kind: phenotype` run manifest or park the
+> comparison. (3) The GEM crosswalk tables are `meta.gem_i9_to_i10` (98,453 rows) /
+> `meta.gem_i10_to_i9` (182,618); `codesets.gem.forward` / `backward` / `build_review`.
+> (4) "Apply with parameters" is parked (PHE-8): a variant needs its own `id@version`.
 ## Context
 
 Capability 3 (computable, versioned phenotypes) exists as code: the code-set registry with

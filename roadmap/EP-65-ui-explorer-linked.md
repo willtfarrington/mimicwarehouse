@@ -2,6 +2,17 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-64 (Explorer A: server-side aggregation service + VegaFusion) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: EP-46's `CohortSpec`
+> has **no `MartCriterion`** — its nine kinds are `age`, `demographic`, `codeset`,
+> `phenotype`, `concept`, `los`, `data_availability`, `prior_admissions`, `custom_sql`
+> (flagged `custom` in the registry, attrition and reports), so the brush → spec hand-off
+> emits `age` / `demographic` / `los` / `concept` criteria where a brushed variable maps to
+> one and a `custom_sql` criterion (hashed, flagged) for a mart-column brush, with the
+> caveat shown — the "nearest supported criteria" branch is the real branch, not the
+> fallback; validate the fragment with `cohort.spec.spec_from_text` and hand it to EP-62
+> through `save_spec`. The k source is `settings.k_suppression`; `mwh bench queries` is
+> EP-56's harness.
 ## Context
 
 Linked brushing is the one Explorer feature the owner called essential (D-21; DESIGN §16:

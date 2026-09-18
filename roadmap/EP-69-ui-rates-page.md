@@ -2,6 +2,14 @@
 
 **Size:** S · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-68 (Prevalence/incidence/event-rate module), EP-57 (App shell A (Streamlit multipage)) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections" — every name here (`stats.rates`,
+> `ui/forms`, `ui/jobs`, `viz/forest`, `safe_dataframe`, `MWH_APP_RECORD_LATENCY`) is a
+> forward dependency on EP-68 / EP-62 / EP-63 / EP-57 / EP-58, so at pickup read those
+> briefs' completion notes for the shipped spellings; `conn=` is not a `safe_query`
+> parameter (EP-68's note). Sizing: P3's two S briefs that touched a governance or
+> diagnostic surface ran 2–4× (retro-p3.md) — this one touches neither, but budget the
+> owner review round.
 ## Context
 
 The UI half of capability 5 (DESIGN §16 "Prevalence & Rates"). EP-68 built `stats.rates`

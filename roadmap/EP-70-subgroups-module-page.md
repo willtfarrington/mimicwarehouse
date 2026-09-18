@@ -2,6 +2,18 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-68 (Prevalence/incidence/event-rate module) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: the clinical / severity
+> dimensions have shipped sources when EP-55's mart columns do not — `mimiciv_derived.
+> sepsis3`, `kdigo_stages` (max stage in the 7-day window per stay), `sofa` /
+> `first_day_sofa`, `ventilation`, `vasoactive_agent`, `charlson`, the phenotype views
+> `mimiciv_derived.phenotype_<id>` (+ `_hadm`), eras via `mimiciv_derived.hadm_era`, age
+> bands via `timesem.sql_age_band`; `conn=` is not a `safe_query` parameter (run inside
+> `run.start`, use `Run.safe_query`); the Wilson intervals from released counts are the
+> EP-53 pattern (`analyses.c01_concepts_qc`, statsmodels `proportion_confint`), rate
+> ratios the EP-45 one (`qc.measurement.rate_ratio`, `Table2x2`) — arithmetic over
+> aggregates stays in Python from released counts (DIS-3); export via EP-59's `viz.export`
+> or the `promote` shape.
 ## Context
 
 Capability 6 (stratified and subgroup analysis), descriptive form: an outcome or measure by

@@ -89,3 +89,90 @@ of the spine through `mwh sql`. Full briefs for P5 are written by EP-74, not her
   `final-roadmap.md` contains every P3 parked item; README § Risks updated.
 - `roadmap_check.py` exits 0; every P4 brief that names a P3 API matches the code (spot-checked
   by grepping the named symbols in `src/mimicwarehouse/`); README ☑ hashes recorded for EP-34 … EP-54.
+
+> **Completion note (2026-09-18).** Executed as one session (2026-09-17 evening →
+> 2026-09-18 after midnight, local), tier n/a — docs-only. The only commands that touched
+> real-data state were read-only and audited: seven `mwh sql` aggregates through the gate
+> (the spine census per source, `DESCRIBE` of two registry tables, the
+> `meta.concept_versions` row sum, the `meta.spine_validation` row, the `meta.spine_codes`
+> count, a `meta.tables` sum that came back wholly suppressed — two schema groups, one
+> below k — and one `chartevents` row count per curated concept group for the SPINE-1
+> sizing; every released frame at k = 11 with 0 rows suppressed), `mwh jobs`, `mwh runs
+> list | show | benchmarks`, `mwh spine validate --tier full --no-write`, `mwh doctor`.
+> Power mode read **Best performance** before the verify loop and `poe check`. All
+> Depends-on rows were ☑ at pickup. Per the EP-33 amendment block:
+>
+> **(1) EP-50's full spine verified** from the job state (exit 0, 2 min 43 s), the gate
+> census (13 sources row for row), `spine.validate("full")` (seven checks, 1,300 files,
+> 280,203,383 rows), the two registry tables and the `kind: mart` ledger lines (one per
+> source + `spine.union`; 867,290,614 bytes) — completion note appended to
+> `EP-50-events-spine.md`; nothing relaunched or re-measured. **(2) `roadmap/retro-p3.md`**
+> in the `retro-p2.md` shape; no separate findings ledger because P3 ran no discovery audit
+> — the carried-low re-triage is a section of the retro with file:line anchors (the
+> `retro-p2-findings.md` format rule kept: no reproduction recipes, `1xxxxxxx`-style bands).
+> Planned-vs-actual: **≈ 29 h against ≈ 19.5 h planned** (commit-gap basis; ≈ 1.5×, the
+> first phase over budget; plus ≈ 2 h 45 min of reverted first attempts) — Risk 11
+> re-budgeted, the owner review round named as the unbudgeted fixed cost. Full-tier
+> estimates were over-estimates everywhere; DuckDB 1.5.x concept breakages: none; count-pin
+> drift: none — EP-53's 57-row hand-off is the EP-38 patch effect (`inflammation` −56,
+> `complete_blood_count` −1), reconciled in a D-19 addendum. Toolchain slot: **not needed**
+> (lock current, one `pyarrow 24.0.0`). Connector roster: **new write-capable tools** found
+> (Claude Docs, Excalidraw, alphaXiv writes, Gmail labels) → owner package in the session
+> scratchpad (`ep54-connector-denies.md`), D-43 addendum. **(3) Decisions + design notes:**
+> DECISIONS **D-46** (definitions = versioned package data + lock file; studies from the data
+> root) and **D-47** (the checkpoint decisions), addenda under D-15 (FC-9: `vl-convert-python`
+> core; no P4 slot), D-17 (the seams: document and leave, fix before P9), D-19 (PR re-check;
+> row sum reconciled), D-20 (per-tier layout as the P4 contract; the sampler / tags /
+> `marts`-tag rulings), D-24 (ledgers as the P4 contract; `runs` non-registry), D-25 (the
+> registry format confirmed), D-33 (the count-column rule; MISS-4 → EP-72), D-43 (the
+> roster re-check); the status index gained D-46/D-47 rows and split D-32 / D-33 / D-34 into
+> their own rows (no header consumed — structure diff before and after). DESIGN dated
+> notes: §3 (the D3 estimates replaced: derived + spine ≈ 2.2 GB vs 4–6 GB, no spill, peaks
+> 15,935 / 8,068 / 7,480 MB RSS, 380.4 GB free), §5 (the small-path seams), §9 (the cohort
+> names final for P4), §10 (the full spine), §11 (the ledger fields final), §13 (the
+> protocol registry as the P4/P5/P8 contract), §14 (the disclosure API + count-column
+> rule), §15 (the module map at the P3 close: seventeen sub-apps, nothing under `marts/` /
+> `ui/` / `viz/` / `stats/` yet), §21 (SPINE-1, `ResourceLog`, the seams resolved). README
+> Risks: 2 re-checked (all five PRs open; `main` at `303d26c` touches no concept), 5 struck
+> (the engine canon; P3's peaks under the limit), 6 measured, 11 re-budgeted, 15 (FC-9
+> settled), 16 (AUDIT-1 re-triaged), 17 (routed to EP-72), 18 (decided); coverage rows 1, 3,
+> 7, 10, 36, 38 re-audited and extended (2, 8, 37 unchanged). **(4) P4 amendments:** a
+> **"P3 → P4 name corrections"** table in the README's notation section (the override
+> mechanism EP-166 established — seventeen mismatch classes the audit found: `mwh app |
+> bench | export | stats`, `disclose.small_cells`, `safe.audit` / `read_audit`, the
+> `safe_query` signature, `Run.add_artifact`, the cohort / registry / phenotype / timeline /
+> measurement function names, `meta.profile_*`, the missing tier segment, `blood_gas`, the
+> env names, the `page_latency` kind, EP-172's versions) plus twenty `> **EP-54 pickup
+> note**` blocks on EP-55 … EP-74 with only the brief-specific facts; every P3 brief's
+> Parked items re-audited present in `final-roadmap.md` (each session had mirrored its own —
+> TIME-1, CONC-1/2, PHE-5 … PHE-10, DIS-4, QC-3/4, MISS-3/4, SPINE-2, LOAD-5, BKP-1, AUDIT-1)
+> and the EP-54 outcomes written into SPINE-1, LOAD-5, MISS-4, AUDIT-1 and CONC-2, with
+> PROV-2 new. **(5) Reconciliation:** `poe roadmap-check --strict` **0 errors / 0 warnings
+> — 174 rows, 174 briefs, 63 done** before this tick; the 21-brief `mwh verify` loop **0
+> failures** (347 tests, ≈ 26 min); `poe check` **1,183 passed, 58 deselected, 729 s**;
+> `mwh guard` clean over the 29 changed / new files; the amendment's item 6 (EP-37 / EP-49 /
+> EP-50 rows vs headers) held without an edit (`header: ok`).
+>
+> **Owner decisions at the interactive review (2026-09-18; two rounds, every recommended
+> option taken — D-47).** (1) SPINE-1: v1 keeps raw `chartevents` out (measured ≈ 66 M rows /
+> ≈ 0.2 GB / < 1 min recorded). (2) LOAD-5: document and leave; the small path switches to
+> per-bucket `COPY`s before P9's ED staging. (3) MISS-4 / Risk 17: routed to EP-72 as a
+> `disclose` refinement. (4) **EP-173 — Debt sweep (P4)** (S, core) allocated at the head of
+> P4 before EP-55 → **174 briefs, 24 S · 148 M · 2 L** (`EP-173-debt-sweep-p4.md`; the
+> fix-now rows of the re-triage led by SGT-5; the session-guard trio as an owner package).
+> (5) The connector deny package is applied by the owner. (6) No P4 toolchain slot. (7)
+> Commit in the two standard steps, no push.
+>
+> **Deviations / findings, for the record.** (a) This S brief ran ≈ 3 h — the EP-33
+> amendment made it a six-item re-plan with a carried-low re-triage and twenty brief
+> amendments (M/L work); recorded under Risk 11 beside P3's own over-runs. (b) **SGT-5 is a
+> real governance finding** — the safe-query forbidden-function list does not block the
+> `duckdb_*` / `pragma_*` metadata functions, so a session statement could enumerate the
+> attached databases' file paths; it is a static review finding (no such statement appears
+> in the audit ledger's history, nothing left the gate), fixed first by EP-173, until then
+> a known hole. (c) The advisory `mwh disclose check` over the retro flags only prose cells
+> over 64 characters (the `retro-p2.md` shape) — roadmap records of counts and telemetry
+> carry no sidecar (GOVERNANCE §3 manifests class). (d) No code changed; no earlier test
+> edited. **Handed on:** the owner applies `ep54-connector-denies.md` and pushes; EP-173 runs
+> next, then EP-55 against the name-corrections table; EP-74 inherits the retro convention,
+> the PR re-check, the re-sizing and the fixture-suite wall.

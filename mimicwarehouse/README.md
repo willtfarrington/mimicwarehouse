@@ -15,10 +15,14 @@ the roadmap phase tables are the ground truth.
 
 ## State of the workspace
 
-*(as of EP-33, the P2 consolidation re-plan, 2026-09-01 — refreshed by every re-plan EP;
-**P2 is closed**: all 19 P2 briefs ☑, the core lake staged full-tier and verified (EP-28),
-the P0–P2 surfaces consolidated under D-44 (one publish primitive, one connection factory,
-one JSONL canon, one error/exit-code convention); next: EP-34, head of P3)*
+*(as of EP-54, the P3 re-plan, 2026-09-17 — refreshed by every re-plan EP; **P3 is
+closed**: all 21 P3 briefs ☑ (EP-34 … EP-53 + EP-172), the derived layer built and verified
+full-tier — 65 concepts (95,777,694 rows), four phenotypes, the 280 M-row events spine,
+QC and measurement-process registries, two cohort marts, one frozen protocol, the first
+capstone promoted with sidecars — on top of the P2 core lake; the phase record is
+[`../roadmap/retro-p3.md`](../roadmap/retro-p3.md); next: **EP-173**, the debt sweep
+allocated at EP-54 (D-47), then EP-55 — the latency marts and the Lab app; the P4 briefs
+read against the roadmap README § "P3 → P4 name corrections")*
 
 | Module | EP | CLI | Tests |
 |---|---|---|---|
@@ -57,14 +61,16 @@ one JSONL canon, one error/exit-code convention); next: EP-34, head of P3)*
 | `backup.py` — backup of the non-reproducible state (EP-52; GOVERNANCE §11, [docs/methods/provenance.md](docs/methods/provenance.md) §9): `BACKUP_SET` (globs relative to the data root — `runs/*.jsonl`, `runs/protocols/**`, `runs/*/manifest.json`, `runs/*/sql/**`, `models/registry/**` (`.json` / `.yaml`), `studies/**` minus the guard's data-shaped suffixes; `runs/*/tables/**` + `runs/*/figures/**` only with `--include-run-artifacts`; never `runs/jobs/` or `runs.duckdb`), `run_backup` (sha256 every file, `shutil.copy2` into `<target>/mwh-backup-<UTC>.new/` mirroring the paths, re-hash every copy, `backup_manifest.json` via `fsio.atomic_write_text`, publish with `publish.swap_dir`; the frozen protocol copies stay read-only), `target_problem` (the D-29 detector + inside-the-data-root + inside-the-repository + BitLocker-off refusals, no override flag; unknown BitLocker = a warning), `verify_backup` (re-hash; mismatched / missing / unexpected files named), `restore_backup` (verify first, never over a non-empty `runs/`, re-hash every copy; then `mwh --data-root <to> runs refresh`), `list_backups` / `last_backup`, the `Settings.backup_target` field (`MWH_BACKUP_TARGET`) and the doctor's `last_backup` row (warn past 7 days) | EP-52 | `mwh backup run [--target DIR] [--include-run-artifacts] [--json]` · `verify <backup-dir> [--json]` · `restore --from <backup-dir> --to DIR [--dry-run] [--json]` · `list [--target DIR] [--json]` | `test_ep52.py` |
 | `analyses/` — the capstone modules (EP-53; `docs/analyses/` convention, D-8): `c01_concepts_qc.py` — Capstone #1: `build(tier) -> run_id` inside `run.start(kind="report", claim_type="exploratory (concepts and data quality)")` reading only published aggregates (`meta.concept_versions` / `meta.qc_checks` / `meta.item_unit_variants` / `meta.item_units` through `safe_query` on the run's tier and, for the row-count inventory, the demo and dev tiers too; the EP-42 phenotype summary helpers `summarize` / `distribution` / `agreement` through the run; the benchmark ledger; EP-45's raw structural slice summed per item x era) -> eleven k-suppressed tables (`disclose.suppress`, then `check_frame` before anything is written: concept inventory with rows per tier + wall / RSS, demo pins vs the tier's live counts with the ratio from released counts, QC checks by status per table, the top-10 warn / fail checks, unit variants, implausible shares, timestamp ordering, phenotype prevalence overall + by era with Wilson intervals (statsmodels) from released counts, the KDIGO stage distribution, the sepsis-3 vs explicit-code 2x2, the first-24 h measurement share of ten curated items by era) as `runs/<run_id>/tables/*.csv` (+ Parquet twins) and two Altair figures (`.vl.json` with the EP-5 theme merged + PNG via vl-convert) under `figures/`; `run_step` = the `analyses.c01_concepts_qc` python step of `dag/specs/analyses.yaml` (after `catalog`; `--select analyses.c01_concepts_qc`); `promote(run_id)` renders the CSVs as Markdown tables (`<table>.md`; committed CSVs are refused by `.gitignore` / the guard by design, owner decision at EP-53) + copies the figures into `docs/analyses/01-concepts-and-qc/` only through `disclose.check` + `write_sidecar`; `load_table` / `md_table_frame` read a promoted table back typed; `promote_tracer(stamp)` re-renders the EP-31 tracer folder through `tracer.render_report` after `suppress_tracer_payloads` (chain mode over the attrition, table mode over the descriptives, the n-vs-n_fit rule) into `02-tracer-first-icu-mortality.md` + the JSON aggregates, every file gated + sidecar'd; `render_tables` / `headline_numbers` / `render_headline_block` render the promoted CSVs as Markdown (the way a session inspects them) | EP-53 | `mwh build --tier t --select analyses.c01_concepts_qc` (full: `--background --job ep53-capstone`) · `python -m mimicwarehouse.analyses.c01_concepts_qc build --tier t \| promote --run RUN_ID [--dest DIR] \| promote-tracer --run STAMP \| check-doc \| headline [--dir DIR] \| tables [--dir DIR] [--limit N]` | `test_ep53.py` |
 
-Gates as of EP-33 (2026-09-01): **832 fixture-tier tests** green (`poe check` = ruff check +
-ruff format --check + pyright + pytest; 861 collected, the dev/full/demo probes deselect by
-default; 248 s) · the 42-brief `mwh verify` loop 0 failures · `mwh doctor` **9 pass · 1 warn ·
-0 fail · 5 info**, exit 0 (the warn is the `antivirus` row, by design — D-38/D-42) ·
-`mwh guard --all-tracked` clean (500 files) · `poe roadmap-check --strict` 0 errors,
-0 warnings (172 rows, 42 done) · the full core lake, catalogs on all tiers (31 tables/views,
-0 missing) and the tracer re-runs reproduce EP-28/EP-31's numbers (`../roadmap/retro-p2.md`
-§ Workstream F).
+Gates as of EP-54 (2026-09-18): **1,183 fixture-tier tests** green (`poe check` = ruff check +
+ruff format --check + pyright + pytest; 58 dev/full/demo probes deselect by default; 729 s —
+the session fixture lake runs the whole DAG) · the 21-brief P3 `mwh verify` loop 0 failures
+(347 tests) · `mwh doctor` **10 pass · 1 warn · 0 fail · 5 info**, exit 0 over 16 checks (the
+warn is the `antivirus` row, by design — D-38/D-42) · `mwh guard` clean over the re-plan's
+29 files · `poe roadmap-check --strict` 0 errors, 0 warnings (174 rows, 63 done before the
+EP-54 tick) · the full derived layer verified at the P3 close — 65 / 65 concepts, the
+280 M-row spine (all seven validation checks), 574 QC checks with no failure, the tracer
+reproducing EP-31's numbers (`../roadmap/retro-p3.md`). *(EP-33's baseline for
+comparison: 832 tests in 248 s; 42 briefs verified.)*
 
 **Environment realities** (session-facing; `CLAUDE.md` §3 and D-42 are authoritative —
 later re-plans refresh this list):
@@ -99,12 +105,20 @@ later re-plans refresh this list):
   `poe check` includes the `ruff format --check` gate since EP-33.
 - The engine / Windows / AV / session lore that used to live in completion notes and
   machine-local memory has one home: [docs/gotchas.md](docs/gotchas.md) (EP-33).
+- The session fixture lake runs the **whole DAG** (144 steps, ≈ 2 min) once per pytest
+  session and several modules build their own lakes, so `poe check` takes ≈ 12 min at the
+  P3 close (1,183 tests) and `mwh verify EP-n` ≈ 1–2 min per brief; `poe test-fast` (xdist)
+  is the opt-in — EP-74 decides whether the suite needs a shared lake (retro-p3.md).
+- Every P3 brief closed with an interactive owner review (four to five questions, the
+  recommended option first); the decisions are recorded in the brief's completion note and
+  as DECISIONS addenda, never applied by silent default (CLAUDE.md, house rule).
 
 | Doc | What |
 |---|---|
 | [DESIGN.md](DESIGN.md) | architecture: layers, tiers, engine config, schema/time semantics, concepts & phenotypes, cohort spec, events spine, run ledger, safe-query, protocol freeze, disclosure, module map, app, reporting, notes, linkage, testing |
 | [GOVERNANCE.md](GOVERNANCE.md) | the license/PHI/LLM/small-cell/export/audit contract — read before touching data |
-| [DECISIONS.md](DECISIONS.md) | D-1 … D-45 owner decisions (status index at the top, EP-33) + assumed defaults + judgment calls |
+| [DECISIONS.md](DECISIONS.md) | D-1 … D-47 owner decisions (status index at the top, EP-33; D-46/D-47 recorded at EP-54) + assumed defaults + judgment calls |
+| [docs/methods/](docs/methods/) | the P3 prose twins, one per module (each re-rendered by `python -m mimicwarehouse.<module>` where a renderer exists): [time-semantics.md](docs/methods/time-semantics.md) (EP-34) · [provenance.md](docs/methods/provenance.md) (EP-35, §9 backup EP-52) · [determinism.md](docs/methods/determinism.md) (EP-36) · [units.md](docs/methods/units.md) (EP-39) · [codesets.md](docs/methods/codesets.md) (EP-40, §6 the EP-172 review policy) · [phenotypes.md](docs/methods/phenotypes.md) (EP-41/42/172) · [qc.md](docs/methods/qc.md) (EP-44) · [measurement-process.md](docs/methods/measurement-process.md) (EP-45) · [cohorts.md](docs/methods/cohorts.md) (EP-46/47/48) — plus the four rows below |
 | [docs/gotchas.md](docs/gotchas.md) · [docs/committed-text.md](docs/committed-text.md) | the one home for engine / Windows-AV / session lore, and the committed-text hygiene canon (EP-33) |
 | [DATA-DICTIONARY.md](DATA-DICTIONARY.md) | generated from the full catalog's `meta.*` by `mwh catalog dictionary --tier full` (EP-29); regenerate after a catalog rebuild — never edit by hand; passes `mwh disclose check` and carries `DATA-DICTIONARY.md.disclosure.json` (EP-43) — re-run `mwh disclose check DATA-DICTIONARY.md --write-sidecar` after regenerating |
 | [docs/methods/disclosure.md](docs/methods/disclosure.md) | the disclosure primitives (EP-43): the suppression rules, the seven finding codes with examples, the sidecar schema, the SGT-2 decision |

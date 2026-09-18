@@ -212,6 +212,23 @@ chartevents/labevents views; a worst-case single pass over all 433 M chartevents
 > own `union` step. First measured sizes: 65 concept tables on `demo` = 1.5 MB of Parquet
 > (the EP-33 D3 estimate held); full sizes are the `concepts-full` job's (EP-38 verifies).
 
+> **Note (2026-09-17, EP-54) — the D3 re-estimates replaced by measurements (full tier).**
+> Derived concepts **1,336,919,249 bytes** in 65 files (95,777,694 rows after the EP-38
+> patches; 1,337,952,596 bytes / 95,777,751 rows before them — the 57-row difference is the
+> CRP / MCHC `valueuom` filters), phenotypes ≈ 10 MB in 5 files (1,645,599 rows), the events
+> spine **867,290,614 bytes** in 1,300 files (280,203,383 rows — 3.1 bytes per row against the
+> 10 assumed), the cohort marts < 1 MB (two cohorts, 107,587 rows), 22 `meta.*` tables and a
+> 21,245,952-byte full catalog: **derived + spine ≈ 2.2 GB** against the 4–6 GB line above;
+> marts stay the EP-55/56 question (≤ 1–2 GB). **No build-temp spill was observed** — the
+> EP-19 runner does not sample `tmp_duckdb` (the loader's pass-1 heartbeat did), but every
+> P3 run's `disk_delta_mb` is at most the bytes it wrote plus 0.24 GB (the spine's catalog
+> rebuild), and `qc-full`'s is negative; peak RSS high-water is **15,935 MB** (`qc.profile`
+> over the 433 M chartevents rows), then 8,068 MB (measurement structural) and 7,480 MB
+> (concept `rhythm`), all under the 36 GB build `memory_limit`. Free space after P3:
+> **380.4 GB** (≈ 380 expected). The runner keeps its per-step `_RssSampler` and every CLI
+> build already runs inside `run.start` (run-level `disk_delta_mb`); per-step disk deltas are
+> parked (`final-roadmap.md` PROV-2, D-47). Record: `roadmap/retro-p3.md` § Lake & temp.
+
 *History:* built by EP-3, EP-10, EP-17, EP-19, EP-21, EP-22, EP-28, EP-29, EP-166, EP-167, EP-171, EP-33 item D3, EP-37 (completion notes); consolidated at EP-33.
 
 ## 4. Tiers & sampler spec (D-18, D-27)
@@ -337,6 +354,24 @@ column maps (demo 2.2 → 3.1) and accounts rejects per table
 a reject threshold fails the stage). A `load_class: large` stage reports both pass walls to
 the runner (`pass1_wall_s` is `None` when a resume skipped pass 1) — the `phase: pass1` /
 `pass2` benchmark lines of §11.
+
+> **Note (2026-09-18, EP-54) — "rows sorted" holds per file for the large path only.** The
+> small path's one partitioned `COPY` with a global `ORDER BY` under
+> `preserve_insertion_order=true` is **not** order-preserving inside a partition file on
+> DuckDB 1.5.5: the writer combines per-thread buffers, so a file can carry a seam where the
+> `(subject_id, <sort_by>)` order restarts (found by EP-50's spine validation; a 3 M-row
+> synthetic probe reproduces 2 seams in 5 files with the setting on and off; on the dev tier
+> `diagnoses_icd` carries 2 seams and `outputevents` 1, the other small tables none;
+> `docs/gotchas.md` §1). The large path's pass 2 — one sorted single-file `COPY` per bucket
+> — is unaffected, and the spine (EP-50) writes that way. **Decision (D-47 item 2, owner):
+> document and leave.** No reader depends on physical order (readers glob the partition
+> files; catalog views are unordered relations; the determinism tests compare sha256 run to
+> run, not sortedness), and a restage now would move the core snapshot id that 65
+> concepts, five phenotypes, two cohort marts, the spine and every run manifest cite. The
+> small path switches to the pass-2 shape (`_sort_bucket` per bucket) **before P9's ED
+> staging** (EP-147's window, with LOAD-4) and the 18 small partitioned tables are restaged
+> in that one pass; until then, code that needs sorted input sorts on read or asserts the
+> order itself. Record: roadmap Risk 18, `final-roadmap.md` LOAD-5, D-17 addendum.
 
 **Publish protocol — once, in `mimicwarehouse.publish` (EP-33 B2).** `os.replace(new →
 dest)` fails on Windows whenever `dest` is an existing directory, and renaming a directory
@@ -1020,6 +1055,18 @@ primary, Altair fallback), disclosure-aware.
 > example, `test_ep48` keeps it in sync); the Cohort Builder page (EP-62) embeds the same
 > renderers.
 
+> **Note (2026-09-17, EP-54) — the names P4 codes against (final for P4).** The planning
+> text above says `marts/cohorts/<cohort_id>@<version>/`; the shipped path is
+> **`lake/marts/<tier>/cohorts/<id>@<version>/`** (the EP-37 per-tier rule), the registry
+> table `marts.cohorts` keys on **`cohort_id`** / `version` (not `id`), the per-cohort views
+> are `marts.cohort_<id>_v<major>`, the public API is `cohort.compiler.compile_spec` /
+> `compile_entry`, `cohort.build.build_cohort` / `attrition`, `cohort.registry.load_registry`
+> / `save_spec`, `cohort.attrition.render_mermaid` / `render_altair` / `save_attrition`, and
+> the CLI is `mwh cohort build | attrition` (there is no `mwh cohort run` and no
+> `materialize`). `cohorts.build` carries the `marts` tag only — `--tag cohorts` is the
+> registry index, `--tag marts` every mart build, which EP-55/56's marts join (D-47). The
+> roadmap README § "P3 → P4 name corrections" is the override table for the P4 briefs.
+
 *History:* planning text (2026-08-16), reconciled with EP-31's tracer and EP-33 B1c's registry seed; EP-46 shipped the spec + registry, EP-47 the compiler + marts, EP-48 the attrition diagram (notes above); consolidated at EP-33.
 
 ## 10. Events spine (MEDS-compatible)
@@ -1067,6 +1114,15 @@ the build lock, the benchmark lines and the `derived` layer snapshot id for free
 > `spine-full` background job EP-54 verifies — the dev bytes extrapolate to ≈ 0.9 GB for
 > ≈ 280 M rows, well under the §3 re-estimate of 2.5–4 GB (ZSTD on sorted, low-cardinality
 > codes compresses far better than the 10 bytes/row assumption).
+
+> **Note (2026-09-17, EP-54) — full tier verified.** `spine-full` finished inside EP-50's
+> session (exit 0, 2 min 43 s; run `20260917T163234Z-2a6060`, 157.4 s, peak RSS 825 MB):
+> **280,203,383 rows in 1,300 files, 867,290,614 bytes (0.81 GiB)**, 3.1 bytes per row;
+> `spine.validate("full")` passes all seven checks; `meta.spine_codes` has 18 prefix × source
+> rows on full, none suppressed. The chartevents vitals subset (§21) was sized: the 63 curated
+> itemids (EP-39) hold 65,929,526 of the 432,997,491 `chartevents` rows on full — ≈ 0.2 GB and
+> under a minute as a fourteenth source; the owner's decision is D-47 / `retro-p3.md`
+> § Checkpoint minutes. Record: `roadmap/EP-50-events-spine.md` (EP-54 completion note).
 
 *History:* planning text (2026-08-16), reconciled with EP-29's `python` step handler and EP-33 item D3's sizing; EP-50 planned; consolidated at EP-33; built by EP-50 (2026-09-17, note above).
 
@@ -1232,6 +1288,30 @@ manifests and job state files.
 > least one entry per layer it touched (the EP-19 "one entry per core-only build" pin
 > holds). `Run.read_layer` keeps taking the latest entry, i.e. the end state.
 
+> **Note (2026-09-17, EP-54) — the ledger surfaces P4 codes against (final for P4).** The
+> field names are the shipped ones, not the planned bullets: `dag.benchmarks.BenchmarkLine`
+> (`ts, build_id, tier, step, kind, phase, wall_s, peak_rss_mb, rows, bytes_in, bytes_out,
+> files, duckdb_version, git_sha, host, ok, error` + `run_id`, `disk_delta_mb`; kinds in
+> `BENCHMARK_KINDS` — `stage`, `catalog`, `python`, `sql`, `build`, `verify`, `concept`,
+> `phenotype`, `mart`, `query`, `bench`, `concept_patch`, `spine_source`; a P4 page-latency
+> line is `run.bench(...)` with a kind **added to that vocabulary** by EP-56/57, never a new
+> writer); `run.RunManifest` (`run_id, name, kind, tier, status, started, finished, wall_s,
+> command, git_sha, git_dirty, uv_lock_sha256, versions, params, snapshot_ids, refs, sql,
+> tables, figures, attrition, audit_ids, warnings, seeds, resources, doctor, error, claim_type,
+> protocol_id, protocol_hash`) with `Run.save_table` / `save_figure` / `record_ref` as the
+> artefact registration (no `add_artifact`); the `runs.duckdb` views `audit`, `ledger`,
+> `benchmarks`, `manifests`, `attrition`, `protocols` (`safe.RUNS_DB_VIEWS`) — `runs` stays
+> outside the safe-query registry exemption (D-45 item 6, re-affirmed at EP-54: per-run
+> counts through `mwh sql` are k-suppressed; `mwh runs list | show` and `mwh protocol list`
+> are the session listings; EP-136 revisits for the Runs page); `AuditLine` is
+> statement-shaped (`audit_id, ts, actor, tier, statement_sha256, sql_text, allowed,
+> refusal_reason, n_rows, rows_suppressed, k, wall_ms, duckdb_version, snapshot_ids,
+> git_sha`) — there is no `event`-shaped audit API; the EP-49 `row_view:` line is the
+> precedent for an app-side event (`sql_text = "row_view:<what>"`, `statement_sha256` over
+> the canonical request), which EP-58's `owner_rows()` wraps. Run-level resources exist for
+> every CLI build (`run.start(kind="build")`, EP-37); the runner's per-step `_RssSampler`
+> stays (D-47) and per-step `disk_delta_mb` is parked as PROV-2.
+
 *History:* built by EP-10, EP-17, EP-19, EP-23, EP-28, EP-29, EP-30, EP-31, EP-32, EP-166, EP-33 B8, EP-42 (completion notes); EP-35/36 planned; consolidated at EP-33.
 
 ## 12. Safe-query (D-31, D-32)
@@ -1360,6 +1440,18 @@ states that MIMIC-IV analyses remain retrospective.
 > unknown claim type, a malformed hash). Seed: `specs/tracer_mortality.yaml`
 > (`tracer_mortality@1.0.0`, exploratory, over `first_icu_adults@1.0.0`).
 
+> **Note (2026-09-17, EP-54) — the registry format is the contract for EP-128/129 and P5+.**
+> Confirmed at the P3 close, nothing changed: `runs/protocols.jsonl` lines carry
+> `protocol.registry.PROTOCOLS_COLUMNS` (id, version, `content_hash`, `source_sha256`,
+> `path`, `frozen_at`, `git_sha`, `amends`, `reason`, …), the frozen copy is the read-only
+> `runs/protocols/<hash>.yaml`, `runs.protocols` is the typed view, `run.start(kind=…,
+> protocol_hash=…, claim_type=…)` is the run-side hook and `mwh protocol freeze | verify |
+> amend | list | show | run` the CLI. EP-128's page and EP-129's temporal-holdout runner
+> register through `protocol.runners.register_runner` beside `cohort_only`; the
+> `TemporalHoldout` block (development / holdout / sealed eras) is already EP-129's shape.
+> The frozen seed hash `d629a21d…` is the same on every data root because the hash is
+> content plus resolved reference hashes (EP-51), so a P4/P5 brief may cite it.
+
 *History:* planning text (2026-08-16), reconciled with the EP-33 B8 ledger canon; EP-51 planned; consolidated at EP-33; built by EP-51 (2026-09-17, note above).
 
 ## 14. Disclosure primitives (D-33, D-40)
@@ -1465,6 +1557,24 @@ schema (GOVERNANCE §3); the two P2 exceptions that carry telemetry only —
 > sequence whose differences (stays leaving per bin) can be small and are derivable; the
 > table-mode primitive does not band them (the chain mode's 10-banding maps 11-14 to 10,
 > below k), and the gate does not flag it.
+
+> **Note (2026-09-17, EP-54) — the disclosure API P4 codes against (final for P4), and the
+> count-column rule.** The public surface is `disclose.suppress(df, k, count_cols,
+> group_cols, mode="table"|"chain", complementary=True) -> (df, SuppressionReport)`,
+> `render_cell`, `warn_badges(df, k, count_cols)` (the in-app badge primitive EP-58 wraps —
+> there is no `small_cells()`), `check(path, k) -> CheckResult` with the seven codes,
+> `check_frame` / `check_table` / `assert_clean`, `write_sidecar` / `read_sidecar` /
+> `verify`, `safe_suppressor` (the `safe.SUPPRESSOR` hook) and the CLI `mwh disclose check |
+> verify`. **Count columns in a released frame (D-33 addendum, EP-54):** there is no
+> per-table policy — a frame that goes through `suppress` may carry nested counts
+> (`n_events` / `n_subjects`, `meta.spine_codes`) because the primitive knows nested pairs
+> and withholds where a published difference is small; a surface that cannot reach the
+> primitive (the row-wise hook of `population_summary`) releases one count column per row.
+> Two gate facts P4 renderers inherit from P3: the Markdown checker pairs *any* two integer
+> columns of a table as a possible nested total (so attrition drops are `n = X` text cells,
+> EP-48) and every integer cell in `1..k-1` under a non-exempt header is a small cell (name
+> index-like headers with an exempt word, EP-49) — a column-typed exemption is a candidate
+> refinement for EP-59 / EP-130, not a governance change.
 
 ## 15. Package / module map (planned 2026-08-16; "shipped" marks what exists — details in the workspace README § State of the workspace)
 
@@ -1759,6 +1869,23 @@ never bare PMIDs. `mwh guard` (EP-4; G1/G4 hardened at EP-165 and EP-33 — inde
 float renderings, entry paths, notebook source and script types; `selfcheck` verifies the
 PreToolUse hook registration) is the pre-commit enforcer.
 
+> **Note (2026-09-17, EP-54) — the module map at the P3 close.** Every P3 row above is
+> shipped; the `mwh` command set is the seventeen sub-apps `backup canary catalog codeset
+> cohort demo disclose fixtures inventory phenotype protocol qc runs schema spine timeline
+> units` plus the flat commands `build doctor guard jobs paths sql tracer verify` — ten
+> groups beyond DESIGN's planning list (`units`, `codeset`, `phenotype`, `disclose`, `qc`,
+> `cohort`, `timeline`, `spine`, `protocol`, `backup`), each attached with one `add_typer`
+> line and light at import (the B6 budget, pinned per package). `DIAGNOSTIC_COMMANDS` is
+> unchanged (six). The `analyses/` package (EP-53) is the capstone home, one module per
+> capstone. **Nothing under `marts/`, `ui/`, `viz/`, `stats/` or `app/` exists yet** — the P4
+> briefs that read "EP-n built X" for a P4 EP are forward dependencies (roadmap README § "P3
+> → P4 name corrections"), and `mwh app | bench | export | stats` are created by EP-57 /
+> EP-56 / EP-59 / EP-68 respectively. Spec packaging is settled as a pattern (D-46):
+> definitions are package data with a lock file (`codesets/defs/` + `codesets.lock.json`,
+> `phenotypes/defs/` + `phenotypes.lock.json`, `cohort/specs/` + `cohorts.lock.json`,
+> `protocol/specs/`), study copies live under the data root's `studies/<study_id>/` (backed
+> up by EP-52) and are added to a registry with `--specs / --codesets / --phenotypes DIR`.
+
 *History:* built by EP-2 … EP-6, EP-8 … EP-12, EP-17 … EP-22, EP-28 … EP-32, EP-164 … EP-171, EP-33 B4/B5/B6/B8 (completion notes); consolidated at EP-33.
 
 ## 16. App structure (D-21)
@@ -1956,7 +2083,18 @@ reasoning stays findable; the evidence is in the named EP's completion note.)*
   special-casing.
 - FTS engine for notes if DuckDB FTS build exceeds memory — SQLite FTS5 fallback (EP-148).
 - Whether the events spine should include a chartevents subset (vitals only) — EP-50 /
-  the P3 re-plan (EP-54); §3's re-estimate sizes the spine at 2.5–4 GB with or without it.
+  the P3 re-plan (EP-54); §3's re-estimate sizes the spine at 2.5–4 GB with or without it —
+  **resolved by EP-54 (2026-09-18, D-47 item 1): v1 keeps raw `chartevents` out.** The
+  spine measured 0.81 GiB for 280 M rows (3.1 bytes per row); the curated-itemid subset
+  would add ≈ 66 M rows / ≈ 0.2 GB / under a minute, recorded on `final-roadmap.md` SPINE-1
+  for EP-83 or the MEDS export to trigger.
+- Whether the EP-19 runner's per-step sampler should become `run.ResourceLog` (EP-36's
+  deferral) — **resolved by EP-54 (2026-09-18): keep the per-step `_RssSampler`**; every CLI
+  build already runs inside `run.start`, so run-level resources exist for every job; per-step
+  disk deltas are parked (PROV-2).
+- Whether the loader's small path should write per-bucket sorted files (the partitioned-
+  `COPY` seams EP-50 found, §5 note) — **decided at EP-54 (2026-09-18, D-47 item 2):
+  document and leave; switch before P9's ED staging (EP-147, with LOAD-4).**
 - Streamlit vs marimo-app for the Freezer/Wizard pages if the rerun model bites — re-plan P4
   (EP-74).
 

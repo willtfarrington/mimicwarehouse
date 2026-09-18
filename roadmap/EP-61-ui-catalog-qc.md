@@ -2,6 +2,25 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-44 (Data-quality profiling) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-44 ☑ `ad1bb6d`); read the
+> body against `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: (1) **the
+> QC tables are `meta.qc_tables` / `meta.qc_columns` / `meta.qc_topk` / `meta.qc_checks`**
+> (EP-44) — `meta.profile_*` is not a table family (`meta.profile.<schema>.<table>` is a DAG
+> step id); `meta.qc_checks.status` is `ok` / `warn` / `fail` with `n_affected` blanked
+> below k (`n_affected_suppressed`) and `check_id` in the gate's allow-list; `mwh qc status
+> --tier t` is the CLI twin of the severity tiles (it counts check rows in Python — a
+> `count(*)` over a registry table still meets the suppressor, `docs/gotchas.md` §1).
+> (2) The measurement-process tables (`meta.mp_*`, EP-45) are the natural second tab or
+> EP-72's; `meta.item_dictionary` (5,745 itemids, `curated` / `concept_group`) and
+> `meta.item_unit_variants` (k-suppressed at build) join `meta.item_units` (117 rows over
+> 63 itemids) for the item view; `marts.itemid_summary` is EP-55's — if it has not shipped,
+> the item view reads `meta.item_dictionary` + `meta.mp_item_summary` instead. (3) The
+> shipped `meta.catalog_tables` is a real registry table — do not reuse the name for the
+> EP-56 bench-query id (`catalog_tables_page` or similar). (4) `meta.tables` carries
+> `schema, table, description, kind, partitioned, row_count, bytes, files, build_id,
+> snapshot_id` for the 31 core tables only; derived / marts objects come from `mwh catalog
+> info`'s `objects` block (EP-34) or `information_schema`. (5) The latency toggle is EP-57's
+> Settings field, not `MWH_APP_RECORD_LATENCY`.
 ## Context
 
 The first real page of the Lab app (DESIGN §16 "Catalog & QC"). Everything it shows is

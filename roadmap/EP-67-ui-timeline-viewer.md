@@ -2,6 +2,28 @@
 
 **Size:** M · **Tier:** fixture+demo · **Core/Stretch:** core · **Depends on:** EP-49 (Event-aligned timeline API), EP-58 (App shell B: row-view gate + app-side small-cell enforcement) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-49 ☑ `ed73fff`); the EP-33
+> rename block below is now concrete. Read the body against `roadmap/README.md` § "P3 → P4
+> name corrections". Brief-specific: (1) **aggregate mode** — `timeline.event_density` does
+> not exist; the shipped path is `timeline.align(anchor, source, window, …)` →
+> `timeline.hourly_bins(…, fill=True)` → `timeline.population_summary` (per code × bin:
+> `n_units`, pooled mean, per-unit quartiles, extremes, released row-wise through the
+> `safe.SUPPRESSOR` seam; the event count is deliberately **not** released — D-33 addendum,
+> EP-49), with `timeline.band_chart` / `band_spec` as the Altair precedent; lanes are the
+> `EventSource` presets `transfers()`, `meds(codeset, source)`, `procedures(itemids)`,
+> `labs(itemids)`, `vitals(itemids)`, `inputs`, `outputs`, `micro`; anchors `timeline.anchor
+> (name)` / `ANCHORS` + the factories. (2) **single-stay mode** — `timeline.stay_events
+> (stay_id, sources, conn=)` behind `timeline.require_owner(con)` (a connection from
+> `open_catalog(tier, role="owner")`), wrapped by EP-58's `owner_rows()`; it appends one
+> `row_view:stay_events sources=…` audit line whose `statement_sha256` covers the request
+> and whose `sql_text` never carries the id — keep it that way in the page (no `stay_id`
+> in captions, logs, query strings or `st.session_state` dumps; the acceptance's "last
+> audit line carries a hash and no `stay_id` value" reads the `runs.audit` view, there is
+> no `safe.read_audit`). (3) Plotly lanes are new code (`viz/timeline_plotly.py`); the
+> shipped charts are Altair — keep Plotly inside the gated single-stay branch only (D-21).
+> (4) Fixture + demo only, as briefed: the demo catalog is `warehouse/demo.duckdb`; the
+> fixture's 75 synthetic stays make every aggregate bin fall below k (EP-49's fixture
+> probe) — assert the withholding, not the numbers.
 > **EP-33 rename (2026-09-01).** `safe.owner_rows` (item 2) does not exist at EP-33 (ledger
 > P3C-3): EP-49 item 4 now defines the owner gate for `stay_events` (`open_catalog(role=
 > "owner")` + an audited `row_view:` line via `fsio.append_jsonl`/`safe.AuditLine`), and EP-58

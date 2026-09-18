@@ -22,22 +22,24 @@ latest addendum's date and EP.
 | D-3 | MIMIC-IV-Note = optional late track | settled | — |
 | D-4 | ED enters via the Linkage Wizard | refined at EP-33 (demo ED fetched, not staged) | 2026-08-30, EP-33 |
 | D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
-| D-15 | uv-managed CPython 3.13, one venv | refined at EP-7, EP-166 (wheel rule, psutil) | 2026-08-28, EP-166 |
+| D-15 | uv-managed CPython 3.13, one venv | refined at EP-7, EP-166 (wheel rule, psutil), EP-54 (FC-9: `vl-convert-python` core; no P4 toolchain slot) | 2026-09-17, EP-54 |
 | D-16 | CPU-first, GPU opt-in | settled | — |
-| D-17 | DuckDB + Parquet lake canonical | refined at EP-9, EP-166, EP-169, EP-17, EP-33 (engine facts; NULLS LAST canonical), EP-41 (fixture writer aligned, CTR-1 closed) | 2026-09-06, EP-41 |
+| D-17 | DuckDB + Parquet lake canonical | refined at EP-9, EP-166, EP-169, EP-17, EP-33 (engine facts; NULLS LAST canonical), EP-41 (fixture writer aligned, CTR-1 closed), EP-50 (partitioned-`COPY` seams recorded), EP-54 (seams: document and leave; fix before P9) | 2026-09-18, EP-54 |
 | D-18 | Tiers fixture / demo / dev / full | refined at EP-166, EP-33 (dev-first ordering) | 2026-08-30, EP-33 |
-| D-19 | mimic-code vendored at a pin | refined at EP-8 (pin recorded) | 2026-08-17, EP-8 |
-| D-20 | Custom `mwh build` runner | refined at EP-33 (⏱ job standard; lock identity; dry-run rule) | 2026-09-01, EP-33 |
+| D-19 | mimic-code vendored at a pin | refined at EP-8 (pin recorded), EP-37 (runner, no local edits), EP-38 (patch registry), EP-42 (phenotypes pin the executed SQL), EP-54 (PR re-check; row sum reconciled) | 2026-09-17, EP-54 |
+| D-20 | Custom `mwh build` runner | refined at EP-33 (⏱ job standard; lock identity; dry-run rule), EP-37 (concept runner as built), EP-54 (per-tier layout as the P4 contract; sampler / tags / marts-tag rulings) | 2026-09-17, EP-54 |
 | D-21 … D-23 | Streamlit app · marimo scratch only · Jinja2/Typst reporting | settled | — |
-| D-24 | JSONL ledgers + `runs.duckdb` views | refined at EP-166, EP-33 (ledger practice; `fsio` canon) | 2026-09-01, EP-33 |
-| D-25 | Protocol freeze by content hash | refined at EP-46 (cohort specs hashed and locked the same way) | 2026-09-16, EP-46 |
+| D-24 | JSONL ledgers + `runs.duckdb` views | refined at EP-166, EP-33 (ledger practice; `fsio` canon), EP-35/EP-36 (run ledger, seeds, resources), EP-54 (ledgers as the P4 contract; `runs` stays non-registry) | 2026-09-17, EP-54 |
+| D-25 | Protocol freeze by content hash | refined at EP-46 (cohort specs hashed and locked the same way), EP-51 (as built), EP-54 (format confirmed for P4/P5/P8) | 2026-09-17, EP-54 |
 | D-26 | Raw provenance = local manifest | refined at EP-10, EP-166, EP-16 | 2026-08-28, EP-16 |
 | D-27 | Synthetic fixture generator | refined at EP-9, EP-166, EP-16 (id floors, 0.2.0, regen protocol), EP-41 (0.3.0: T2DM inputs, outcome enrichment, NULLS LAST) | 2026-09-06, EP-41 |
 | D-28 | ≤ 5 s latency via marts | settled | — |
 | D-29 | Data placement (repo, data root, never G:/D:) | refined at EP-3, EP-7 | 2026-08-17, EP-7 |
 | D-30 | Plain CSVs untouched | settled | — |
 | D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy) | 2026-09-01, EP-33 |
-| D-32 … D-34 | owner row view in-app · small cells n < 11 · MIT + `gpl` group | settled | — |
+| D-32 | Owner row view in-app | refined at EP-49 (the `mwh_role` session-variable gate of `stay_events`) | 2026-09-17, EP-49 |
+| D-33 | Small cells n < 11, complementary suppression | refined at EP-39, EP-41, EP-42, EP-43 (the one implementation; hook swap), EP-44, EP-45, EP-47, EP-48, EP-49, EP-50 (build-time suppression of registry tables; chain mode; released shapes), EP-54 (count-column rule; MISS-4 → EP-72) | 2026-09-18, EP-54 |
+| D-34 | MIT + `gpl` group | settled (heading restored verbatim at EP-42) | — |
 | D-35 | Vocabularies: free first | refined at EP-16 (register), EP-172 (GEM review policy) | 2026-09-16, EP-172 |
 | D-36, D-37 | future data via wizard · hupsim roadmap format | settled | — |
 | D-38 | Owner-side Windows tuning | refined at EP-0, EP-6/7, EP-164, EP-165, EP-166 (two AV products, nine-path allow list) | 2026-08-28, EP-166 |
@@ -45,9 +47,11 @@ latest addendum's date and EP.
 | D-40 | Remote content = code + docs + gated aggregates | refined at EP-166 (owner reading) | 2026-08-28, EP-166 |
 | D-41 | MIT now; public at v1.0.0 | refined 2026-08-18 (public early, as governed WIP) | 2026-08-18, owner |
 | D-42 | Endpoint security stays two products | refined at EP-165, EP-171, EP-33 (retry/publish canon) | 2026-09-01, EP-33 |
-| D-43 | Retro consolidation of P0 + P1a | refined at EP-165, EP-166 (shipped), EP-33 (B9 repair) | 2026-08-31, EP-33 |
+| D-43 | Retro consolidation of P0 + P1a | refined at EP-165, EP-166 (shipped), EP-33 (B9 repair), EP-54 (item 3 roster re-check: new write-capable connectors → owner package) | 2026-09-17, EP-54 |
 | D-44 | EP-33 = consolidation re-plan of P0–P2 | refined at EP-33 (executed over three attempts; checkpoint outcomes = D-45) | 2026-09-01, EP-33 |
 | D-45 | EP-33 triage-checkpoint decisions | settled 2026-09-01 | — |
+| D-46 | Definitions = versioned package data + lock file; studies from the data root | recorded 2026-09-17 at EP-54 (the pattern EP-40/41/46/51 settled) | — |
+| D-47 | EP-54 checkpoint decisions (SPINE-1, LOAD-5, MISS-4, the EP-173 debt sweep, connectors, no toolchain slot, commit) | settled 2026-09-18 | — |
 
 ---
 
@@ -170,6 +174,18 @@ cp313 Windows wheels for every library in the stack; spaCy has no cp314 wheels; 
 > `win_amd64` wheels, so `test_ep01`'s wheel check stays green; EP-19 states the addition in
 > its completion note per the rule above. No other new core dependency is planned for P2.
 
+> **Addendum (2026-09-17, EP-54 — FC-9 closed; the P3 dependency facts).**
+> `vl-convert-python` (1.9.0.post1, wheels for cp313 win_amd64) is a **core** dependency
+> since EP-48 (the attrition PNG renderer; EP-49 and EP-53 render figures with it too) and
+> is no longer listed in `ui` — the placement question the EP-33 re-verification left with
+> EP-54 (ledger FC-9). Other P3 additions to core: `statsmodels` use for the EP-45 / EP-53
+> intervals (already a core dependency), `jsonschema` (transitive of altair, used by EP-46's
+> schema check — no new entry). The `ui` group holds `streamlit==1.61.*` and `vegafusion`
+> only; `uv lock --check --offline` is current at 101 packages with one `pyarrow 24.0.0`
+> for core and `ui`, so **no P4 toolchain-remediation brief is allocated** (the P4 slot
+> question of D-8's re-plan rule; `roadmap/retro-p3.md` § Toolchain). The wheel rule above
+> held through P3: no new sdist.
+
 **D-16 CPU-first; GPU is an opt-in late track.** `gpu` dependency group installs torch
 from `https://download.pytorch.org/whl/cu130` (`explicit=true`; PyPI torch is CPU-only on
 Windows; cu126 lacks sm_120); XGBoost `device="cuda"` as comparator; LightGBM CPU is the
@@ -278,6 +294,22 @@ native only; pandas primary.
 > `COPY`s and restaging the 18 small partitioned tables (out of EP-50's scope; EP-54 may
 > still choose it).
 
+> **Addendum (2026-09-18, EP-54 — the seams: document and leave; owner decision D-47
+> item 2).** The staged lake is **not** restaged in P4–P8 for the small-path seams: no
+> reader depends on physical order, the sha256 determinism tests hold run to run, and a
+> restage would move the core snapshot id that every derived layer (65 concepts, five
+> phenotypes, two cohort marts, the spine) and every run manifest cite. DESIGN §5 now says
+> so where it used to say "each partition file lands sorted". The fix is **scheduled**, not
+> dropped: the small path switches to the pass-2 shape (one sorted single-file `COPY` per
+> bucket) and the 18 small partitioned tables are restaged in one pass **before P9's ED
+> staging** (EP-147's window, with the parked LOAD-4 parallel sort) — the next time the
+> loader writes anyway, when moving the core snapshot id is part of the plan. *Why:* the
+> lake's bytes are the one thing D-44 declared untouchable mid-phase; the defect is
+> cosmetic today and the window to fix it cheaply exists. *Alternatives (rejected):* an
+> in-place per-bucket re-sort now (an S brief touching the credentialed lake for no
+> consumer); restaging the 18 tables now (every derived layer would need a rebuild to
+> re-cite the new core id).
+
 **D-18 Tiers fixture / demo / dev (5 %) / full.** Every EP passes tests on fixture+dev
 and records a full-tier run with timing where meaningful; long full jobs run as
 resumable background jobs verified by the next EP. *Alternatives:* sample only until late;
@@ -376,6 +408,19 @@ adopt as-is untested.
 > the upstream commit only (blind to patches); check at summary time (too late — the
 > table is already built); a warning instead of a refusal (a silent drift).
 
+> **Addendum (2026-09-17, EP-54 — the P3 re-plan's re-check).** Rule (2) executed: all
+> four ported PRs (#2146, #2141, #2142, #2137) and the regeneration PR #2157 are still open
+> upstream (last activity 2026-08-05 … 2026-08-25); `MIT-LCP/mimic-code` `main` moved to
+> `303d26c` (2026-09-01) with no change under `mimic-iv/concepts*`, so the pin `8bcbd190…`
+> stands and every patch stays `ported-unmerged`; next re-check EP-74. The count pins are
+> stable: demo 65 / 65 before and after the patches. The derived row sum that EP-53 handed
+> on is **reconciled, not drift**: EP-38's completion-note total (95,777,751) is EP-37's
+> pre-patch build, the patched rebuild removed 56 unit-less CRP rows from `inflammation`
+> and one specimen from `complete_blood_count`, and `meta.concept_versions` and the
+> benchmark ledger both read **95,777,694** (the derived snapshot id moved with it). The
+> DuckDB 1.5.x "breakage" list stayed empty through P3 — the decision's "fixes ported"
+> clause has only ever carried upstream's own fixes.
+
 **D-20 Custom lightweight transform runner (`mwh build`).** YAML DAG of SQL/Python
 steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → final-roadmap.
 *Why:* provenance capture and tier switching are the point; ~600 LOC we control.
@@ -441,6 +486,27 @@ steps, tier-aware, manifests/snapshot ids, timings. dbt-duckdb and SQLMesh → f
 > and broke `test_ep19`'s crafted failure). (10) Demo count-pins are committed with cells
 > below 11 as `"<11"` (the brief's rule; ODbL data, GOVERNANCE §3); dev pins stay under
 > `runs/pins/`.
+
+> **Addendum (2026-09-17, EP-54 — the per-tier derived / marts layout as the P4 contract,
+> and three runner questions closed).** The layout every P3 producer followed is the rule
+> P4 inherits: `lake/derived/<tier>/<schema>/<table>/part-0.parquet` (concepts, phenotypes
+> under `phenotypes/<id>@<version>/`), `lake/marts/<tier>/<mart>/…` (cohorts under
+> `cohorts/<id>@<version>/`; EP-55/56's latency marts beside them), `lake/meta/<tier>/
+> <table>.parquet` for registry tables (raw twins under `meta/<tier>/raw/`, never walked),
+> the bucketed `derived/<tier>/spine/source=<s>/subject_bucket=NN/` as the one exception;
+> the EP-37 walker registers the first two shapes and a `register_<x>` extension the rest.
+> Measured at the P3 close: derived + spine ≈ 2.2 GB on full, no temp spill (DESIGN §3
+> note). Closed here: (1) **the runner keeps its per-step `_RssSampler`** (EP-36's
+> deferral) — every CLI build runs inside `run.start`, so run-level `ResourceLog` numbers
+> exist for every job; per-step `disk_delta_mb` is parked (`final-roadmap.md` PROV-2);
+> (2) **`cohorts.build` stays under the `marts` tag only** (EP-47's deferral): `--tag
+> cohorts` = the registry index, `--tag marts` = every mart build; (3) **the concept-group
+> tags keep their mimic-code names** (EP-45's deferral): `--dry-run` before naming a tag
+> after a group is the rule (`docs/gotchas.md` §3); a `concept-<group>` prefix is an XS
+> item for the P4 debt sweep if the owner allocates it (D-47). *Alternatives:* route the
+> runner's sampler through `ResourceLog` now (rejected: a code change in a docs-only
+> re-plan for numbers nobody has asked for); add `cohorts` to the build step (rejected:
+> EP-46's `--tag cohorts` acceptance changes and the two tags stop meaning two things).
 
 **D-21 App = Streamlit 1.61 multipage "Lab" app, one process; Altair/Vega-Lite
 (+VegaFusion) primary, Plotly for timelines; linked brushing essential on Explorer.**
@@ -531,6 +597,19 @@ append-only JSONL ledgers.** *Alternatives:* MLflow (parked as mirror); plain fi
 > runner's per-step sampler through `ResourceLog` now (deferred to EP-54: out of this
 > brief's scope, and the runner is proven by five ⏱ jobs).
 
+> **Addendum (2026-09-17, EP-54 — the ledgers as the P4 contract).** As P3 left them
+> (DESIGN §11 EP-54 note carries the field lists): `runs/ledger.jsonl` + `runs/<run_id>/
+> manifest.json` (EP-35/36), `runs/benchmarks.jsonl` with the `BENCHMARK_KINDS` vocabulary
+> (`stage`, `catalog`, `python`, `sql`, `build`, `verify`, `concept`, `phenotype`, `mart`,
+> `query`, `bench`, `concept_patch`, `spine_source`), `runs/audit.jsonl` (statement-shaped
+> lines; the EP-49 `row_view:` precedent for app events), `runs/protocols.jsonl` (EP-51),
+> and the six `runs.duckdb` views. Two P4-facing rulings: a page-latency record is a
+> `run.bench(...)` line with a kind added to `BENCHMARK_KINDS` by EP-56/57 — never a
+> second writer or a free-form dict; and `runs` stays outside the safe-query registry
+> exemption (D-45 item 6; EP-35's "revisit at EP-54" closed as *keep* — the session
+> listings are `mwh runs list | show` and `mwh protocol list`; EP-136 revisits for the Runs
+> page). The runner's per-step `_RssSampler` is kept (D-20 addendum of the same date).
+
 **D-25 Protocol freeze = YAML protocol → content hash → registry entry before run;
 amendments logged; runs must cite a frozen hash.** *Alternatives:* git commit as freeze;
 documentation only.
@@ -594,6 +673,19 @@ documentation only.
 > would move the hash); a ledger-only amendment link (the frozen copy would not say what
 > it amends); injecting `amends` / the reason into the copy (breaks byte-for-byte);
 > requiring the reason inside the YAML (it is documentation, not definition).
+
+> **Addendum (2026-09-17, EP-54 — the registry format confirmed as the P4/P5/P8
+> contract).** Nothing changed at the P3 close; recorded so no later brief re-derives it:
+> the `runs/protocols.jsonl` line (`PROTOCOLS_COLUMNS`), the read-only frozen copy
+> `runs/protocols/<hash>.yaml`, the `runs.protocols` view, the `run.start(protocol_hash=,
+> claim_type=)` hook and `mwh protocol freeze | verify | amend | list | show | run` are what
+> EP-95 (target trial), EP-110 (signature #1), EP-128 (Freezer page) and EP-129
+> (temporal-holdout runner, whose `TemporalHoldout` block already exists in the spec)
+> build on; a new runner registers through `protocol.runners.register_runner`. The seed's
+> frozen hash `d629a21d…` is data-root independent (content + resolved reference hashes),
+> so briefs may cite it. Cohort specs (EP-46) and protocols (EP-51) are the two layers of
+> this decision; code sets and phenotypes (EP-40/41) apply the same `id@version` +
+> `def_hash` + lock-file rule one layer further down — the pattern is D-46.
 
 **D-26 Raw provenance = local manifest (SHA256/size/rows) + row-count reconciliation vs
 mimic-code `validate.sql`.** Plain CSVs cannot be checked against PhysioNet's
@@ -1076,6 +1168,25 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > "one count column per released row" question stays with EP-54. *Alternatives
 > (rejected):* release `n_events` only (loses the subject census EP-83 wants); defer the
 > shape to EP-54 (the table is already gate-clean as built).
+
+> **Addendum (2026-09-18, EP-54 — the count-column rule, and the at-risk curve routed;
+> owner decision D-47 item 3).** (1) **No per-table policy for released count columns.**
+> A frame that reaches `disclose.suppress` may carry nested counts (`n_events` /
+> `n_subjects` in `meta.spine_codes`; the six `meta.mp_*` tables) because the primitive
+> knows nested pairs and the additive identities and withholds where a published
+> difference is small — the EP-50 shape; a surface that cannot reach the primitive
+> because it releases row-wise through the `safe.SUPPRESSOR` hook (`timeline.
+> population_summary`) releases one count column per row — the EP-49 shape. The two are
+> one rule applied at two points, not two policies; DESIGN §14 (EP-54 note) records it
+> for P4's renderers. (2) **Risk 17 / MISS-4 is routed to EP-72**, the next consumer of
+> `meta.mp_item_hourly`: a `check` finding for monotone (non-increasing) count columns
+> and a chain-style band with a floor at k for at-risk sequences, in the `disclose`
+> module — never in a renderer (GOVERNANCE §5); nothing monotone is promoted until it
+> lands (EP-53 promoted none), and EP-91's KM / at-risk tables inherit the rule. *Why:*
+> the primitive is the one implementation of the small-cell rule; a fix in EP-72's scope
+> lands with its first consumer and a test on real shapes. *Alternatives (rejected):* a
+> separate S brief before EP-72 (a rule without a consumer); accepting the residual and
+> closing Risk 17 (weakens GOVERNANCE §5 for one table shape).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
@@ -1633,6 +1744,19 @@ full` ladder; pinning numpy/polars minors; refusing on unknown env vars.
 > (EP-170), and item 5's two owner actions (VS Code restart; ninth/eighth Malwarebytes
 > paths — see the D-38 EP-165 addendum).
 
+> **Addendum (2026-09-17, EP-54 — item 3's roster re-check at the P3 re-plan).** GOVERNANCE
+> §4 asks every re-plan to re-check the connector roster, which is claude.ai account state.
+> Found: the read-only lookups are unchanged and Google Drive is still unauthorised, but the
+> roster now offers **write-capable tools the thirteen denies of EP-165 do not cover** —
+> Claude Docs `create` / `batch` / `update` / `delete` / `export` (hosted documents, a
+> second egress path for free text), Excalidraw `create_view` / `save_checkpoint` /
+> `export_to_excalidraw`, the alphaXiv folder / metadata writes, Gmail `create_label` /
+> `update_label`. The EP-54 session used none of them. Per D-45 item 4 the deny additions
+> are an **owner-applied package** (`ep54-connector-denies.md` in the session scratchpad,
+> the B7 shape: paste into `permissions.deny`, `mwh guard --selfcheck`, one commit) — the
+> owner's decision is D-47. Standing rule restated: a re-plan re-checks the roster and
+> authors the diff; a session never edits `.claude/settings.json` itself.
+
 **D-44 EP-33 becomes the consolidation re-plan of P0–P2, executed as one multi-agent
 session (2026-08-30, owner).** The owner re-scoped EP-33 from the standard S re-plan to an
 **L** episode that reconciles, simplifies and hardens everything shipped in P0–P2 before
@@ -1745,3 +1869,69 @@ stays in `inventory.py`; no agent round over the completeness critique's ten gap
 *Why:* each option preserves functionality and architecture while removing a duplicate
 paradigm or a defect class; the owner's D-44 goal. *Alternatives considered:* per item,
 recorded in the checkpoint questions (`roadmap/retro-p2.md` § Checkpoint minutes).
+
+**D-46 Definitions are versioned package data behind a lock file; studies extend them
+from the data root (2026-09-17, recorded at EP-54 as the pattern P3 settled).** Every
+definition layer P3 built — code sets (`codesets/defs/` + `codesets.lock.json`, EP-40),
+phenotypes (`phenotypes/defs/` + `phenotypes.lock.json`, EP-41/42), cohort specs
+(`cohort/specs/` + `cohorts.lock.json`, EP-46) and protocols (`protocol/specs/` + the
+`runs/protocols.jsonl` registry, EP-51) — follows one rule: a definition is a YAML file
+shipped as **package data**, addressed as `id@version` (semver), hashed as the canonical
+JSON of its *definition* with every referenced definition's hash inlined (`def_hash` /
+`content_hash`; documentation fields excluded, defaults made explicit), and **frozen once
+released** — the committed lock file records every `(id, version, hash)` and an edited
+released version refuses (`*FrozenError`, exit 3); the fix is a version bump. A **study**
+keeps its own definitions under the data root's `studies/<study_id>/` (backed up by EP-52,
+never committed) and adds them to a registry with `--specs / --codesets / --phenotypes
+DIR`; the materialised outputs record the hash they were built from and a moved hash
+refuses to overwrite them (`ConceptPinMismatchError`, the cohort `--force` rule,
+`ProtocolFrozenError`). *Why:* GOVERNANCE §12 — every run must reproduce from the
+definitions it cites; package data makes the seeds part of the tested code, the lock file
+makes immutability mechanical, the study directory keeps unreviewed definitions out of git
+and inside the backup set. *Alternatives considered:* definitions in the data root only
+(untested, unversioned by git); a database table as the registry (a second source of
+truth beside the YAML); git tags as the freeze (a commit is not a definition hash;
+studies would need commits).
+
+**D-47 EP-54 checkpoint decisions (2026-09-18, owner).** Two rounds of questions (four +
+three) at the P3 re-plan, after the records were written and the gates run; the
+recommended option taken in every case (`roadmap/retro-p3.md` § Checkpoint minutes):
+
+1. *SPINE-1.* The v1 events spine keeps raw `chartevents` out; the measured cost of the
+   curated-itemid subset (65,929,526 rows ≈ 0.2 GB, under a minute) is recorded on the
+   `final-roadmap.md` row for EP-83 or the MEDS export to trigger (DESIGN §21 resolved).
+2. *LOAD-5.* The loader's small-path seams are documented and left (DESIGN §5 note, D-17
+   addendum); the small path switches to per-bucket single-file `COPY`s and the 18 small
+   partitioned tables are restaged **before P9's ED staging** (EP-147's window, with
+   LOAD-4) — the core snapshot id does not move mid-v1 for a cosmetic defect.
+3. *MISS-4 / Risk 17.* Routed to EP-72 as a `disclose` refinement (monotone-count check +
+   a chain floor at k; D-33 addendum); Risk 17 stays open until then; nothing monotone is
+   promoted meanwhile.
+4. *Debt sweep.* **EP-173 — Debt sweep (P4): carried-low fixes** (S, core) is allocated at
+   the head of P4 before EP-55 (→ 174 briefs, 24 S · 148 M · 2 L): the fix-now rows of the
+   carried-low re-triage led by SGT-5 (the safe-query metadata-function hole), the XS
+   correctness items, the S-sized provenance / test items in order, the session-guard trio
+   SGD-5/6/7 as an owner-applied package authored by the brief, the concept-tag prefix as
+   the optional tail; LDR-7 + LDR-9 are the named overflow; the rest stays AUDIT-1.
+5. *Connectors.* The owner applies the EP-54 deny package (`ep54-connector-denies.md` in
+   the session scratchpad: Claude Docs create / batch / update / delete / export, Excalidraw
+   create_view / save_checkpoint / export, the alphaXiv folder / metadata writes, Gmail
+   create_label / update_label) themselves — a session never edits `.claude/settings.json`
+   (D-45 item 4); D-43 addendum records the roster gap.
+6. *Toolchain slot.* Not allocated for P4 — no wheel or version fight is open (D-15
+   addendum); the fixture-suite wall goes to EP-74's pickup note.
+7. *Commit.* The EP-54 work lands in the two standard steps (`docs(roadmap): re-plan P3
+   (EP-54)`, then the ☑ hash commit), no push — the owner pushes.
+
+Routine calls stated in the re-plan and not objected to: the EP-19 runner keeps its
+per-step `_RssSampler` (D-20/D-24 addenda; PROV-2 parked); `runs` stays outside the
+safe-query registry exemption (D-24); the mimic-code concept-group tags keep their names
+(the `--dry-run` rule; the prefix is EP-173's optional item); `cohorts.build` stays under
+the `marts` tag only (D-20); no per-table count-column policy (D-33); the `mwh_role` stamp
+moves into `engine.open_duckdb` only if EP-57/58 open connections elsewhere (pickup notes);
+FC-9 recorded (D-15); the 57-row derived sum reconciled as the EP-38 patch effect (D-19);
+definitions-as-package-data recorded as D-46. *Why:* each option keeps the lake's bytes
+and the governance rules unchanged while naming a concrete later owner for every deferred
+fix; the debt sweep spends the P4 slot on a verified governance hole rather than an
+unneeded wheel fight. *Alternatives considered:* per item, in the checkpoint questions
+(`roadmap/retro-p3.md` § Checkpoint minutes).

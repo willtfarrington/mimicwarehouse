@@ -2,6 +2,16 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-64 (Explorer A: server-side aggregation service + VegaFusion) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: the pairwise-`n` mask
+> and the cross-tab cells go through `disclose.suppress(df, k, count_cols=["n"],
+> group_cols=[x, y], complementary=True)` for anything exported and `disclose.warn_badges`
+> in-app — the primitive's margin model already handles a cross-tab's row / column totals
+> (every proper subset of the group columns is a margin) and nested count pairs, so do not
+> re-implement complementary suppression in `viz/heatmap.py`; arithmetic over aggregates
+> stays out of SQL (DIS-3) — correlations are computed in DuckDB with `corr()` /
+> `regr_*` over the mart, Spearman via `rank()` in a CTE, never post-hoc from released
+> cells. The `MWH_APP_RECORD_LATENCY` toggle is EP-57's Settings field.
 ## Context
 
 Completes the Explorer (DESIGN §16: distributions, heatmaps/correlations, cross-tabs) with the

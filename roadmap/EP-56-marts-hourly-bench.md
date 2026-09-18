@@ -2,6 +2,28 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + itemid rollups ⏱) · **Blocks:** EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; the EP-170 / EP-33 blocks
+> below stand; read the body against `roadmap/README.md` § "P3 → P4 name corrections".
+> Brief-specific: (1) **`marts.icustay_hourly` vs `mimiciv_derived.icustay_hourly`** — the
+> latter is a vendored mimic-code concept (one row per stay × hour, EP-37); name the mart
+> so the two cannot be confused in prose (`marts.icustay_hourly` is fine as a *schema-
+> qualified* name; never cite either unqualified), and consider building on it. (2) The
+> bin helpers exist: `timesem.hour_bin` / `sql_hour_bin` / `bin_bounds`, `timeline.
+> hourly_bins(fill=True, window=…)`; the released population shape is `timeline.
+> population_summary` (one count column per bin — D-33 addendum; the EP-49 benchmark
+> `timeline_labs_icu_in_48h` is already a `kind: query` ledger line you can compare
+> against). (3) **The bench harness is new code**: there is no `mwh bench` group yet — this
+> brief creates `mwh bench queries`, and the latency records are `run.bench(...)` lines with
+> a kind you **add to `dag.benchmarks.BENCHMARK_KINDS`** (`page_query`; EP-57 adds
+> `page_latency` the same way) — never a second ledger writer, never a free-form dict
+> (D-24 addendum, EP-54). (4) The app-tier DuckDB settings are `Settings.duckdb_app_memory_
+> limit` (`MWH_DUCKDB_APP_MEMORY_LIMIT`) and the shared `duckdb_threads` (the EP-170 block);
+> any `MWH_MARTS_HOURLY_MAX_HOURS` knob is a Settings field with `.env.example` parity.
+> (5) The tracer cohort's attrition for query (h) is `cohort.build.attrition("first_icu_
+> adults@1.0.0", tier)` (chain-suppressed) or the `runs.attrition` view. (6) `blood_gas` →
+> `bg`. (7) This brief also **verifies EP-55's ⏱ job** (`mwh jobs --job ep55-marts-full
+> --tail 20`, `mwh runs benchmarks --tier full --kind mart`) and appends EP-55's completion
+> note — the D-18 record-keeping pattern (every P3 ⏱ job finished inside its session).
 > **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
 > table. Item 4's env names do not exist: the shipped Settings field is
 > `duckdb_app_memory_limit` (env `MWH_DUCKDB_APP_MEMORY_LIMIT`, default 12GB), and threads are

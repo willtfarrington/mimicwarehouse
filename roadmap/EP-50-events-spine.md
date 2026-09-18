@@ -263,3 +263,25 @@ is a logged background job verified by EP-54; expected 15–45 min with `memory_
 > prefixes are the pathway alphabet; `meta.spine_codes` the census); EP-49 / EP-55: the
 > spine is a substitute event source for the presets' `events_sql()` shape; a MEDS export
 > (MEDS-1) starts from the five MEDS columns of the view.
+
+> **Completion note (2026-09-17, EP-54 — the ⏱ verification).** Verified read-only by the
+> P3 re-plan, exactly as the brief's item 4 and EP-54's item 1 ask; nothing was relaunched or
+> re-measured. `mwh jobs --job spine-full --tail 40` → state `done`, pid 45636, exit 0,
+> started 2026-09-17T16:32:32Z, finished 16:35:15Z; build `20260917T163233-full-aef1cfd` ok
+> in 161.4 s (run `20260917T163234Z-2a6060`: wall 157.4 s, CPU 320.6 s, peak RSS 825.1 MB
+> (`peak_wset`), disk delta +1,104.2 MB — the 867 MB written plus the catalog rebuild, so no
+> spill of note). `mwh sql "SELECT source_table, count(*) AS n FROM mimiciv_derived.spine
+> GROUP BY 1 ORDER BY 1" --tier full` returns the thirteen rows of the table above row for
+> row (0 suppressed; audit `41e6417b…`; snapshot core/full `b1fc5313…`). `mwh spine validate
+> --tier full --no-write` passes all seven checks (`no_denied_columns`, `meds_schema`,
+> `time_not_null`, `subject_in_patients`, `text_value_bounded`, `code_bounded`,
+> `sorted_within_file`) over 13 sources, 1,300 files, 280,203,383 rows, exit 0;
+> `meta.spine_validation` on `full.duckdb` carries the EP-50 row (13 / 1,300 / 280,203,383 /
+> 7 checks / ok = true) and `meta.spine_codes` its 18 prefix × source rows with nothing
+> suppressed. `mwh runs benchmarks --tier full --kind mart --format md` carries a `kind:
+> mart` line for every source and for `spine.union` with the rows, wall and bytes of the
+> table above (the Parquet column sums to 0.87 GB = 867,290,614 bytes, 0.81 GiB, 1,300
+> files under `lake/derived/full/spine/`). The D3-vs-actual delta is recorded in DESIGN §3
+> and roadmap Risk 6; the chartevents vitals-subset question (SPINE-1) and the loader seam
+> (LOAD-5) were decided at the EP-54 review — `roadmap/retro-p3.md` § Checkpoint minutes
+> and DECISIONS D-47 carry the outcomes.

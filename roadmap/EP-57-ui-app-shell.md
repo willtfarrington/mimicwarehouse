@@ -2,6 +2,32 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-5 (Visual identity), EP-30 (Safe-query wrapper + audit log) · **Blocks:** EP-58 (App shell B: row-view gate + app-side small-cell enforcement), EP-60 (Screenshot tooling), EP-61 (Catalog & QC browser page), EP-62 (Cohort Builder page), EP-63 (Phenotype Studio page), EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-69 (Prevalence/incidence page), EP-73 (Capstone #2: EDA case study + screenshots), EP-88 (Analysis pages wave 1), EP-99 (Survival / causal app pages), EP-125 (ML pages in app), EP-128 (Protocol Freezer page + amendments UI), EP-134 (Runs & Provenance browser + Reports page / export gallery), EP-140 (Linkage Wizard A (profile → map)), EP-154 (Text pages in app (search only)), EP-159 (Demo mode for the app)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; the EP-170 block below stands;
+> read the body against `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific:
+> (1) **`safe_query` has no `params=`, `conn=` or `suppress=`** (item 3's `query()`): the
+> shipped signature is `safe_query(sql, *, tier=None, k=None, row_cap=…, timeout_s=…,
+> actor=…, settings=…)`; it opens its own READ_ONLY connection per call and the
+> `disclose.safe_suppressor` hook always applies (a session read is a release path, D-33
+> addendum EP-43). So `ui.conn.query` is a thin cache around `safe_query(sql, tier=tier,
+> actor="owner")` keyed on `(tier, sql, snapshot id)`; filter values are validated against
+> the dictionaries **before** interpolation (no parameter path exists — extend `safe.py`
+> only with a reviewed `params=` that binds literals through DuckDB's parameter API and
+> keeps the AST walk on the unbound statement; say so in the completion note and EP-64 uses
+> it). `get_conn(tier)` for the few non-`safe_query` reads (`meta.catalog_info`, snapshot
+> ids) is `catalog.connect.open_catalog(tier)` — it stamps the DuckDB session variable
+> `mwh_role` (EP-49, D-32 addendum); EP-58's gate reads it. (2) **`mwh app` and `ui/` are
+> this brief's to create** (`cli.py` gains one `add_typer` line; the sub-app must stay light
+> at import — Streamlit loads inside the command body, the B6 budget with a `test_ep57`
+> pin); `settings.app_dir`, `MWH_APP_TIER` and the latency toggle are new Settings fields
+> (`extra="forbid"`, `.env.example` parity). (3) **Page latency**: `page_start` / `page_end`
+> write `run.bench(kind="page_latency", …)` with the kind added to `dag.benchmarks.
+> BENCHMARK_KINDS` (EP-56 adds `page_query` the same way) — the one ledger writer (D-24
+> addendum, EP-54); `marts.bench.record_page_latency` does not exist. (4) Home cards:
+> `meta.tables` / `meta.row_counts` / `meta.catalog_info` exist; the layer snapshot ids come
+> from `dag.snapshot.read_snapshots` (layers `core`, `derived`, `marts` per tier), the
+> derived objects count from `mwh catalog info`'s `objects` block (EP-34). (5) Where the app
+> opens connections outside `open_catalog`, decide with EP-58 whether the role stamp moves
+> into `engine.open_duckdb(profile, role=…)` (EP-49's question, D-47) and record it.
 > **Amended at EP-170 (2026-08-29).** Header facts unchanged; shorthand per the README notation
 > table. (1) Item 1's env/Settings names do not exist as written: memory limit is the shipped
 > `duckdb_app_memory_limit` (`MWH_DUCKDB_APP_MEMORY_LIMIT`); threads are the shared

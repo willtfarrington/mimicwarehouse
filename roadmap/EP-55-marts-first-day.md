@@ -2,6 +2,35 @@
 
 **Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-56) · **Core/Stretch:** core · **Depends on:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-39 (Itemid dictionary curation + unit harmonization) · **Blocks:** EP-56 (Latency marts B: hourly bins + <=5 s benchmark), EP-102 (Model-ready dataset A: feature spec, windows, normalization, indicators)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-38 ☑ `c5c0b0c`, EP-39 ☑
+> `963ab67`); read the body against `roadmap/README.md` § "P3 → P4 name corrections" — the
+> shipped names override the text. Brief-specific: (1) **layout** — the marts are per tier,
+> `lake/marts/<tier>/icustay_first_day/…` etc. (item 2's `lake\marts\icustay_first_day\
+> subject_bucket=NN\` gains the tier segment; the cohort marts already sit at
+> `lake/marts/<tier>/cohorts/`), and the catalog registers them through a `register_marts`
+> extension of your own appended to `catalog.build.CATALOG_EXTENSIONS` (the EP-47 one
+> registers the cohorts; there is no `register_meta`) — `meta.tables` / `meta.columns` are
+> EP-29's core-table registry, so add the marts to `DATA-DICTIONARY.md` through
+> `catalog/dictionary.py` rather than `meta.tables`. (2) **DAG** — a new spec file
+> `dag/specs/marts.yaml` (the EP-37 multi-spec discovery merges it; tag `marts`, which
+> `cohorts.build` already carries, so `mwh build --tier t --tag marts` builds cohorts + your
+> marts; `--select marts.<step>`; no `--target`, no `--resume`: steps skip when complete);
+> depend on the concept steps by their spec ids (`concept.firstday.first_day_vitalsign`,
+> …) — the blood-gas concept is **`bg` / `first_day_bg` / `first_day_bg_art`**, not
+> `blood_gas`. (3) **Units** — `meta.item_units` has no `core` column: the curated flag is
+> `meta.item_dictionary.curated` / `concept_group` (EP-39), bounds are `units.bounds`; do
+> **not** call the `mwh_harmonize` macro per row over an event table (43 s per predicate on
+> the fixture, `docs/gotchas.md` §1) — inline the conversions as the phenotype compiler
+> does (`phenotypes.compiler.harmonised_value_sql` is the template). (4) **Inputs that exist
+> now**: `timeline.to_mart(relation, path)` is the Parquet writer shape (`publish.swap_file`
+> underneath), `timeline.hourly_bins` / `timesem.sql_hour_bin` the bin helpers,
+> `mimiciv_derived.icustay_hourly` a mimic-code stay × hour grid you may join rather than
+> rebuild, `mimiciv_derived.spine` a substitute event source (280 M rows, 13 sources, no
+> chartevents). (5) **Provenance** — the CLI build already runs inside `run.start(kind=
+> "build")`; add one `run.bench(kind="mart", …)` line per mart (the EP-47 shape) and
+> `record_snapshot_once` for the `marts` layer id. (6) **Size budget** — DESIGN §3 now
+> measures derived + spine at ≈ 2.2 GB; marts ≤ 1–2 GB is the remaining line. Full ⏱ job
+> name `ep55-marts-full`; EP-56 verifies.
 ## Context
 
 The marts layer (DESIGN §3: `lake\marts\…` + schema `marts` in every tier catalog) is what lets

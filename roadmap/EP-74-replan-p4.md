@@ -2,6 +2,27 @@
 
 **Size:** M · **Tier:** n/a · **Core/Stretch:** core · **Depends on:** EP-73 (Capstone #2: EDA case study + screenshots) · **Blocks:** —
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged. Inherit the EP-33 / EP-54 retro
+> convention (`roadmap/retro-p3.md` is the template: pre-flight table, the ⏱ verification,
+> planned-vs-actual on the note / commit-gap basis, full-tier timings, lake vs budget,
+> toolchain and connector re-checks, carried-low re-triage, routed decisions, checkpoint
+> minutes, commit series) and the standing re-plan rule of the README (`poe roadmap-check
+> --strict`, refresh § "State of the workspace", DECISIONS addenda, mirror Parked items).
+> Items EP-54 hands to this re-plan: (1) **re-check the four EP-38 patches' upstream PRs
+> and #2157** (D-19 addendum 2026-09-17; drop a patch when its PR lands in a re-vendored
+> pin); (2) **re-size P5 with P4's measurement** — P3 ran ≈ 1.5× its planned hours on the
+> commit-gap basis (Risk 11; the owner review round is a fixed cost the S/M sizing never
+> budgeted, and S briefs touching a governance / diagnostic surface ran 2–4×); (3) **the
+> fixture-suite wall** (297 s → 745 s across P3; the session lake runs the whole DAG) —
+> decide `poe test-fast` (xdist) or a shared session lake before P5; (4) **the connector
+> roster** (GOVERNANCE §4; the EP-54 owner package is the precedent); (5) the P3 → P4 name
+> table of the README must be extended with the P4 → P5 corrections (`stats/`, `viz/`,
+> `ui/`, `marts/`, `mwh app | bench | export | stats` as shipped) rather than per-brief
+> rewrites; (6) `final-roadmap.md` AUDIT-1 and the EP-54 debt-sweep outcome (D-47) —
+> re-triage what is still open; (7) DESIGN §21's Streamlit-vs-marimo question for the
+> Freezer / Wizard pages is this re-plan's (the `protocol/` package exists, EP-51). The
+> toolchain-slot rule stands (allocate `EP-<next free number>-toolchain-remediation-p5.md`
+> only for a wheel / version fight; P4's slot was not needed).
 ## Context
 
 The phase-boundary re-plan (D-8) and the first one that also writes briefs: D-9 fixes full

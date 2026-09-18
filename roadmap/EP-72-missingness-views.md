@@ -2,6 +2,26 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-45 (Measurement-process summaries) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots), EP-87 (Missing-data strategies)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-45 ☑ `321c0bc`); read the
+> body against `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: (1) **EP-45's
+> API is tables, not functions** — `qc.measurement.frequency` / `classify_absence` do not
+> exist; the views read the six published `meta.mp_*` tables (`mp_item_hourly` — 168 hour
+> bins × 63 curated items with `n_stays_at_risk`; `mp_item_daily`; `mp_item_summary` —
+> first-24 h shares, medians, interval quantiles; `mp_structural` — care unit × era cells
+> with `structural_flag`; `mp_absence_summary` — structural vs unmeasured; `mp_presence_
+> outcome` — rate ratios), all k-suppressed at build (D-33 addendum EP-45), and
+> `mwh qc measurement --tier t` is the CLI twin; recomputation goes through `mwh build
+> --tier t --tag measurement` (which also selects the sixteen mimic-code `measurement/`
+> concepts — skipped when complete; `docs/gotchas.md` §3). (2) **Risk 17 / MISS-4 is
+> yours** (owner decision at EP-54, D-47): `mp_item_hourly.n_stays_at_risk` is a
+> non-increasing sequence whose consecutive differences can be small and derivable — the
+> at-risk curve view must not render it as-is; the routed fix is a `disclose` refinement in
+> this brief's scope (a `check` finding for monotone count columns and a chain-style band
+> with a floor at k for at-risk sequences), recorded in a DESIGN §14 note and a D-33
+> addendum; EP-91's KM tables are the next consumer of the same rule. (3) Cohort variables
+> come from `marts.cohort_<id>_v<major>` + the concept tables where EP-55's mart has not
+> shipped; `conn=` is not a `safe_query` parameter (run inside `run.start`). (4) `mwh
+> stats missing` joins EP-68's `stats` group.
 ## Context
 
 Capability 7 (missing-data and measurement-process analysis), the descriptive/visual half:

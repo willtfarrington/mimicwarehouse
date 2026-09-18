@@ -2,6 +2,24 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-56 (Latency marts B: hourly bins + <=5 s benchmark) · **Blocks:** EP-65 (Explorer B: linked-brush distributions), EP-66 (Explorer C: heatmaps, correlations, cross-tabs, conditional summaries), EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: (1) **`compile(req) ->
+> (sql, params)` has no parameter path today** — `safe_query` takes no `params=`, so item 2's
+> "literals parametrised" security claim holds only if EP-57 added the reviewed `params=`
+> (its pickup note) or `AggRequest` validates every filter value against the dataset's
+> dictionary levels / numeric ranges before rendering literals; the test with `' OR 1=1 --`
+> then asserts a refusal at validation, not an unchanged SQL text. (2) `AggResult.
+> small_cell_mask` is `disclose.warn_badges(df, k, count_cols)`; the result type
+> `safe_query` returns is `SafeResult` (frame + `n_rows`, `rows_suppressed`, `audit_id`).
+> (3) The shipped Altair precedents are `timeline.band_chart` / `band_spec` (the
+> population band) and `cohort.attrition.render_altair` — the EP-5 theme is applied with
+> `alt.theme.enable(name)` as a **context manager**, layered specs need explicit `sort=`
+> lists and `to_dict()` consolidates data into `datasets` (`docs/gotchas.md` §3);
+> `vl-convert-python` is core since EP-48 (not "from EP-59"). (4) Age bands are
+> `timesem.AGE_BANDS` / `sql_age_band` (91 = the ≥ 89 cap in the top band), eras
+> `timesem.ERAS` / `mimiciv_derived.hadm_era`, the cohort join `marts.cohort_<id>_v<major>`
+> on the grain keys. (5) `mwh bench queries` is EP-56's; the two Explorer queries join its
+> YAML.
 ## Context
 
 The Explorer is the visualization centrepiece (D-21: Altair/Vega-Lite + VegaFusion primary,

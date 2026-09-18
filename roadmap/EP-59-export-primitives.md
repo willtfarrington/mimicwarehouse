@@ -2,6 +2,28 @@
 
 **Size:** S · **Tier:** fixture · **Core/Stretch:** core · **Depends on:** EP-43 (Disclosure primitives (`disclose` module)), EP-35 (Provenance run ledger) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots), EP-130 (Report engine A: Jinja2 → MD/HTML)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-43 ☑ `73e7466`, EP-35 ☑
+> `245c308`); read the body against `roadmap/README.md` § "P3 → P4 name corrections".
+> Brief-specific: (1) **the stage → check → publish → sidecar shape already exists twice**
+> — `cohort.attrition.save_attrition` (EP-48: render into `<data_root>/tmp`, `disclose.
+> check` every file, publish only when all pass, record in the run's `figures`) and EP-49's
+> `runs/<run_id>/exports/` (four gated artefacts + sidecars) — and EP-53's `analyses.
+> c01_concepts_qc.promote` is the promotion into `docs/` through `mwh disclose check
+> --write-sidecar`; `viz/export.py` generalises those three, it does not re-derive them.
+> (2) **Artefact registration** is `Run.save_table(name, df)` / `Run.save_figure(name, obj)`
+> (+ `Run.record_ref`) — there is no `Run.add_artifact`; the provenance footer is
+> `run.reproduction_block(run_id)` (EP-35/EP-32), `run.claim_label(claim_type)` renders the
+> claim type. (3) **Committed tables are Markdown, never CSV** (owner decision at EP-53:
+> `.gitignore` / `.gitattributes` / guard G1 refuse `*.csv` outside `tests/fixtures/`), so
+> `export_table(..., fmt=)` writes CSV/Parquet for the run folder and a Markdown twin for
+> promotion — the shape `analyses.c01_concepts_qc.promote` uses. (4) The Markdown checker
+> pairs any two integer columns as a possible nested total and treats every integer in
+> `1..k-1` under a non-exempt header as a small cell (`docs/gotchas.md` §5; DESIGN §14 EP-54
+> note): name index-like headers with an exempt word, render withheld drops as text cells,
+> and consider a column-typed exemption in `disclose.check_table` as this brief's one
+> refinement (record it in the DESIGN §14 note). (5) `mwh export` is a new sub-app (one
+> `add_typer` line, light at import — the B6 budget); a size cap on figures already exists
+> as the `OVERSIZE` code.
 ## Context
 
 Anything that leaves `%MWH_DATA_ROOT%\runs\` for `docs/`, `reports/` or git must be

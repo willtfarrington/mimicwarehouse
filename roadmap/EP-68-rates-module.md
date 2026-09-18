@@ -2,6 +2,28 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-42 (Phenotypes: sepsis-3 + KDIGO AKI stage), EP-34 (Time semantics + unit-of-analysis registry) · **Blocks:** EP-69 (Prevalence/incidence page), EP-70 (Descriptive stratified/subgroup module + page), EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-42 ☑ `1f1f242`, EP-34 ☑
+> `9ec6916`); read the body against `roadmap/README.md` § "P3 → P4 name corrections".
+> Brief-specific: (1) **`stats/` and `mwh stats` are this brief's to create** (one
+> `add_typer` line; light at import, `test_ep68` pins the budget as EP-40/41/46 do); the
+> spec / registry / `id@version` / `def_hash` shape is D-46 — reuse `codesets.spec.
+> parse_ref` for `phenotype:` / `codeset:` references and hash the `RateSpec` the EP-46
+> way. (2) **Grains**: `timesem.available_grains()` / `meta.grains` list what exists —
+> `person_time` is a registry entry with `available=True` but no index-event template
+> (EP-34 note): person-time denominators are computed by this module from `timesem.
+> follow_up_end` / `sql_follow_up_end` and the `CensoringRule` named in the result, not read
+> from a grain view. (3) `estimate(spec, tier, conn=None)` — `safe_query` has no `conn=`;
+> run inside `run.start(kind="analysis", claim_type="exploratory", …)` and use
+> `Run.safe_query` so every audit id lands in the manifest (the EP-42 `summary --report`
+> shape); the small-cell mask is `disclose.warn_badges` in-app and `disclose.suppress` on
+> the returned frame (`disclose.small_cells` does not exist). (4) Inputs that already
+> exist and should be reused rather than re-derived: `phenotypes.runner.summarize` /
+> `distribution` (prevalence per phenotype, by era through the `_hadm` companion), the
+> `mimiciv_derived.hadm_era` / `icustay_index` views, `timesem.sql_icd_versions`,
+> `mimiciv_derived.kdigo_stages` (7-day window, per stay) for the AKI incidence numerator;
+> the cohort references are `first_icu_adults@1.0.0` / `hf_admissions@1.0.0`. (5) Export
+> through EP-59's `viz.export` if shipped, else the `Run.save_table` + `mwh disclose check
+> --write-sidecar` shape of `analyses.c01_concepts_qc.promote`.
 ## Context
 
 Capability 5 (prevalence, incidence, event-rate estimation) as a package module — the first

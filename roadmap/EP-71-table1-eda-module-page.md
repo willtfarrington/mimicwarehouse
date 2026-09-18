@@ -2,6 +2,24 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-47 (Cohort compiler, materialization, attrition, snapshot) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots), EP-77 (Inference & group comparison)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-47 ☑ `73053c6`); read the
+> body against `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: (1) the
+> cohort join is `marts.cohort_<id>_v<major>` on the grain keys (`first_icu_adults@1.0.0`
+> → `marts.cohort_first_icu_adults_v1`, 3,196 stays on dev / 65,090 on full; columns
+> `index_time`, `era_index`, `age_at_index` / `age_capped`, `obs_start` / `obs_end`,
+> `follow_up_end` / `censor_reason`, `custom_flag`); the tracer's descriptives through
+> `safe_query` (`tracer.descriptive_statements`, EP-31/35) are the shipped precedent for
+> continuous / categorical summaries with zero-cell level exclusion. (2) `conn=` is not a
+> `safe_query` parameter — `build(spec, tier)` runs inside `run.start(kind="analysis", …)`
+> with `Run.safe_query`; the small-cell mask is `disclose.warn_badges` / `disclose.suppress`
+> (no `small_cells`); extreme-value aggregates (`min` / `max` / quantiles) are admitted only
+> inside k-gated rows (D-31 SGT-2) — `quantile_cont` over a subject-keyed column needs a
+> real count column beside it. (3) Where EP-55's `marts.icustay_first_day` has not shipped,
+> the first-day variables come from the concept tables (`first_day_vitalsign`,
+> `first_day_lab`, `first_day_sofa`, `charlson`, `sepsis3`, `kdigo_stages`) joined on
+> `stay_id` / `hadm_id`. (4) The Markdown export must satisfy the gate's table rules
+> (`docs/gotchas.md` §5): SMD columns are floats, fine; level counts under `1..k-1` are
+> small cells — render them through `disclose.render_cell`.
 ## Context
 
 Capability 4 (cross-sectional exploratory analysis) as a package module and page: counts,

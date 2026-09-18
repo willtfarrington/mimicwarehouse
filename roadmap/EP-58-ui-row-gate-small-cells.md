@@ -2,6 +2,30 @@
 
 **Size:** M · **Tier:** fixture+dev · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-43 (Disclosure primitives (`disclose` module)) · **Blocks:** EP-67 (Patient-safe timeline viewer), EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-43 ☑ `73e7466`); read the
+> body against `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: (1) **the
+> owner gate to wrap exists**: `catalog.connect.open_catalog(tier, role="owner")` stamps the
+> DuckDB session variable `mwh_role`, `timeline.require_owner(con)` refuses any other
+> connection, and `timeline.stay_events(stay_id, sources, conn=)` is the one shipped row
+> path — every call appends an EP-30 `AuditLine` with `sql_text = "row_view:…"` and a
+> `statement_sha256` over the canonical request (D-32 addendum, EP-49). `owner_rows(sql,
+> tier, *, gate_token, limit)` is therefore this brief's wrapper over that gate (token +
+> TTL + `RowViewGateClosed`), living in `ui/gate.py` or `safe.py` as briefed — it is a
+> convenience gate against accidental use inside a session, **not a security boundary**
+> (any connection can set the variable; `MWH_ROLE` unset keeps the agent role). (2) **No
+> event-shaped audit API exists**: `safe.audit(event=…)` / `safe.read_audit(tail=)` are not
+> shipped — write the toggle's audit line as an `AuditLine(actor="owner", allowed=True,
+> statement_sha256=…, sql_text="row_view_toggle:on:<tier>:<page>", …)` through
+> `fsio.append_jsonl(safe.audit_path(settings), …)` (the EP-49 precedent) and read it back
+> through the `runs.audit` view (`mwh sql … --tier <t>` after `mwh runs refresh`) or
+> `fsio.iter_jsonl`; the acceptance's `read_audit(tail=5)` becomes that. (3) **Small cells**:
+> `disclose.small_cells` does not exist — `disclose.warn_badges(df, k, count_cols)` is the
+> in-app badge primitive, `disclose.suppress` the export one, `disclose.render_cell` the
+> `<11` / `~1,000` renderer; k comes from `settings.k_suppression` (11). (4) `mwh export`
+> is EP-59's; until then the disabled button's help text names it as forthcoming; there is
+> no `runs_exports` layout key — EP-59 defines `runs/<run_id>/exports/` (the EP-49 shape).
+> (5) Identifier names come from `safe.identifier_column_names()` (the `keys.yaml`
+> identifiers list, EP-17) — never a hand-typed set.
 ## Context
 
 GOVERNANCE §4–§6 and D-32/D-33 fix two shell-level behaviours: the owner may view rows only in

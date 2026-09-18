@@ -2,6 +2,29 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-48 (Attrition diagram renderer) · **Blocks:** EP-73 (Capstone #2: EDA case study + screenshots)
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-48 ☑ `8228093`); read the
+> body against `roadmap/README.md` § "P3 → P4 name corrections" — every cohort API name in
+> this brief has a shipped counterpart there. Brief-specific: (1) the two seams EP-46 left
+> for this page are `cohort.spec.json_schema()` (pydantic's schema plus the exactly-one-kind
+> `oneOf`, also `mwh cohort schema --out`) and `cohort.registry.save_spec(spec, directory)`
+> → `<id>_<major>_<minor>_<patch>.yaml`; the criterion kinds are the nine of EP-46 (`age`,
+> `demographic`, `codeset`, `phenotype`, `concept`, `los`, `data_availability`,
+> `prior_admissions`, `custom_sql` flagged `custom`) — EP-65's hand-off can only express
+> mart-column brushes as `custom_sql` or the nearest supported kind. (2) "Preview counts"
+> is `cohort.compiler.compile_spec(spec, …)` → `CompiledCohort.attrition_sql` run through
+> `safe_query` (row-wise suppressed) or `mwh cohort build --dry-run --json` (SQL + steps);
+> a real build is `cohort.build.build_cohort` in-process on fixture / dev and `mwh cohort
+> build <id@version> --tier full --background --job cohort-<id>-full` for full (the EP-19
+> launcher; `ui/jobs.launch` wraps that argv). (3) The attrition frame is `cohort.build.
+> attrition(ref, tier)` (chain-suppressed, `*_banded` / `*_suppressed` markers) →
+> `cohort.attrition.render_mermaid` (→ `st.markdown`) and `render_altair` / `to_vegalite`
+> (→ `st.altair_chart`); `records()` is the tooltip payload; EP-48 left one unification for
+> this page: `mwh cohort attrition`'s rich table prints `<11` where the renderer draws the
+> rounded released difference (`~20`) — adopt the renderer's cell forms here (D-33
+> addendum, EP-48). (4) The tracer seed is `first_icu_adults@1.0.0` (dev n = 3,196, full
+> 65,090 after the 4-hour exclusion); the registry table is `marts.cohorts` (`cohort_id`,
+> `version`, `tier`, `rows`, `n_subjects` blanked below k); the degeneracy probe over the
+> built cohort is `cohort.probe.validate_on_tier` / `mwh cohort validate --tier`.
 ## Context
 
 Capability 2 (reproducible cohort construction) already exists as code: the pydantic/YAML

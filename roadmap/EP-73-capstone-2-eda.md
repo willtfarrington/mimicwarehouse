@@ -2,6 +2,20 @@
 
 **Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-57 (App shell A (Streamlit multipage)), EP-58 (App shell B: row-view gate + app-side small-cell enforcement), EP-59 (Export primitives), EP-60 (Screenshot tooling), EP-61 (Catalog & QC browser page), EP-62 (Cohort Builder page), EP-63 (Phenotype Studio page), EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-65 (Explorer B: linked-brush distributions), EP-66 (Explorer C: heatmaps, correlations, cross-tabs, conditional summaries), EP-67 (Patient-safe timeline viewer), EP-68 (Prevalence/incidence/event-rate module), EP-69 (Prevalence/incidence page), EP-70 (Descriptive stratified/subgroup module + page), EP-71 (Cross-sectional EDA module + page (Table 1)), EP-72 (Missing-data views) · **Blocks:** EP-74 (Re-plan P4 (writes full P5, re-charters P6))
 
+> **EP-54 pickup note (2026-09-17).** Header facts unchanged; read the body against
+> `roadmap/README.md` § "P3 → P4 name corrections". Brief-specific: the capstone pattern is
+> **EP-53's** (`docs/analyses/01-concepts-and-qc.md`; DESIGN §17 note): one module under
+> `analyses/` (`c02_eda.py`) with `build(tier) -> run_id` inside `run.start(kind="report",
+> claim_type=…)`, a `run_step` on the DAG (`dag/specs/analyses.yaml`, after `catalog`),
+> and `promote(run_id)` rendering tables **as Markdown** (committed CSVs are refused by
+> design — owner decision at EP-53) + figures through `mwh disclose check --write-sidecar`
+> into `docs/analyses/02-eda/`; `mwh export … --promote` is EP-59's CLI over the same
+> primitives if it ships, else `promote` is the path. The cohort is `first_icu_adults@1.0.0`;
+> run ids are checked against `run.read_ledger()` / the `runs.ledger` view; page latencies
+> are the `page_latency` ledger kind EP-57 adds; the tracer attrition diagram comes from
+> `cohort.attrition.save_attrition` (EP-48); the aggregate timeline density is
+> `timeline.hourly_bins` + `population_summary` (EP-67's aggregate mode). Screenshots:
+> `mwh app screenshot --tier demo` (EP-60) + `mwh disclose check docs/screenshots`.
 ## Context
 
 The P4 showcase (D-8: capstone per phase; D-1: portfolio value). Everything it needs exists:
