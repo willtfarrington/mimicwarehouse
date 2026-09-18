@@ -1,0 +1,149 @@
+{
+  "by_age_gender": {
+    "audit_id": "e1e93e4e47fc461fb030ad25b1ee44f7",
+    "rows": [
+      {
+        "age_band": "18-39",
+        "gender": "F",
+        "n": 2886,
+        "n_deaths": 132,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "18-39",
+        "gender": "M",
+        "n": 3551,
+        "n_deaths": 193,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "40-64",
+        "gender": "F",
+        "n": 9270,
+        "n_deaths": 773,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "40-64",
+        "gender": "M",
+        "n": 14160,
+        "n_deaths": 1149,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "65-79",
+        "gender": "F",
+        "n": 9219,
+        "n_deaths": 1105,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "65-79",
+        "gender": "M",
+        "n": 12514,
+        "n_deaths": 1328,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "80+",
+        "gender": "F",
+        "n": 7271,
+        "n_deaths": 1234,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "age_band": "80+",
+        "gender": "M",
+        "n": 6495,
+        "n_deaths": 1172,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      }
+    ],
+    "rows_suppressed": 0
+  },
+  "by_first_careunit": {
+    "audit_id": "32e1d063fb164f8da2b2c3c58a5affef",
+    "rows": [
+      {
+        "first_careunit": "Cardiac Vascular Intensive Care Unit (CVICU)",
+        "n": 11520,
+        "n_deaths": 376,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Coronary Care Unit (CCU)",
+        "n": 7371,
+        "n_deaths": 933,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Medical Intensive Care Unit (MICU)",
+        "n": 12517,
+        "n_deaths": 2001,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Medical/Surgical Intensive Care Unit (MICU/SICU)",
+        "n": 10053,
+        "n_deaths": 1398,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Neuro Intermediate",
+        "n": 4314,
+        "n_deaths": 71,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Neuro Stepdown",
+        "n": 1102,
+        "n_deaths": 15,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Neuro Surgical Intensive Care Unit (Neuro SICU)",
+        "n": 1313,
+        "n_deaths": 366,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Surgery/Vascular/Intermediate",
+        "n": 95,
+        "n_deaths": 26,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Surgical Intensive Care Unit (SICU)",
+        "n": 9068,
+        "n_deaths": 1047,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      },
+      {
+        "first_careunit": "Trauma SICU (TSICU)",
+        "n": 7914,
+        "n_deaths": 830,
+        "n_deaths_suppressed": false,
+        "n_suppressed": false
+      }
+    ],
+    "rows_suppressed": 7
+  },
+  "k": 11
+}

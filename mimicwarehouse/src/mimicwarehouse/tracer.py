@@ -370,8 +370,12 @@ def render_report(
 
     k = desc["k"]
 
-    def count_cell(n: Any) -> str:
-        return f"suppressed (< {k})" if n is None else fmt_int(int(n))
+    def count_cell(n: Any, banded: bool = False) -> str:
+        # None = withheld (safe_query, or a complementary cell at promotion, EP-53);
+        # banded = a chain total coarsened by disclose.suppress(mode="chain") (EP-43)
+        if n is None:
+            return f"suppressed (< {k})"
+        return f"~{fmt_int(int(n))}" if banded else fmt_int(int(n))
 
     lines = [
         "# Tracer bullet: first ICU stay of adult patients -> in-hospital mortality",
@@ -401,7 +405,7 @@ def render_report(
         "",
         *_md_table(
             ["step", "n"],
-            [[row["step"], count_cell(row["n"])] for row in att],
+            [[row["step"], count_cell(row["n"], bool(row.get("n_banded")))] for row in att],
         ),
         "",
         "## Descriptives",
@@ -415,7 +419,12 @@ def render_report(
         *_md_table(
             ["age band", "gender", "n", "deaths"],
             [
-                [str(r["age_band"]), str(r["gender"]), fmt_int(r["n"]), fmt_int(r["n_deaths"])]
+                [
+                    str(r["age_band"]),
+                    str(r["gender"]),
+                    count_cell(r["n"]),
+                    count_cell(r["n_deaths"]),
+                ]
                 for r in desc["by_age_gender"]["rows"]
             ],
         ),
@@ -427,7 +436,7 @@ def render_report(
         *_md_table(
             ["first care unit", "n", "deaths"],
             [
-                [str(r["first_careunit"]), fmt_int(r["n"]), fmt_int(r["n_deaths"])]
+                [str(r["first_careunit"]), count_cell(r["n"]), count_cell(r["n_deaths"])]
                 for r in desc["by_first_careunit"]["rows"]
             ],
         ),
@@ -442,7 +451,7 @@ def render_report(
     if model["status"] == "fit":
         lines += [
             "Logistic regression (treatment coding, HC1 robust errors);",
-            f"n = {fmt_int(model['n_fit'])}, events = {fmt_int(model['n_events_fit'])};",
+            f"n = {count_cell(model['n_fit'])}, events = {count_cell(model['n_events_fit'])};",
             f"AUC = {model['auc_in_sample']:.3f} (in-sample, optimistic - not a",
             "prediction claim).",
         ]
@@ -476,7 +485,7 @@ def render_report(
     else:
         lines += [
             f"Model: not_fit ({model['reason']}).",
-            f"n = {fmt_int(model['n'])}, events = {fmt_int(model['n_events'])}.",
+            f"n = {count_cell(model['n'])}, events = {count_cell(model['n_events'])}.",
         ]
         if model.get("separated_levels"):
             lines += [

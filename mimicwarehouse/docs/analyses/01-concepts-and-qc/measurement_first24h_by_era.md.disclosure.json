@@ -1,0 +1,51 @@
+{
+  "schema": "mimicwarehouse.disclosure/1",
+  "path": "measurement_first24h_by_era.md",
+  "sha256": "8b95f8060fb25e4d6f62303dc297f8b06e25a14aa598b400fe9d4d446f8b0533",
+  "size": 4958,
+  "k": 11,
+  "passed": true,
+  "checks": [
+    {
+      "code": "ID_COL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "ID_BAND",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "FREE_TEXT",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "SMALL_CELL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "EMBEDDED_ROWS",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "NO_SOURCE",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "OVERSIZE",
+      "status": "pass",
+      "detail": "clean"
+    }
+  ],
+  "n_warn": 0,
+  "allow_text": [],
+  "reviewer": "owner",
+  "timestamp": "2026-09-17T22:19:43+00:00",
+  "tool_version": "0.1.0",
+  "git_sha": "bd6482133c370679723086615e7ddf3c07b5b43b"
+}

@@ -1,0 +1,221 @@
+{
+  "config": {
+    "background": "#FFFFFF",
+    "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+    "view": {
+      "stroke": "transparent",
+      "continuousWidth": 400,
+      "continuousHeight": 260
+    },
+    "axis": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "domainColor": "#E3E7EB",
+      "gridColor": "#E3E7EB",
+      "tickColor": "#E3E7EB",
+      "labelColor": "#5F6B76",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": "normal",
+      "titlePadding": 8
+    },
+    "legend": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "labelColor": "#5F6B76",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": "normal",
+      "symbolType": "circle"
+    },
+    "header": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "labelColor": "#1B1F23",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 12
+    },
+    "title": {
+      "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "subtitleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "color": "#1B1F23",
+      "subtitleColor": "#5F6B76",
+      "fontSize": 16,
+      "subtitleFontSize": 12,
+      "fontWeight": 600,
+      "anchor": "start",
+      "offset": 12
+    },
+    "text": {
+      "color": "#1B1F23",
+      "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "fontSize": 11
+    },
+    "mark": {
+      "color": "#1F6F8B"
+    },
+    "bar": {
+      "color": "#1F6F8B"
+    },
+    "area": {
+      "color": "#1F6F8B",
+      "opacity": 0.6
+    },
+    "line": {
+      "color": "#1F6F8B",
+      "strokeWidth": 2
+    },
+    "point": {
+      "color": "#1F6F8B",
+      "filled": true,
+      "size": 60
+    },
+    "circle": {
+      "color": "#1F6F8B",
+      "size": 60
+    },
+    "rect": {
+      "color": "#1F6F8B"
+    },
+    "rule": {
+      "color": "#5F6B76"
+    },
+    "tick": {
+      "color": "#1F6F8B"
+    },
+    "range": {
+      "category": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#D55E00",
+        "#56B4E9",
+        "#CC79A7",
+        "#999999",
+        "#F0E442"
+      ],
+      "heatmap": {
+        "scheme": "viridis"
+      },
+      "ordinal": {
+        "scheme": "viridis"
+      },
+      "ramp": {
+        "scheme": "viridis"
+      },
+      "diverging": {
+        "scheme": "blueorange"
+      }
+    }
+  },
+  "data": {
+    "values": [
+      {
+        "concept_group": "sepsis",
+        "concepts": 2,
+        "wall_s": 443.838,
+        "max_wall_s": 442.767
+      },
+      {
+        "concept_group": "measurement",
+        "concepts": 18,
+        "wall_s": 192.793,
+        "max_wall_s": 159.677
+      },
+      {
+        "concept_group": "score",
+        "concepts": 6,
+        "wall_s": 16.588,
+        "max_wall_s": 12.736
+      },
+      {
+        "concept_group": "treatment",
+        "concepts": 5,
+        "wall_s": 8.569,
+        "max_wall_s": 5.022
+      },
+      {
+        "concept_group": "organfailure",
+        "concepts": 4,
+        "wall_s": 5.392,
+        "max_wall_s": 2.805
+      },
+      {
+        "concept_group": "medication",
+        "concepts": 14,
+        "wall_s": 4.481,
+        "max_wall_s": 2.407
+      },
+      {
+        "concept_group": "firstday",
+        "concepts": 10,
+        "wall_s": 3.753,
+        "max_wall_s": 1.353
+      },
+      {
+        "concept_group": "demographics",
+        "concepts": 5,
+        "wall_s": 2.485,
+        "max_wall_s": 1.171
+      },
+      {
+        "concept_group": "comorbidity",
+        "concepts": 1,
+        "wall_s": 1.512,
+        "max_wall_s": 1.512
+      }
+    ]
+  },
+  "mark": {
+    "type": "bar",
+    "color": "#1F6F8B"
+  },
+  "encoding": {
+    "tooltip": [
+      {
+        "field": "concept_group",
+        "title": "group",
+        "type": "nominal"
+      },
+      {
+        "field": "concepts",
+        "title": "concepts",
+        "type": "quantitative"
+      },
+      {
+        "field": "wall_s",
+        "format": ".2f",
+        "title": "wall s",
+        "type": "quantitative"
+      },
+      {
+        "field": "max_wall_s",
+        "format": ".2f",
+        "title": "slowest concept s",
+        "type": "quantitative"
+      }
+    ],
+    "x": {
+      "field": "wall_s",
+      "title": "build wall time (s), summed over the group's concepts",
+      "type": "quantitative"
+    },
+    "y": {
+      "field": "concept_group",
+      "sort": "-x",
+      "title": "concept group",
+      "type": "nominal"
+    }
+  },
+  "height": {
+    "step": 22
+  },
+  "title": {
+    "text": "Concept build wall time by group (full tier)",
+    "subtitle": "mimic-code concepts_duckdb on DuckDB 1.5.5; benchmark ledger"
+  },
+  "width": 480,
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.4.1.json"
+}

@@ -1,0 +1,33 @@
+| schema | table | # pass | # warn | # fail | worst_status |
+|---|---|---|---|---|---|
+| mimiciv_hosp | admissions | 17 | 4 | 0 | warn |
+| mimiciv_hosp | d_hcpcs | 4 | 1 | 0 | warn |
+| mimiciv_hosp | d_icd_diagnoses | 4 | 0 | 0 | pass |
+| mimiciv_hosp | d_icd_procedures | 4 | 0 | 0 | pass |
+| mimiciv_hosp | d_labitems | 5 | 0 | 0 | pass |
+| mimiciv_hosp | diagnoses_icd | 8 | 0 | 0 | pass |
+| mimiciv_hosp | drgcodes | 8 | 2 | 0 | warn |
+| mimiciv_hosp | emar | 15 | 1 | 0 | warn |
+| mimiciv_hosp | emar_detail | 7 | 29 | 0 | warn |
+| mimiciv_hosp | hcpcsevents | 10 | 0 | 0 | pass |
+| mimiciv_hosp | labevents | 65 | 3 | 0 | warn |
+| mimiciv_hosp | microbiologyevents | 17 | 12 | 0 | warn |
+| mimiciv_hosp | omr | 6 | 0 | 0 | pass |
+| mimiciv_hosp | patients | 8 | 1 | 0 | warn |
+| mimiciv_hosp | pharmacy | 22 | 9 | 0 | warn |
+| mimiciv_hosp | poe | 12 | 3 | 0 | warn |
+| mimiciv_hosp | poe_detail | 8 | 0 | 0 | pass |
+| mimiciv_hosp | prescriptions | 23 | 2 | 0 | warn |
+| mimiciv_hosp | procedures_icd | 9 | 0 | 0 | pass |
+| mimiciv_hosp | provider | 2 | 0 | 0 | pass |
+| mimiciv_hosp | services | 7 | 1 | 0 | warn |
+| mimiciv_hosp | transfers | 9 | 1 | 0 | warn |
+| mimiciv_icu | caregiver | 2 | 0 | 0 | pass |
+| mimiciv_icu | chartevents | 68 | 4 | 0 | warn |
+| mimiciv_icu | d_items | 7 | 3 | 0 | warn |
+| mimiciv_icu | datetimeevents | 17 | 0 | 0 | pass |
+| mimiciv_icu | icustays | 12 | 0 | 0 | pass |
+| mimiciv_icu | ingredientevents | 19 | 1 | 0 | warn |
+| mimiciv_icu | inputevents | 32 | 1 | 0 | warn |
+| mimiciv_icu | outputevents | 37 | 3 | 0 | warn |
+| mimiciv_icu | procedureevents | 27 | 2 | 0 | warn |

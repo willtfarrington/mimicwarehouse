@@ -1,0 +1,20 @@
+# dag/specs/analyses.yaml -- the capstone analysis steps (EP-53; ASCII only). Merged into
+# the one graph by dag.spec.load_dag() (EP-37 discovery): one python step per capstone
+# that opens a kind: report run (EP-35) over the tier's published catalog through
+# safe_query (EP-30) and writes k-suppressed tables (disclose.suppress, EP-43) and
+# figures under runs/<run_id>/tables/ and figures/. The step depends on the shared
+# catalog step (it reads the catalog, not the lake), so a plain `mwh build --tier <t>`
+# orders it last and `--select analyses.c01_concepts_qc` runs it alone against the
+# catalog that exists. No target: the step re-runs whenever selected (every run is a new
+# run id). Promotion into docs/analyses/ is a separate, explicit call
+# (`python -m mimicwarehouse.analyses.c01_concepts_qc promote --run <run_id>`).
+#   analyses.c01_concepts_qc -> Capstone #1: concepts / QC case study (EP-53)
+version: 1
+steps:
+  - name: analyses.c01_concepts_qc
+    kind: python
+    callable: mimicwarehouse.analyses.c01_concepts_qc:run_step
+    tags: [analyses, capstone]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - catalog

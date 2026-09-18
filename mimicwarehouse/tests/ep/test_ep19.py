@@ -80,10 +80,14 @@ def test_shipped_spec_orders_and_selects() -> None:
     dag = load_dag()
     names = [s.name for s in dag.ordered()]
     # EP-20 grew the shipped spec from 3 stage steps to 20; the EP-19 mechanics still
-    # hold: spec order is preserved and catalog (depending on every stage step) is last
+    # hold: spec order is preserved and catalog (depending on every stage step) follows
+    # every stage step. Since EP-53 the capstone `analyses.*` steps depend on catalog and
+    # run after it, so catalog is last among everything that is not an analyses step.
     positions = [names.index(n) for n in THREE_STEPS]
     assert positions == sorted(positions)
-    assert names[-1] == "catalog"
+    catalog_at = names.index("catalog")
+    assert catalog_at > max(positions)
+    assert all(n.startswith("analyses.") for n in names[catalog_at + 1 :])
     assert f"stage.{HOSP}.d_labitems" in [s.name for s in dag.ordered(tags=["dims"])]
     with pytest.raises(DagError, match="unknown step"):
         dag.ordered(select=["nope"])

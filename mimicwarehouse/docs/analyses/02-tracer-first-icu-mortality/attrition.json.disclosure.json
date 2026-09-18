@@ -1,0 +1,51 @@
+{
+  "schema": "mimicwarehouse.disclosure/1",
+  "path": "attrition.json",
+  "sha256": "f3801fae773a73477b194399d36758200b6ea19b060f8bc714622e318a107964",
+  "size": 833,
+  "k": 11,
+  "passed": true,
+  "checks": [
+    {
+      "code": "ID_COL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "ID_BAND",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "FREE_TEXT",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "SMALL_CELL",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "EMBEDDED_ROWS",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "NO_SOURCE",
+      "status": "pass",
+      "detail": "clean"
+    },
+    {
+      "code": "OVERSIZE",
+      "status": "pass",
+      "detail": "clean"
+    }
+  ],
+  "n_warn": 0,
+  "allow_text": [],
+  "reviewer": "owner",
+  "timestamp": "2026-09-17T21:36:50+00:00",
+  "tool_version": "0.1.0",
+  "git_sha": "bd6482133c370679723086615e7ddf3c07b5b43b"
+}

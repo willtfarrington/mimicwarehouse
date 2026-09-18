@@ -1,0 +1,188 @@
+{
+  "auc_in_sample": 0.7308,
+  "converged": true,
+  "cov_type": "HC1",
+  "formula_covariates": [
+    "age_at_admit",
+    "gender",
+    "admission_type",
+    "first_careunit",
+    "anchor_year_group"
+  ],
+  "n": 65366,
+  "n_events": 7086,
+  "n_events_fit": 7086,
+  "n_excluded": 24,
+  "n_fit": 65342,
+  "separated_levels": [
+    "admission_type=AMBULATORY OBSERVATION (zero-event)",
+    "first_careunit=Med/Surg (zero-event)",
+    "first_careunit=Medicine/Cardiology Intermediate (zero-event)",
+    "first_careunit=Neurology (zero-event)"
+  ],
+  "status": "fit",
+  "terms": [
+    {
+      "ci_high": 0.0066,
+      "ci_low": 0.0043,
+      "odds_ratio": 0.0054,
+      "term": "Intercept"
+    },
+    {
+      "ci_high": 1.0922,
+      "ci_low": 0.9843,
+      "odds_ratio": 1.0368,
+      "term": "gender=M"
+    },
+    {
+      "ci_high": 1.8262,
+      "ci_low": 0.6037,
+      "odds_ratio": 1.05,
+      "term": "admission_type=DIRECT OBSERVATION"
+    },
+    {
+      "ci_high": 0.4028,
+      "ci_low": 0.2224,
+      "odds_ratio": 0.2993,
+      "term": "admission_type=ELECTIVE"
+    },
+    {
+      "ci_high": 1.7759,
+      "ci_low": 0.8909,
+      "odds_ratio": 1.2578,
+      "term": "admission_type=EU OBSERVATION"
+    },
+    {
+      "ci_high": 1.1414,
+      "ci_low": 0.8546,
+      "odds_ratio": 0.9877,
+      "term": "admission_type=EW EMER."
+    },
+    {
+      "ci_high": 1.0365,
+      "ci_low": 0.7585,
+      "odds_ratio": 0.8867,
+      "term": "admission_type=OBSERVATION ADMIT"
+    },
+    {
+      "ci_high": 0.2136,
+      "ci_low": 0.1323,
+      "odds_ratio": 0.1681,
+      "term": "admission_type=SURGICAL SAME DAY ADMISSION"
+    },
+    {
+      "ci_high": 1.4144,
+      "ci_low": 1.0507,
+      "odds_ratio": 1.2191,
+      "term": "admission_type=URGENT"
+    },
+    {
+      "ci_high": 3.3986,
+      "ci_low": 2.6292,
+      "odds_ratio": 2.9892,
+      "term": "first_careunit=Coronary Care Unit (CCU)"
+    },
+    {
+      "ci_high": 34.0458,
+      "ci_low": 5.5553,
+      "odds_ratio": 13.7526,
+      "term": "first_careunit=Intensive Care Unit (ICU)"
+    },
+    {
+      "ci_high": 5.2603,
+      "ci_low": 4.1121,
+      "odds_ratio": 4.6509,
+      "term": "first_careunit=Medical Intensive Care Unit (MICU)"
+    },
+    {
+      "ci_high": 4.6436,
+      "ci_low": 3.6104,
+      "odds_ratio": 4.0946,
+      "term": "first_careunit=Medical/Surgical Intensive Care Unit (MICU/SICU)"
+    },
+    {
+      "ci_high": 18.4496,
+      "ci_low": 1.0027,
+      "odds_ratio": 4.3012,
+      "term": "first_careunit=Medicine"
+    },
+    {
+      "ci_high": 0.4869,
+      "ci_low": 0.2883,
+      "odds_ratio": 0.3746,
+      "term": "first_careunit=Neuro Intermediate"
+    },
+    {
+      "ci_high": 0.6512,
+      "ci_low": 0.2298,
+      "odds_ratio": 0.3868,
+      "term": "first_careunit=Neuro Stepdown"
+    },
+    {
+      "ci_high": 9.1115,
+      "ci_low": 6.4861,
+      "odds_ratio": 7.6875,
+      "term": "first_careunit=Neuro Surgical Intensive Care Unit (Neuro SICU)"
+    },
+    {
+      "ci_high": 6.9242,
+      "ci_low": 1.5591,
+      "odds_ratio": 3.2856,
+      "term": "first_careunit=PACU"
+    },
+    {
+      "ci_high": 42.6504,
+      "ci_low": 1.9298,
+      "odds_ratio": 9.0723,
+      "term": "first_careunit=Surgery/Trauma"
+    },
+    {
+      "ci_high": 10.0134,
+      "ci_low": 3.9127,
+      "odds_ratio": 6.2594,
+      "term": "first_careunit=Surgery/Vascular/Intermediate"
+    },
+    {
+      "ci_high": 4.2531,
+      "ci_low": 3.2881,
+      "odds_ratio": 3.7396,
+      "term": "first_careunit=Surgical Intensive Care Unit (SICU)"
+    },
+    {
+      "ci_high": 3.7804,
+      "ci_low": 2.8942,
+      "odds_ratio": 3.3077,
+      "term": "first_careunit=Trauma SICU (TSICU)"
+    },
+    {
+      "ci_high": 1.1872,
+      "ci_low": 1.0199,
+      "odds_ratio": 1.1004,
+      "term": "anchor_year_group=2011 - 2013"
+    },
+    {
+      "ci_high": 1.3949,
+      "ci_low": 1.1955,
+      "odds_ratio": 1.2914,
+      "term": "anchor_year_group=2014 - 2016"
+    },
+    {
+      "ci_high": 1.5779,
+      "ci_low": 1.3395,
+      "odds_ratio": 1.4538,
+      "term": "anchor_year_group=2017 - 2019"
+    },
+    {
+      "ci_high": 2.104,
+      "ci_low": 1.7689,
+      "odds_ratio": 1.9291,
+      "term": "anchor_year_group=2020 - 2022"
+    },
+    {
+      "ci_high": 1.0294,
+      "ci_low": 1.0261,
+      "odds_ratio": 1.0278,
+      "term": "age_at_admit"
+    }
+  ]
+}

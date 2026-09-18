@@ -239,10 +239,14 @@ def test_convention_doc_required_content() -> None:
 
 
 def test_convention_index_tracer_row_is_pending_only() -> None:
+    """Until EP-53 the tracer row read "pending promotion at EP-53"; EP-53 promoted it
+    (02-tracer-first-icu-mortality.md from a fresh full-tier run through the job runner),
+    so the index now carries the promoted row and no "pending" tracer row."""
     text = CONVENTION.read_text(encoding="utf-8")
-    assert "pending promotion at EP-53" in text  # EP-43 shipped the gate; EP-53 promotes
-    assert "20260830T011037-full" in text, "tracer full-tier run id missing from the index"
-    assert "runs/tracer/" in text and "no results copied" in text
+    assert "pending promotion at EP-53" not in text
+    assert "02-tracer-first-icu-mortality.md" in text and "promoted at EP-53" in text
+    assert "20260917T213352-full" in text, "tracer full-tier run id missing from the index"
+    assert "runs/tracer/" in text
 
 
 def test_benchmark_note_required_content() -> None:

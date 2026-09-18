@@ -1,0 +1,39 @@
+{
+  "steps": [
+    {
+      "audit_id": "122a1ab925344b439dd28b809630ad78",
+      "n": 94458,
+      "n_banded": false,
+      "n_suppressed": false,
+      "step": "base"
+    },
+    {
+      "audit_id": "9c154f2d324c41769123128646495f3c",
+      "n": 65366,
+      "n_banded": false,
+      "n_suppressed": false,
+      "step": "first_stay"
+    },
+    {
+      "audit_id": "d7c1655ae7ce45ddb08285b03b24a66c",
+      "n": 65366,
+      "n_banded": false,
+      "n_suppressed": false,
+      "step": "adult"
+    },
+    {
+      "audit_id": "f359d6b9c3264b5b8ff6ade915f2c5dd",
+      "n": 65366,
+      "n_banded": false,
+      "n_suppressed": false,
+      "step": "complete"
+    },
+    {
+      "audit_id": "aa8f50fcf19649b889020b4387e93c5e",
+      "n": 65366,
+      "n_banded": false,
+      "n_suppressed": false,
+      "step": "cohort"
+    }
+  ]
+}

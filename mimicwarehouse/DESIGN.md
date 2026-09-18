@@ -1510,6 +1510,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── spine.py                   EP-50 shipped  the events spine (SpineSource registry + code grammar, build_source / build_union DAG steps of dag/specs/spine.yaml, validate (MEDS schema + governance checks), register_spine (CATALOG_EXTENSIONS entry), `mwh spine sources | validate`, docs/methods/spine.md renderer)
 │   ├── protocol/                  EP-51 shipped  spec (Protocol + content_hash, the fixed texts, json_schema), registry (resolve, freeze / amend / verify, runs/protocols.jsonl + read-only copies, PROTOCOLS_COLUMNS, docs/methods/protocols.md renderer), runners (RUNNERS, cohort_only, run_protocol, protocol_summary.md), cli (`mwh protocol`), specs/tracer_mortality.yaml; + EP-128/129
 │   ├── backup.py                  EP-52 shipped  BACKUP_SET (the globs of the non-reproducible state), run_backup (hash, copy2, re-hash, backup_manifest.json, swap_dir publish), target_problem (D-29 detector + data-root / repository containment + BitLocker), verify_backup, restore_backup, list_backups / last_backup (the doctor's last_backup row), `mwh backup run | verify | restore | list`; Settings.backup_target (MWH_BACKUP_TARGET)
+│   ├── analyses/                  EP-53 shipped  the capstone modules (docs/analyses/, D-8): c01_concepts_qc (build(tier) -> run_id inside run.start(kind="report") over published aggregates only — meta.* through safe_query, the EP-42 phenotype summary helpers, the benchmark ledger, EP-45's structural slice — eleven disclose.suppress'd tables + two Altair figures under runs/<run_id>/; run_step = the analyses.c01_concepts_qc step of dag/specs/analyses.yaml; promote (CSV -> Markdown tables + figures) / promote_tracer / promote_case_study = the programmatic `mwh disclose check --write-sidecar` into docs/analyses/<NN-slug>/; load_table / md_table_frame / render_tables / render_summary / headline_numbers); later capstones (EP-73, EP-89, EP-100, EP-126, EP-135) add one module each
 │   ├── marts/                     EP-55/56
 │   ├── viz/                       EP-64+  Altair specs, Plotly timeline, export
 │   ├── stats/                     P5     endpoints, boot, glm, mixed, trajectories, pathways, utilization, tsa, exposure, missing
@@ -1797,7 +1798,48 @@ integers via `fmt_int`) and the `docs/analyses/` case-study convention (EP-32: `
 names, required sections, claim-type labels, Reproduction blocks, the `benchmarks:begin/end`
 marked block a command regenerates).
 
-*History:* planning text (2026-08-16), reconciled with EP-31/32's shipped report shapes; P8 planned; consolidated at EP-33.
+> **Note (2026-09-17, EP-53) — the capstone pattern as shipped.** The first phase
+> capstone (`docs/analyses/01-concepts-and-qc.md`, `src/mimicwarehouse/analyses/
+> c01_concepts_qc.py`) fixes the shape every later capstone module follows until the P8
+> report engine replaces hand-authored Markdown: (1) a `python` DAG step that depends on
+> the shared `catalog` step and opens one `kind: report` run (`claim_type` set at
+> `run.start`, D-25) — it reads **only published aggregates**: registry tables through
+> `Run.safe_query` (the statement, audit id and the queried tier's `core` snapshot on the
+> run; a read of another tier's catalog is recorded under `core.<tier>` so the run's own
+> `core` id stays its tier's), the phenotype views through EP-42's `summarize` /
+> `distribution` / `agreement` (subject-keyed count-family reads, k row-wise), the
+> benchmark ledger (telemetry) and, where a published table lacks the needed axis, a raw
+> slice inside the data root summed and k-suppressed by the same primitive before it is
+> written; (2) every table passes `disclose.suppress` (table mode, complementary; group
+> columns = the table's label columns so margins are handled, nested pairs by the
+> primitive) and `disclose.check_frame` before `Run.save_table` writes the Parquet and a
+> CSV twin (count columns named `n_*`, code columns such as `itemid` / `level` never, so
+> the checker scans exactly the counts); ratios and Wilson intervals are computed in
+> Python from released counts only (DIS-3) and blank beside a hidden count; (3) figures
+> are Altair charts serialised with the EP-5 theme merged and inline aggregates under
+> `data.values` (the EP-48 pattern), PNG through `vl-convert-python`, both gated; (4)
+> promotion into `docs/analyses/<NN-slug>/` is a separate, explicit call that renders
+> every run CSV **as a Markdown table** (`<table>.md`: integers via `fmt_int`, hidden
+> cells `<11`, marker columns folded — the committed form, because `.gitignore`,
+> `.gitattributes` and the guard's G1 / G4 refuse committed CSVs by design and the
+> sidecar does not override them; owner decision 2026-09-17), copies the figures
+> (`.vl.json` before `.png` so the PNG's source sibling exists), gates every file and
+> writes its sidecar — a failing artefact is never written; `md_table_frame` /
+> `load_table` read a promoted table back typed (markers reconstructed from `<k` cells);
+> the case study itself is hand-authored per the EP-32 convention and quotes numbers only
+> from the promoted tables (`render_tables` / `render_summary` print them;
+> `headline_numbers` / `render_headline_block` produce the marked headline table
+> `test_ep53` re-parses); (5)
+> earlier report artefacts are promoted by **re-rendering** from their JSON aggregates
+> after suppression rather than by copying text — the EP-31 tracer folder goes through
+> `suppress_tracer_payloads` (chain mode over the attrition chain, table mode over each
+> descriptive table, the n-vs-n_fit / n_events-vs-n_events_fit rule of EP-43 amendment b)
+> and `tracer.render_report`, whose `count_cell` now renders a withheld count as
+> `suppressed (< k)` and a banded chain total as `~n`. Sessions inspect promoted
+> aggregates through `python -m mimicwarehouse.analyses.c01_concepts_qc tables` (the
+> `.csv` deny rule is by design; the project command prints k-suppressed Markdown).
+
+*History:* planning text (2026-08-16), reconciled with EP-31/32's shipped report shapes; P8 planned; consolidated at EP-33; the capstone pattern recorded at EP-53.
 
 ## 18. Notes segregation (D-3)
 

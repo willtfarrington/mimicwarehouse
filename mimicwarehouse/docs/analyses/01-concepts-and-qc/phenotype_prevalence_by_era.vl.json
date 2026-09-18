@@ -1,0 +1,294 @@
+{
+  "config": {
+    "background": "#FFFFFF",
+    "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+    "view": {
+      "stroke": "transparent",
+      "continuousWidth": 400,
+      "continuousHeight": 260
+    },
+    "axis": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "domainColor": "#E3E7EB",
+      "gridColor": "#E3E7EB",
+      "tickColor": "#E3E7EB",
+      "labelColor": "#5F6B76",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": "normal",
+      "titlePadding": 8
+    },
+    "legend": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "labelColor": "#5F6B76",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": "normal",
+      "symbolType": "circle"
+    },
+    "header": {
+      "labelFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "titleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "labelColor": "#1B1F23",
+      "titleColor": "#1B1F23",
+      "labelFontSize": 12
+    },
+    "title": {
+      "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "subtitleFont": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "color": "#1B1F23",
+      "subtitleColor": "#5F6B76",
+      "fontSize": 16,
+      "subtitleFontSize": 12,
+      "fontWeight": 600,
+      "anchor": "start",
+      "offset": 12
+    },
+    "text": {
+      "color": "#1B1F23",
+      "font": "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+      "fontSize": 11
+    },
+    "mark": {
+      "color": "#1F6F8B"
+    },
+    "bar": {
+      "color": "#1F6F8B"
+    },
+    "area": {
+      "color": "#1F6F8B",
+      "opacity": 0.6
+    },
+    "line": {
+      "color": "#1F6F8B",
+      "strokeWidth": 2
+    },
+    "point": {
+      "color": "#1F6F8B",
+      "filled": true,
+      "size": 60
+    },
+    "circle": {
+      "color": "#1F6F8B",
+      "size": 60
+    },
+    "rect": {
+      "color": "#1F6F8B"
+    },
+    "rule": {
+      "color": "#5F6B76"
+    },
+    "tick": {
+      "color": "#1F6F8B"
+    },
+    "range": {
+      "category": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#D55E00",
+        "#56B4E9",
+        "#CC79A7",
+        "#999999",
+        "#F0E442"
+      ],
+      "heatmap": {
+        "scheme": "viridis"
+      },
+      "ordinal": {
+        "scheme": "viridis"
+      },
+      "ramp": {
+        "scheme": "viridis"
+      },
+      "diverging": {
+        "scheme": "blueorange"
+      }
+    }
+  },
+  "layer": [
+    {
+      "mark": {
+        "type": "bar"
+      },
+      "encoding": {
+        "color": {
+          "field": "phenotype",
+          "title": "phenotype",
+          "type": "nominal"
+        },
+        "tooltip": [
+          {
+            "field": "phenotype",
+            "title": "phenotype",
+            "type": "nominal"
+          },
+          {
+            "field": "era",
+            "title": "era",
+            "type": "nominal"
+          },
+          {
+            "field": "share",
+            "format": ".1%",
+            "title": "prevalence",
+            "type": "quantitative"
+          },
+          {
+            "field": "ci_low",
+            "format": ".1%",
+            "title": "Wilson low",
+            "type": "quantitative"
+          },
+          {
+            "field": "ci_high",
+            "format": ".1%",
+            "title": "Wilson high",
+            "type": "quantitative"
+          },
+          {
+            "field": "n_units",
+            "format": ",",
+            "title": "ICU stays",
+            "type": "quantitative"
+          }
+        ],
+        "x": {
+          "field": "era",
+          "title": "anchor_year_group era",
+          "type": "nominal"
+        },
+        "xOffset": {
+          "field": "phenotype",
+          "type": "nominal"
+        },
+        "y": {
+          "axis": {
+            "format": "%"
+          },
+          "field": "share",
+          "title": "prevalence among ICU stays",
+          "type": "quantitative"
+        }
+      }
+    },
+    {
+      "mark": {
+        "type": "rule",
+        "color": "#1B1F23"
+      },
+      "encoding": {
+        "x": {
+          "field": "era",
+          "type": "nominal"
+        },
+        "xOffset": {
+          "field": "phenotype",
+          "type": "nominal"
+        },
+        "y": {
+          "field": "ci_low",
+          "type": "quantitative"
+        },
+        "y2": {
+          "field": "ci_high"
+        }
+      }
+    }
+  ],
+  "data": {
+    "values": [
+      {
+        "era": "2008 - 2010",
+        "phenotype": "sepsis3",
+        "share": 0.4762349176721552,
+        "ci_low": 0.4705869753899266,
+        "ci_high": 0.4818889449418859,
+        "n_units": 30002
+      },
+      {
+        "era": "2011 - 2013",
+        "phenotype": "sepsis3",
+        "share": 0.4658279845956354,
+        "ci_low": 0.45882953105799895,
+        "ci_high": 0.4728399163876408,
+        "n_units": 19475
+      },
+      {
+        "era": "2014 - 2016",
+        "phenotype": "sepsis3",
+        "share": 0.45020952801058667,
+        "ci_low": 0.4429800856427581,
+        "ci_high": 0.4574600585503537,
+        "n_units": 18136
+      },
+      {
+        "era": "2017 - 2019",
+        "phenotype": "sepsis3",
+        "share": 0.37126121635094717,
+        "ci_low": 0.36381783328316253,
+        "ci_high": 0.37876621786136144,
+        "n_units": 16048
+      },
+      {
+        "era": "2020 - 2022",
+        "phenotype": "sepsis3",
+        "share": 0.3531536537927202,
+        "ci_low": 0.3441920590803807,
+        "ci_high": 0.36221970410587095,
+        "n_units": 10797
+      },
+      {
+        "era": "2008 - 2010",
+        "phenotype": "kdigo_aki",
+        "share": 0.7499833344443704,
+        "ci_low": 0.7450516842784534,
+        "ci_high": 0.7548509770278675,
+        "n_units": 30002
+      },
+      {
+        "era": "2011 - 2013",
+        "phenotype": "kdigo_aki",
+        "share": 0.7102439024390244,
+        "ci_low": 0.7038316133674598,
+        "ci_high": 0.7165732663227404,
+        "n_units": 19475
+      },
+      {
+        "era": "2014 - 2016",
+        "phenotype": "kdigo_aki",
+        "share": 0.7063850904278782,
+        "ci_low": 0.6997138711654048,
+        "ci_high": 0.7129688976996919,
+        "n_units": 18136
+      },
+      {
+        "era": "2017 - 2019",
+        "phenotype": "kdigo_aki",
+        "share": 0.7011465603190429,
+        "ci_low": 0.6940168580733928,
+        "ci_high": 0.7081799874762089,
+        "n_units": 16048
+      },
+      {
+        "era": "2020 - 2022",
+        "phenotype": "kdigo_aki",
+        "share": 0.7025099564693896,
+        "ci_low": 0.6938161517299385,
+        "ci_high": 0.7110597106436095,
+        "n_units": 10797
+      }
+    ]
+  },
+  "height": 260,
+  "title": {
+    "text": "Sepsis-3 and KDIGO AKI prevalence by era (full tier)",
+    "subtitle": "ICU stays; rules = 95% Wilson intervals from released counts"
+  },
+  "width": 480,
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.4.1.json"
+}
