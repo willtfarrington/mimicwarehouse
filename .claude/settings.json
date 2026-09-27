@@ -1,5 +1,5 @@
 {
-  "_readme": "Repo-shared Claude Code settings for mimicwarehouse (decision D-39 + EP-165/D-43; GOVERNANCE.md section 4). Four parts: (1) deny rules that keep Claude sessions from reading licensed patient-level data (PhysioNet Credentialed Health Data License 1.5.0) via the Read/Grep/Glob tools, shell readers, two-step copy/interpreter paths (cp, python -c, uv run python, nested sh -c, .NET file APIs), or the duckdb executable, plus the send/write tools of claude.ai MCP connectors (reference lookups only, GOVERNANCE section 4); (2) allow rules for read-only project commands (convenience only — deny rules keep precedence and cannot be overridden by settings.local.json); (3) env PYTHONUTF8=1 so both tool shells run Python with UTF-8 stdio (Risk 13); (4) a PreToolUse command-string hook (mimicwarehouse/scripts/claude_pretool_guard.py, run by the allow-listed workspace venv python — path-bound like the pre-commit hook, re-wire after moving the clone) that denies any command/path mentioning mimicdata / source material / .csv / .parquet / .duckdb unless it is an allow-listed project launcher. The deny list is a blocklist of common forms, not a data-path firewall — the hook, CLAUDE.md prose and safe_query (EP-30) are the remaining layers. All data access goes through mimicwarehouse.safe.safe_query / `mwh sql` (read-only, k=11 suppression, audit-logged). Do not weaken without updating GOVERNANCE.md and DECISIONS.md; `mwh guard --selfcheck` pins the hook registration. Unrelated cosmetic setting: includeCoAuthoredBy=false suppresses the Claude Co-Authored-By trailer in commits/PRs (owner preference, 2026-08-28; AI-assisted development is disclosed in the project narrative instead).",
+  "_readme": "Repo-shared Claude Code settings for mimicwarehouse (decision D-39 + EP-165/D-43; GOVERNANCE.md section 4). Four parts: (1) deny rules that keep Claude sessions from reading licensed patient-level data (PhysioNet Credentialed Health Data License 1.5.0) via the Read/Grep/Glob tools, shell readers, two-step copy/interpreter paths (cp, python -c, uv run python, nested sh -c, .NET file APIs), directory listings of the data locations (ls / Get-ChildItem; EP-173), or the duckdb executable, plus the send/write tools of claude.ai MCP connectors (reference lookups only, GOVERNANCE section 4); (2) allow rules for read-only project commands (convenience only — deny rules keep precedence and cannot be overridden by settings.local.json); (3) env PYTHONUTF8=1 so both tool shells run Python with UTF-8 stdio (Risk 13); (4) a PreToolUse command-string hook (mimicwarehouse/scripts/claude_pretool_guard.py, run by the allow-listed workspace venv python — path-bound like the pre-commit hook, re-wire after moving the clone) that denies any command/path mentioning mimicdata / source material / a data-shaped suffix (.csv, .parquet, .duckdb and, since EP-173, guard G1's classes: .tsv, .xlsx, .jsonl, .feather, .pkl, .pt, .npy, .h5, the bare .gz/.zst/.xz/.bz2, ... — the hook's DATA_EXTENSIONS is a literal copy the selfcheck re-checks) unless it is an allow-listed project launcher (the allow list below mirrors the hook's four `uv run ... mwh` launcher forms since EP-173). The deny list is a blocklist of common forms, not a data-path firewall — the hook, CLAUDE.md prose and safe_query (EP-30) are the remaining layers. All data access goes through mimicwarehouse.safe.safe_query / `mwh sql` (read-only, k=11 suppression, audit-logged). Do not weaken without updating GOVERNANCE.md and DECISIONS.md; `mwh guard --selfcheck` pins the hook registration. Unrelated cosmetic setting: includeCoAuthoredBy=false suppresses the Claude Co-Authored-By trailer in commits/PRs (owner preference, 2026-08-28; AI-assisted development is disclosed in the project narrative instead).",
   "permissions": {
     "deny": [
       "Read(./source material/mimic-iv-3.1/**)",
@@ -39,6 +39,7 @@
       "Bash(sort *source material*)",
       "Bash(cp *source material*)",
       "Bash(mv *source material*)",
+      "Bash(ls *source material*)",
       "Bash(python* *source material*)",
       "Bash(uv run *python* *source material*)",
       "Bash(zcat *)",
@@ -55,6 +56,7 @@
       "Bash(rg *mimicdata*)",
       "Bash(cp *mimicdata*)",
       "Bash(mv *mimicdata*)",
+      "Bash(ls *mimicdata*)",
       "Bash(python* *mimicdata*)",
       "Bash(uv run *python* *mimicdata*)",
       "Bash(sh -c *)",
@@ -132,6 +134,9 @@
     ],
     "allow": [
       "Bash(uv run mwh *)",
+      "Bash(uv run --group * mwh *)",
+      "Bash(uv run --project mimicwarehouse mwh *)",
+      "Bash(uv run --project mimicwarehouse --group * mwh *)",
       "Bash(uv run --project mimicwarehouse * mwh *)",
       "Bash(uv run pytest *)",
       "Bash(uv run poe *)",
@@ -144,6 +149,9 @@
       "Bash(git ls-files*)",
       "Bash(ls *)",
       "PowerShell(uv run mwh *)",
+      "PowerShell(uv run --group * mwh *)",
+      "PowerShell(uv run --project mimicwarehouse mwh *)",
+      "PowerShell(uv run --project mimicwarehouse --group * mwh *)",
       "PowerShell(uv run --project mimicwarehouse * mwh *)",
       "PowerShell(uv run pytest *)",
       "PowerShell(uv run poe *)",

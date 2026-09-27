@@ -7,10 +7,12 @@ in-process against the 200 ms budget), end-to-end (stdin → JSON verdict) throu
 subprocess under a loose 3 s ceiling — a cold interpreter is not the hook's cost (EP-173,
 TST-7); (2) the guard's new G1/G4 rules (float-rendered
 ids, path tokens, the 19 new data-shaped extensions); (3) ``mwh guard --selfcheck``'s new
-probes (root-anchored ``.gitignore`` pairs, ``pretool-hook`` registration); (4) string
-pins on ``.claude/settings.json`` (env block, deny floor, allow list, hook registration —
-retro GOV-10) and on CLAUDE.md (PATH fallback, heredoc ban, connector rule). Only
-synthetic values appear here; band ids are built at runtime from the module constants.
+probes (root-anchored ``.gitignore`` pairs, ``pretool-hook`` registration, and since the
+EP-173 session-guard package ``pretool-hook-tokens`` — the hook's literal copy of G1's
+extension classes); (4) string pins on ``.claude/settings.json`` (env block, deny floor,
+allow list — the hook's four launcher forms since EP-173 — hook registration; retro
+GOV-10) and on CLAUDE.md (PATH fallback, heredoc ban, connector rule). Only synthetic
+values appear here; band ids are built at runtime from the module constants.
 """
 
 from __future__ import annotations
@@ -48,6 +50,10 @@ REQUIRED_DENY = (
     "Bash(cp *source material*)",
     "Bash(cp *mimicdata*)",
     "Bash(mv *mimicdata*)",
+    # EP-173 (SGD-5, owner-applied package): `ls` is no hook launcher any more, and the
+    # settings say the same thing `Get-ChildItem *mimicdata*` already said for PowerShell
+    "Bash(ls *mimicdata*)",
+    "Bash(ls *source material*)",
     "Bash(python* *mimicdata*)",
     "Bash(python* *source material*)",
     "Bash(uv run *python* *mimicdata*)",
@@ -85,6 +91,51 @@ REQUIRED_DENY = (
     "mcp__claude_ai_Google_Calendar__respond_to_event",
     "mcp__claude_ai_Hugging_Face__hf_fs",
     "mcp__claude_ai_Hugging_Face__dynamic_space",
+)
+
+#: EP-173 (SGD-6, owner-applied package): the settings allow list mirrors the four
+#: `uv run … mwh` launcher forms the hook's ALLOW_RE accepts, per shell (the `--group` and
+#: bare `--project` forms were missing, so those calls prompted although the hook let them
+#: through). Deny rules keep precedence; no allow rule may carry a data token.
+REQUIRED_ALLOW = tuple(
+    f"{shell}({form})"
+    for shell in ("Bash", "PowerShell")
+    for form in (
+        "uv run mwh *",
+        "uv run --group * mwh *",
+        "uv run --project mimicwarehouse mwh *",
+        "uv run --project mimicwarehouse --group * mwh *",
+    )
+)
+
+#: EP-173 (SGD-7): the suffix classes the hook's literal copy must carry — guard G1's
+#: shapes an ad-hoc session dump could take, plus the EP-165 tokens; the bare compression
+#: suffixes cover `.parquet.gz` and friends.
+HOOK_REQUIRED_EXTENSIONS = (
+    ".csv",
+    ".csv.gz",
+    ".parquet",
+    ".duckdb",
+    ".tsv",
+    ".xlsx",
+    ".xls",
+    ".zip",
+    ".jsonl",
+    ".ndjson",
+    ".feather",
+    ".arrow",
+    ".pkl",
+    ".joblib",
+    ".skops",
+    ".pt",
+    ".safetensors",
+    ".npy",
+    ".npz",
+    ".h5",
+    ".gz",
+    ".zst",
+    ".xz",
+    ".bz2",
 )
 
 
@@ -136,6 +187,20 @@ DECISION_CASES: tuple[tuple[str, dict[str, Any], bool], ...] = (
     ("Bash", {"command": "git diff --no-index C:/mimicdata/x.csv probe.txt"}, True),
     ("Bash", {"command": "git grep --no-index select C:/mimicdata/lake"}, True),
     ("Bash", {"command": "git diff -- mimicwarehouse/tests/fixtures/manifest.json"}, False),
+    # EP-173 (SGD-5 / SGD-7, owner-applied package): `ls` is no launcher any more, and the
+    # token set carries guard G1's extension classes (a word boundary ends every suffix)
+    ("Bash", {"command": "ls C:/mimicdata/lake"}, True),
+    ("Bash", {"command": "ls 'source material/mimic-iv-3.1/hosp'"}, True),
+    ("Bash", {"command": "ls 'source material/README.md'"}, False),
+    ("Bash", {"command": "cat dump.tsv"}, True),
+    ("Bash", {"command": "head -c 100 frame.parquet.gz"}, True),
+    ("Bash", {"command": "cat model.pt"}, True),
+    ("Bash", {"command": "cat notes.pth"}, False),
+    ("Bash", {"command": "cat export.csvx"}, False),
+    ("Read", {"file_path": "C:/anywhere/ledger.jsonl"}, True),
+    ("Glob", {"pattern": "**/*.xlsx", "path": None}, True),
+    ("Bash", {"command": "uv run --group dev mwh runs benchmarks --out report.xlsx"}, False),
+    ("Bash", {"command": "git log --oneline -- docs/bundle.zip"}, False),
 )
 
 
@@ -152,6 +217,18 @@ def test_hook_decision_matrix(
 #: trip, which measures Python start-up, not the hook (EP-173, TST-7).
 HOOK_DECIDE_BUDGET_S = 0.2
 HOOK_SUBPROCESS_CEILING_S = 3.0
+
+
+def test_hook_data_extensions_mirror_guard_g1(hook: ModuleType) -> None:
+    hook_extensions = tuple(hook.DATA_EXTENSIONS)
+    assert set(hook_extensions) <= set(guard.DATA_EXTENSIONS), "only G1 suffixes, ever"
+    assert set(HOOK_REQUIRED_EXTENSIONS) <= set(hook_extensions)
+    assert tuple(guard.PRETOOL_HOOK_EXTENSIONS) == HOOK_REQUIRED_EXTENSIONS
+    for ext in hook_extensions:
+        assert hook.DATA_RE.search(f"probe{ext}"), ext
+        assert hook.DATA_RE.search(f"C:/tmp/probe{ext} --flag"), ext
+    for clean in ("notes.pth", "export.csvx", "mimicwarehouse/src/mimicwarehouse/guard.py"):
+        assert not hook.DATA_RE.search(clean), clean
 
 
 def test_hook_decide_within_budget_in_process(hook: ModuleType) -> None:
@@ -176,6 +253,7 @@ E2E_CASES: tuple[tuple[str, dict[str, str], bool], ...] = (
     ("Bash", {"command": "uv run mwh inventory show"}, False),
     ("Bash", {"command": "git status"}, False),
     ("Read", {"file_path": str(CLAUDE_MD)}, False),
+    ("Bash", {"command": "cat dump.tsv"}, True),  # EP-173: a G1 suffix end-to-end
 )
 
 
@@ -317,6 +395,9 @@ def test_selfcheck_carries_the_ep165_probes_and_hook_row() -> None:
         assert results[probe_id].ok, results[probe_id].as_dict()
     hook_row = results["pretool-hook"]
     assert hook_row.ok and hook_row.detail == "registered" and hook_row.level == "fail"
+    tokens_row = results["pretool-hook-tokens"]  # EP-173 (SGD-7): the literal copy holds
+    assert tokens_row.ok and tokens_row.level == "fail", tokens_row.as_dict()
+    assert "mirror guard G1" in tokens_row.detail
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +414,8 @@ def test_settings_json_env_deny_allow_and_hook() -> None:
     assert len(deny) >= 100  # EP-0's 67 + EP-165's additions; shrinking this needs D-39 review
     allow = settings["permissions"]["allow"]
     assert "Bash(uv run mwh *)" in allow and "Bash(git status*)" in allow
+    missing_allow = [rule for rule in REQUIRED_ALLOW if rule not in allow]
+    assert not missing_allow, f"allow rules missing (EP-173 SGD-6): {missing_allow}"
     lowered = [rule.lower() for rule in allow]
     assert not any("mimicdata" in rule or "source material" in rule for rule in lowered)
     groups = settings["hooks"]["PreToolUse"]

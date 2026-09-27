@@ -8,9 +8,13 @@ Malwarebytes-allow-listed venv python, D-38/D-42(4)).
 
 Rule (owner decision 2026-08-18, D-43 item 2): **deny** a tool call whose command string /
 target path mentions a protected data token — ``mimicdata``, ``source material/<anything
-but README.md>``, ``.csv``/``.csv.gz``, ``.parquet``, ``.duckdb`` — unless the command
-starts with an allow-listed read-only project launcher (``uv run [--project mimicwarehouse]
-[--group <g>] mwh|pytest|poe|pre-commit``, ``git ``, ``ls ``, ``mwh ``, ``pre-commit``).
+but README.md>``, or a data-shaped suffix from :data:`DATA_EXTENSIONS` (``.csv`` /
+``.csv.gz``, ``.parquet``, ``.duckdb`` and, since EP-173 / SGD-7, guard G1's classes:
+``.tsv``, ``.xlsx``, ``.jsonl``, ``.feather``, ``.pkl``, ``.pt``, ``.npy``, ``.h5``, the bare
+``.gz`` / ``.zst`` / ``.xz`` / ``.bz2``, …) — unless the command starts with an
+allow-listed read-only project launcher (``uv run [--project mimicwarehouse] [--group <g>]
+mwh|pytest|poe|pre-commit``, ``git ``, ``mwh ``, ``pre-commit``; ``ls`` left the list at
+EP-173 / SGD-5 — a directory listing of a data location is denied like ``Get-ChildItem``).
 Nested interpreters (``sh -c`` / ``bash -c`` / ``python -c``) mentioning those tokens are
 denied even behind an allow-listed prefix, and so are git's ``--no-index`` modes, which
 read arbitrary file content (EP-33, D-45 item 4). For the Read tool the ``file_path`` is
@@ -35,14 +39,52 @@ import re
 import sys
 import time
 
-#: Protected data tokens (the brief's regex, verbatim).
+#: Data-shaped suffixes a command string / path may not mention — a **literal copy** of
+#: the relevant classes of ``mimicwarehouse.guard.DATA_EXTENSIONS`` (G1), EP-173 / SGD-7:
+#: this script is stdlib-only and must stay under its 200 ms budget, so it cannot import
+#: the guard. Keep the two in step: ``test_ep165`` asserts this tuple is a subset of G1's
+#: list and carries every class named here, and ``mwh guard --selfcheck`` re-checks it
+#: (``pretool-hook-tokens``). The bare compression suffixes cover ``.parquet.gz`` and
+#: friends; every entry ends at a word boundary (``.pt`` never matches ``.pth``).
+DATA_EXTENSIONS: tuple[str, ...] = (
+    ".csv",
+    ".csv.gz",
+    ".parquet",
+    ".duckdb",
+    ".tsv",
+    ".xlsx",
+    ".xls",
+    ".zip",
+    ".jsonl",
+    ".ndjson",
+    ".feather",
+    ".arrow",
+    ".pkl",
+    ".joblib",
+    ".skops",
+    ".pt",
+    ".safetensors",
+    ".npy",
+    ".npz",
+    ".h5",
+    ".gz",
+    ".zst",
+    ".xz",
+    ".bz2",
+)
+_SUFFIX_ALTERNATION = "|".join(
+    re.escape(ext) for ext in sorted(DATA_EXTENSIONS, key=len, reverse=True)
+)
+#: Protected data tokens: the two location tokens of the EP-165 brief plus the suffixes.
 DATA_RE = re.compile(
-    r"(?i)mimicdata|source material[/\\](?!README\.md)|\.csv(\.gz)?\b|\.parquet\b|\.duckdb"
+    r"(?i)mimicdata|source material[/\\](?!README\.md)|(?:" + _SUFFIX_ALTERNATION + r")\b"
 )
 #: Read-only project launchers a data-token mention is legitimate for (GOV-2 corrected fix:
-#: every launcher form the briefs actually use, options before the program name).
+#: every launcher form the briefs actually use, options before the program name). ``ls``
+#: was dropped at EP-173 (SGD-5): the settings deny ``Get-ChildItem *mimicdata*`` while a
+#: bare ``ls`` used to be rescued — now both shells refuse to enumerate a data location.
 ALLOW_RE = re.compile(
-    r"^\s*(?:git\s|ls\s|mwh\s|pre-commit\b"
+    r"^\s*(?:git\s|mwh\s|pre-commit\b"
     r"|uv run\s+(?:--project mimicwarehouse\s+)?(?:--group [A-Za-z0-9_-]+\s+)?"
     r"(?:mwh|pytest|poe|pre-commit)\b)"
 )
@@ -63,10 +105,11 @@ CHECKED_FIELDS: dict[str, tuple[str, ...]] = {
 
 DENY_REASON = (
     "mwh pretool guard: the command/path mentions protected data tokens "
-    "(mimicdata / source material / .csv / .parquet / .duckdb) and is not an "
-    "allow-listed read-only project command. All data access goes through "
-    "`uv run mwh sql` / safe_query (GOVERNANCE §4, CLAUDE.md §2); for docs that merely "
-    "mention these tokens use the Read/Grep tools, not shell readers."
+    "(mimicdata / source material / a data-shaped suffix: .csv, .parquet, .duckdb, "
+    ".jsonl, .xlsx, .pkl, .gz, ...) and is not an allow-listed read-only project "
+    "command. All data access goes through `uv run mwh sql` / safe_query (GOVERNANCE §4, "
+    "CLAUDE.md §2); for docs that merely mention these tokens use the Read/Grep tools, "
+    "not shell readers; never list a data location (ls / Get-ChildItem)."
 )
 
 LOG_SNIPPET_CHARS = 200

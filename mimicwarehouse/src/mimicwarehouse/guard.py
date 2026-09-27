@@ -216,6 +216,36 @@ BINARY_PROBES: tuple[str, ...] = ("x.csv", "x.parquet", "x.duckdb", "x.tsv", "x.
 #: EP-165 (GOV-2): the PreToolUse hook script whose ``.claude/settings.json`` registration
 #: ``selfcheck`` verifies (repo-relative posix).
 PRETOOL_HOOK_SCRIPT = "mimicwarehouse/scripts/claude_pretool_guard.py"
+#: EP-173 (SGD-7): the :data:`DATA_EXTENSIONS` classes the hook's stdlib-only literal copy
+#: (``claude_pretool_guard.DATA_EXTENSIONS``) must carry — the EP-165 tokens plus the G1
+#: shapes an ad-hoc session dump could take; ``selfcheck`` (``pretool-hook-tokens``) and
+#: ``test_ep165`` hold the copy to this list, and to G1 as its superset.
+PRETOOL_HOOK_EXTENSIONS: tuple[str, ...] = (
+    ".csv",
+    ".csv.gz",
+    ".parquet",
+    ".duckdb",
+    ".tsv",
+    ".xlsx",
+    ".xls",
+    ".zip",
+    ".jsonl",
+    ".ndjson",
+    ".feather",
+    ".arrow",
+    ".pkl",
+    ".joblib",
+    ".skops",
+    ".pt",
+    ".safetensors",
+    ".npy",
+    ".npz",
+    ".h5",
+    ".gz",
+    ".zst",
+    ".xz",
+    ".bz2",
+)
 
 GIT_TIMEOUT_S = 120
 
@@ -733,6 +763,7 @@ def selfcheck(repo_root: Path) -> list[SelfcheckResult]:
         )
     )
     results.append(_pretool_hook_check(repo_root))
+    results.append(_pretool_hook_tokens_check(repo_root))
     return results
 
 
@@ -824,6 +855,53 @@ def _pretool_hook_check(repo_root: Path) -> SelfcheckResult:
             "or rebuilding .venv)",
         )
     return SelfcheckResult("pretool-hook", True, "registered")
+
+
+def _pretool_hook_tokens_check(repo_root: Path) -> SelfcheckResult:
+    """EP-173 (SGD-7): the hook's ``DATA_EXTENSIONS`` is a stdlib-only **literal copy**
+    of :data:`PRETOOL_HOOK_EXTENSIONS` (a subset of G1's :data:`DATA_EXTENSIONS`), so the
+    copy is re-checked here: every hook entry must be a G1 extension, every required
+    class must be present, and the hook's ``DATA_RE`` must match each one. The tracked
+    script is imported as a module from its path — it defines constants and functions
+    only and runs ``main()`` under ``__main__`` alone — and any import failure is the
+    finding, never an exception."""
+    import importlib.util
+
+    script = repo_root / PRETOOL_HOOK_SCRIPT
+    if not script.is_file():
+        return SelfcheckResult("pretool-hook-tokens", False, f"{PRETOOL_HOOK_SCRIPT} is absent")
+    try:
+        spec = importlib.util.spec_from_file_location("mwh_pretool_hook_selfcheck", script)
+        if spec is None or spec.loader is None:
+            raise ImportError("no import spec")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        hook_extensions = tuple(str(ext) for ext in module.DATA_EXTENSIONS)
+        data_re = module.DATA_RE
+    except Exception as exc:  # the finding is "cannot be loaded", whatever the cause
+        return SelfcheckResult(
+            "pretool-hook-tokens",
+            False,
+            f"hook script cannot be loaded or lacks DATA_EXTENSIONS / DATA_RE "
+            f"({exc.__class__.__name__})",
+        )
+    problems: list[str] = []
+    unknown = sorted(set(hook_extensions) - set(DATA_EXTENSIONS))
+    if unknown:
+        problems.append(f"not G1 extensions: {', '.join(unknown)}")
+    missing = sorted(set(PRETOOL_HOOK_EXTENSIONS) - set(hook_extensions))
+    if missing:
+        problems.append(f"missing from the hook: {', '.join(missing)}")
+    unmatched = sorted(ext for ext in hook_extensions if not data_re.search(f"probe{ext}"))
+    if unmatched:
+        problems.append(f"DATA_RE does not match: {', '.join(unmatched)}")
+    if problems:
+        return SelfcheckResult("pretool-hook-tokens", False, "; ".join(problems))
+    return SelfcheckResult(
+        "pretool-hook-tokens",
+        True,
+        f"{len(hook_extensions)} data-shaped suffixes mirror guard G1",
+    )
 
 
 def selfcheck_ok(results: Iterable[SelfcheckResult]) -> bool:
@@ -984,6 +1062,7 @@ __all__ = [
     "ID_TOKEN",
     "MAX_FILE_BYTES",
     "PATH_ID_TOKEN",
+    "PRETOOL_HOOK_EXTENSIONS",
     "PRETOOL_HOOK_SCRIPT",
     "STAY_BAND",
     "SUBJECT_BAND",
