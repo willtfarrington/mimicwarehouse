@@ -1917,7 +1917,9 @@ recommended option taken in every case (`roadmap/retro-p3.md` § Checkpoint minu
    the session scratchpad: Claude Docs create / batch / update / delete / export, Excalidraw
    create_view / save_checkpoint / export, the alphaXiv folder / metadata writes, Gmail
    create_label / update_label) themselves — a session never edits `.claude/settings.json`
-   (D-45 item 4); D-43 addendum records the roster gap.
+   (D-45 item 4); D-43 addendum records the roster gap. *(Applied 2026-09-26: the owner
+   instructed the session to make this one edit and reviewed the result before the commit;
+   a one-time exception, the D-45 item 4 rule unchanged.)*
 6. *Toolchain slot.* Not allocated for P4 — no wheel or version fight is open (D-15
    addendum); the fixture-suite wall goes to EP-74's pickup note.
 7. *Commit.* The EP-54 work lands in the two standard steps (`docs(roadmap): re-plan P3

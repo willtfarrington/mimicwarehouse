@@ -341,7 +341,11 @@ with this table as their evidence.
 >    EP-74.
 > 5. **Connectors — the owner applies the full deny package** (`ep54-connector-denies.md`
 >    in the session scratchpad; 19 lines; `mwh guard --selfcheck`; one `chore(session-guard)`
->    commit). Rejected: a narrower package; recording only.
+>    commit). Rejected: a narrower package; recording only. *(Applied 2026-09-26: on the
+>    owner's explicit one-time instruction the session made the edit itself, the owner
+>    reviewed the file and confirmed; JSON valid, 127 deny entries, `mwh guard --selfcheck`
+>    passed, `mwh verify EP-165` 61 passed; the governance text is unchanged. The D-45
+>    item 4 rule stands for every later package.)*
 > 6. **Toolchain slot — not allocated** (no wheel / version fight open; D-15 addendum).
 >    Rejected: a slot for the fixture-suite wall (EP-74's topic).
 > 7. **Commit — the two standard steps, no push** (the owner pushes). Rejected: the first
@@ -361,4 +365,7 @@ with this table as their evidence.
   pickup notes, `EP-173-debt-sweep-p4.md`, DESIGN §3/§5/§9/§10/§11/§13/§14/§15/§21 notes,
   DECISIONS D-15/D-17/D-19/D-20/D-24/D-25/D-33/D-43 addenda + D-46/D-47 + the status index,
   both READMEs.
-- `docs(roadmap): record EP-54 commit hash` — the ☑ tick, this list's hash.
+- `ee90dc8` — `docs(roadmap): record EP-54 commit hash` — the ☑ tick.
+- `chore(session-guard): deny the new write-capable connector tools (EP-54, owner-applied)`
+  (2026-09-26) — the 19 deny lines; applied by the session on the owner's one-time
+  instruction and owner-reviewed (checkpoint item 5).
