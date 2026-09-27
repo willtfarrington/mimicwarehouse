@@ -54,9 +54,15 @@ runner / catalog builder own (this module opens nothing itself):
     table — except EP-29's ``profile_*`` pair, which is already folded into
     ``meta.columns`` / ``meta.row_counts`` and carries per-column extrema, and except the
     ``derived/<tier>/spine/`` directory (EP-50's bucketed events spine, registered by its
-    own extension :func:`mimicwarehouse.spine.register_spine`). The walker
-    reads ``meta.catalog_info.lake_root`` (populated before the extensions run) instead
-    of settings, so a catalog built into a temp root by a test discovers that root.
+    own extension :func:`mimicwarehouse.spine.register_spine`). **The single-file rule
+    (EP-173, P3C-7):** a derived table is exactly one ``part-0.parquet`` (the EP-33
+    amendment 3 layout every P3 writer — concepts, phenotypes — follows); a table
+    directory without it is skipped **with a warning** naming the directory and any
+    other Parquet it holds, and Parquet beside ``part-0.parquet`` is ignored with a
+    warning — the walker never unions files, so a multi-file directory is a writer bug,
+    not a layout. The walker reads ``meta.catalog_info.lake_root`` (populated before the
+    extensions run) instead of settings, so a catalog built into a temp root by a test
+    discovers that root.
 
 Everything written, logged or returned is DDL, paths, hashes, counts and timings —
 never a row (GOVERNANCE §4). Import budget: not on the ``mwh`` start-up path;
@@ -647,7 +653,8 @@ def _derived_comment(schema: str, table: str, tier: str, entry: dict[str, Any]) 
 def register_derived(con: duckdb.DuckDBPyConnection, tier: str) -> None:
     """The discovery walker (module docstring): derived views + meta tables of ``tier``
     on the catalog build connection. Skips (with a warning) a table directory whose
-    status entry is not complete for the tier; never creates an empty view."""
+    status entry is not complete for the tier or that holds no ``part-0.parquet`` (the
+    single-file rule, EP-173 / P3C-7); never creates an empty view."""
     from mimicwarehouse.spine import SPINE_DIRNAME
 
     lake_root = _catalog_lake_root(con)
@@ -664,8 +671,27 @@ def register_derived(con: duckdb.DuckDBPyConnection, tier: str) -> None:
                 if table_dir.name.endswith((publish.NEW_SUFFIX, publish.OLD_SUFFIX)):
                     continue
                 part = table_dir / PART
+                others = sorted(p.name for p in table_dir.glob("*.parquet") if p != part)
                 if not part.is_file():
+                    _LOG.warning(
+                        "catalog discovery: %s skipped — no %s under %s (a derived table is "
+                        "exactly one %s; found %s)",
+                        f"{schema}.{table_dir.name}",
+                        PART,
+                        table_dir,
+                        PART,
+                        ", ".join(others) if others else "no Parquet at all",
+                    )
                     continue
+                if others:
+                    _LOG.warning(
+                        "catalog discovery: %s registers %s only — %d other Parquet file(s) "
+                        "beside it are ignored (%s); a derived table is exactly one file",
+                        f"{schema}.{table_dir.name}",
+                        PART,
+                        len(others),
+                        ", ".join(others),
+                    )
                 qn = f"{schema}.{table_dir.name}"
                 entry = status.get(qn)
                 if entry is None or not complete_for_tier(entry, tier):

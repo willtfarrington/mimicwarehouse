@@ -210,9 +210,13 @@ def _download(url: str, target: Path) -> None:
     raise DemoFetchError(f"cannot download {url} after {RETRIES} attempt(s): {last}")
 
 
-def parse_sha256sums(text: str, *, where: str) -> list[tuple[str, str]]:
+def parse_sums_text(text: str, *, where: str) -> list[tuple[str, str]]:
     """``[(sha256, relative posix path), ...]`` from a ``SHA256SUMS.txt`` body; refuses
-    unsafe paths (absolute, ``..``, backslashes) and unexpected suffixes."""
+    unsafe paths (absolute, ``..``, backslashes) and unexpected suffixes. Renamed from
+    ``parse_sha256sums`` at EP-173 (CLI-8: :mod:`mimicwarehouse.inventory` exported a
+    same-named parser over a *path* returning a dict —
+    :func:`mimicwarehouse.inventory.parse_sums_file` now); the old name stays an alias
+    for one phase."""
     entries: list[tuple[str, str]] = []
     for line_no, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
@@ -234,6 +238,10 @@ def parse_sha256sums(text: str, *, where: str) -> list[tuple[str, str]]:
     if not entries:
         raise DemoFetchError(f"{where}: no checksum entries")
     return entries
+
+
+#: Pre-EP-173 name of :func:`parse_sums_text`; kept for one phase (CLI-8).
+parse_sha256sums = parse_sums_text
 
 
 @dataclass(slots=True)
@@ -260,7 +268,7 @@ def fetch_dataset(
     license_path = dest / LICENSE_FILENAME
     if force or not license_path.is_file():
         _download(dataset.url + LICENSE_FILENAME, license_path)
-    entries = parse_sha256sums(
+    entries = parse_sums_text(
         sums_path.read_text(encoding="utf-8"), where=f"{dataset.name}/{CHECKSUMS_FILENAME}"
     )
 
@@ -418,6 +426,7 @@ __all__ = [
     "fetch_dataset",
     "load_register",
     "parse_sha256sums",
+    "parse_sums_text",
     "register_path",
     "write_register",
 ]

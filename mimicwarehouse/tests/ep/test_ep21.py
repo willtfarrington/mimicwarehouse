@@ -372,7 +372,7 @@ def test_catalog_info_cli(fixture_lake_settings: Settings) -> None:
         payload = json.loads(result.output)
         assert payload["catalog_info"]["tier"] == "fixture"
         kinds = {f"{t['schema']}.{t['table']}": t["kind"] for t in payload["catalog_tables"]}
-        assert len(kinds) == 31
+        assert len(kinds) == helpers.STAGED_TABLE_COUNT
         assert kinds[f"{HOSP}.admissions"] == "view"
         assert kinds[f"{HOSP}.d_labitems"] == "table"
         # EP-27 (2026-08-29) staged the last icu event tables, so every hosp/icu table
@@ -409,6 +409,6 @@ def test_dev_catalog_matches_info(item_tier: str) -> None:
         listed = _catalog_tables(con)
         present = {qn for qn, (kind, _) in listed.items() if kind != "missing"}
         assert present == _information_schema_tables(con)
-        assert len(listed) == 31
+        assert len(listed) == helpers.STAGED_TABLE_COUNT
     finally:
         con.close()

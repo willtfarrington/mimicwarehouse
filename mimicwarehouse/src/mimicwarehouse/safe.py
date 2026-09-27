@@ -13,8 +13,13 @@ From this module on, *every* result a Claude session or an export can see comes 
 2. **Allow-list**: no table/scalar functions that touch files or the environment
    (:data:`FORBIDDEN_FUNCTION_NAMES` / :data:`FORBIDDEN_FUNCTION_PREFIXES`; ``query`` /
    ``query_table`` are included — they take SQL/table-name strings and would bypass this
-   static walk); every qualified table must live in :data:`ALLOWED_SCHEMAS` (notes
-   schemas never exist in these catalogs); unqualified names must be CTEs.
+   static walk; since EP-173 (SGT-5) the whole ``duckdb_*`` / ``pragma_*`` metadata-function
+   family and ``version()`` / ``current_database()`` / ``current_schema()`` are refused too —
+   ``duckdb_databases()`` names the on-disk paths of the attached lake and ``runs.duckdb``,
+   ``duckdb_settings()`` / ``duckdb_secrets()`` / ``duckdb_temporary_files()`` the
+   environment; ``information_schema`` stays the one sanctioned metadata surface); every
+   qualified table must live in :data:`ALLOWED_SCHEMAS` (notes schemas never exist in these
+   catalogs); unqualified names must be CTEs.
 3. **Aggregate-only** (the select list of every leaf SELECT): every result column must be
    an aggregate call (:data:`AGGREGATE_FUNCTIONS` — deliberately no value-collecting
    aggregates such as ``string_agg`` / ``list`` / ``histogram`` / ``arg_min``), optionally
@@ -30,8 +35,9 @@ From this module on, *every* result a Claude session or an export can see comes 
    sizes), and a cast-wrapped count must be aliased (its generated column name would
    evade the suppressor). The count requirement is waived when the statement reads only
    registry tables (:func:`is_registry_ref`: ``meta.*``, ``information_schema``, contract
-   dims, :data:`REGISTRY_TABLES`) or metadata functions (``duckdb_tables()`` /
-   ``duckdb_columns()``), which GOVERNANCE §4 explicitly allows (EP-170 amendment 1).
+   dims, :data:`REGISTRY_TABLES`), which GOVERNANCE §4 explicitly allows (EP-170
+   amendment 1; ``information_schema.tables`` / ``.columns`` replaced the ``duckdb_*``
+   functions as the metadata surface at EP-173, SGT-5).
    Set operations (EP-33 B1b): every branch is checked against its own node; branch
    widths and count-family **positions** must agree across branches (the output column
    takes branch 1's name and the combined frame is suppressed as one).
@@ -74,12 +80,17 @@ append-only ``runs/audit.jsonl`` through :func:`mimicwarehouse.fsio.append_jsonl
 (``O_APPEND`` + checked write + fsync, one canonical JSON object per line; D-24,
 GOVERNANCE §8): never result values, only the statement text/hash, counts and provenance
 (``snapshot_ids`` is a ``{layer: id}`` dict per the DESIGN §11 glossary — here
-``{"core": <core_snapshot_id>}`` of the queried catalog). :func:`build_runs_db` exposes
+``{"core": <core_snapshot_id>}`` of the queried catalog). The recorded ``sql_text`` is
+capped at :data:`SQL_TEXT_MAX_CHARS` characters with ``sql_truncated = true`` marking a
+cut line (EP-173, LGR-6: a torn line is now detectable, and ``statement_sha256`` over the
+full text keeps the statement's identity). :func:`build_runs_db` exposes
 the file as the ``audit`` view of ``warehouse/runs.duckdb`` (published with
 :func:`mimicwarehouse.publish.swap_file`; ``mwh runs refresh`` calls it) beside the EP-35
 ledger views ``ledger`` / ``benchmarks`` / ``manifests`` / ``attrition``
 (:func:`mimicwarehouse.run.runs_db_views`); the views read with ``ignore_errors = true``
-so a torn trailing line (LGR-1) skips instead of breaking every query. ``safe_query``
+so a torn trailing line (LGR-1) skips instead of breaking every query, and the audit view
+samples the **whole** ledger for its schema so a column that first appears late
+(``sql_truncated``) is part of it — older lines read ``NULL``. ``safe_query``
 detaches (:func:`mimicwarehouse.engine.detach`) before it attaches the store, so a rebuild
 published while this process holds the catalog instance is visible to the next call
 (DESIGN §6.1 b).
@@ -153,6 +164,9 @@ REGISTRY_SCHEMAS: frozenset[str] = frozenset({"meta", "information_schema"})
 REGISTRY_TABLES: frozenset[str] = frozenset({"marts.cohorts"})
 
 #: Functions refused wherever they appear (file / environment / SQL-indirection access).
+#: EP-173 (SGT-5): ``version`` / ``current_database`` / ``current_schema`` join
+#: (engine build and attached-database names are environment facts, not data facts;
+#: ``duckdb_settings`` is kept for the record, the ``duckdb_`` prefix below covers it).
 FORBIDDEN_FUNCTION_NAMES: frozenset[str] = frozenset(
     {
         "glob",
@@ -163,12 +177,32 @@ FORBIDDEN_FUNCTION_NAMES: frozenset[str] = frozenset(
         "query_table",
         "checkpoint",
         "force_checkpoint",
+        "version",
+        "current_database",
+        "current_schema",
     }
 )
 #: Prefix families covering the file readers (``read_csv*``, ``read_parquet``,
 #: ``parquet_scan`` & friends, ``read_json*``, ``read_text``, ``read_blob``,
-#: ``sniff_csv``, …).
-FORBIDDEN_FUNCTION_PREFIXES: tuple[str, ...] = ("read_", "parquet_", "scan_", "sniff_")
+#: ``sniff_csv``, …) and — since EP-173 (SGT-5) — the whole DuckDB metadata-function
+#: family: ``duckdb_databases()`` (on-disk paths of the attached lake and ``runs.duckdb``),
+#: ``duckdb_tables()`` / ``duckdb_views()`` / ``duckdb_columns()`` / ``duckdb_extensions()``
+#: / ``duckdb_secrets()`` / ``duckdb_temporary_files()`` and the ``pragma_*`` table
+#: functions (``pragma_database_list()``, ``pragma_table_info()``, …). Since EP-35 every
+#: safe session attaches a second database, so these enumerate the environment.
+#: ``information_schema`` (:data:`REGISTRY_SCHEMAS`) is the sanctioned metadata surface.
+FORBIDDEN_FUNCTION_PREFIXES: tuple[str, ...] = (
+    "read_",
+    "parquet_",
+    "scan_",
+    "sniff_",
+    "duckdb_",
+    "pragma_",
+)
+
+#: Longest ``sql_text`` an audit line records (EP-173, LGR-6); longer statements are cut
+#: and flagged ``sql_truncated`` — ``statement_sha256`` is always over the full text.
+SQL_TEXT_MAX_CHARS = 8_192
 
 #: Count-family calls — the only place identifier columns may appear (GOVERNANCE §4).
 COUNT_FAMILY_FUNCTIONS: frozenset[str] = frozenset({"count", "count_star", "approx_count_distinct"})
@@ -295,6 +329,17 @@ class AuditLine(BaseModel):
     duckdb_version: str
     snapshot_ids: dict[str, str]
     git_sha: str | None = None
+    #: EP-173 (LGR-6): ``sql_text`` was cut at :data:`SQL_TEXT_MAX_CHARS`; lines written
+    #: before EP-173 lack the key and read ``NULL`` in ``runs.audit``.
+    sql_truncated: bool = False
+
+
+def audit_sql_text(sql: str, *, max_chars: int = SQL_TEXT_MAX_CHARS) -> tuple[str, bool]:
+    """``(recorded text, truncated?)`` for an audit line (EP-173, LGR-6): the statement as
+    given up to ``max_chars`` characters, cut and flagged beyond that."""
+    if len(sql) <= max_chars:
+        return sql, False
+    return sql[:max_chars], True
 
 
 # ---------------------------------------------------------------------------
@@ -303,9 +348,10 @@ class AuditLine(BaseModel):
 
 
 @cache
-def _contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+def contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
     """(identifier column names, free-text column names, dim ``schema.table``\\ s) from
-    the EP-9 contract flags."""
+    the EP-9 contract flags — the one contract-derived name set the gate, ``disclose``
+    (EP-43) and ``run`` (EP-35) share (public since EP-173, CLI-8)."""
     from mimicwarehouse.schema.contract import load_contract
 
     contract = load_contract()
@@ -315,11 +361,21 @@ def _contract_names() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
     return identifiers, free_text, dims
 
 
+#: The pre-EP-173 private spelling, kept for one phase (CLI-8); same cache.
+_contract_names = contract_names
+
+
 def identifier_column_names() -> frozenset[str]:
     """The contract's identifier column names (``subject_id``, ``hadm_id``, ``stay_id``,
     ``note_id``, …) — what the result check refuses by name and what ``run.save_table``
     refuses in a run folder (EP-35)."""
-    return _contract_names()[0]
+    return contract_names()[0]
+
+
+def free_text_column_names() -> frozenset[str]:
+    """The contract's ``free_text`` column names (``comments``, ``text``, …) — what the
+    result check and ``disclose.check`` refuse by name (EP-173, CLI-8)."""
+    return contract_names()[1]
 
 
 def is_registry_ref(schema: str, table: str) -> bool:
@@ -330,7 +386,7 @@ def is_registry_ref(schema: str, table: str) -> bool:
     if folded_schema in REGISTRY_SCHEMAS:
         return True
     qualified = f"{folded_schema}.{table.casefold()}"
-    return qualified in REGISTRY_TABLES or qualified in _contract_names()[2]
+    return qualified in REGISTRY_TABLES or qualified in contract_names()[2]
 
 
 def sanitize_error_text(text: str, *, max_chars: int = ERROR_TEXT_MAX_CHARS) -> str:
@@ -631,7 +687,7 @@ def _check_select_list(
 
 def _analyze(sql: str, settings: Settings) -> tuple[_Analysis | None, str | None]:
     """The full static walk (steps 1-3): ``(analysis, refusal_reason)``."""
-    identifiers, _free_text, _dims = _contract_names()
+    identifiers, _free_text, _dims = contract_names()
     statements, reason = _describe_ast(sql, settings)
     if reason is not None:
         return None, reason
@@ -669,7 +725,7 @@ def _analyze(sql: str, settings: Settings) -> tuple[_Analysis | None, str | None
             if name in FORBIDDEN_FUNCTION_NAMES or name.startswith(FORBIDDEN_FUNCTION_PREFIXES):
                 return None, (
                     f"function {name!r} is refused — file/environment/SQL-indirection "
-                    "access is not allowed"
+                    "access is not allowed (metadata reads go through information_schema)"
                 )
         if d.get("type") == "BASE_TABLE":
             base_tables.append((str(d.get("schema_name") or ""), str(d.get("table_name") or "")))
@@ -760,7 +816,7 @@ def _result_problem(df: polars.DataFrame, analysis: _Analysis) -> str | None:
     """Identifier / free-text checks over the executed frame, or None when clean."""
     import polars as pl
 
-    identifiers, free_text, _dims = _contract_names()
+    identifiers, free_text, _dims = contract_names()
     for name in df.columns:
         folded = name.casefold()
         if folded in identifiers:
@@ -813,6 +869,7 @@ def safe_query(
     resolved_k: int = k if k is not None else settings.k_suppression
     started = time.perf_counter()
     sha = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+    recorded_sql, sql_truncated = audit_sql_text(sql)
     snapshot_ids: dict[str, str] = {}
     resolved_actor = actor if actor else settings.role
 
@@ -824,7 +881,7 @@ def safe_query(
                 actor=resolved_actor,
                 tier=resolved_tier,
                 statement_sha256=sha,
-                sql_text=sql,
+                sql_text=recorded_sql,
                 allowed=False,
                 refusal_reason=reason,
                 k=resolved_k,
@@ -832,6 +889,7 @@ def safe_query(
                 duckdb_version=duckdb.__version__,
                 snapshot_ids=snapshot_ids,
                 git_sha=_git_sha(),
+                sql_truncated=sql_truncated,
             ),
             settings,
         )
@@ -922,7 +980,7 @@ def safe_query(
             actor=resolved_actor,
             tier=resolved_tier,
             statement_sha256=sha,
-            sql_text=sql,
+            sql_text=recorded_sql,
             allowed=True,
             refusal_reason=None,
             n_rows=df.height,
@@ -932,6 +990,7 @@ def safe_query(
             duckdb_version=duckdb.__version__,
             snapshot_ids=snapshot_ids,
             git_sha=_git_sha(),
+            sql_truncated=sql_truncated,
         ),
         settings,
     )
@@ -993,8 +1052,12 @@ def build_runs_db(settings: Settings | None = None) -> Path:
     turns a torn trailing line — or the merged line a later append leaves behind it — into
     an all-NULL record instead of skipping it, so the view filters ``audit_id IS NOT NULL``
     (every real line carries one). An empty ledger binds as a single ``json`` column, so
-    the filter is added only once the ledger holds a parseable record. The EP-35 views
-    bind explicit column types instead, so they are typed even over an empty file."""
+    the filter is added only once the ledger holds a parseable record. The view samples
+    the whole ledger for its schema (``sample_size = -1``, EP-173 / LGR-6): the default
+    sample would drop a key that first appears after the sampled lines (``sql_truncated``
+    since EP-173) from the schema; sampled this way, lines without the key read ``NULL``.
+    The EP-35 views bind explicit column types instead, so they are typed even over an
+    empty file."""
     from mimicwarehouse import publish
     from mimicwarehouse.engine import open_duckdb
     from mimicwarehouse.run import runs_db_views
@@ -1008,7 +1071,10 @@ def build_runs_db(settings: Settings | None = None) -> Path:
     new = publish.new_path_for(dest)
     publish.unlink(new)
     escaped = audit.resolve().as_posix().replace("'", "''")
-    source = f"read_json_auto('{escaped}', format = 'newline_delimited', ignore_errors = true)"
+    source = (
+        f"read_json_auto('{escaped}', format = 'newline_delimited', ignore_errors = true, "
+        "sample_size = -1)"
+    )
     torn_filter = " WHERE audit_id IS NOT NULL" if _ledger_has_record(audit) else ""
     views = [("audit", f"SELECT * FROM {source}{torn_filter}"), *runs_db_views(settings)]
     assert tuple(name for name, _ in views) == RUNS_DB_VIEWS
@@ -1042,13 +1108,17 @@ __all__ = [
     "REGISTRY_TABLES",
     "RUNS_DB_FILENAME",
     "RUNS_DB_VIEWS",
+    "SQL_TEXT_MAX_CHARS",
     "SUPPRESSOR",
     "AuditLine",
     "SafeQueryError",
     "SafeQueryRefused",
     "SafeResult",
     "audit_path",
+    "audit_sql_text",
     "build_runs_db",
+    "contract_names",
+    "free_text_column_names",
     "identifier_column_names",
     "is_registry_ref",
     "rowwise_suppress",

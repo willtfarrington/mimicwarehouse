@@ -875,9 +875,9 @@ def _identifier_names() -> frozenset[str]:
 
 
 def _free_text_names() -> frozenset[str]:
-    from mimicwarehouse.safe import _contract_names
+    from mimicwarehouse.safe import free_text_column_names
 
-    return _contract_names()[1]
+    return free_text_column_names()
 
 
 def _label_names() -> frozenset[str]:

@@ -86,7 +86,7 @@ def test_spec_wired_and_drift_free(contract: Contract, thresholds: qc.Thresholds
     dag = load_dag()
     names = {s.name for s in dag.steps}
     expected = {f"{qc.STEP_PREFIX}{qn}" for qn in _tables(contract)}
-    assert len(expected) == 31 and expected <= names
+    assert len(expected) == helpers.STAGED_TABLE_COUNT and expected <= names
     checks = dag.step(qc.STEP_CHECKS)
     assert checks.kind == "python"
     assert checks.callable_name == "mimicwarehouse.qc.profile:run_checks"
@@ -419,7 +419,7 @@ def test_session_lake_report_run_and_benchmarks(
     assert thresholds_ref.hash == qc.thresholds_sha256()
     assert "core" in manifest.snapshot_ids
     assert manifest.params["status_counts"]["fail"] == 0
-    assert manifest.params["tables"] == 31 and manifest.params["k"] == K
+    assert manifest.params["tables"] == helpers.STAGED_TABLE_COUNT and manifest.params["k"] == K
     assert any(
         r.get("run_id") == run_id and r.get("kind") == qc.RUN_KIND
         for r in run_mod.read_ledger(fixture_lake_settings)
@@ -428,7 +428,7 @@ def test_session_lake_report_run_and_benchmarks(
     # EP-45's measurement steps write kind: query lines beside these (the EP-33 amendment
     # to EP-45), so the pin is over the qc.profile.* steps only
     profile_lines = bench.filter(pl.col("step").str.starts_with(qc.STEP_PREFIX))
-    assert profile_lines.height == 31
+    assert profile_lines.height == helpers.STAGED_TABLE_COUNT
     assert (profile_lines.get_column("ok")).all()
 
 
@@ -751,7 +751,7 @@ def test_injected_defects_are_flagged_exactly_once(
             "WHERE check_id = 'pk_unique' AND \"table\" = 'icustays'"
         ).fetchone()
         assert row == (None, True, None, "fail")
-        assert _scalar(con, "SELECT count(*) FROM meta.qc_tables") == 31
+        assert _scalar(con, "SELECT count(*) FROM meta.qc_tables") == helpers.STAGED_TABLE_COUNT
         assert (
             _scalar(con, "SELECT worst_status FROM meta.qc_tables WHERE \"table\" = 'icustays'")
             == "fail"
@@ -800,7 +800,8 @@ def test_qc_status_cli(fixture_lake_settings: Settings) -> None:
         )
         assert listing.exit_code == 0, listing.output
         assert "meta.qc_checks (fixture)" in listing.output
-        assert "null_share" in listing.output and "31 table(s) profiled" in listing.output
+        assert "null_share" in listing.output
+        assert f"{helpers.STAGED_TABLE_COUNT} table(s) profiled" in listing.output
         assert "flagged checks (all)" in listing.output and "<11" in listing.output
         assert not BAND_TOKEN.search(listing.output)
         as_json = runner.invoke(
@@ -808,7 +809,8 @@ def test_qc_status_cli(fixture_lake_settings: Settings) -> None:
         )
         assert as_json.exit_code == 0, as_json.output
         payload = json.loads(as_json.stdout)
-        assert payload["tier"] == "fixture" and payload["tables"]["n"] == 31
+        assert payload["tier"] == "fixture"
+        assert payload["tables"]["n"] == helpers.STAGED_TABLE_COUNT
         assert set(payload["counts"]) == set(qc.CHECK_IDS)
         assert payload["totals"]["fail"] == 0 and payload["totals"]["warn"] > 0
         assert payload["rows"] == [], "--show fail lists nothing on the clean fixture"
@@ -888,7 +890,7 @@ def _real_tier_probe(tier: str) -> None:
     settings = config.load_settings()
     remedy = f"run `mwh build --tier {tier} --tag qc` (EP-44) first"
     summary = status_summary(tier, settings=settings, show="all", actor="test_ep44")
-    assert summary["tables"]["n"] == 31, remedy
+    assert summary["tables"]["n"] == helpers.STAGED_TABLE_COUNT, remedy
     for check_id in qc.CHECK_IDS:
         assert sum(summary["counts"][check_id].values()) >= 1, (tier, check_id, remedy)
     released = safe_query(

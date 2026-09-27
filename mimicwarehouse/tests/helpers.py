@@ -21,10 +21,26 @@ import pytest
 from typer.testing import CliRunner
 
 from mimicwarehouse import config
+from mimicwarehouse.catalog.build import STAGED_SCHEMAS
+from mimicwarehouse.schema import load_contract
 
 #: ``mimicwarehouse/`` (the uv project) and the git checkout above it.
 WORKSPACE = Path(__file__).resolve().parents[1]
 REPO_ROOT = WORKSPACE.parent
+
+
+def staged_table_count() -> int:
+    """The number of contract tables the P2 DAG stages — every table of the
+    :data:`~mimicwarehouse.catalog.build.STAGED_SCHEMAS` (``mimiciv_hosp`` + ``mimiciv_icu``),
+    which is also the MIMIC-IV 3.1 dataset's file count (ED and Note are separate datasets,
+    staged in P9 / P10). Derived from the contract, never a literal (EP-173, TST-5)."""
+    contract = load_contract()
+    return sum(len(contract.by_schema(schema)) for schema in STAGED_SCHEMAS)
+
+
+#: The one spelling of that count for test modules (EP-173, TST-5: thirteen modules used
+#: to assert the literal; a contract change now moves them all at once).
+STAGED_TABLE_COUNT: int = staged_table_count()
 
 
 def cli_runner() -> CliRunner:

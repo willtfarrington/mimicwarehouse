@@ -458,8 +458,10 @@ builds racing the same data root cannot both pass an existence check), payload
 `{pid, create_time, build_id, started}`; liveness = the recorded pid **with** the recorded
 process creation time (a pid Windows has recycled reads as dead; a pre-EP-33 lock without
 `create_time` falls back to the pid-only test); a live lock always refuses, a stale one
-yields only to `--break-lock`. Hence **one build-profile connection per machine at a
-time** (ARCH-11); tests and ad-hoc readers use the app profile. Anything that must be
+yields only to `--break-lock`. Hence **one build-profile connection per data root at a
+time** (ARCH-11; the lock lives in that root's `warehouse/`, so two data roots on one
+machine could each run a build — a machine-scoped lock stays parked; reworded at EP-173,
+DAG-10); tests and ad-hoc readers use the app profile. Anything that must be
 written while readers are open (audit, run ledger, benchmark ledger) goes to
 **append-only JSONL** under `runs\` through `fsio` and is exposed through `runs.duckdb`
 views rebuilt on demand (§11).
@@ -1338,10 +1340,13 @@ hook (D-39, EP-165).
    BEGIN, multi-statement) is refused. AST node shapes are pinned by tests, never assumed.
 2. **Allow-list**: no file/env/SQL-indirection functions (`FORBIDDEN_FUNCTION_NAMES`:
    `glob`, `getenv`, `current_setting`, `duckdb_settings`, `query`, `query_table`,
-   `checkpoint`, `force_checkpoint`; prefixes `read_`, `parquet_`, `scan_`, `sniff_`);
-   every qualified table in `ALLOWED_SCHEMAS` = `mimiciv_hosp, mimiciv_icu, mimiciv_derived,
-   meta, marts, runs, information_schema` (notes schemas never exist in these catalogs);
-   `duckdb_tables()` / `duckdb_columns()` admitted; unqualified names must be CTEs.
+   `checkpoint`, `force_checkpoint`, and since EP-173 `version`, `current_database`,
+   `current_schema`; prefixes `read_`, `parquet_`, `scan_`, `sniff_`, and since EP-173
+   `duckdb_`, `pragma_`); every qualified table in `ALLOWED_SCHEMAS` = `mimiciv_hosp,
+   mimiciv_icu, mimiciv_derived, meta, marts, runs, information_schema` (notes schemas
+   never exist in these catalogs); the `duckdb_*` / `pragma_*` metadata functions are
+   **refused** since EP-173 (SGT-5; `information_schema` is the metadata surface — they
+   were admitted before); unqualified names must be CTEs.
 3. **Aggregate-only** on every leaf's select list: each column is an aggregate from the
    closed `AGGREGATE_FUNCTIONS` set (no value-collecting members — `string_agg`, `list`,
    `histogram`, `first`, `arg_min`, …), optionally one `CAST` / `TRY_CAST` directly around it
@@ -1354,7 +1359,7 @@ hook (D-39, EP-165).
    (`COUNT_ALIAS_RE`: `n`, `n_*`, `*_count`, `cnt`, …) on a non-count expression is refused,
    and a cast-wrapped count must be aliased — unless the read is **registry-only**
    (`is_registry_ref`: `REGISTRY_SCHEMAS` = `meta`, `information_schema`; `REGISTRY_TABLES`
-   = `marts.cohorts`; contract dims) or metadata functions. `runs` deliberately does not
+   = `marts.cohorts`; contract dims). `runs` deliberately does not
    join the registry (owner, 2026-09-01): `runs.audit` carries statement text.
 4. **Execute** on `open_catalog(tier)` (READ_ONLY, app profile, hardened) with
    `warehouse/runs.duckdb` attached as `runs` when present (`engine.attach_read_only`),
@@ -1389,10 +1394,29 @@ through `fsio.append_jsonl`. `safe.build_runs_db()` publishes `warehouse/runs.du
 routes free-form statements and the three helper forms through `safe_query`, prints the
 `k=… · audit … · tier … · snapshot …` footer, thousands-separates table/CSV integers via
 `inventory.fmt_int` (JSON keeps raw ints), sends errors to stderr via `console.fail` and
-exits 3 on refusal (`--describe` prints the contract comment column). The tracer's
+exits 3 on refusal (`--describe` prints the contract comment column, read from
+`information_schema.columns.column_comment` since EP-173). The tracer's
 `count(*) FILTER (WHERE flag = 1)` remains the sanctioned event-count pattern (§6.1 e).
 
-*History:* built by EP-21, EP-30, EP-31, EP-170, EP-33 B1 (completion notes); consolidated at EP-33.
+> **Note (2026-09-26, EP-173) — the metadata-function hole (SGT-5) closed; the audit
+> line's text bounded (LGR-6).** Until EP-173 the allow-list blocked `duckdb_settings()`
+> only, so `duckdb_databases()` (the on-disk paths of the attached lake and of
+> `runs.duckdb` — since EP-35 every safe session attaches that second database),
+> `duckdb_tables()` / `duckdb_views()` / `duckdb_columns()` / `duckdb_extensions()` /
+> `duckdb_secrets()` / `duckdb_temporary_files()`, the `pragma_*` table functions and
+> `version()` / `current_database()` / `current_schema()` all passed the gate (a fixture-tier
+> `SELECT count(*) AS n FROM duckdb_databases()` verified and ran; only its small count
+> was suppressed). The walk now refuses the `duckdb_` and `pragma_` prefixes and the three
+> names wherever they appear (CTEs and subqueries included — the tree pass is the same);
+> `information_schema` (`REGISTRY_SCHEMAS`) is the one sanctioned metadata surface and
+> carries the `COMMENT ON` text (`column_comment`), so `mwh sql --describe` reads its
+> comments there. Audit lines record at most `SQL_TEXT_MAX_CHARS` = 8,192 characters of
+> `sql_text` and carry `sql_truncated`; `statement_sha256` is always over the full text;
+> the `runs.audit` view samples the whole ledger for its schema (`sample_size = -1`) so the
+> column exists with `NULL` on pre-EP-173 lines. Record: D-31 addendum; tests
+> `test_ep173.py`.
+
+*History:* built by EP-21, EP-30, EP-31, EP-170, EP-33 B1 (completion notes); consolidated at EP-33; SGT-5 / LGR-6 at EP-173.
 
 ## 13. Protocol freeze (D-25)
 

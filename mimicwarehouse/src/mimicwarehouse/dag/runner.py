@@ -11,8 +11,10 @@ in topological order, one tier at a time, as the **only writer** of the lake
   recorded pid **with the recorded creation time** is alive (DAG-3: a pid Windows has
   recycled reads as dead, so ``--break-lock`` can clear it; a pre-EP-33 lock without
   ``create_time`` falls back to the pid-only test); a stale lock (dead pid) yields only
-  to ``break_lock`` — **one** build-profile (36 GB / 12-thread) connection per machine at
-  a time (ledger ARCH-11), tests and ad-hoc readers use the app profile;
+  to ``break_lock`` — **one** build-profile (36 GB / 12-thread) connection per **data
+  root** at a time (ledger ARCH-11; the lock lives in that root's ``warehouse/``, so two
+  data roots on one machine could each run a build — a machine-scoped lock stays parked,
+  EP-173 / DAG-10), tests and ad-hoc readers use the app profile;
 * the free-space guard is per tier (``settings.min_free_gb_for``, EP-170/ARCH-9);
 * the raw root: ``fixture`` -> the committed ``tests/fixtures`` tree (EP-11/12),
   ``dev``/``full`` -> ``settings.source_root``, ``demo`` -> EP-22; the lake root is
@@ -389,7 +391,7 @@ def acquire_lock(settings: Settings, build_id: str, *, break_lock: bool = False)
         ):
             raise BuildLockError(
                 f"{path}: build {held.get('build_id', '?')} (pid {held_pid}) is running — "
-                "one build-profile connection per machine (DESIGN §6); wait for it"
+                "one build-profile connection per data root (DESIGN §6); wait for it"
             )
         if not break_lock:
             raise BuildLockError(

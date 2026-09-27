@@ -410,9 +410,12 @@ def sql_command(
         schema, table = describe.split(".", 1)
         result = run(f'DESCRIBE {schema}."{table}"')
         described = result.df
+        # EP-173 (SGT-5): the duckdb_* metadata functions are refused by the gate;
+        # information_schema is the sanctioned metadata surface (its column_comment is
+        # the same COMMENT ON text duckdb_columns() carried)
         comments_result = run(
-            "SELECT column_name, comment FROM duckdb_columns() "
-            f"WHERE schema_name = '{schema}' AND table_name = '{table}'"
+            "SELECT column_name, column_comment AS comment FROM information_schema.columns "
+            f"WHERE table_schema = '{schema}' AND table_name = '{table}'"
         )
         comments = {str(name): comment for name, comment in comments_result.df.rows()}
         if output_format == "json":

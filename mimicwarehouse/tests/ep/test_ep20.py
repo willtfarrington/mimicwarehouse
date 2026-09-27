@@ -124,7 +124,7 @@ def test_every_hosp_icu_table_staged_exactly_once(contract: Contract) -> None:
     assigned = [qn for group in assignments for qn in group]
     assert len(assigned) == len(set(assigned)), "a table is assigned to two briefs"
     hosp_icu = {t.qualified_name for t in contract.tables if t.schema_name in (HOSP, ICU)}
-    assert len(hosp_icu) == 31
+    assert len(hosp_icu) == helpers.STAGED_TABLE_COUNT
     assert set(assigned) == hosp_icu, "every hosp/icu table belongs to exactly one brief"
 
     # the negative: the 6 ed + 4 note tables have no stage step in this spec

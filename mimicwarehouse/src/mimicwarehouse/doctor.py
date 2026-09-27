@@ -209,8 +209,10 @@ def _duckdb_pinned_version() -> str | None:
     return None
 
 
-def _bitlocker_protection(drive: str) -> int | None:
-    """``System.Volume.BitLockerProtection`` for ``drive`` (e.g. ``"C:"``); None if unknown."""
+def bitlocker_protection(drive: str) -> int | None:
+    """``System.Volume.BitLockerProtection`` for ``drive`` (e.g. ``"C:"``); None if unknown.
+    Public since EP-173 (CLI-8): :mod:`mimicwarehouse.backup` reads it for the D-29
+    target check; the pre-EP-173 private spelling stays an alias for one phase."""
     script = (
         "(New-Object -ComObject Shell.Application)"
         f".NameSpace('{drive}\\').Self.ExtendedProperty('System.Volume.BitLockerProtection')"
@@ -223,6 +225,10 @@ def _bitlocker_protection(drive: str) -> int | None:
         return int(text.splitlines()[-1].strip())
     except ValueError:
         return None
+
+
+#: Pre-EP-173 name of :func:`bitlocker_protection`; kept for one phase (CLI-8).
+_bitlocker_protection = bitlocker_protection
 
 
 def _defender_exclusions() -> list[str] | None:
@@ -779,7 +785,7 @@ def check_bitlocker(drives: Iterable[str]) -> CheckResult:
     parts: list[str] = []
     for drive in dict.fromkeys(d for d in drives if d):
         try:
-            code = _bitlocker_protection(drive)
+            code = bitlocker_protection(drive)
         except ProbeError:
             code = None
         value[drive] = code

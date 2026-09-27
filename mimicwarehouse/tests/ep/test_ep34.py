@@ -705,7 +705,9 @@ def test_catalog_info_lists_the_registry_and_views(fixture_lake_settings: Settin
         assert objects["mimiciv_derived.hadm_era"] == "view"
         assert objects["mimiciv_derived.icustay_index"] == "view"
         assert objects["meta.catalog_info"] == "table" and objects["meta.itemids"] == "view"
-        assert len(payload["catalog_tables"]) == 31, "the contract listing is unchanged"
+        assert len(payload["catalog_tables"]) == helpers.STAGED_TABLE_COUNT, (
+            "the contract listing is unchanged"
+        )
 
         text = runner.invoke(app, [*root, "catalog", "info", "--tier", "fixture"])
         assert text.exit_code == 0, text.output

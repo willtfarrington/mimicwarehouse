@@ -928,6 +928,33 @@ same access as the owner.
 > EP-71's Table 1 need them, and the row gate already binds them); coarsening extreme
 > values to bands (parked with the DP item, DIS-1).
 
+> **Addendum (2026-09-26, EP-173 — SGT-5: the metadata-function hole closed; LGR-6:
+> the audit line bounded).** The allow-list of the shipped rule set refused
+> `duckdb_settings()` alone, so a session could enumerate the environment through the
+> rest of the family — `duckdb_databases()` names the on-disk paths of the attached lake
+> and of `runs.duckdb` (every safe session attaches it since EP-35), `duckdb_tables()` /
+> `duckdb_views()` / `duckdb_columns()` / `duckdb_extensions()` / `duckdb_secrets()` /
+> `duckdb_temporary_files()`, the `pragma_*` table functions (`pragma_database_list()`,
+> `pragma_table_info()`) and `version()` / `current_database()` / `current_schema()` —
+> and a fixture-tier probe confirmed the statement verified and ran. EP-173 adds the
+> prefixes `duckdb_` and `pragma_` and the three names to the forbidden set, wherever
+> the walk meets them (CTEs and subqueries included); `information_schema` remains the
+> one sanctioned metadata surface — it also carries the `COMMENT ON` text, so `mwh sql
+> --describe` reads its comments there and keeps working — and `DESCRIBE` / `SHOW TABLES`
+> stay admitted. Paths and engine facts are environment facts D-29 / GOVERNANCE §2 keep out
+> of tool output, not patient data; the fix is therefore a gate tightening, not an
+> incident. The audit line (GOVERNANCE §8) now records at most 8,192 characters of
+> `sql_text` with a `sql_truncated` marker — `statement_sha256` over the full text keeps
+> the statement's identity, and `runs.audit` samples the whole ledger for its schema so the
+> column exists (`NULL`) on older lines. *Why:* the retro-p2 audit's SGT-5 row (carried
+> low at EP-33, re-triaged as the one open governance hole at EP-54, D-47 item 4).
+> *Alternatives:* naming the functions one by one (rejected: a DuckDB release adds new
+> `duckdb_*` functions; the prefix is the family); admitting `duckdb_tables()` /
+> `duckdb_columns()` for the comment lookup (rejected: `information_schema` has the same
+> facts and one surface is easier to reason about); refusing over-long statements instead
+> of cutting the recorded text (rejected: the statement's legality is the walk's business;
+> the ledger only needs a bounded, identifiable record).
+
 > **Addendum (2026-09-17, EP-50 — the safe-query bound shapes a derived table; owner
 > decision: keep the cuts).** `mimiciv_derived.spine` is a subject-keyed read whose
 > natural group keys are its `code` and `text_value` strings, and the wrapper's free-text

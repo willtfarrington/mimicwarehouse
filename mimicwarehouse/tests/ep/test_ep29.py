@@ -400,7 +400,7 @@ def test_dictionary_cli(fixture_lake_settings: Settings, tmp_path: Path) -> None
         )
         assert result.exit_code == 0, result.output
         assert out.is_file()
-        assert "31 table(s)" in result.output
+        assert f"{helpers.STAGED_TABLE_COUNT} table(s)" in result.output
 
         missing = runner.invoke(
             app,

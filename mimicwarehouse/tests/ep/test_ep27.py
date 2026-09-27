@@ -215,8 +215,8 @@ def test_icu_and_whole_dag_coverage(contract: Contract) -> None:
     staged = [s.qualified_table for s in dag.steps if s.kind == "stage"]
     assert len(staged) == len(set(staged)), "a table is staged by more than one step"
     hosp_icu = {t.qualified_name for t in contract.tables if t.schema_name in (HOSP, ICU)}
-    assert len(hosp_icu) == 31
-    assert set(staged) == hosp_icu, "the DAG stages all 31 hosp + icu tables exactly"
+    assert len(hosp_icu) == helpers.STAGED_TABLE_COUNT
+    assert set(staged) == hosp_icu, "the DAG stages all hosp + icu tables exactly"
 
 
 # ---------------------------------------------------------------------------

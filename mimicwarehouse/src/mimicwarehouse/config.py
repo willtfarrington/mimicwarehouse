@@ -712,24 +712,56 @@ def _require_tier(tier: Tier | str) -> None:
         raise ValueError(f"unknown tier {tier!r}; expected fixture | demo | dev | full")
 
 
+#: The layout keys of the credentialed lake's layers — where a ``dev``/``full`` build
+#: writes; a synthetic tier's root may neither lie inside one nor contain the lake
+#: (EP-173, P01-2). ``layout["lake"]`` itself also holds the synthetic roots
+#: ``lake/fixture`` / ``lake/demo``, which is why containment is tested against the
+#: layers, not the lake directory.
+CREDENTIALED_LAKE_LAYERS: tuple[str, ...] = (
+    "lake_core",
+    "lake_derived",
+    "lake_marts",
+    "lake_manifests",
+)
+
+
+def _normalized(path: Path | str) -> str:
+    return os.path.normcase(os.path.normpath(str(_abspath(path))))
+
+
+def _path_contains(ancestor: str, path: str) -> bool:
+    """Whether ``path`` equals or lies under ``ancestor`` (both normalized); paths on
+    different drives never contain each other."""
+    try:
+        return os.path.commonpath([ancestor, path]) == ancestor
+    except ValueError:
+        return False
+
+
 def assert_not_credentialed_lake(
     tier: Tier | str, lake_root: Path | str, settings: Settings
 ) -> None:
     """Refuse a ``fixture``/``demo`` build whose lake root resolves to the credentialed lake
-    (``layout["lake"]``) — the EP-19 runner calls this before writing (EP-167, retro FXT-10).
+    (``layout["lake"]``), contains it (the data root, the drive), or lies inside one of its
+    layers (:data:`CREDENTIALED_LAKE_LAYERS`) — containment in both directions via
+    ``os.path.commonpath`` (EP-173, P01-2; the EP-167 check tested equality only). The
+    EP-19 runner calls this before writing (retro FXT-10).
 
     Raises :class:`UnsafeLocationError`; a no-op for ``dev``/``full`` and for roots elsewhere.
     """
     _require_tier(tier)
     if tier not in ("fixture", "demo"):
         return
-    resolved = os.path.normcase(os.path.normpath(str(_abspath(lake_root))))
-    credentialed = os.path.normcase(os.path.normpath(str(settings.layout["lake"])))
-    if resolved == credentialed:
+    resolved = _normalized(lake_root)
+    credentialed = _normalized(settings.layout["lake"])
+    layers = [_normalized(settings.layout[key]) for key in CREDENTIALED_LAKE_LAYERS]
+    if _path_contains(resolved, credentialed) or any(
+        _path_contains(layer, resolved) for layer in layers
+    ):
         raise UnsafeLocationError(
-            f"a {tier}-tier build may never write into the credentialed lake "
-            f"({settings.layout['lake']}) — use Settings.lake_root({tier!r}) "
-            "(GOVERNANCE §2, retro FXT-10)"
+            f"a {tier}-tier build may never write into, over or inside the credentialed "
+            f"lake ({settings.layout['lake']}) — use Settings.lake_root({tier!r}) "
+            "(GOVERNANCE §2, retro FXT-10 / P01-2)"
         )
 
 

@@ -279,7 +279,8 @@ def test_probe_timeout_becomes_warn(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_bitlocker_off_fails(mocked_probes: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(doctor, "_bitlocker_protection", lambda drive: 2)
+    # EP-173 (CLI-8): the probe is public now; the check calls it by its public name
+    monkeypatch.setattr(doctor, "bitlocker_protection", lambda drive: 2)
     result = doctor.check_bitlocker(["C:"])
     assert result.status == "fail"
     assert result.value == {"C:": 2}
@@ -294,7 +295,7 @@ def test_bitlocker_off_fails(mocked_probes: Path, monkeypatch: pytest.MonkeyPatc
 def test_bitlocker_state_mapping(
     mocked_probes: Path, monkeypatch: pytest.MonkeyPatch, code: int | None, expected: str
 ) -> None:
-    monkeypatch.setattr(doctor, "_bitlocker_protection", lambda drive: code)
+    monkeypatch.setattr(doctor, "bitlocker_protection", lambda drive: code)
     assert doctor.check_bitlocker(["C:"]).status == expected
 
 

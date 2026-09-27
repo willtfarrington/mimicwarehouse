@@ -224,10 +224,10 @@ def _bitlocker_state(drive: str) -> int | None:
     probe; None when unknown (off Windows, probe failure). Tests monkeypatch this."""
     if not config.IS_WINDOWS or not drive:
         return None
-    from mimicwarehouse.doctor import ProbeError, _bitlocker_protection
+    from mimicwarehouse.doctor import ProbeError, bitlocker_protection
 
     try:
-        return _bitlocker_protection(drive)
+        return bitlocker_protection(drive)
     except ProbeError:
         return None
 

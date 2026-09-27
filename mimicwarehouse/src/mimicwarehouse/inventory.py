@@ -254,6 +254,9 @@ class BuildResult:
     refreshed: list[str] = field(default_factory=list)
     filtered: list[str] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    #: Records dropped before anything was written because no contract table has their
+    #: ``rel_path`` any more (EP-173, CTR-7; :func:`prune_orphan_records`).
+    pruned: list[str] = field(default_factory=list)
     errors: list[dict[str, str]] = field(default_factory=list)
     started: str = ""
     finished: str = ""
@@ -452,9 +455,12 @@ def _one_line(text: str, limit: int = 400) -> str:
     return flat if len(flat) <= limit else flat[: limit - 3] + "..."
 
 
-def parse_sha256sums(path: Path) -> dict[str, str]:
+def parse_sums_file(path: Path) -> dict[str, str]:
     """``SHA256SUMS.txt`` → ``{listed name: sha256}`` (``<hex>  <name>`` lines; blanks and
-    comments ignored). Only file names and hashes are read."""
+    comments ignored). Only file names and hashes are read. Renamed from
+    ``parse_sha256sums`` at EP-173 (CLI-8: :mod:`mimicwarehouse.demo` exported a
+    same-named parser with another signature — :func:`mimicwarehouse.demo.parse_sums_text`
+    now); the old name stays an alias for one phase."""
     out: dict[str, str] = {}
     if not path.is_file():
         return out
@@ -470,6 +476,10 @@ def parse_sha256sums(path: Path) -> dict[str, str]:
         if re.fullmatch(r"[0-9a-fA-F]{64}", digest):
             out[name] = digest.lower()
     return out
+
+
+#: Pre-EP-173 name of :func:`parse_sums_file`; kept for one phase (CLI-8).
+parse_sha256sums = parse_sums_file
 
 
 def gz_sha256_for(sums: dict[str, str], csv_path: str) -> str | None:
@@ -633,6 +643,23 @@ def raw_snapshot_id(settings: Settings | None = None, root: Path | None = None) 
     return compute_snapshot_id(manifest.records.values())
 
 
+def prune_orphan_records(manifest: RawManifest, contract: Contract) -> list[FileRecord]:
+    """Drop every manifest record whose ``rel_path`` matches no contract table and return
+    the dropped records (sorted by ``rel_path``) — EP-173, CTR-7. A table renamed or removed
+    from the contract left its line in the store, where it kept counting towards the
+    completeness gate and feeding ``raw_snapshot_id`` — which every lake and derived layer
+    id inherits (``dag/snapshot.py``). :func:`build_inventory` calls this before the first
+    manifest / snapshot write; the caller rewrites the affected dataset files."""
+    current = {rel_path_for(t) for t in contract.tables}
+    dropped = sorted(
+        (rec for rel, rec in manifest.records.items() if rel not in current),
+        key=lambda rec: rec.rel_path,
+    )
+    for rec in dropped:
+        del manifest.records[rec.rel_path]
+    return dropped
+
+
 def _dataset_totals(records: Iterable[FileRecord]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     for label, dirname in DATASET_DIRS.items():
@@ -791,7 +818,10 @@ def build_inventory(
     root = manifest_root if manifest_root is not None else ensure_manifest_dir(settings)
     root.mkdir(parents=True, exist_ok=True)
     manifest = load_raw_manifest(settings, root)
-    result = BuildResult(started=_now())
+    # EP-173 (CTR-7): lines of tables the contract no longer names leave the store before
+    # anything is counted or written — they must never feed raw_snapshot_id again
+    pruned = prune_orphan_records(manifest, contract)
+    result = BuildResult(started=_now(), pruned=[rec.rel_path for rec in pruned])
     t_start = time.perf_counter()
 
     planned = plan_files(contract, source_root, datasets=datasets)
@@ -800,7 +830,7 @@ def build_inventory(
     }
     result.missing = [p.rel_path for p in planned if not p.exists]
     todo: list[tuple[PlannedFile, tuple[str, float] | None]] = []
-    refreshed_datasets: set[str] = set()
+    refreshed_datasets: set[str] = {rec.dataset for rec in pruned}
     for p in sorted(planned, key=lambda p: (p.bytes, p.rel_path)):
         if not p.exists:
             continue
@@ -883,13 +913,15 @@ def build_inventory(
         )
         for rel in result.missing:
             _LOG.info("missing: %s", rel)
+        for rel in result.pruned:
+            _LOG.info("pruned: %s (no contract table with this path; EP-173 CTR-7)", rel)
         flush()
         if rowcount and todo:
             con = open_connection(settings)
         for i, (p, known) in enumerate(todo, start=1):
             table = contract.table(p.table_qn)
             if p.dataset not in sums_cache:
-                sums_cache[p.dataset] = parse_sha256sums(
+                sums_cache[p.dataset] = parse_sums_file(
                     source_root / p.dataset_dir / SHA256SUMS_NAME
                 )
             gz = gz_sha256_for(sums_cache[p.dataset], p.csv_path)
@@ -1468,8 +1500,10 @@ __all__ = [
     "manifest_dir",
     "open_connection",
     "parse_sha256sums",
+    "parse_sums_file",
     "parse_validate_sql",
     "plan_files",
+    "prune_orphan_records",
     "raw_snapshot_id",
     "read_dataset_manifest",
     "read_header",

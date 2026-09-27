@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -134,13 +135,42 @@ def _publish(tmp: Path, dest: Path) -> None:
     publish.replace(tmp, dest)
 
 
+#: ``(column name, DuckDB type)`` pairs — the one spelling of a profile table's columns
+#: (EP-173, DKB-6: the placeholder count is ``len(columns)``, never derived by splitting a
+#: DDL string on commas, which a ``DECIMAL(18,3)`` type would over-count).
+ProfileColumns = Sequence[tuple[str, str]]
+
+TABLES_COLUMNS: ProfileColumns = (
+    ("schema", "VARCHAR"),
+    ("table", "VARCHAR"),
+    ("row_count", "BIGINT"),
+    ("build_id", "VARCHAR"),
+    ("snapshot_id", "VARCHAR"),
+    ("profiled_at", "VARCHAR"),
+)
+COLUMNS_COLUMNS: ProfileColumns = (
+    ("schema", "VARCHAR"),
+    ("table", "VARCHAR"),
+    ("column", "VARCHAR"),
+    ("null_pct", "DOUBLE"),
+    ("approx_distinct", "BIGINT"),
+    ("min_value", "VARCHAR"),
+    ("max_value", "VARCHAR"),
+    ("build_id", "VARCHAR"),
+    ("snapshot_id", "VARCHAR"),
+    ("profiled_at", "VARCHAR"),
+)
+
+
 def _write_parquet(
-    con: duckdb.DuckDBPyConnection, dest: Path, ddl_columns: str, rows: list[list[Any]]
+    con: duckdb.DuckDBPyConnection, dest: Path, columns: ProfileColumns, rows: list[list[Any]]
 ) -> int:
-    """Write ``rows`` to ``dest`` through a temp table + ``.tmp`` publish; returns bytes."""
+    """Write ``rows`` (one list per row, ``len(columns)`` values each) to ``dest`` through
+    a temp table + ``.tmp`` publish; returns bytes."""
+    ddl_columns = ", ".join(f'"{name}" {duckdb_type}' for name, duckdb_type in columns)
     con.execute(f"CREATE OR REPLACE TEMP TABLE _mwh_profile ({ddl_columns})")
     try:
-        placeholders = ", ".join("?" for _ in ddl_columns.split(","))
+        placeholders = ", ".join("?" for _ in columns)
         con.executemany(f"INSERT INTO _mwh_profile VALUES ({placeholders})", rows)
         tmp = dest.with_name(dest.name + ".tmp")
         escaped = tmp.resolve().as_posix().replace("'", "''")
@@ -257,21 +287,8 @@ def profile_lake(
                 len(table.columns),
                 time.perf_counter() - t_table,
             )
-        result.bytes += _write_parquet(
-            con,
-            tables_path,
-            '"schema" VARCHAR, "table" VARCHAR, row_count BIGINT, '
-            "build_id VARCHAR, snapshot_id VARCHAR, profiled_at VARCHAR",
-            table_rows,
-        )
-        result.bytes += _write_parquet(
-            con,
-            columns_path,
-            '"schema" VARCHAR, "table" VARCHAR, "column" VARCHAR, null_pct DOUBLE, '
-            "approx_distinct BIGINT, min_value VARCHAR, max_value VARCHAR, "
-            "build_id VARCHAR, snapshot_id VARCHAR, profiled_at VARCHAR",
-            column_rows,
-        )
+        result.bytes += _write_parquet(con, tables_path, TABLES_COLUMNS, table_rows)
+        result.bytes += _write_parquet(con, columns_path, COLUMNS_COLUMNS, column_rows)
     finally:
         if own_con:
             con.close()
@@ -299,9 +316,12 @@ def run_profile(step: Step, ctx: StepContext) -> StepOutcome:
 
 
 __all__ = [
+    "COLUMNS_COLUMNS",
     "COLUMNS_FILENAME",
     "META_DIRNAME",
+    "TABLES_COLUMNS",
     "TABLES_FILENAME",
+    "ProfileColumns",
     "ProfileError",
     "ProfileResult",
     "meta_dir",

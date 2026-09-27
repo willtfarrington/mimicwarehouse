@@ -121,7 +121,7 @@ def test_contract_loads_with_41_tables(contract: Contract) -> None:
     assert [t.name for t in contract.by_schema("mimiciv_note")] == NOTE
     assert contract.schema_names() == SCHEMAS
     assert {t.dataset for t in contract.tables} == set(DATASETS)
-    assert len(contract.by_dataset("mimic-iv-3.1")) == 31
+    assert len(contract.by_dataset("mimic-iv-3.1")) == helpers.STAGED_TABLE_COUNT
     assert len(contract.by_dataset("mimic-iv-ed-2.2")) == 6
     assert len(contract.by_dataset("mimic-iv-note-2.2")) == 4
 

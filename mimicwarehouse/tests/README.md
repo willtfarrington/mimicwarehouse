@@ -117,7 +117,8 @@ or the EP-9 schema contract changes fixture bytes. The protocol:
    compressed to `.git`).
 
 Downstream tests read counts from `manifest.json` / `fixtures.spec.build_plan()` / the schema
-contract, never hard-coded literals (the churn rule above); byte identity is asserted against
+contract (the staged hosp + icu table count as `helpers.STAGED_TABLE_COUNT`, derived from the
+contract — EP-173, TST-5), never hard-coded literals (the churn rule above); byte identity is asserted against
 the *locked* numpy/polars versions (deliberately unpinned — a lock bump that moves bytes is
 handled as a regeneration, ledger FXT-2; the manifest records the versions that produced the
 committed bytes, and the drift tests name them in their failure messages). The manifest pins

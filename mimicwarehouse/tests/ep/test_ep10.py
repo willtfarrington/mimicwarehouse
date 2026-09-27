@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+import helpers
 from mimicwarehouse import config, guard, inventory
 from mimicwarehouse.cli import DIAGNOSTIC_COMMANDS, app
 from mimicwarehouse.config import DriveInfo
@@ -411,12 +412,13 @@ def test_build_writes_manifest_store_and_snapshot(settings, source_root: Path) -
     assert snap["errors"] == [] and snap["pid"] == os.getpid()
     assert snap["duckdb_version"] and snap["contract_hash"] == load_contract().content_hash()
     assert set(snap["datasets"]) == set(DATASET_DIRS)
-    assert snap["datasets"]["mimic-iv-3.1"]["files_done"] == 31
-    assert snap["datasets"]["mimic-iv-3.1"]["files_expected"] == 31
+    # the MIMIC-IV 3.1 dataset's file count is the staged hosp + icu table count (TST-5)
+    assert snap["datasets"]["mimic-iv-3.1"]["files_done"] == helpers.STAGED_TABLE_COUNT
+    assert snap["datasets"]["mimic-iv-3.1"]["files_expected"] == helpers.STAGED_TABLE_COUNT
     assert snap["datasets"]["mimic-iv-ed-2.2"]["files_done"] == 6
     assert snap["datasets"]["mimic-iv-note-2.2"]["files_done"] == 4
     assert snap["files_expected_per_dataset"] == {
-        "mimic-iv-3.1": 31,
+        "mimic-iv-3.1": helpers.STAGED_TABLE_COUNT,
         "mimic-iv-ed-2.2": 6,
         "mimic-iv-note-2.2": 4,
     }
@@ -437,7 +439,7 @@ def test_build_writes_manifest_store_and_snapshot(settings, source_root: Path) -
     assert manifest.records["mimic-iv-ed-2.2/ed/edstays.csv"].physionet_gz_sha256 is None
     # JSONL lines: one per file, canonical JSON, no cell values
     text = (root / "mimic-iv-3.1.jsonl").read_text(encoding="utf-8")
-    assert text.count("\n") == 31 and text.endswith("\n")
+    assert text.count("\n") == helpers.STAGED_TABLE_COUNT and text.endswith("\n")
     _no_leak(text)
     _no_leak((root / "raw_snapshot.json").read_text(encoding="utf-8"))
 

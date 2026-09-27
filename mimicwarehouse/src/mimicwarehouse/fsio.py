@@ -16,7 +16,9 @@ else is corruption and raises.
 :func:`atomic_write_text` is the temp-file + ``os.replace`` write (promoted from
 ``inventory._atomic_write_text``, which stays as an alias) with the Windows
 ``PermissionError`` retry: a reader (``mwh inventory show``) holds the target for a few
-milliseconds. The temp sibling is removed when the replace finally gives up.
+milliseconds. The temp sibling is ``<name>.<pid>.<uuid8>.tmp`` — unique per writer, so two
+processes writing the same state file never share a temp name (EP-173, WIN-7) — and it is
+removed when the write itself fails or the replace finally gives up.
 
 Stdlib only — this module sits under ``safe.py`` and ``dag/benchmarks.py`` and must not add
 to the ``mwh --help`` import budget (DESIGN §15).
@@ -27,6 +29,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 import warnings
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
@@ -119,27 +122,43 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return list(iter_jsonl(path))
 
 
-def atomic_write_text(path: Path, text: str, *, retries: int = RETRIES) -> None:
-    """Write ``path`` via ``<name>.tmp`` + ``os.replace``, retrying the replace on the
-    transient Windows ``PermissionError``; the temp file is removed if the replace
-    ultimately fails (carried finding WIN-7)."""
+TEMP_SUFFIX = ".tmp"
+
+
+def temp_sibling(path: Path) -> Path:
+    """The per-writer temp name beside ``path``: ``<name>.<pid>.<uuid8>.tmp`` (EP-173,
+    WIN-7 — a fixed ``<name>.tmp`` let two writers of the same state file, or a crashed
+    writer's leftover, collide)."""
     path = Path(path)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
-    for attempt in range(retries):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            if attempt == retries - 1:
-                tmp.unlink(missing_ok=True)
-                raise
-            time.sleep(RETRY_BASE_SLEEP_S * (attempt + 1))
+    return path.with_name(f"{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}{TEMP_SUFFIX}")
+
+
+def atomic_write_text(path: Path, text: str, *, retries: int = RETRIES) -> None:
+    """Write ``path`` via a unique temp sibling (:func:`temp_sibling`) + ``os.replace``,
+    retrying the replace on the transient Windows ``PermissionError``; the temp file is
+    removed when the write itself fails or the replace ultimately fails (carried finding
+    WIN-7, completed at EP-173)."""
+    path = Path(path)
+    tmp = temp_sibling(path)
+    try:
+        tmp.write_text(text, encoding="utf-8", newline="\n")
+        for attempt in range(retries):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(RETRY_BASE_SLEEP_S * (attempt + 1))
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 __all__ = [
     "RETRIES",
     "RETRY_BASE_SLEEP_S",
+    "TEMP_SUFFIX",
     "ShortWriteError",
     "TornLedgerError",
     "append_jsonl",
@@ -148,4 +167,5 @@ __all__ = [
     "encode_line",
     "iter_jsonl",
     "read_jsonl",
+    "temp_sibling",
 ]

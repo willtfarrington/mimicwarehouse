@@ -19,6 +19,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+import helpers
 from mimicwarehouse import guard
 from mimicwarehouse.cli import app
 from mimicwarehouse.concepts import (
@@ -249,7 +250,7 @@ def test_create_sql_has_all_22_hosp_and_9_icu_tables() -> None:
     created = set(re.findall(r"CREATE TABLE\s+(mimiciv_\w+\.\w+)", text))
     assert {f"mimiciv_hosp.{t}" for t in HOSP_TABLES} <= created
     assert {f"mimiciv_icu.{t}" for t in ICU_TABLES} <= created
-    assert len(created) == 31
+    assert len(created) == helpers.STAGED_TABLE_COUNT
 
 
 GENERATED_HEADER = "-- THIS SCRIPT IS AUTOMATICALLY GENERATED. DO NOT EDIT IT DIRECTLY."

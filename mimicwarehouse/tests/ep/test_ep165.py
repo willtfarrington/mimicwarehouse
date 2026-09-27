@@ -2,8 +2,10 @@
 
 Four surfaces, all fixture-tier and read-only against the real repository: (1) the
 PreToolUse command-string hook (``scripts/claude_pretool_guard.py``) driven with crafted
-hook payloads — decision matrix through the imported module, end-to-end (stdin → JSON
-verdict, ≤ 200 ms) through a subprocess; (2) the guard's new G1/G4 rules (float-rendered
+hook payloads — decision matrix through the imported module (``decide()`` timed
+in-process against the 200 ms budget), end-to-end (stdin → JSON verdict) through a
+subprocess under a loose 3 s ceiling — a cold interpreter is not the hook's cost (EP-173,
+TST-7); (2) the guard's new G1/G4 rules (float-rendered
 ids, path tokens, the 19 new data-shaped extensions); (3) ``mwh guard --selfcheck``'s new
 probes (root-anchored ``.gitignore`` pairs, ``pretool-hook`` registration); (4) string
 pins on ``.claude/settings.json`` (env block, deny floor, allow list, hook registration —
@@ -145,8 +147,26 @@ def test_hook_decision_matrix(
     assert denied is want_deny
 
 
+#: The hook's documented per-call budget (its docstring: ≤ 200 ms, stdlib only) — measured
+#: on ``decide()`` in-process; and the ceiling for the cold-interpreter subprocess round
+#: trip, which measures Python start-up, not the hook (EP-173, TST-7).
+HOOK_DECIDE_BUDGET_S = 0.2
+HOOK_SUBPROCESS_CEILING_S = 3.0
+
+
+def test_hook_decide_within_budget_in_process(hook: ModuleType) -> None:
+    start = time.perf_counter()
+    for tool, tool_input, _want in DECISION_CASES:
+        hook.decide(tool, tool_input)
+    elapsed = time.perf_counter() - start
+    assert elapsed <= HOOK_DECIDE_BUDGET_S, (
+        f"decide() over {len(DECISION_CASES)} payloads took {elapsed * 1000:.0f} ms "
+        f"(budget {HOOK_DECIDE_BUDGET_S * 1000:.0f} ms for one call)"
+    )
+
+
 # ---------------------------------------------------------------------------
-# 1b. Hook end-to-end: stdin payload → JSON verdict, ≤ 200 ms, fail-open
+# 1b. Hook end-to-end: stdin payload → JSON verdict, fail-open (3 s subprocess ceiling)
 # ---------------------------------------------------------------------------
 
 E2E_CASES: tuple[tuple[str, dict[str, str], bool], ...] = (
@@ -178,7 +198,10 @@ def test_hook_subprocess_verdict_within_budget(
         assert "mimicdata" in verdict["permissionDecisionReason"]  # names the rule, not the data
     else:
         assert out == ""  # silent allow → normal permission flow
-    assert elapsed <= 0.2, f"hook took {elapsed * 1000:.0f} ms (budget 200 ms)"
+    assert elapsed <= HOOK_SUBPROCESS_CEILING_S, (
+        f"hook round trip took {elapsed * 1000:.0f} ms (cold-interpreter ceiling "
+        f"{HOOK_SUBPROCESS_CEILING_S:.0f} s; the 200 ms budget is measured in-process)"
+    )
 
 
 def test_hook_fails_open_on_malformed_input() -> None:

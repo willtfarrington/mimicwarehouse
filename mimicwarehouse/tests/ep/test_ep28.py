@@ -65,9 +65,9 @@ STAGE_JOBS = (
 
 
 def _staged_tables(contract: Contract) -> list[Table]:
-    """The 31 hosp + icu contract tables P2 stages (EP-27 proved the DAG covers them)."""
+    """The hosp + icu contract tables P2 stages (EP-27 proved the DAG covers them)."""
     tables = [t for t in contract.tables if t.schema_name in (HOSP, ICU)]
-    assert len(tables) == 31
+    assert len(tables) == helpers.STAGED_TABLE_COUNT
     return tables
 
 
@@ -314,7 +314,7 @@ def test_full_catalog_lists_all_tables(full_catalog: Path) -> None:
     finally:
         con.close()
     assert kinds.get("missing", 0) == 0, f"missing tables in the full catalog: {kinds}"
-    assert kinds.get("table", 0) + kinds.get("view", 0) == 31, kinds
+    assert kinds.get("table", 0) + kinds.get("view", 0) == helpers.STAGED_TABLE_COUNT, kinds
     # the catalog was built from the lake state the snapshot history knows about
     entries = snapshot_mod.read_snapshots(settings.lake_root("full"))
     known = {e["snapshot_id"] for e in entries if e["layer"] == "core" and e["tier"] == "full"}
