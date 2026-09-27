@@ -237,3 +237,17 @@ README apply; every fix is a code change under the EP-33 canons (`docs/gotchas.m
 > containment, `sample_size = -1` on the audit view, the one-phase aliases, the hook's
 > extension subset, the `test_ep02` monkeypatch targets. FYI to the owner: the last backup
 > is nine days old (`mwh backup run`).
+>
+> **Outcomes.** Commit series: `864ad88` — `feat(mimicwarehouse): debt sweep - safe-query
+> metadata functions + carried-low fixes (EP-173)` (31 files; the pre-commit gate passed);
+> `96f431f` — `chore(session-guard): drop ls from the hook launchers, mirror the launcher
+> forms, copy G1's extension classes into the hook (EP-173, owner-applied)` (the package
+> applied by `git apply` on the owner's one-time instruction: `ruff format --check` /
+> `ruff check` clean, pyright 0 errors, `mwh guard --selfcheck` passed with the new
+> `pretool-hook-tokens` row — "24 data-shaped suffixes mirror guard G1" — and
+> `mwh verify EP-165` **76 passed** (62 before the package's pins), 4 files, +229 / −16
+> lines); then `docs(roadmap): record EP-173 commit hash` — the ☑ `864ad88` tick and these
+> minutes. The owner pushes. From the chore commit on, every session's tool calls run
+> under the widened hook: a command or path mentioning a data-shaped suffix (`.jsonl`,
+> `.zip`, `.xlsx`, `.pkl`, `.pt`, `.gz`, …) needs a project launcher in front, and `ls` of
+> a data location is refused.
