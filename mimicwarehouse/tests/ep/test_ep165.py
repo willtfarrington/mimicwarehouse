@@ -433,4 +433,9 @@ def test_claude_md_carries_the_session_tooling_rules() -> None:
     assert 'default-groups=["dev"]' in text  # (f)
     assert "second egress path" in text and "public-reference" in text  # §2 connector bullet
     assert "sending anything through a connector" in text  # §6 ask-before
-    assert CLAUDE_MD.stat().st_size < 9_000  # keep it a session brief, not a handbook
+    # The project's own rules stay a session brief, not a handbook; Roadmap Wrangler's rule
+    # block (rewritten between its markers by `crw formalise`) is not counted.
+    head, begin, rest = text.partition("<!-- roadmap-wrangler:begin -->")
+    _, end, tail = rest.partition("<!-- roadmap-wrangler:end -->")
+    own_rules = head + tail if begin and end else text
+    assert len(own_rules.encode("utf-8")) < 9_000

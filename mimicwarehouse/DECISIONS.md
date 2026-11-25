@@ -18,7 +18,7 @@ latest addendum's date and EP.
 | D-n | Title (short) | State | Last addendum |
 |---|---|---|---|
 | D-1 | Tie-breaker = portfolio / employability | settled | — |
-| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44) | — |
+| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44), the 2026-11-25 sweep (S ≈ 30 / M ≈ 45 min, no L) | 2026-11-25, sweep |
 | D-3 | MIMIC-IV-Note = optional late track | settled | — |
 | D-4 | ED enters via the Linkage Wizard | refined at EP-33 (demo ED fetched, not staged) | 2026-08-30, EP-33 |
 | D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
@@ -68,6 +68,19 @@ vehicle.
 L ≈ 2 h.** Anything larger is split. Yields ~160 briefs, tagged core/stretch. *Why:* the
 owner's split-when-in-doubt rule and hupsim's lesson that long sessions die uncommitted.
 *Alternatives:* S/M/L = 1/2/4 h with ~110 briefs; 6-month horizon.
+
+> **Addendum (2026-11-25, Roadmap Wrangler's house-style sweep; owner decision).** The sizes
+> follow the house rule block that `crw formalise` added to `CLAUDE.md` the same day: a brief
+> is **S ≈ 30 min or M ≈ 45 min of active work, no L**; a row that proves larger at pickup is
+> split there, never run long, and a row is not cut only to make it smaller. The two L rows
+> (EP-26, EP-33) are done, so no open row changes letter: the open rows keep theirs and each
+> is judged against these sizes at pickup, EP-55 first. The hour budget (the roadmap README's
+> Sizes paragraph, Risk 11) is re-read at Re-plan P4 (EP-74) from P4's measured times.
+> *Why:* the owner's choice at the sweep, so this project's sizes match the rule block every
+> formalised project carries; this decision's own reason (long sessions die uncommitted)
+> points the same way, and P3 measured ≈ 1.5× its plan. *Alternatives:* keeping S/M/L ≈ 30
+> min / 1 h / 2 h, which would have won over the block's Sizes bullet as the more specific
+> rule.
 
 **D-3 MIMIC-IV-Note = optional late track.** Loaded into a segregated store late (P10,
 after linkage), one representative text workflow (search + concept/negation extraction +
