@@ -40,3 +40,22 @@ message's line and tick its box. One message per line,
   min of active work, no L (D-2 addendum; both L rows were already done); (4) no manual owed
   yet, asked again at Re-plan P4 (EP-74). Recorded in the roadmap README's dated note; OT-1
   (the CITI renewal) added.
+- [x] IN-3 (from the owner, 2026-11-25) From prime's session of 2026-11-25 (its IN-1): the site's
+  project cards now take their figures from Roadmap Wrangler's site export, which leaves a data
+  repository out unread, so mimicwarehouse's card is the one bar still typed by hand (65 of 174,
+  November 2026). The owner wants it drawn too without breaking that rule: settle with the owner how
+  mimicwarehouse publishes its own card's figures (done, total, and the next one or two undone rows
+  with id, title and size, all already in its public roadmap) to a file outside this folder at each
+  record commit, in the form and place Roadmap Wrangler defines for its export (asked of it the same
+  day), so that nothing ever reads inside this repository. prime's IN-3 wires the card once the
+  export carries it.
+  **Disposition (2026-11-25): settled** with the owner, every answer the recommended option
+  (D-48). The build waits for Roadmap Wrangler's definition of the file's form and place (its
+  IN-19, open): when its answer reaches this inbox, the session that triages it adds EP-174 (S,
+  core) at the head of the open P4 rows and builds it, so no row sits blocked meanwhile and the
+  total stays 174. Trigger: a local hook at pre-commit's post-commit stage runs an `mwh` command
+  after every commit and rewrites the file only when the figures change, computed by this
+  repository's own parser from the committed `roadmap/README.md`, so nothing of Roadmap
+  Wrangler's reads inside. A note went to Roadmap Wrangler (`crw send`, its IN-20): this side
+  settled, the place outside every project folder, every card field carried (the stack badge's
+  text included), the definition handed back here. The bar stays hand-typed until then.

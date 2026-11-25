@@ -52,6 +52,7 @@ latest addendum's date and EP.
 | D-45 | EP-33 triage-checkpoint decisions | settled 2026-09-01 | — |
 | D-46 | Definitions = versioned package data + lock file; studies from the data root | recorded 2026-09-17 at EP-54 (the pattern EP-40/41/46/51 settled) | — |
 | D-47 | EP-54 checkpoint decisions (SPINE-1, LOAD-5, MISS-4, the EP-173 debt sweep, connectors, no toolchain slot, commit) | settled 2026-09-18 | — |
+| D-48 | Site card figures, published by this repository (inbox IN-3; build = EP-174 once Roadmap Wrangler defines the file) | settled 2026-11-25 | — |
 
 ---
 
@@ -1977,3 +1978,44 @@ and the governance rules unchanged while naming a concrete later owner for every
 fix; the debt sweep spends the P4 slot on a verified governance hole rather than an
 unneeded wheel fight. *Alternatives considered:* per item, in the checkpoint questions
 (`roadmap/retro-p3.md` § Checkpoint minutes).
+
+**D-48 The site card's figures, published by this repository (2026-11-25, owner; inbox
+IN-3).** The owner's portfolio site draws each public project's card (done, total, the
+next undone rows) from Roadmap Wrangler's site export, which leaves a data repository out
+unread (that tool's D-24 addendum of its EP-27), so this repository's card was the one bar
+still typed by hand. The repository therefore publishes its own card's figures to a file
+outside its folder, in the form and at the place Roadmap Wrangler defines (its IN-19, open
+at this date), and nothing of Roadmap Wrangler's ever reads inside the repository. One
+round of four questions, the recommended option taken in each:
+
+1. *Build timing.* No row yet. When Roadmap Wrangler's answer defining the file reaches
+   `roadmap/inbox.md`, the session that triages it adds **EP-174** (S, core) at the head of
+   the open P4 rows, with its brief, and builds it; until then no row sits blocked in the
+   table and the total stays 174.
+2. *Trigger.* A local hook at pre-commit's `post-commit` stage runs an `mwh` command after
+   every commit, the owner's or a session's, which rewrites the file only when the figures
+   changed; a failure never blocks a commit, and `pre-commit install` is re-run once to add
+   the hook.
+3. *Note.* A note went to Roadmap Wrangler's inbox through `crw send` (its IN-20, reading as
+   from the owner): this side settled; the place outside every project folder (for example
+   under its own `%LOCALAPPDATA%\clauderoadmapwrangler\`), so the hook edits no project's
+   files; every card field carried, the stack badge's text included, which the export
+   cannot compute without reading inside; the definition handed back here.
+4. *Commit.* This record lands as one `chore(roadmap)` commit, no push.
+
+Routine calls stated in the questions and not objected to: the figures come from the
+repository's own parser (`verify.parse_roadmap_table`, the one `poe roadmap-check --strict`
+gates), read from the committed `roadmap/README.md` rather than the working tree, as the
+export's card fields: done, total and the percent rounded down over every phase-table row,
+and the first two undone rows in table order with id, title and size (65 of 174, next EP-55
+and EP-56, both M, at this date). They are roadmap counts and titles already public in the
+tracked README, not derived from data, so no disclosure sidecar applies (GOVERNANCE §3).
+Left to EP-174's brief: the `mwh` command's name, the hook's quiet no-op when the place is
+missing (another clone, the tool absent), and `default_install_hook_types` in
+`.pre-commit-config.yaml`. *Why:* the site keeps one source for every card without the
+tool opening a data repository; a hook refreshes the figures at every record commit with no
+session step to forget, hand commits included; waiting for the definition avoids building
+to a guessed form and place. *Alternatives considered:* a gated EP-174 row now; building
+now to a provisional form and place; parking it in Re-plan P4 (EP-74); a step in CLAUDE.md
+§4's commit recipe, or that step beside the hook; Roadmap Wrangler's own parser run over
+this repository (it would read inside); no note.
