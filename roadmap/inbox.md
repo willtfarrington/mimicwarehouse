@@ -59,3 +59,31 @@ message's line and tick its box. One message per line,
   Wrangler's reads inside. A note went to Roadmap Wrangler (`crw send`, its IN-20): this side
   settled, the place outside every project folder, every card field carried (the stack badge's
   text included), the definition handed back here. The bar stays hand-typed until then.
+- [x] IN-4 (from clauderoadmapwrangler EP-58b, 2026-11-25) For your IN-3 and D-48: the
+  published-card file, defined with the owner in clauderoadmapwrangler's EP-58b (2026-11-25, its
+  D-24 addendum of that day), for your EP-174 (S) to build the writer. (1) Place:
+  `%LOCALAPPDATA%\clauderoadmapwrangler\cards\mimicwarehouse.json`, named by your registered name;
+  create the `cards` folder when it is missing; the hook writes nothing else there and edits no
+  project's files. (2) Form: one JSON object in UTF-8 (a byte-order mark allowed, at most 64 KiB)
+  with `as_of`, the local day it is written as `YYYY-MM-DD`, never a later day; `name`, exactly
+  `mimicwarehouse`; `badge`, your stack badge's text, its chips joined with ", " (it may be empty);
+  `done` and `total`, the checked rows and all the rows of your committed roadmap's phase tables,
+  the total above nought; `percent`, done × 100 / total rounded down; `next`, the first undone rows
+  in table order, exactly as many as the undone rows allow up to two, each `{"id": "EP-n", "title":
+  the Brief cell without its link markup and its decisions, "size": "S", "M", "L" or null}`, the id
+  and the title not blank. Other fields are ignored; a missing one makes the file malformed. (3)
+  Write it whole (a temporary file beside it, then a rename) whenever the figures change; there is
+  no age limit, since the card carries its own day. (4) Its public standing is not the file's: crw
+  carries the card only when the GitHub list its window caches names a public repository called
+  mimicwarehouse (by the registered name or the folder's), and otherwise does not open the file. (5)
+  To check a file: `crw export site` (a preview, it writes nothing) prints mimicwarehouse's line
+  with "its own card of <day>", or why it is left out ("no card file", "not public (…)", or "its
+  card file is malformed: …" naming what failed). The first export that carries the card is the
+  owner's (crw's OT-46); prime's IN-3 then wires it into the page.
+  **Disposition (2026-11-25): rolled into EP-174's brief** (`EP-174-site-card-figures.md`, S,
+  core), its row added at the head of the open P4 rows as D-48 placed it. The brief carries the
+  place, the form, the write and the check above, so its session needs no inbox line. The
+  owner's choices at this triage (D-48 addendum, the recommended option each time): the brief
+  written now and the build in its own session; the badge `Python · 3.13 · uv`, the text Roadmap
+  Wrangler's stack rule gives for the workspace's files, derived from them so a pin change
+  follows.

@@ -52,7 +52,7 @@ latest addendum's date and EP.
 | D-45 | EP-33 triage-checkpoint decisions | settled 2026-09-01 | — |
 | D-46 | Definitions = versioned package data + lock file; studies from the data root | recorded 2026-09-17 at EP-54 (the pattern EP-40/41/46/51 settled) | — |
 | D-47 | EP-54 checkpoint decisions (SPINE-1, LOAD-5, MISS-4, the EP-173 debt sweep, connectors, no toolchain slot, commit) | settled 2026-09-18 | — |
-| D-48 | Site card figures, published by this repository (inbox IN-3; build = EP-174 once Roadmap Wrangler defines the file) | settled 2026-11-25 | — |
+| D-48 | Site card figures, published by this repository (inbox IN-3; the build is EP-174) | refined at the IN-4 triage (the file as Roadmap Wrangler defined it; EP-174 allocated; the badge) | 2026-11-25, IN-4 triage |
 
 ---
 
@@ -2019,3 +2019,18 @@ to a guessed form and place. *Alternatives considered:* a gated EP-174 row now; 
 now to a provisional form and place; parking it in Re-plan P4 (EP-74); a step in CLAUDE.md
 §4's commit recipe, or that step beside the hook; Roadmap Wrangler's own parser run over
 this repository (it would read inside); no note.
+
+> **Addendum (2026-11-25, the IN-4 triage).** Roadmap Wrangler's answer arrived as IN-4 (its
+> EP-58b, its D-24 addendum of that day). The file is
+> `%LOCALAPPDATA%\clauderoadmapwrangler\cards\mimicwarehouse.json` (`CRW_HOME\cards\` in a
+> trial; the `cards` folder created when missing): JSON in UTF-8 with `as_of` and the site
+> card's fields, written whole whenever the figures change, with no age limit. Its public
+> standing comes from the tool's cached GitHub list, not from the file. The owner chose, the
+> recommended option each time: the brief written at this triage and the build in its own
+> session (item 1's "and builds it" now falls to that session); the badge `Python · 3.13 · uv`,
+> the text Roadmap Wrangler's stack rule gives for the workspace's `pyproject.toml`,
+> `.python-version` and `uv.lock` (phillysim's card has the same form), derived from those
+> files so a pin change follows; the commit, no push. **EP-174 — Site card: publish the
+> roadmap's figures at each commit** (S, core) heads the open P4 rows → 175 briefs.
+> *Alternatives considered:* the brief left to the build session; the badge naming DuckDB as
+> fixed text; an empty badge.
