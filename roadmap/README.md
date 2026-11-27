@@ -214,7 +214,7 @@ Standing decisions for phase P3: adopt mimic-code concepts, port fixes, count-pi
 |---|-------|------|-----------|------|------|
 | EP-173 | [Debt sweep (P4): carried-low fixes](EP-173-debt-sweep-p4.md) | S | EP-33, EP-54 | core | ☑ `864ad88` |
 | EP-174 | [Site card: publish the roadmap's figures at each commit](EP-174-site-card-figures.md) | S | EP-4, EP-6 | core | ☑ `7012ff1` |
-| EP-55 | [Latency marts A: first-day features + mart registry ⏱](EP-55-marts-first-day.md) | M | EP-38, EP-39 | core | ☐ |
+| EP-55 | [Latency marts A: first-day features + mart registry ⏱](EP-55-marts-first-day.md) | M | EP-38, EP-39 | core | ☑ `9ea2062` + `3e66b02` |
 | EP-175 | [Latency marts A2: itemid rollups ⏱](EP-175-marts-itemid-rollups.md) | M | EP-55, EP-39 | core | ☐ |
 | EP-56 | [Latency marts B: hourly bins + <=5 s benchmark](EP-56-marts-hourly-bench.md) | M | EP-55, EP-175 | core | ☐ |
 | EP-57 | [App shell A (Streamlit multipage)](EP-57-ui-app-shell.md) | M | EP-5, EP-30 | core | ☐ |
