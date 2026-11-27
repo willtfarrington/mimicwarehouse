@@ -1,6 +1,25 @@
-# EP-55 — Latency marts A: first-day features + itemid rollups ⏱
+---
+ep: 55
+title: "Latency marts A: first-day features + mart registry ⏱"
+size: M
+model: claude-opus-5-5
+effort: max
+status: in progress
+---
 
-**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-56) · **Core/Stretch:** core · **Depends on:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-39 (Itemid dictionary curation + unit harmonization) · **Blocks:** EP-56 (Latency marts B: hourly bins + <=5 s benchmark), EP-102 (Model-ready dataset A: feature spec, windows, normalization, indicators)
+# EP-55 — Latency marts A: first-day features + mart registry ⏱
+
+**Size:** M · **Tier:** fixture+dev (full ⏱ → verified by EP-56) · **Core/Stretch:** core · **Depends on:** EP-38 (Concept fixes/ports for DuckDB 1.5.x), EP-39 (Itemid dictionary curation + unit harmonization) · **Blocks:** EP-175 (Latency marts A2: itemid rollups ⏱), EP-56 (Latency marts B: hourly bins + <=5 s benchmark), EP-102 (Model-ready dataset A: feature spec, windows, normalization, indicators)
+
+> **Split at pickup (2026-11-26; owner decision, D-2 addendum).** Judged against M ≈ 45 min
+> (the D-2 addendum of 2026-11-25: EP-55 first), the six items came to ≈ 1.5–2 h, so the row
+> was split before any code: this brief keeps the mart registry (item 1), `marts.icustay_first_day`
+> (item 2), the wiring (item 4), the full launch (item 5) and the tests (item 6) for the first-day
+> mart; **item 3, the itemid rollups (`marts.itemid_daily`, `marts.itemid_summary`), with its
+> share of items 4–6, moved to EP-175** (M, core, right after this row and before EP-56, whose
+> benchmark and EP-61's page read `itemid_summary`). The title changed from "first-day features
+> + itemid rollups" to "first-day features + mart registry". Items below that name the rollups
+> carry a "→ EP-175" mark; the rest stands as written.
 
 > **EP-54 pickup note (2026-09-17).** Header facts unchanged (EP-38 ☑ `c5c0b0c`, EP-39 ☑
 > `963ab67`); read the body against `roadmap/README.md` § "P3 → P4 name corrections" — the
@@ -75,7 +94,7 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
    snake_case `<concept>_<stat>`; units per `meta.item_units`. Parquet under
    `lake\marts\icustay_first_day\subject_bucket=NN\` (sorted `subject_id, stay_id`, ZSTD-3) +
    catalog view `marts.icustay_first_day`.
-3. **Itemid rollups** (`marts/itemid_rollups.py` + specs) — `marts.itemid_daily`: one row per
+3. **→ EP-175 (split at pickup).** **Itemid rollups** (`marts/itemid_rollups.py` + specs) — `marts.itemid_daily`: one row per
    (`stay_id`, `itemid`, `icu_day`) for the curated core itemid set (EP-39 `meta.item_units.core`;
    the itemid lists come from the vendored concept SQL for `vitalsign`, `chemistry`,
    `complete_blood_count`, `blood_gas`, `coagulation`, `enzyme` — read them from `concepts/`,
@@ -86,8 +105,8 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
    partitioned by `subject_bucket`. `marts.itemid_summary`: one unpartitioned row per curated
    itemid with `label, source_table, unit, n_stays, n_measurements, pct_stays_measured, p01,
    p50, p99` — the small aggregate table pages use for variable pickers (no identifiers).
-4. **DAG wiring** — steps `marts.icustay_first_day`, `marts.itemid_daily`,
-   `marts.itemid_summary` in the DAG YAML location established by EP-19, depending on the
+4. **DAG wiring** — steps `marts.icustay_first_day`, `marts.itemid_daily` (→ EP-175),
+   `marts.itemid_summary` (→ EP-175) in the DAG YAML location established by EP-19, depending on the
    EP-37 concept steps and EP-39's `meta.item_units`; tier-aware; write manifests + snapshot id;
    append build timings to `runs/benchmarks.jsonl`; idempotent rebuild (write the mart directory
    as `.new` and swap; catalog views re-pointed by the EP-21 builder). `uv run --group dev mwh
@@ -101,11 +120,13 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
    registry specs validate and every declared column exists with its declared type in the built
    mart; `stay_id` unique and row count == `count(*)` of `mimiciv_icu.icustays` (fixture; dev);
    `temperature_mean` inside EP-39 plausibility bounds and `admission_age ≤ 91`; `itemid_daily`
-   has no `icu_day < 0` and `n + n_implausible` equals the raw count for a crafted fixture itemid;
-   `itemid_summary` has one row per curated itemid and
-   `safe_query("SELECT itemid, n_stays FROM marts.itemid_summary")` returns without refusal;
-   `meta.tables` lists the three marts after `register_meta`; dev build wall time < 10 min read
-   back from the benchmark ledger (dev-marked).
+   has no `icu_day < 0` and `n + n_implausible` equals the raw count for a crafted fixture itemid
+   (→ EP-175); `itemid_summary` has one row per curated itemid and
+   `safe_query("SELECT itemid, n_stays FROM marts.itemid_summary")` returns without refusal
+   (→ EP-175); `meta.tables` lists the three marts after `register_meta` (as built:
+   `meta.mart_tables`, written by the catalog extension `register_marts`, lists the first-day
+   mart; EP-175 adds the other two); dev build wall time < 10 min read back from the benchmark
+   ledger (dev-marked).
 
 ## Out of scope
 
@@ -123,12 +144,13 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
   returns one count through safe_query (nothing else printed).
 - Full ⏱: launched `mwh build --tier full --target marts` in the background; log at
   `%MWH_DATA_ROOT%\runs\jobs\ep55-marts-full.log`; job id recorded here; timing verified by EP-56.
-- `DATA-DICTIONARY.md` regenerated (EP-29 generator) lists the three marts with their columns.
+- `DATA-DICTIONARY.md` regenerated (EP-29 generator) lists the three marts with their columns
+  (as split: the first-day mart; EP-175 adds the rollups).
 - Dated DESIGN.md §15 note if module/step names deviate from this brief.
 
 ## Parked → final-roadmap.md
 
-- Uncurated all-itemid chartevents rollups (v2 UI-2 lane) — trigger: Explorer needs bedside items
-  outside the curated set.
+- ~~Uncurated all-itemid chartevents rollups (v2 UI-2 lane)~~ — moved to EP-175's Parked section
+  with the rollups at the split.
 - Feature-store tooling (Feast-style registry) — trigger: EP-102 finds the YAML mart registry
-  insufficient for feature versioning.
+  insufficient for feature versioning. (Mirrored into `final-roadmap.md` §34–35 as v2 MRD-2.)

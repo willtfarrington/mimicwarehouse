@@ -173,6 +173,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 | dbt-duckdb as an alternative transform runner (resume keyword) | if the custom runner needs docs/lineage features | vendored SQL → Jinja models | v2 DAG-1 |
 | MEDS_transforms reusable stage catalog (mmcdermott/MEDS_transforms, MIT) as a transform-stage library for the D-20 custom runner — parked by EP-13 (2026-08-28); v1 hand-rolls its stages in `mwh build` | the custom runner ever needs a reusable transform-stage library | MEDS-shaped inputs (needs the EP-50 spine or an export, v2 MEDS-1); its stage configs vs our YAML specs | v2 DAG-2 |
 | healthylaife MIMIC-IV feature pipeline, full port (MIT) — parked by EP-13 (2026-08-28); v1 borrows only its cohort/feature step ordering (see `docs/resources/repos.md` borrow map) | EP-102 needs more than the step ordering the borrow map cites | pandas-era code; written against MIMIC-IV 2.x — re-verify every table/column assumption against 3.1 | v2 MRD-1 |
+| Feature-store tooling (a Feast-style feature registry with versioned feature views) over the YAML mart registry — parked by EP-55 (2026-11-26); v1's column contract is `marts/specs/<name>.yaml` (`meta.mart_columns`) | EP-102 finds the YAML mart registry insufficient for feature versioning | a second registry beside the mart specs; Feast's online store and server are out of scope for a local single-user lab | v2 MRD-2 |
 
 ## 36–38 Disclosure · Prospective inquiry · Provenance
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

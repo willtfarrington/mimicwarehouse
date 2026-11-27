@@ -1,6 +1,19 @@
 # EP-56 — Latency marts B: hourly bins + <=5 s benchmark
 
-**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + itemid rollups ⏱) · **Blocks:** EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
+**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + mart registry ⏱), EP-175 (Latency marts A2: itemid rollups ⏱) · **Blocks:** EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
+
+> **Amended at EP-55 (2026-11-26).** EP-55 was split at its pickup (D-2 addendum): the itemid
+> rollups (`marts.itemid_daily`, `marts.itemid_summary`) are **EP-175**, which runs between
+> EP-55 and this brief, so this brief now depends on both. **Item 1 changes:** EP-55's full job
+> (`ep55-marts-full`) finished inside EP-55's session (2026-11-26, 13 s) and EP-55 verified and
+> recorded it itself (its completion note: counts against `mimiciv_icu.icustays`, wall, peak RSS,
+> disk delta, the regenerated `DATA-DICTIONARY.md`), so item 1 verifies **EP-175's** job
+> (`ep175-rollups-full`, the `itemid_summary` row-per-curated-itemid check) unless EP-175 already
+> did, and appends the completion note to EP-175's brief instead. Build on what EP-55 shipped:
+> a new mart is a spec under `marts/specs/`, a builder module and one `marts.<name>` step in
+> `dag/specs/marts.yaml`, written through `marts.registry.write_mart` (sorted file per bucket,
+> manifest, status, `kind: mart` ledger line, snapshot id) and registered by `register_marts`;
+> `--target marts` reads `--tag marts` (the name-corrections table).
 
 > **EP-54 pickup note (2026-09-17).** Header facts unchanged; the EP-170 / EP-33 blocks
 > below stand; read the body against `roadmap/README.md` § "P3 → P4 name corrections".

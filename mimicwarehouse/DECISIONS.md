@@ -18,7 +18,7 @@ latest addendum's date and EP.
 | D-n | Title (short) | State | Last addendum |
 |---|---|---|---|
 | D-1 | Tie-breaker = portfolio / employability | settled | — |
-| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44), the 2026-11-25 sweep (S ≈ 30 / M ≈ 45 min, no L) | 2026-11-25, sweep |
+| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44), the 2026-11-25 sweep (S ≈ 30 / M ≈ 45 min, no L), EP-55 (the first pickup split: the itemid rollups became EP-175) | 2026-11-26, EP-55 |
 | D-3 | MIMIC-IV-Note = optional late track | settled | — |
 | D-4 | ED enters via the Linkage Wizard | refined at EP-33 (demo ED fetched, not staged) | 2026-08-30, EP-33 |
 | D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
@@ -82,6 +82,18 @@ owner's split-when-in-doubt rule and hupsim's lesson that long sessions die unco
 > points the same way, and P3 measured ≈ 1.5× its plan. *Alternatives:* keeping S/M/L ≈ 30
 > min / 1 h / 2 h, which would have won over the block's Sizes bullet as the more specific
 > rule.
+
+> **Addendum (2026-11-26, EP-55; owner decision).** The first pickup judged under these sizes
+> split its row: EP-55 (Latency marts A, M) came to ≈ 1.5–2 h — a mart registry, a 154-column
+> first-day mart over 14 concept tables, per-stay × itemid × day rollups over chartevents and
+> labevents, a quantile summary, wiring, tests, a dev build and a full launch — so before any
+> code the itemid rollups (its item 3, with their share of items 4–6) became **EP-175** (M,
+> core) between EP-55 and EP-56, and EP-55, retitled "first-day features + mart registry", kept
+> the rest; EP-56 depends on both. *Why:* this addendum's rule (split at pickup, never run
+> long); the rollups are the one item with its own scan, so the cut follows the work rather
+> than cutting a row only to make it smaller. *Alternatives:* three rows (registry, first-day
+> mart, rollups), which the rule's "not cut only to make it smaller" argues against; running
+> the brief whole in one session.
 
 **D-3 MIMIC-IV-Note = optional late track.** Loaded into a segregated store late (P10,
 after linkage), one representative text workflow (search + concept/negation extraction +
