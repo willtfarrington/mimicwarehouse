@@ -57,10 +57,13 @@ From this module on, *every* result a Claude session or an export can see comes 
    ``meta.*`` are exempt, and the label columns :data:`LABEL_COLUMN_NAMES`
    (``drgcodes.description``, ``hcpcsevents.short_description``; since EP-35 also the
    ledger columns ``refusal_reason`` and ``error``, whose values legitimately exceed 64
-   characters) are allow-listed (EP-170 amendment 1); the post-suppression row count
-   must not exceed ``row_cap``.
+   characters) are allow-listed (EP-170 amendment 1); a result column named
+   ``<count>_suppressed`` after one of the result's count columns is refused (EP-175: it
+   would collide with the suppressor's marker, ``disclose.MARKER_SUFFIX``); the
+   post-suppression row count must not exceed ``row_cap``.
 6. **k-suppression** via :data:`SUPPRESSOR` (see below) over the real count columns
-   only; on ``dev``/``full`` a ``k`` below 11 is refused (D-31/D-33); on
+   only -- an exception inside the hook is an audited refusal, never an unaudited crash
+   after execution (EP-175) -- on ``dev``/``full`` a ``k`` below 11 is refused (D-31/D-33); on
    ``fixture``/``demo`` (synthetic / ODbL) the caller may lower it. Extreme-value
    aggregates (``min`` / ``max`` / ``mode`` / ``median`` / quantiles) stay admitted and are
    released only inside k-gated rows (SGT-2, owner decision; since EP-43 the gate is
@@ -133,7 +136,7 @@ from pydantic import BaseModel, ConfigDict
 
 from mimicwarehouse.config import Settings, Tier, get_settings
 from mimicwarehouse.console import EXIT_REFUSED, EXIT_USAGE
-from mimicwarehouse.disclose import safe_suppressor
+from mimicwarehouse.disclose import MARKER_SUFFIX, safe_suppressor
 
 if TYPE_CHECKING:  # pragma: no cover
     import polars
@@ -815,7 +818,8 @@ def _count_columns(df: polars.DataFrame, analysis: _Analysis) -> list[str]:
 
 
 def _result_problem(df: polars.DataFrame, analysis: _Analysis) -> str | None:
-    """Identifier / free-text checks over the executed frame, or None when clean."""
+    """Identifier / free-text checks over the executed frame, and (EP-175) the reserved
+    marker names, or None when clean."""
     import polars as pl
 
     identifiers, free_text, _dims = contract_names()
@@ -825,6 +829,17 @@ def _result_problem(df: polars.DataFrame, analysis: _Analysis) -> str | None:
             return f"output column {name!r} is an identifier column (GOVERNANCE §4)"
         if folded in free_text:
             return f"output column {name!r} is a contract free-text column (GOVERNANCE §4/§9)"
+    # EP-175: the suppressor adds a ``<count>_suppressed`` marker per count column, so a
+    # result column already named that way would collide with it inside the hook -- before
+    # this check the call then raised after execution with no audit line (GOVERNANCE §8)
+    folded_names = {n.casefold() for n in df.columns}
+    for count in _count_columns(df, analysis):
+        marker = f"{count}{MARKER_SUFFIX}"
+        if marker.casefold() in folded_names:
+            return (
+                f"output column {marker!r} collides with the small-cell marker of count column "
+                f"{count!r} - rename it (the suffix {MARKER_SUFFIX!r} is reserved)"
+            )
     if not analysis.exempt:
         for name, dtype in df.schema.items():
             if dtype != pl.String or name.casefold() in LABEL_COLUMN_NAMES:
@@ -967,7 +982,14 @@ def safe_query(
     problem = _result_problem(df, analysis)
     if problem is not None:
         raise refuse(problem)
-    df, rows_suppressed = SUPPRESSOR(df, resolved_k, _count_columns(df, analysis))
+    try:
+        df, rows_suppressed = SUPPRESSOR(df, resolved_k, _count_columns(df, analysis))
+    except Exception as exc:
+        # EP-175: whatever the hook raises, the executed statement is audited as refused and
+        # its result never leaves (GOVERNANCE §8: one audit line per call)
+        raise refuse(
+            f"suppression error: {exc.__class__.__name__}: {sanitize_error_text(str(exc))}"
+        ) from None
     if df.height > row_cap:
         raise refuse(
             f"result has {df.height} rows after suppression, over the row cap of "

@@ -17,6 +17,9 @@ reproduced, daily vs summary agreement, one summary row per rolled-up itemid,
 ``safe_query`` registry read without a count column, row-level reads refused, the three
 marts in ``meta.mart_tables``, the dictionary sections). ``tier("dev")``: the same
 invariants through ``safe_query`` and the dev build's wall time from the benchmark ledger.
+Section 5 pins the safe-query fix this session made on the owner's word: a result column
+named after a count column's small-cell marker, and any failure inside the suppressor, are
+audited refusals rather than unaudited crashes after execution.
 """
 
 from __future__ import annotations
@@ -760,6 +763,52 @@ def test_dev_build_wall_time_from_the_ledger(dev_catalog: Path) -> None:
         wall = float(lines["wall_s"][-1])
         assert wall < 600.0, f"{step} took {wall:.1f} s on dev (target < 10 min)"
         print(f"dev: {step} ({kind}) wall {wall:.1f} s")
+
+
+# ---------------------------------------------------------------------------
+# 5. The safe-query audit gap found at EP-175 (owner decision: fix now, own commit)
+# ---------------------------------------------------------------------------
+
+
+def test_a_marker_named_column_is_an_audited_refusal(
+    fixture_lake_settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mimicwarehouse import fsio
+    from mimicwarehouse.safe import SafeQueryRefused, audit_path, safe_query
+
+    def run(sql: str) -> Any:
+        return safe_query(sql, tier="fixture", settings=fixture_lake_settings, actor="test_ep175")
+
+    def audit_lines() -> list[dict[str, Any]]:
+        return fsio.read_jsonl(audit_path(fixture_lake_settings))
+
+    # before EP-175 this raised inside the suppressor after execution, with no audit line
+    before = len(audit_lines())
+    with pytest.raises(SafeQueryRefused, match="collides with the small-cell marker"):
+        run(
+            "SELECT count(*) AS n, count(*) FILTER (WHERE n_implausible > 0) AS n_suppressed "
+            "FROM marts.itemid_daily"
+        )
+    lines = audit_lines()
+    assert len(lines) == before + 1
+    assert lines[-1]["allowed"] is False and "collides" in lines[-1]["refusal_reason"]
+    with pytest.raises(SafeQueryRefused, match="collides"):
+        run("SELECT count(*) AS N, count(*) AS N_SUPPRESSED FROM marts.itemid_daily")
+    # a registry read may still carry a *_suppressed column: no count column, no marker
+    assert run("SELECT mart, rows_suppressed FROM meta.mart_tables").n_rows >= 3
+    assert run("SELECT count(*) AS n, count(*) AS rows_withheld FROM marts.itemid_daily").n_rows
+
+    # any other failure inside the hook: an audited refusal, its error text sanitised
+    def broken(df: Any, k: int, count_columns: list[str]) -> Any:
+        raise RuntimeError("synthetic hook failure 4242")
+
+    monkeypatch.setattr(safe, "SUPPRESSOR", broken)
+    before = len(audit_lines())
+    with pytest.raises(SafeQueryRefused, match="suppression error: RuntimeError"):
+        run("SELECT count(*) AS n FROM marts.itemid_daily")
+    lines = audit_lines()
+    assert len(lines) == before + 1 and lines[-1]["allowed"] is False
+    assert "4242" not in lines[-1]["refusal_reason"], "numbers are masked (DKB-2)"
 
 
 def test_docstrings_name_the_rollups() -> None:
