@@ -31,6 +31,7 @@ read against the roadmap README § "P3 → P4 name corrections")*
 | `guard.py` — pre-commit data-leak guard G1–G5 (G1/G4 hardened at EP-165; G4 scans notebook source and shell/markup types since EP-33; selfcheck resolves the registered hook paths) | EP-4, EP-165, EP-33 | `mwh guard [PATHS…] [--staged \| --all-tracked \| --selfcheck]` | `test_ep04.py` · `test_ep165.py` |
 | `theme.py` — palette, Altair/Streamlit themes, wordmark + banner SVGs ([docs/brand/](docs/brand/README.md)) | EP-5 | — | `test_ep05.py` |
 | `verify.py` + `scripts/roadmap_check.py` — per-brief test runner, roadmap consistency check | EP-6 | `mwh verify EP-n \| --list \| --roadmap` · `poe roadmap-check` | `test_ep06.py` |
+| `card.py` — the site card's figures (D-48): `build_card` from the committed roadmap only (`git show HEAD:roadmap/README.md` → `verify.parse_roadmap_text`, the parser `roadmap-check` gates) with Roadmap Wrangler's stack badge from the committed workspace files (`Python · 3.13 · uv`); `plan_write` / `write_card` → `%CRW_HOME%\cards\mimicwarehouse.json`, else `%LOCALAPPDATA%\clauderoadmapwrangler\cards\mimicwarehouse.json` — exactly the reader's fields, rewritten whole only when the figures change, a quiet no-op without the tool's folder or a committed roadmap; run after every commit by the `mwh-card` post-commit hook; a diagnostic command | EP-174 | `mwh card [--write] [--dest DIR] [--json]` | `test_ep174.py` |
 | `concepts/` — vendored MIT-LCP/mimic-code at the D-19 pin (`vendor_info()`, `VENDOR.json`); **the concept runner (EP-37):** `inventory.py` (the 65 `concepts_duckdb` files → the committed `concepts.yaml` inventory in topological order + the generated DAG spec `dag/specs/concepts.yaml`; drift-tested), `runner.py` (`concept.<group>.<name>` python steps: header strip, source views over the lake, one Parquet file per table under the per-tier `derived/<tier>/` layout, manifest line + per-tier status + `kind: concept` benchmark line; `meta.concept_versions`; the catalog discovery walker `register_derived`), `pins.py` (count-pins through `safe_query`; `tests/ep/pins/concepts_demo.json` committed, dev pins under `runs/pins/`; since EP-38 the pins carry the patch map and `--refresh` re-pins with a before/after record); all 65 execute on DuckDB 1.5.5 on every tier (full verified by EP-38); **concept patches (EP-38):** `patching.py` + `patches/` — the registry `patches.yaml` and five full-replacement `<concept>.sql` ports of open upstream PRs (SIRS `wbc_max` guard, MCHC / CRP `valueuom` filters, Charlson C4A exclusion, APS III equidistant arms), validated once per build (a pin mismatch or drifted file refuses every concept step), `patch_id` + executed sha in `meta.concept_versions`, `--select-list` = the patched rebuild; inventory + deviations page [docs/resources/concepts.md](docs/resources/concepts.md) | EP-8, EP-37, EP-38 | `poe vendor-mimic-code` · `mwh build --tier t --tag concepts [--keep-going]` · `python -m mimicwarehouse.concepts.inventory` · `python -m mimicwarehouse.concepts.patching --check \| --select-list \| --table` · `python -m mimicwarehouse.concepts.pins --tier t [--refresh]` | `test_ep08.py` · `test_ep37.py` · `test_ep38.py` |
 | `schema/` — YAML contract for hosp/icu/ed/note (41 tables; keys, units, column maps, tie-broken sort keys, identifier/free-text flags) transcribed from the vendored DDL | EP-9, EP-169 | `mwh schema list \| show \| ddl \| check \| transcribe` | `test_ep09.py` · `test_ep169.py` |
 | `inventory.py` — hash/row-count manifest of the raw CSVs, reconciled against upstream `validate.sql`; `raw_snapshot_id`; `fmt_int`/`fmt_bytes_mb` (the committed-text canon, [docs/committed-text.md](docs/committed-text.md)) | EP-10 | `mwh inventory build [--log] [--quiet] \| show [--timing] \| reconcile` | `test_ep10.py` |
@@ -162,7 +163,7 @@ briefs always name their groups: `uv run --group ui mwh app`. `poe` tasks: `test
 `poe_tasks.toml` (EP-33). Tests carry `@pytest.mark.ep_<n>` (one marker per brief) and a
 `tier(...)` marker (selection from EP-12).
 
-## Quick start (`mwh` as of EP-52: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures` · `canary` · `build` · `jobs` · `catalog` · `sql` · `demo` · `runs` · `tracer` · `units` · `codeset` · `phenotype` · `disclose` · `qc` · `cohort` · `timeline` · `spine` · `protocol` · `backup`; `app` lands in P4)
+## Quick start (`mwh` as of EP-174: `doctor` · `paths` · `guard` · `verify` · `schema` · `inventory` · `fixtures` · `canary` · `build` · `jobs` · `catalog` · `sql` · `demo` · `runs` · `tracer` · `units` · `codeset` · `phenotype` · `disclose` · `qc` · `cohort` · `timeline` · `spine` · `protocol` · `backup` · `card`; `app` lands in P4)
 
 ```powershell
 # from the repository root, after "Install" above
@@ -265,6 +266,7 @@ uv run --group dev mwh verify EP-<n>         # one brief's acceptance tests (mar
 uv run --group dev mwh verify --list         # EP · title · tier · test module present
 uv run --group dev mwh verify --roadmap      # roadmap/README.md vs briefs: parity · header · hashes · charters (--strict, --json)
 uv run poe roadmap-check                     # = mwh verify --roadmap (scripts/roadmap_check.py); what the re-plan EPs run
+uv run --group dev mwh card                  # EP-174: preview the site card the committed roadmap gives (done / total / percent, the next two undone rows, the badge) and whether a write would change the file; `--json` = the outcome + the card; `--write` = the post-commit hook's call (D-48)
 ```
 
 **Settings** (`mimicwarehouse.config.Settings`, pydantic-settings): `mwh --data-root` >
@@ -308,10 +310,20 @@ touched) and let them refuse what must never reach git (GOVERNANCE §3):
 
 ```powershell
 cd mimicwarehouse
-uv run --group dev pre-commit install          # writes .git/hooks/pre-commit
+uv run --group dev pre-commit install          # writes .git/hooks/pre-commit and (EP-174) .git/hooks/post-commit
 uv run --group dev pre-commit run --all-files  # on demand; also runs ruff check/format --check
 uv run --group dev poe guard                   # = mwh guard --staged, without pre-commit
+uv run --group dev pre-commit run --hook-stage post-commit --all-files   # the card hook alone
 ```
+
+**After each commit (EP-174, D-48).** The local hook `mwh-card` (`stages: [post-commit]`) runs
+`mwh card --write`: the site card's figures — done, total, percent, the next two undone rows and
+the stack badge, from the **committed** `roadmap/README.md` — go to Roadmap Wrangler's
+`cards\mimicwarehouse.json` outside the repository, rewritten only when they change, and nothing
+happens on a machine without Roadmap Wrangler. `default_install_hook_types: [pre-commit,
+post-commit]` makes `pre-commit install` write both hooks (a clone installed before EP-174 re-runs
+it once); `default_stages: [pre-commit]` keeps every other hook at the commit gate. A
+post-commit hook cannot fail the commit.
 
 Hook order (`.pre-commit-config.yaml` at the repo root, `repo: local` + `pre-commit-hooks`
 v6.0.0): `mwh-guard` → `ruff-check` → `ruff-format` → `check-added-large-files` (20 000 KB) →

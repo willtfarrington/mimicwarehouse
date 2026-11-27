@@ -487,7 +487,8 @@ def test_pre_commit_config_is_wired_as_the_brief_says() -> None:
     local, hooks = cfg["repos"]
     assert local["repo"] == "local"
     ids = [h["id"] for h in local["hooks"]]
-    assert ids == ["mwh-guard", "ruff-check", "ruff-format"]
+    # EP-174 (churn rule): the post-commit `mwh-card` hook joined the local repo (D-48).
+    assert ids == ["mwh-guard", "ruff-check", "ruff-format", "mwh-card"]
     mwh = local["hooks"][0]
     assert mwh["entry"] == "uv run --project mimicwarehouse --group dev mwh guard --staged"
     assert mwh["language"] == "system"

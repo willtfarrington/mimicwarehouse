@@ -5,8 +5,10 @@ Commands live in their own modules and are attached here with **one** ``app.comm
 set (the ``# --- commands`` block below is authoritative; retro CLI-4):
 ``backup`` (EP-52, :mod:`mimicwarehouse.backup`; ``run`` / ``verify`` / ``restore`` /
 ``list``) · ``build``/``jobs`` (EP-19, :mod:`mimicwarehouse.dag.cli`) · ``canary`` (EP-171,
-:mod:`mimicwarehouse.canary`) · ``catalog``/``sql`` (EP-21, :mod:`mimicwarehouse.catalog.cli`;
-since EP-30 ``sql`` routes everything through ``safe_query`` — aggregate-only, audited,
+:mod:`mimicwarehouse.canary`) · ``card`` (EP-174, :mod:`mimicwarehouse.card`; the site card's
+figures, ``--write`` from the post-commit hook) · ``catalog``/``sql`` (EP-21,
+:mod:`mimicwarehouse.catalog.cli`; since EP-30 ``sql`` routes everything through
+``safe_query`` — aggregate-only, audited,
 refusals exit 3) · ``codeset`` (EP-40, :mod:`mimicwarehouse.codesets.cli`) · ``cohort``
 (EP-46, :mod:`mimicwarehouse.cohort.cli`) · ``demo``
 (EP-22, :mod:`mimicwarehouse.demo`) · ``disclose`` (EP-43, :mod:`mimicwarehouse.disclose`;
@@ -61,6 +63,7 @@ from rich.markup import escape
 from mimicwarehouse import __version__, config
 from mimicwarehouse.backup import backup_app
 from mimicwarehouse.canary import canary_app
+from mimicwarehouse.card import card_command
 from mimicwarehouse.catalog.cli import catalog_app, sql_command
 from mimicwarehouse.codesets.cli import codeset_app
 from mimicwarehouse.cohort.cli import cohort_app
@@ -91,10 +94,12 @@ from mimicwarehouse.verify import VERIFY_CONTEXT_SETTINGS, verify_command
 #: it: ``doctor`` / ``paths`` report it (exit codes tell); ``guard`` is the pre-commit hook
 #: (EP-4); ``verify`` runs pytest in a fresh interpreter / reads the roadmap (EP-6); ``schema``
 #: reads the packaged contract and the vendored DDL (EP-9); ``fixtures`` writes synthetic files
-#: under ``tests/fixtures/`` in the checkout (EP-11). Every other command writes or reads under
-#: the data root, so its first ``CliState.settings`` access runs the D-29 refusals (EP-167).
+#: under ``tests/fixtures/`` in the checkout (EP-11); ``card`` reads the committed roadmap
+#: through git and writes the site card outside every project folder — the post-commit hook
+#: (EP-174). Every other command writes or reads under the data root, so its first
+#: ``CliState.settings`` access runs the D-29 refusals (EP-167).
 DIAGNOSTIC_COMMANDS: frozenset[str] = frozenset(
-    {"doctor", "paths", "guard", "verify", "schema", "fixtures"}
+    {"doctor", "paths", "guard", "verify", "schema", "fixtures", "card"}
 )
 
 app = typer.Typer(
@@ -201,6 +206,7 @@ def main(
 app.add_typer(backup_app, name="backup")
 app.command("build")(build_command)
 app.add_typer(canary_app, name="canary")
+app.command("card")(card_command)
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(codeset_app, name="codeset")
 app.add_typer(cohort_app, name="cohort")

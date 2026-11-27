@@ -280,7 +280,10 @@ def test_clistate_settings_is_lazy_and_validates_once(workspace: Path) -> None:
 
 
 def test_diagnostic_commands_are_the_six_of_seven() -> None:
-    assert {"doctor", "paths", "guard", "verify", "schema", "fixtures"} == DIAGNOSTIC_COMMANDS
+    # EP-174 (churn rule): `card` joined — it never touches the data root (the rule's "iff").
+    assert {"doctor", "paths", "guard", "verify", "schema", "fixtures", "card"} == (
+        DIAGNOSTIC_COMMANDS
+    )
     assert "inventory" not in DIAGNOSTIC_COMMANDS
 
 

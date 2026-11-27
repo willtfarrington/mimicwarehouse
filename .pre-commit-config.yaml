@@ -2,12 +2,20 @@
 #
 # Install once per clone (uses the workspace venv's CPython 3.13; nothing touches C:\Python314):
 #     cd mimicwarehouse && uv run --group dev pre-commit install
+# which writes both .git/hooks/pre-commit and .git/hooks/post-commit (EP-174: the
+# default_install_hook_types below; a clone installed before EP-174 re-runs it once).
 # Run on demand:
 #     uv run --group dev pre-commit run --all-files
+#     uv run --group dev pre-commit run --hook-stage post-commit --all-files   # the card alone
 #
 # No `default_language_version`: pre-commit builds hook environments with the interpreter it
-# runs under (the venv's 3.13). The three local hooks shell out through `uv run` so they use
-# the workspace's pinned tools; `mwh guard --staged` reads the index (what would be committed).
+# runs under (the venv's 3.13). The local hooks shell out through `uv run` so they use the
+# workspace's pinned tools; `mwh guard --staged` reads the index (what would be committed).
+# `default_stages: [pre-commit]` keeps every hook without its own `stages` at the commit gate,
+# so only `mwh-card` runs after a commit (D-48): it rewrites the site card's figures outside
+# the repository when they change, and a post-commit hook cannot fail the commit.
+default_install_hook_types: [pre-commit, post-commit]
+default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
@@ -27,6 +35,13 @@ repos:
         entry: uv run --project mimicwarehouse --group dev ruff format --check --force-exclude
         language: system
         types_or: [python]
+      - id: mwh-card
+        name: mwh card (the site card's figures from the committed roadmap, written outside the repository)
+        entry: uv run --project mimicwarehouse --group dev mwh card --write
+        language: system
+        stages: [post-commit]
+        always_run: true
+        pass_filenames: false
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

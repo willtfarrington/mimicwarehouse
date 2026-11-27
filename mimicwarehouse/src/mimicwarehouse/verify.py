@@ -270,11 +270,18 @@ def parse_brief(path: Path) -> Brief:
 
 
 def parse_roadmap_table(readme: Path) -> list[Row]:
-    """Every EP row of the master roadmap, tagged with its enclosing ``## …`` heading."""
+    """Every EP row of the master roadmap file (:func:`parse_roadmap_text` over its text)."""
+    return parse_roadmap_text(readme.read_text(encoding="utf-8"))
+
+
+def parse_roadmap_text(text: str) -> list[Row]:
+    """Every EP row of a master roadmap's text, tagged with its enclosing ``## …`` heading —
+    split from :func:`parse_roadmap_table` at EP-174 so ``mwh card`` can parse the committed
+    README (``git show HEAD:roadmap/README.md``) with the parser ``roadmap_check`` gates."""
     rows: list[Row] = []
     phase: str | None = None
     kind: Literal["charter", "full"] | None = None
-    for line_no, line in enumerate(readme.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_no, line in enumerate(text.splitlines(), start=1):
         h = _HEADING.match(line)
         if h:
             phase = str(h.group(1))

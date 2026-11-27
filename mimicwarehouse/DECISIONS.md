@@ -52,7 +52,7 @@ latest addendum's date and EP.
 | D-45 | EP-33 triage-checkpoint decisions | settled 2026-09-01 | — |
 | D-46 | Definitions = versioned package data + lock file; studies from the data root | recorded 2026-09-17 at EP-54 (the pattern EP-40/41/46/51 settled) | — |
 | D-47 | EP-54 checkpoint decisions (SPINE-1, LOAD-5, MISS-4, the EP-173 debt sweep, connectors, no toolchain slot, commit) | settled 2026-09-18 | — |
-| D-48 | Site card figures, published by this repository (inbox IN-3; the build is EP-174) | refined at the IN-4 triage (the file as Roadmap Wrangler defined it; EP-174 allocated; the badge) | 2026-11-25, IN-4 triage |
+| D-48 | Site card figures, published by this repository (inbox IN-3; the build is EP-174) | refined at the IN-4 triage (the file as Roadmap Wrangler defined it; EP-174 allocated; the badge), EP-174 (as built: `mwh card`, the post-commit hook, the no-op) | 2026-11-25, EP-174 |
 
 ---
 
@@ -2034,3 +2034,33 @@ this repository (it would read inside); no note.
 > roadmap's figures at each commit** (S, core) heads the open P4 rows → 175 briefs.
 > *Alternatives considered:* the brief left to the build session; the badge naming DuckDB as
 > fixed text; an empty badge.
+>
+> **Addendum (2026-11-25, EP-174).** As built. **The command:** `mwh card`
+> (`mimicwarehouse/card.py`) previews the card the committed roadmap gives (ASCII labels, the
+> badge and titles through `console_safe`; `--json` prints the outcome and the card) and says
+> whether a write would change the file; `mwh card --write` is the hook's call; `--dest
+> <folder>` replaces the `cards` folder for tests. The figures come from `git show
+> HEAD:roadmap/README.md` through `verify._run_git`, parsed by `verify.parse_roadmap_text`, the
+> text half of `parse_roadmap_table` (split for it; `roadmap_check` unchanged); the badge is
+> Roadmap Wrangler's stack rule over the workspace's committed `pyproject.toml`,
+> `.python-version` and lock file, read from `HEAD` like the figures (`Python · 3.13 · uv`).
+> The file carries exactly `check_card`'s fields (`as_of`, `name`, `badge`, `done`, `total`,
+> `percent`, `next`), written whole through `fsio.atomic_write_text` only when the figures
+> (every field but `as_of`) differ from the file's, or the file is missing, unreadable, over
+> 64 KiB or malformed, so `as_of` reads the day the figures last changed. **The place:**
+> `%CRW_HOME%\cards\mimicwarehouse.json` when `CRW_HOME` is set, else
+> `%LOCALAPPDATA%\clauderoadmapwrangler\cards\mimicwarehouse.json`; `cards` is created when
+> missing, Roadmap Wrangler's own folder never. **The no-op:** without that folder (another
+> machine, the tool absent), and with no `HEAD`, no committed roadmap or no row, nothing is
+> written and the command exits 0 with one ASCII line; `card` joins `DIAGNOSTIC_COMMANDS`
+> (it never touches the data root), so no settings problem can block the hook. **The stage
+> settings:** the local hook `mwh-card` (`stages: [post-commit]`, `always_run: true`,
+> `pass_filenames: false`, entry `uv run --project mimicwarehouse --group dev mwh card
+> --write`) with the top-level `default_install_hook_types: [pre-commit, post-commit]` and
+> `default_stages: [pre-commit]`, so no other hook runs after a commit; checked against the
+> pinned pre-commit 4.6.2. A post-commit hook cannot fail a commit; a write error exits 1 and
+> pre-commit shows it. *Why:* the brief's choices, plus two routine ones: the badge read from
+> `HEAD` keeps the whole card on the committed tree, and diagnostic membership keeps the
+> `cli.py` rule ("diagnostic iff it never touches the data root") true. *Alternatives
+> considered:* the badge from the working tree; `card` outside the diagnostic set (it reads
+> no settings, so the behaviour is the same and only the rule would be false).
