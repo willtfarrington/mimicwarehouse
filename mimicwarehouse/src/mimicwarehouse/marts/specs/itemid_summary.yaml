@@ -1,0 +1,66 @@
+# marts/specs/itemid_summary.yaml -- one row per curated chartevents / labevents itemid
+# (EP-175 item 2; ASCII only). Loaded and validated by mimicwarehouse.marts.registry
+# (pydantic). The grain `itemid` is a summary grain (registry.SUMMARY_GRAINS): no patient unit,
+# no partition. The base source is reduced by the builder (marts/itemid_rollups.py): the raw
+# per-itemid aggregate over the same harmonised values marts.itemid_daily rolls up, released
+# through safe.SUPPRESSOR at k (counts, share and percentiles blanked on the rows it withholds,
+# `suppressed` and `k` recorded; D-33) and staged as cte_s; the SELECT list is generated from
+# `columns`. Because nothing below k survives the build, safe.REGISTRY_TABLES admits
+# marts.itemid_summary without a count column, as it admits marts.cohorts.
+name: itemid_summary
+version: 1
+grain: itemid
+description: >-
+  One row per curated chartevents / labevents itemid of the EP-39 catalogue: label, source
+  table and canonical unit; the ICU stays and plausible values that measure it on the tier,
+  the share of the tier's ICU stays measured, and the 1st, 50th and 99th percentiles of its
+  plausible values - the small table variable pickers read. Counts, share and percentiles are
+  blanked at build time on every row the small-cell rule withholds (suppressed, k; D-33), so
+  sessions read it through safe_query without a count column.
+key: [itemid]
+partition: null
+sort: [itemid]
+builder: mimicwarehouse.marts.itemid_rollups:run_itemid_summary
+depends_on:
+  - stage.mimiciv_icu.icustays
+  - stage.mimiciv_icu.chartevents
+  - stage.mimiciv_hosp.labevents
+  - units.item_units
+  - units.variants
+  - units.dictionary
+sources:
+  - alias: s
+    relation: meta.item_units
+    join: base
+    cte: true
+    note: >-
+      the EP-39 catalogue's curated chartevents / labevents itemids (units.load_catalogue(),
+      which meta.item_units publishes), one row each, with their aggregate over the read
+      sources - the values marts.itemid_daily rolls up - released through safe.SUPPRESSOR at k
+  - alias: ce
+    relation: mimiciv_icu.chartevents
+    join: read
+    note: the curated chartevents itemids, attached by stay_id
+  - alias: le
+    relation: mimiciv_hosp.labevents
+    join: read
+    note: >-
+      the curated labevents itemids, attached by subject to the stay whose [intime, outtime)
+      contains charttime
+  - alias: ie
+    relation: mimiciv_icu.icustays
+    join: read
+    note: the stays the values attach to, and the denominator of pct_stays_measured
+columns:
+  - {name: itemid, type: INTEGER, expr: s.itemid, description: "Curated itemid (key; EP-39 catalogue)."}
+  - {name: label, type: VARCHAR, expr: s.label, description: "The itemid's label as d_items / d_labitems write it (EP-39 catalogue)."}
+  - {name: source_table, type: VARCHAR, expr: s.source_table, description: "The event table the itemid is charted in: chartevents or labevents."}
+  - {name: unit, type: VARCHAR, expr: s.unit, description: "The itemid's canonical EP-39 unit: every value and percentile of this row, and of marts.itemid_daily, is in it."}
+  - {name: n_stays, type: BIGINT, expr: s.n_stays, description: "ICU stays with at least one plausible value of the itemid on the tier (NULL when suppressed)."}
+  - {name: n_measurements, type: BIGINT, expr: s.n_measurements, description: "Plausible values of the itemid on the tier, the sum of marts.itemid_daily.n (NULL when suppressed)."}
+  - {name: pct_stays_measured, type: DOUBLE, unit: "%", expr: s.pct_stays_measured, description: "n_stays as a percentage of every ICU stay on the tier (NULL when suppressed)."}
+  - {name: p01, type: DOUBLE, expr: s.p01, description: "1st percentile of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured)."}
+  - {name: p50, type: DOUBLE, expr: s.p50, description: "Median of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured)."}
+  - {name: p99, type: DOUBLE, expr: s.p99, description: "99th percentile of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured)."}
+  - {name: suppressed, type: BOOLEAN, expr: s.suppressed, description: "The small-cell rule withheld this row's counts (n_stays below k, or a complementary cell): counts, share and percentiles are NULL."}
+  - {name: k, type: INTEGER, expr: s.k, description: "The small-cell threshold applied at build time (Settings.k_suppression, D-33)."}

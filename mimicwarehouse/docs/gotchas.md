@@ -32,6 +32,12 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   disjoint bucket ranges instead. *(EP-18; final-roadmap LOAD-3.)*
 - **Pass-2 reads need `hive_partitioning=false`**, or DuckDB synthesises the
   `subject_bucket` partition column *into* the sorted file. *(EP-18.)*
+- **So does every direct read of a bucketed mart.** `read_parquet` over
+  `…/subject_bucket=N/part-0.parquet` (a glob or a single file) auto-detects the directory
+  as a Hive partition and replaces the in-file `subject_bucket` (INTEGER in the mart
+  contract) with a synthesised BIGINT; the `marts.<name>` views read with it off (EP-55),
+  and a test or script that reads the files must pass `hive_partitioning = false` too.
+  *(EP-175; its crafted-lake test.)*
 - **`sum()` over an integer column returns HUGEINT.** Until EP-33 a `CAST` around it
   tripped the safe-query closed-set walk; B1a now verifies a cast directly around one
   closed-set aggregate, but `count(*) FILTER (WHERE flag = 1)` remains the sanctioned

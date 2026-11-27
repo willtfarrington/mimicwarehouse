@@ -8,9 +8,12 @@ the Lab app answers typical questions in seconds on the full tier.
   catalog extension (``marts.<name>`` views, ``meta.mart_tables`` / ``meta.mart_columns``).
 - :mod:`~mimicwarehouse.marts.first_day` -- ``marts.icustay_first_day``, one row per ICU
   stay (EP-55).
+- :mod:`~mimicwarehouse.marts.itemid_rollups` -- the itemid rollups (EP-175, split from
+  EP-55 at its pickup): ``marts.itemid_daily`` (stay x curated itemid x ICU day) and
+  ``marts.itemid_summary`` (one row per curated itemid, k-suppressed at build time, a
+  ``safe.REGISTRY_TABLES`` member).
 
-The itemid rollups (``marts.itemid_daily`` / ``marts.itemid_summary``) are EP-175's, the
-hourly marts and the page-query benchmark EP-56's. Import budget: nothing heavy at package
-import (the CLI and the catalog builder import these modules lazily or for the extension
-only).
+The hourly marts and the page-query benchmark are EP-56's. Import budget: nothing heavy at
+package import (the CLI and the catalog builder import these modules lazily or for the
+extension only).
 """

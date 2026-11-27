@@ -4,14 +4,16 @@ D-17, D-18, D-20, D-28).
 
 A **mart** is a per-tier Parquet table under ``<lake_root>/marts/<tier>/<name>/``
 described by one packaged spec ``marts/specs/<name>.yaml`` (:class:`MartSpec`,
-pydantic): ``name``, ``version``, ``grain`` (an EP-34 :data:`timesem.GRAINS` key), the
+pydantic): ``name``, ``version``, ``grain`` (an EP-34 :data:`timesem.GRAINS` key, or a
+:data:`SUMMARY_GRAINS` key for a dictionary-shaped summary such as ``itemid``, EP-175), the
 ``key`` columns, ``partition`` (``subject_bucket`` for a subject-keyed mart, ``null`` for
 a small summary), ``sort``, ``builder`` (the DAG step callable, ``module:function``),
 ``depends_on`` (the DAG steps it reads, mirrored by ``dag/specs/marts.yaml``), ``sources``
-(the base table and the joined relations with their aliases) and ``columns``: explicit
-:class:`MartColumn` entries (name, DuckDB type, unit, the EP-39 ``concept_group`` that
-fixes the unit, description, source expression) and :class:`ColumnFamily` entries that
-expand ``vars x stats`` into ``<var>_<stat>`` columns.
+(the base table, the joined relations with their aliases and, since EP-175, ``read``
+sources: relations the builder's CTEs read that the FROM clause never joins) and
+``columns``: explicit :class:`MartColumn` entries (name, DuckDB type, unit, the EP-39
+``concept_group`` that fixes the unit, description, source expression) and
+:class:`ColumnFamily` entries that expand ``vars x stats`` into ``<var>_<stat>`` columns.
 
 :func:`load_registry` validates every spec; a unit that disagrees with the canonical unit
 of its ``concept_group`` in the EP-39 catalogue (``units.py``, ``meta.item_units``) is
@@ -19,9 +21,11 @@ refused, so the marts' units cannot drift from the curated catalogue.
 
 :func:`mart_sql` generates a mart's statement from its spec: the SELECT list (every
 ``expr`` cast to its declared type, in spec order) over the join skeleton (the ``base``
-table, then one ``LEFT JOIN`` per source on ``join_on``; a ``cte: true`` source reads the
-builder's ``cte_<alias>``, one row per key). The spec is therefore the single source of
-the column contract, and the built file carries exactly the declared columns and types.
+table, then one ``LEFT JOIN`` per joined source on ``join_on``; a ``cte: true`` source
+reads the builder's ``cte_<alias>``, one row per key -- or, for a ``cte: true`` base, the
+mart's own rows, as the itemid rollups' aggregates are). The spec is therefore the single
+source of the column contract, and the built file carries exactly the declared columns
+and types.
 
 :func:`write_mart` materialises the statement once on the build connection, then writes
 one sorted single-file ``COPY`` per ``subject_bucket`` (``docs/gotchas.md`` §1: a sorted
@@ -103,6 +107,11 @@ DUCKDB_TYPES: tuple[str, ...] = (
 STAT_WORDS: dict[str, str] = {"min": "Lowest", "max": "Highest", "mean": "Mean"}
 #: Join keys a source may declare (each is a column of every base table a mart uses).
 JOIN_KEYS: tuple[str, ...] = ("stay_id", "hadm_id", "subject_id")
+#: Grains of the dictionary-shaped summary marts (EP-175): one row per entry of a curated
+#: list, no patient unit of analysis, so never an EP-34 grain and never partitioned.
+SUMMARY_GRAINS: dict[str, str] = {
+    "itemid": "one row per curated itemid (a summary over the tier; no patient unit)",
+}
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _RELATION_RE = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
@@ -138,13 +147,15 @@ def _check_name(kind: str, value: str) -> None:
 
 
 class MartSource(_Frozen):
-    """One relation the mart reads: the ``base`` table (exactly one, first) or a source
-    left-joined on ``join_on``; ``cte: true`` means the builder reduces it to one row per
-    key first (``cte_<alias>``), ``note`` says how."""
+    """One relation the mart reads: the ``base`` table (exactly one, first), a source
+    left-joined on ``join_on``, or (EP-175) a ``read`` source -- a relation the builder's
+    CTEs read that the FROM clause never joins. ``cte: true`` means the builder reduces the
+    relation first (``cte_<alias>``; for a joined source one row per key, for the base the
+    mart's own rows, e.g. an aggregate), ``note`` says how."""
 
     alias: str
     relation: str
-    join: Literal["base", "left"] = "left"
+    join: Literal["base", "left", "read"] = "left"
     join_on: Literal["stay_id", "hadm_id", "subject_id"] | None = None
     cte: bool = False
     note: str = ""
@@ -154,8 +165,10 @@ class MartSource(_Frozen):
         _check_name("alias", self.alias)
         if not _RELATION_RE.match(self.relation):
             raise ValueError(f"source {self.alias}: relation {self.relation!r} is not schema.table")
-        if self.join == "base" and (self.join_on is not None or self.cte):
-            raise ValueError(f"source {self.alias}: the base table takes no join_on and no cte")
+        if self.join == "base" and self.join_on is not None:
+            raise ValueError(f"source {self.alias}: the base table takes no join_on")
+        if self.join == "read" and (self.join_on is not None or self.cte):
+            raise ValueError(f"source {self.alias}: a read source takes no join_on and no cte")
         if self.join == "left" and self.join_on is None:
             raise ValueError(f"source {self.alias}: a joined source needs join_on")
         return self
@@ -246,8 +259,13 @@ class MartSpec(_Frozen):
         from mimicwarehouse.timesem import GRAINS
 
         _check_name("mart", self.name)
-        if self.grain not in GRAINS:
-            raise ValueError(f"grain {self.grain!r} is not an EP-34 grain ({', '.join(GRAINS)})")
+        if self.grain not in GRAINS and self.grain not in SUMMARY_GRAINS:
+            raise ValueError(
+                f"grain {self.grain!r} is not an EP-34 grain ({', '.join(GRAINS)}) or a "
+                f"summary grain ({', '.join(SUMMARY_GRAINS)})"
+            )
+        if self.grain in SUMMARY_GRAINS and self.partition is not None:
+            raise ValueError(f"summary grain {self.grain!r} takes no partition")
         if not _CALLABLE_RE.match(self.builder):
             raise ValueError(f"builder {self.builder!r} is not module:function")
         if self.sources[0].join != "base" or any(s.join == "base" for s in self.sources[1:]):
@@ -256,9 +274,14 @@ class MartSpec(_Frozen):
         dupes = sorted({a for a in aliases if aliases.count(a) > 1})
         if dupes:
             raise ValueError(f"duplicate source aliases {dupes}")
+        joined = {s.alias for s in self.sources if s.join != "read"}
         for entry in self.columns:
             if isinstance(entry, ColumnFamily) and entry.alias not in aliases:
                 raise ValueError(f"family {entry.family}: alias {entry.alias!r} is not a source")
+            if isinstance(entry, ColumnFamily) and entry.alias not in joined:
+                raise ValueError(
+                    f"family {entry.family}: alias {entry.alias!r} is a read source (not joined)"
+                )
         names = [c.name for c in self.expanded]
         dupes = sorted({n for n in names if names.count(n) > 1})
         if dupes:
@@ -440,10 +463,13 @@ def select_list_sql(spec: MartSpec) -> str:
 
 
 def from_clause_sql(spec: MartSpec) -> str:
-    """The base table, then one ``LEFT JOIN`` per source on ``join_on``."""
+    """The base table (its ``cte_<alias>`` when the builder reduces it), then one
+    ``LEFT JOIN`` per joined source on ``join_on``; ``read`` sources are never joined."""
     base = spec.base
-    lines = [f"FROM {base.relation} AS {base.alias}"]
+    lines = [f"FROM {f'cte_{base.alias}' if base.cte else base.relation} AS {base.alias}"]
     for s in spec.sources[1:]:
+        if s.join == "read":
+            continue
         relation = f"cte_{s.alias}" if s.cte else s.relation
         lines.append(
             f"LEFT JOIN {relation} AS {s.alias} ON {s.alias}.{s.join_on} = {base.alias}.{s.join_on}"
@@ -994,6 +1020,7 @@ __all__ = [
     "PART",
     "SPECS_DIRNAME",
     "STAT_WORDS",
+    "SUMMARY_GRAINS",
     "TABLES_COLUMNS",
     "TABLES_TABLE",
     "ColumnFamily",

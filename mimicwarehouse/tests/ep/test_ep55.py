@@ -67,7 +67,7 @@ def _write_spec(tmp_path: Path, doc: dict[str, Any], name: str = NAME) -> Path:
 
 def test_packaged_spec_validates() -> None:
     reg = registry.load_registry()
-    assert reg.names == (NAME,), "EP-55 ships one mart; EP-175 adds the itemid rollups"
+    assert NAME in reg.names, "EP-55 shipped this mart; EP-175 added the itemid rollups"
     spec = reg.spec(NAME)
     assert spec is first_day.spec() or spec == first_day.spec()
     assert spec.grain == "icustay" and spec.version == 1
@@ -210,7 +210,7 @@ def test_spec_name_must_match_its_file(tmp_path: Path) -> None:
     with pytest.raises(MartSpecError, match="must match the file name"):
         registry.load_spec_from(_write_spec(tmp_path, _spec_doc(), name="renamed"))
     with pytest.raises(MartSpecError, match="no mart"):
-        registry.load_registry().spec("itemid_daily")
+        registry.load_registry().spec("no_such_mart")
 
 
 def test_statement_is_generated_from_the_spec() -> None:
@@ -504,7 +504,9 @@ def test_session_lake_mart(
     assert col_comment is not None and str(col_comment[0]).endswith("[degC]")
     # the registry tables
     tables = con.execute(
-        "SELECT mart, built, stale, rows, files, n_columns, spec_sha256, view FROM meta.mart_tables"
+        "SELECT mart, built, stale, rows, files, n_columns, spec_sha256, view "
+        "FROM meta.mart_tables WHERE mart = ?",
+        [NAME],
     ).fetchall()
     files_n = tables[0][4]
     assert tables == [(NAME, True, False, n, files_n, N_COLUMNS, spec.spec_sha256, f"marts.{NAME}")]
@@ -557,7 +559,7 @@ def test_session_lake_safe_query_and_dictionary(
             actor="test_ep55",
         )
     registry_rows = safe_query(
-        "SELECT mart, n_columns FROM meta.mart_tables",
+        f"SELECT mart, n_columns FROM meta.mart_tables WHERE mart = '{NAME}'",
         tier="fixture",
         settings=fixture_lake_settings,
         actor="test_ep55",
@@ -568,7 +570,8 @@ def test_session_lake_safe_query_and_dictionary(
     section = text.split(f"### marts.{NAME}", 1)[1]
     for column in first_day.spec().column_names:
         assert f"\n| {column} |" in section, column
-    assert info.marts == 1 and info.columns >= N_COLUMNS, "marts count apart from the tables"
+    assert info.marts == len(registry.load_registry()), "marts count apart from the tables"
+    assert info.columns >= N_COLUMNS
 
 
 # ---------------------------------------------------------------------------

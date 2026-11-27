@@ -5,11 +5,11 @@
 
 | | |
 |---|---|
-| Build id | `20261127T041001-full-3360d84` |
+| Build id | `20261127T081928-full-99a0008` |
 | Tier | `full` |
 | Core snapshot id | `b1fc53134348f3b4ede369ed6ae27424c4988fafb45065c87a09907f7a410eca` |
 | DuckDB | 1.5.5 |
-| Catalog built at | 2026-11-27T04:10:06+00:00 |
+| Catalog built at | 2026-11-27T08:19:55+00:00 |
 
 **Caveats (MIMIC-IV de-identification; GOVERNANCE section 5, D-33).** All timestamps are date-shifted per subject: absolute dates are meaningless and `anchor_year_group` (patients) is the only calendar anchor. Patients aged 89 and over appear with `anchor_age` 91. The `dod` (date of death) horizon is roughly one year after the last hospital discharge; later deaths are not captured. All row counts and distinct counts here are aggregate metadata over a retrospective EHR extract; distinct counts under 11 are shown as `<11`. Identifier and free-text columns are flagged: `safe_query` (EP-30) and `mwh disclose check` (EP-43) refuse to return them.
 
@@ -806,3 +806,49 @@ Rows: 94,458 - Parquet: 21.4 MB (100 file(s))
 | rrt_first_day | BOOLEAN | - | - | Active renal replacement therapy charted in the first-day window (mimic-code first_day_rrt dialysis_active). |
 | sepsis3 | BOOLEAN | - | - | Sepsis-3 onset within the stay (mimic-code sepsis3: suspected infection with SOFA >= 2). |
 | kdigo_max_stage_first_day | INTEGER | stage | - | Highest KDIGO AKI stage, 0-3, charted in the first-day window (mimic-code kdigo_stages aki_stage); NULL when none was charted. |
+
+### marts.itemid_daily
+
+One row per ICU stay x curated itemid x ICU day for the EP-39 catalogue's chartevents and labevents itemids: the count, min, max, mean, first and last of the plausible values in the itemid's canonical unit, and the count of values outside its plausibility bounds, which no statistic includes. icu_day = floor(hours since icu_intime / 24), day 0 first, earlier rows dropped; labs attach to the stay whose [intime, outtime) contains charttime. Subject-keyed: sessions read it through safe_query as aggregates only.
+
+Version 1 - grain `icu_day` - keys `subject_id, stay_id, itemid, icu_day` - partitioned by `subject_bucket`
+
+Rows: 11,066,671 - Parquet: 98.4 MB (100 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| subject_id | INTEGER | - | yes | Patient identifier (key; never in a session's output). |
+| stay_id | INTEGER | - | yes | ICU stay identifier (key). |
+| subject_bucket | INTEGER | - | yes | subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4). |
+| itemid | INTEGER | - | yes | Curated itemid (EP-39 catalogue: d_items for chartevents, d_labitems for labevents); marts.itemid_summary carries its label and unit. |
+| icu_day | INTEGER | - | yes | ICU day index: floor(hours since icu_intime / 24), [start, end) days with day 0 the first 24 h (EP-34 icu_day grain); values before intime are dropped. |
+| n | INTEGER | - | - | Plausible values of the itemid on this ICU day (inside its inclusive EP-39 bounds); n + n_implausible is the day's count of valued rows. |
+| min | DOUBLE | - | - | Lowest plausible value, in the itemid's canonical unit. |
+| max | DOUBLE | - | - | Highest plausible value, in the itemid's canonical unit. |
+| mean | DOUBLE | - | - | Mean of the plausible values, in the itemid's canonical unit. |
+| first | DOUBLE | - | - | Earliest plausible value by charttime (ties: the lowest value), in the itemid's canonical unit. |
+| last | DOUBLE | - | - | Latest plausible value by charttime (ties: the highest value), in the itemid's canonical unit. |
+| n_implausible | INTEGER | - | - | Values outside the itemid's EP-39 plausibility bounds on this ICU day, excluded from every statistic. |
+
+### marts.itemid_summary
+
+One row per curated chartevents / labevents itemid of the EP-39 catalogue: label, source table and canonical unit; the ICU stays and plausible values that measure it on the tier, the share of the tier's ICU stays measured, and the 1st, 50th and 99th percentiles of its plausible values - the small table variable pickers read. Counts, share and percentiles are blanked at build time on every row the small-cell rule withholds (suppressed, k; D-33), so sessions read it through safe_query without a count column.
+
+Version 1 - grain `itemid` - keys `itemid` - one file
+
+Rows: 51 - Parquet: 0.0 MB (1 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| itemid | INTEGER | - | yes | Curated itemid (key; EP-39 catalogue). |
+| label | VARCHAR | - | - | The itemid's label as d_items / d_labitems write it (EP-39 catalogue). |
+| source_table | VARCHAR | - | - | The event table the itemid is charted in: chartevents or labevents. |
+| unit | VARCHAR | - | - | The itemid's canonical EP-39 unit: every value and percentile of this row, and of marts.itemid_daily, is in it. |
+| n_stays | BIGINT | - | - | ICU stays with at least one plausible value of the itemid on the tier (NULL when suppressed). |
+| n_measurements | BIGINT | - | - | Plausible values of the itemid on the tier, the sum of marts.itemid_daily.n (NULL when suppressed). |
+| pct_stays_measured | DOUBLE | % | - | n_stays as a percentage of every ICU stay on the tier (NULL when suppressed). |
+| p01 | DOUBLE | - | - | 1st percentile of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured). |
+| p50 | DOUBLE | - | - | Median of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured). |
+| p99 | DOUBLE | - | - | 99th percentile of the plausible values (quantile_cont), in the row's unit (NULL when suppressed or unmeasured). |
+| suppressed | BOOLEAN | - | - | The small-cell rule withheld this row's counts (n_stays below k, or a complementary cell): counts, share and percentiles are NULL. |
+| k | INTEGER | - | - | The small-cell threshold applied at build time (Settings.k_suppression, D-33). |

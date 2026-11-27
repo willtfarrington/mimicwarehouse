@@ -1,0 +1,65 @@
+# marts/specs/itemid_daily.yaml -- per ICU stay x curated itemid x ICU day rollups (EP-175
+# item 1; ASCII only). Loaded and validated by mimicwarehouse.marts.registry (pydantic). The
+# base source is reduced by the builder (marts/itemid_rollups.py, daily_cte_sql: the GROUP BY
+# over the harmonised chartevents / labevents values) into cte_r, one row per (stay_id, itemid,
+# icu_day); the SELECT list is generated from `columns` (each `expr` cast to its `type`, in
+# this order), and the `read` sources are the event tables the builder's CTE reads, never
+# joined. Values are in each itemid's canonical EP-39 unit (meta.item_units; the summary
+# mart's `unit` column), which differs between itemids, so the statistic columns declare no
+# single unit here.
+name: itemid_daily
+version: 1
+grain: icu_day
+description: >-
+  One row per ICU stay x curated itemid x ICU day for the EP-39 catalogue's chartevents and
+  labevents itemids: the count, min, max, mean, first and last of the plausible values in the
+  itemid's canonical unit, and the count of values outside its plausibility bounds, which no
+  statistic includes. icu_day = floor(hours since icu_intime / 24), day 0 first, earlier rows
+  dropped; labs attach to the stay whose [intime, outtime) contains charttime. Subject-keyed:
+  sessions read it through safe_query as aggregates only.
+key: [subject_id, stay_id, itemid, icu_day]
+partition: subject_bucket
+sort: [subject_id, stay_id, itemid, icu_day]
+builder: mimicwarehouse.marts.itemid_rollups:run_itemid_daily
+depends_on:
+  - stage.mimiciv_icu.icustays
+  - stage.mimiciv_icu.chartevents
+  - stage.mimiciv_hosp.labevents
+  - units.item_units
+  - units.variants
+  - units.dictionary
+sources:
+  - alias: r
+    relation: mimiciv_icu.icustays
+    join: base
+    cte: true
+    note: >-
+      the builder's rollup: every valued row of a curated chartevents / labevents itemid,
+      converted to the itemid's canonical unit inline (phenotypes.compiler.harmonised_value_sql),
+      attached to its ICU stay and day from intime, grouped per (stay_id, itemid, icu_day); a
+      value outside the itemid's inclusive EP-39 bounds counts in n_implausible only
+  - alias: ce
+    relation: mimiciv_icu.chartevents
+    join: read
+    note: the curated chartevents itemids, attached by stay_id
+  - alias: le
+    relation: mimiciv_hosp.labevents
+    join: read
+    note: >-
+      the curated labevents itemids, attached by subject to the stay whose [intime, outtime)
+      contains charttime; a lab outside every stay is dropped
+columns:
+  # -- keys ---------------------------------------------------------------------------------
+  - {name: subject_id, type: INTEGER, expr: r.subject_id, description: "Patient identifier (key; never in a session's output)."}
+  - {name: stay_id, type: INTEGER, expr: r.stay_id, description: "ICU stay identifier (key)."}
+  - {name: subject_bucket, type: INTEGER, expr: "r.subject_id % 100", description: "subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4)."}
+  - {name: itemid, type: INTEGER, expr: r.itemid, description: "Curated itemid (EP-39 catalogue: d_items for chartevents, d_labitems for labevents); marts.itemid_summary carries its label and unit."}
+  - {name: icu_day, type: INTEGER, expr: r.icu_day, description: "ICU day index: floor(hours since icu_intime / 24), [start, end) days with day 0 the first 24 h (EP-34 icu_day grain); values before intime are dropped."}
+  # -- statistics of the plausible values (the itemid's canonical unit) ----------------------
+  - {name: n, type: INTEGER, expr: r.n, description: "Plausible values of the itemid on this ICU day (inside its inclusive EP-39 bounds); n + n_implausible is the day's count of valued rows."}
+  - {name: min, type: DOUBLE, expr: 'r."min"', description: "Lowest plausible value, in the itemid's canonical unit."}
+  - {name: max, type: DOUBLE, expr: 'r."max"', description: "Highest plausible value, in the itemid's canonical unit."}
+  - {name: mean, type: DOUBLE, expr: 'r."mean"', description: "Mean of the plausible values, in the itemid's canonical unit."}
+  - {name: first, type: DOUBLE, expr: 'r."first"', description: "Earliest plausible value by charttime (ties: the lowest value), in the itemid's canonical unit."}
+  - {name: last, type: DOUBLE, expr: 'r."last"', description: "Latest plausible value by charttime (ties: the highest value), in the itemid's canonical unit."}
+  - {name: n_implausible, type: INTEGER, expr: r.n_implausible, description: "Values outside the itemid's EP-39 plausibility bounds on this ICU day, excluded from every statistic."}

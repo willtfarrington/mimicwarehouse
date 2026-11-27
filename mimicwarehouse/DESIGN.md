@@ -1416,6 +1416,20 @@ exits 3 on refusal (`--describe` prints the contract comment column, read from
 > column exists with `NULL` on pre-EP-173 lines. Record: D-31 addendum; tests
 > `test_ep173.py`.
 
+> **Note (2026-11-27, EP-175) — a second named registry table.** `REGISTRY_TABLES` is now
+> `marts.cohorts` and **`marts.itemid_summary`** (item 3 above): one row per curated
+> itemid, whose two counts pass `safe.SUPPRESSOR` at build time — every row kept, counts,
+> share and percentiles blanked on the rows the hook withholds, `suppressed` / `k`
+> recorded (§15 note of this date) — so nothing below k is in the file and the variable
+> pickers read it without a count column. `marts.itemid_daily`, its subject-keyed twin,
+> stays a gated read. **The audit gap the session found (owner decision: fix now).** A
+> result column named `<count>_suppressed` after one of the result's count columns
+> collided with the marker `disclose.suppress` adds inside the hook, so the call raised
+> after execution and before item 6's audit line; item 5 now refuses that name (audited,
+> case-insensitive; a registry read without count columns may still carry such a column)
+> and any exception inside `SUPPRESSOR` is an audited refusal with sanitised text. Record:
+> D-31 and D-33 addenda; tests `test_ep175.py`.
+
 *History:* built by EP-21, EP-30, EP-31, EP-170, EP-33 B1 (completion notes); consolidated at EP-33; SGT-5 / LGR-6 at EP-173.
 
 ## 13. Protocol freeze (D-25)
@@ -1931,6 +1945,33 @@ PreToolUse hook registration) is the pre-commit enforcer.
 > it too; the lab glucose keeps `glucose_min/max`, the charted one is `glucose_chart_*`. Sizes:
 > 4,672 rows / 1.06 MB on dev, 94,458 rows / 21.4 MB in 100 files on full (3.8 s step wall) —
 > well inside DESIGN §3's ≤ 1–2 GB marts line.
+
+> **Note (2026-11-27, EP-175) — the itemid rollups; names as built.** `marts.itemid_rollups`
+> adds `marts.itemid_daily` (one row per ICU stay × curated itemid × ICU day, grain
+> `icu_day`, keys `subject_id, stay_id, itemid, icu_day`, partitioned by `subject_bucket`:
+> `n`, `min`, `max`, `mean`, `first`, `last`, `n_implausible`) and `marts.itemid_summary`
+> (one row per curated itemid, unpartitioned: `label`, `source_table`, `unit`, `n_stays`,
+> `n_measurements`, `pct_stays_measured`, `p01` / `p50` / `p99`, `suppressed`, `k`), with
+> the steps `marts.itemid_daily` / `marts.itemid_summary` in `dag/specs/marts.yaml`. The
+> registry gained three shapes for aggregate-shaped marts: a base source with `cte: true`
+> (the builder supplies the mart's own rows as `cte_<alias>`; `mart_sql` still generates
+> the cast SELECT list over it), `join: read` sources (relations the builder's CTEs read,
+> bound and documented but never joined) and the summary grain `itemid`
+> (`registry.SUMMARY_GRAINS`: no EP-34 unit of analysis, never partitioned). The rolled-up
+> set is the EP-39 catalogue's chartevents and labevents items (51; outputevents /
+> inputevents out), each checked against its `source_ref` concept file at build time (47
+> found in theirs, 4 dictionary-verified). Values are converted inline by
+> `phenotypes.compiler.harmonised_value_sql` (the unit string normalised only on the rows of
+> items with a non-identity conversion; an unaccepted unit passes through unconverted, as
+> the macro and EP-44 do); a value outside the inclusive EP-39 bounds counts in
+> `n_implausible` and enters no statistic; `first` / `last` are `arg_min` / `arg_max` over
+> `(charttime, value)`; chartevents attach by `stay_id` (charting after `outtime` is kept),
+> labevents by subject inside `[intime, outtime)`; days before `intime` are dropped. The
+> summary is released through `safe.SUPPRESSOR` at build time and joins
+> `safe.REGISTRY_TABLES` (§12 note of this date); its aggregate scan is its own `kind:
+> query` ledger line, `marts.itemid_summary.aggregate`. Sizes: 537,715 rows / 4.8 MB on dev,
+> 11,066,671 rows / 98.4 MB in 100 files on full (15.4 s + 7.0 s step wall, peak RSS 2.8 GB):
+> the marts layer is ≈ 0.12 GB on full, inside DESIGN §3's ≤ 1–2 GB line.
 
 *History:* built by EP-2 … EP-6, EP-8 … EP-12, EP-17 … EP-22, EP-28 … EP-32, EP-164 … EP-171, EP-33 B4/B5/B6/B8 (completion notes); consolidated at EP-33.
 

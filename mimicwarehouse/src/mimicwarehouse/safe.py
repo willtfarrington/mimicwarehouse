@@ -160,8 +160,10 @@ ALLOWED_SCHEMAS: frozenset[str] = frozenset(
 #: does **not** join (owner decision, 2026-09-01): ``runs.audit`` carries statement text.
 REGISTRY_SCHEMAS: frozenset[str] = frozenset({"meta", "information_schema"})
 #: Named registry tables outside the registry schemas (``schema.table``, casefolded) —
-#: seeded for EP-47's cohort registry so it does not need a second mechanism.
-REGISTRY_TABLES: frozenset[str] = frozenset({"marts.cohorts"})
+#: seeded for EP-47's cohort registry so it does not need a second mechanism; EP-175 adds
+#: ``marts.itemid_summary``, the variable pickers' per-itemid table, whose counts, share
+#: and quantiles are blanked below k at build time (``marts.itemid_rollups``, D-33).
+REGISTRY_TABLES: frozenset[str] = frozenset({"marts.cohorts", "marts.itemid_summary"})
 
 #: Functions refused wherever they appear (file / environment / SQL-indirection access).
 #: EP-173 (SGT-5): ``version`` / ``current_database`` / ``current_schema`` join

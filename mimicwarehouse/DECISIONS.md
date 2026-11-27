@@ -36,9 +36,9 @@ latest addendum's date and EP.
 | D-28 | ≤ 5 s latency via marts | settled | — |
 | D-29 | Data placement (repo, data root, never G:/D:) | refined at EP-3, EP-7 | 2026-08-17, EP-7 |
 | D-30 | Plain CSVs untouched | settled | — |
-| D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy) | 2026-09-01, EP-33 |
+| D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy), EP-175 (marker-named columns refused; a hook failure is an audited refusal) | 2026-11-27, EP-175 |
 | D-32 | Owner row view in-app | refined at EP-49 (the `mwh_role` session-variable gate of `stay_events`) | 2026-09-17, EP-49 |
-| D-33 | Small cells n < 11, complementary suppression | refined at EP-39, EP-41, EP-42, EP-43 (the one implementation; hook swap), EP-44, EP-45, EP-47, EP-48, EP-49, EP-50 (build-time suppression of registry tables; chain mode; released shapes), EP-54 (count-column rule; MISS-4 → EP-72) | 2026-09-18, EP-54 |
+| D-33 | Small cells n < 11, complementary suppression | refined at EP-39, EP-41, EP-42, EP-43 (the one implementation; hook swap), EP-44, EP-45, EP-47, EP-48, EP-49, EP-50 (build-time suppression of registry tables; chain mode; released shapes), EP-54 (count-column rule; MISS-4 → EP-72), EP-175 (`marts.itemid_summary`: a k-suppressed mart in `safe.REGISTRY_TABLES`) | 2026-11-27, EP-175 |
 | D-34 | MIT + `gpl` group | settled (heading restored verbatim at EP-42) | — |
 | D-35 | Vocabularies: free first | refined at EP-16 (register), EP-172 (GEM review policy) | 2026-09-16, EP-172 |
 | D-36, D-37 | future data via wizard · hupsim roadmap format | settled | — |
@@ -998,6 +998,22 @@ same access as the owner.
 > `GROUP BY code` over drug names would be refused); one uniform cut for every segment
 > (costs 6–12 characters on drug names for no governance gain).
 
+> **Addendum (2026-11-27, EP-175 — an unaudited path closed; owner decision: fix now, its
+> own commit).** A result column named `<count>_suppressed` after one of the result's
+> count columns (`count(*) AS n, … AS n_suppressed`) collided with the marker column
+> `disclose.suppress` adds inside `safe.SUPPRESSOR`: polars raised **after** the statement
+> had executed and before the allowed-call audit line, so the call left no audit line at
+> all (GOVERNANCE §8) — nothing was released, the result never returned. It surfaced once
+> in the EP-175 session (2026-11-27, dev tier, an aggregate-only count over
+> `marts.itemid_summary`), whose call is therefore missing from `runs/audit.jsonl`; the
+> ledger is append-only and is not back-filled. The result checks now refuse such a column
+> before the hook runs (audited, case-insensitive; a registry read without count columns
+> may still carry a `*_suppressed` column such as `meta.mart_tables.rows_suppressed`), and
+> any exception inside the hook becomes an audited refusal with sanitised text (DKB-2).
+> *Why:* every executed statement must leave one audit line, whatever fails after
+> execution. *Alternatives (rejected):* a roadmap Risk fixed at EP-58 with a gotchas line
+> meanwhile; a new S debt row in P4.
+
 **D-32 Row display allowed in-app for the owner** behind an explicit toggle with audit
 entry; never exported; never in tool output. *Alternatives:* aggregate-only everywhere;
 unrestricted.
@@ -1240,6 +1256,25 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > lands with its first consumer and a test on real shapes. *Alternatives (rejected):* a
 > separate S brief before EP-72 (a rule without a consumer); accepting the residual and
 > closing Risk 17 (weakens GOVERNANCE §5 for one table shape).
+
+> **Addendum (2026-11-27, EP-175 — a k-suppressed mart as a named registry table).**
+> `marts.itemid_summary` (one row per curated chartevents / labevents itemid: `n_stays`,
+> `n_measurements`, `pct_stays_measured`, `p01` / `p50` / `p99`) follows the EP-39 rule
+> above at build time: every row kept, the two counts passed through `safe.SUPPRESSOR`
+> together (so the nested pair rule withholds `n_stays` where `n_measurements - n_stays`
+> would be a small difference), and on every withheld row the counts, the share and the
+> percentiles are blanked, with `suppressed` and `k` recorded; the percentiles are released
+> only beside counts of at least k (the SGT-2 rule for extreme values, D-31). The published
+> file passes `mwh disclose check` as built (tested on the crafted and fixture lakes), so
+> the table joins `safe.REGISTRY_TABLES` beside `marts.cohorts` and the variable pickers
+> read it without a count column; its subject-keyed twin `marts.itemid_daily` stays a gated
+> read. The raw per-itemid counts are never persisted: they are recomputed in the build and
+> derivable only through gated `marts.itemid_daily` reads. *Why:* the brief's acceptance
+> (`SELECT itemid, n_stays FROM marts.itemid_summary` without refusal) and the EP-39
+> precedent; dropping a withheld row would hide which itemids the tier lacks.
+> *Alternatives:* a non-registry summary read with a count column (no picker shape: each
+> row is one itemid, so a count of rows per itemid is 1); persisting raw counts under
+> `lake/meta/<tier>/raw/` as EP-39 does (nothing reads them).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;
