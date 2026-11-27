@@ -4,7 +4,7 @@ title: "Latency marts A: first-day features + mart registry ⏱"
 size: M
 model: claude-opus-5-5
 effort: max
-status: in progress
+status: done
 ---
 
 # EP-55 — Latency marts A: first-day features + mart registry ⏱
@@ -147,6 +147,14 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
 - `DATA-DICTIONARY.md` regenerated (EP-29 generator) lists the three marts with their columns
   (as split: the first-day mart; EP-175 adds the rollups).
 - Dated DESIGN.md §15 note if module/step names deviate from this brief.
+- **Residual risk.** *(Added at completion.)* The first-day flags derived here (invasive
+  ventilation, vasopressors, the KDIGO stage) are checked for shape on fixture, dev and full
+  (never NULL, stages 0–3) but not against a clinical reference; their definitions are mimic-code's
+  own conventions, recorded in the spec's `sources` notes, and EP-102 can tighten them through a
+  spec version. A spec change rebuilds only with `--force` on each tier (the step's target skips a
+  complete mart); the status entry carries the `spec_sha256` it was built from, but nothing yet
+  warns when it differs from the packaged spec. `DATA-DICTIONARY.md` now renders the marts from
+  `meta.mart_*`, so EP-175's build must regenerate it again from the full catalog.
 
 ## Parked → final-roadmap.md
 
@@ -154,3 +162,94 @@ DuckDB `memory_limit`/`threads`/`temp_directory` from `config.py`, ≥ 100 GB fr
   with the rollups at the split.
 - Feature-store tooling (Feast-style registry) — trigger: EP-102 finds the YAML mart registry
   insufficient for feature versioning. (Mirrored into `final-roadmap.md` §34–35 as v2 MRD-2.)
+
+> **Completion note (2026-11-26; claude-opus-5-5/max; ≈ 1 h 25 min, 22:31–23:58 local).**
+> Built as split at pickup, against the M budget of 45 min: the overrun is verification the
+> plan gave to EP-56 (the full job finished inside the session and was checked here), two
+> gate runs superseded because the code changed under them, and the supervisor race the final
+> gate surfaced (decision 2). **Pickup:** `mwh doctor` 10 pass ·
+> 1 warn · 0 fail · 5 info, exit 0 (the `antivirus` warn: Malwarebytes reports real-time off
+> through Security Center, Defender on — the FYI EP-174's evening already carried); AC power
+> mode Best performance; `last_backup` pass, 0.0 days (OT-2's backup; the owner's tick of OT-2
+> sat uncommitted in `owner-tasks.md`: decision 3). Inbox empty; OT-1 open (the
+> CITI renewal by 2027-01-29). **Owner decisions** (two rounds, the recommended option first):
+> (1) *the size* — EP-55 judged at ≈ 1.5–2 h against M ≈ 45 min → **split off the rollups**
+> (recommended): EP-175 (M, core) between EP-55 and EP-56, this row retitled "first-day
+> features + mart registry", EP-56 depending on both, the D-2 addendum, committed as
+> `3360d84`; rejected: three rows, running the brief whole. (2) *the flaky test* — the final
+> gate's one failure was EP-173's `test_dag9_failed_job_is_recorded_with_a_failed_provenance_run`:
+> `dag.jobs._supervise` rewrote the state file to `failed` before printing its closing
+> `[job] … exit code=…` line, so a reader that waits for the state and then reads the log
+> could miss it under load (it passed in the first run and alone) → **fix the race now**
+> (recommended): the two steps swapped (the line is printed and flushed first), its own
+> `fix(mimicwarehouse)` commit after the feat commit, `mwh verify EP-173` 35 passed and `mwh
+> verify EP-19` 8 passed after it (EP-19's launch test had the same read); rejected: a
+> roadmap Risk for EP-74, a new S row. (3) *the owner's OT-2 tick* (uncommitted in
+> `owner-tasks.md`) → **included in the record commit**, named there; rejected: leaving it
+> for the owner to commit. **Built.** (1) `marts/registry.py`: `MartSpec` / `MartSource` /
+> `MartColumn` / `ColumnFamily` (pydantic, `extra="forbid"`; grain from `timesem.GRAINS`; one
+> base source first; key / sort / partition declared, the partition INTEGER), `check_units`
+> (a unit tied to an EP-39 `concept_group` must be its canonical unit), `load_registry` /
+> `packaged_registry`, `mart_sql` (the SELECT list, every `expr` cast to its declared type,
+> over the base table + one LEFT JOIN per source, `cte: true` sources as `cte_<alias>`),
+> `write_mart` (materialised once into a temp table, one sorted single-file `COPY` per
+> `subject_bucket` or one file unpartitioned, `.new` + `publish.swap_dir`, manifest lines of
+> schema `marts`, `manifest.json` with spec / SQL hashes and the core / derived snapshot ids,
+> the per-tier status `marts.<name>` with its `spec_sha256`, failure recorded and the
+> published mart kept, one `kind: mart` ledger line, the marts snapshot id), `register_marts`
+> (after `register_spine` in `CATALOG_EXTENSIONS`: `marts.<name>` views with view and column
+> comments, `meta.mart_tables` with a `stale` flag and `meta.mart_columns`). (2)
+> `marts/specs/icustay_first_day.yaml`: 154 columns over `icustays` + 17 sources (14 concepts,
+> patients, admissions, services), families for the 24 vitals, 86 labs and 6 blood-gas
+> columns. (3) `marts/first_day.py`: the four CTEs (first service, invasive ventilation,
+> vasopressors, the KDIGO stage) and the step handler (core views bound uncached, concept views
+> refused with the remedy). (4) `dag/specs/marts.yaml`: `marts.icustay_first_day` (tag
+> `marts`, target, the spec's 18 dependencies) and the shared catalog step. (5)
+> `catalog/dictionary.py`: the `## marts` section from `meta.mart_*` and
+> `DictionaryResult.marts`, so the CLI reports `31 table(s), 1 mart(s)`. (6) Records: the
+> DESIGN §15 module-map row and dated note (the names as built), the workspace README's State
+> row and Layout, the roadmap README's name-corrections row, `final-roadmap.md` v2 MRD-2,
+> `DATA-DICTIONARY.md` regenerated from the full catalog with its sidecar. **Routine choices**
+> (the session's call, each reversible through a spec version): the lab glucose keeps
+> `glucose_min/max` as shipped and the charted one is `glucose_chart_{min,max,mean}` (the
+> brief's two literal names collide); every column cast to its declared type (mimic-code's
+> DECIMAL temperatures, absolute counts and weights become DOUBLE), `hospital_expire_flag`
+> stays the shipped 0/1 INTEGER, the five new flags are BOOLEAN and never NULL;
+> `admission_age` capped by the `timesem` rule with an added `age_capped`; the derived flags
+> use mimic-code's own first-day window (−6 h … +24 h, inclusive), vasopressors are
+> norepinephrine, epinephrine, dopamine, phenylephrine and vasopressin (no inotropes),
+> invasive ventilation is mimic-code's `InvasiveVent` (its scores' convention; tracheostomy
+> not counted), RRT is `dialysis_active`, the KDIGO stage is NULL when none was charted;
+> `los_hospital_days` fractional from admit to discharge, `los_icu_days` = `icustays.los` as
+> shipped; no unit on the 28 lab variables and the PaO2/FiO2 ratio the catalogue does not
+> curate (mimic-code ships them in their native unit); `icustays` as the base table, so the row count is the stay count
+> by construction; `subject_bucket` kept inside each file; the mart registry tables in `meta`
+> rather than EP-29's `meta.tables`; a spec moved after a build gives a `stale` row and a view
+> over the built columns, never a failed catalog build; the full job checked here, so EP-56's
+> amendment moves its item 1 to EP-175's job. **Churn-rule edits:** `test_ep47` (its pin of
+> `--tag marts` to exactly `[cohorts.build, catalog]` now names the cohort build, catalog last,
+> every other step a `marts.` step — D-47 planned EP-55's marts to join that tag) and
+> `test_ep29` (the dictionary-row allow-list gains the declared mart columns); `mwh verify
+> EP-47` 7 passed, `mwh verify EP-29` 13 passed. **Gates:** `mwh verify EP-55` 20 passed
+> (fixture, 118 s); the two dev-marked tests passed (counts, bounds, the ledger's wall time);
+> `poe roadmap-check --strict` OK, 176 rows, 176 briefs, 66 done, 0 errors, 0 warnings; `mwh
+> guard` clean over the 20 touched files; the final `poe check` (all EP-55 code, before the
+> supervisor fix): ruff clean, 224 files formatted, pyright 0 errors, **1,295 passed, 1
+> failed** (decision 2), 60 deselected, 1 warning (the crafted torn-ledger test), 1,105 s; it
+> was not re-run after the two-line fix, whose own tests were (above). **Timings:**
+>
+> | tier | build | rows (= `icustays`) | files | bytes | step wall | ledger wall | peak RSS |
+> |---|---|---:|---:|---:|---:|---:|---:|
+> | dev | `20261127T035838-dev-dda8251` | 4,672 | 5 | 1,059,580 | 1.2 s | 0.6 s | 367 MB |
+> | full | `20261127T035910-full-dda8251` | 94,458 | 100 | 21,376,025 | 3.8 s | 2.9 s | 914 MB |
+>
+> **Full ⏱ job:** `ep55-marts-full`, pid 51616, launched 2026-11-26 22:59:08 −05:00, finished
+> 03:59:21 UTC with exit 0 (build wall 11.2 s, run `20261127T035910Z-851764`, run disk delta
+> 22.0 MB, marts/full snapshot `ff633471…`); log `C:\mimicdata\runs\jobs\ep55-marts-full.log`.
+> Verified through `safe_query`: 94,458 rows = 94,458 distinct stays = `mimiciv_icu.icustays`;
+> the highest `admission_age` 91; no `temperature_mean` outside the EP-39 bounds (10–50 degC).
+> After the `stale` column was added, `ep55-catalog-full` (catalog only, 10 s) rebuilt the full
+> catalog (`20261127T041001-full-3360d84`, the dictionary's build) and the dev catalog was
+> rebuilt the same way. **Commits:** `3360d84` (the split), the feat commit, the supervisor fix
+> (both hashes on the roadmap row) and the record commit with the owner's OT-2 tick; none
+> pushed.

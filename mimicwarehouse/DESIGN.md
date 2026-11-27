@@ -1645,7 +1645,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── protocol/                  EP-51 shipped  spec (Protocol + content_hash, the fixed texts, json_schema), registry (resolve, freeze / amend / verify, runs/protocols.jsonl + read-only copies, PROTOCOLS_COLUMNS, docs/methods/protocols.md renderer), runners (RUNNERS, cohort_only, run_protocol, protocol_summary.md), cli (`mwh protocol`), specs/tracer_mortality.yaml; + EP-128/129
 │   ├── backup.py                  EP-52 shipped  BACKUP_SET (the globs of the non-reproducible state), run_backup (hash, copy2, re-hash, backup_manifest.json, swap_dir publish), target_problem (D-29 detector + data-root / repository containment + BitLocker), verify_backup, restore_backup, list_backups / last_backup (the doctor's last_backup row), `mwh backup run | verify | restore | list`; Settings.backup_target (MWH_BACKUP_TARGET)
 │   ├── analyses/                  EP-53 shipped  the capstone modules (docs/analyses/, D-8): c01_concepts_qc (build(tier) -> run_id inside run.start(kind="report") over published aggregates only — meta.* through safe_query, the EP-42 phenotype summary helpers, the benchmark ledger, EP-45's structural slice — eleven disclose.suppress'd tables + two Altair figures under runs/<run_id>/; run_step = the analyses.c01_concepts_qc step of dag/specs/analyses.yaml; promote (CSV -> Markdown tables + figures) / promote_tracer / promote_case_study = the programmatic `mwh disclose check --write-sidecar` into docs/analyses/<NN-slug>/; load_table / md_table_frame / render_tables / render_summary / headline_numbers); later capstones (EP-73, EP-89, EP-100, EP-126, EP-135) add one module each
-│   ├── marts/                     EP-55/56
+│   ├── marts/                     EP-55 shipped  registry (MartSpec / MartColumn / ColumnFamily over specs/<name>.yaml, the EP-39 unit check, mart_sql = SELECT list cast to the declared types over the base table + left joins / CTEs, write_mart = one sorted file per subject_bucket under .new + swap_dir + manifest lines + manifest.json + per-tier status marts.<name> + kind: mart ledger line + marts snapshot id, register_marts = marts.<name> views + meta.mart_tables / meta.mart_columns), first_day (marts.icustay_first_day: the four windowed CTEs + the step of dag/specs/marts.yaml); + EP-175 itemid rollups, EP-56 hourly marts + bench
 │   ├── viz/                       EP-64+  Altair specs, Plotly timeline, export
 │   ├── stats/                     P5     endpoints, boot, glm, mixed, trajectories, pathways, utilization, tsa, exposure, missing
 │   ├── survival/  causal/         P6
@@ -1909,6 +1909,28 @@ PreToolUse hook registration) is the pre-commit enforcer.
 > `phenotypes/defs/` + `phenotypes.lock.json`, `cohort/specs/` + `cohorts.lock.json`,
 > `protocol/specs/`), study copies live under the data root's `studies/<study_id>/` (backed
 > up by EP-52) and are added to a registry with `--specs / --codesets / --phenotypes DIR`.
+
+> **Note (2026-11-26, EP-55) — the first latency mart; names as built.** `marts/` exists:
+> `marts.registry` and `marts.first_day`, with the spec `marts/specs/icustay_first_day.yaml`
+> and the step `marts.icustay_first_day` in `dag/specs/marts.yaml` (tag `marts`, target
+> `marts.<name>`). Deviations from the brief's planning names: (1) `registry.register_meta(tier)`
+> writing `meta.tables` / `meta.columns` became the catalog extension
+> `registry.register_marts(con, tier)` (after `register_spine` in `CATALOG_EXTENSIONS`,
+> phenotypes and units still last), which creates `marts.<name>` over every mart complete for
+> the tier (view and column comments) and two registry tables of its own, `meta.mart_tables`
+> and `meta.mart_columns`, rendered as `DATA-DICTIONARY.md`'s `## marts` section — EP-29's
+> `meta.tables` stays the core-table registry; (2) the layout is per tier,
+> `lake/marts/<tier>/<name>/subject_bucket=NN/part-0.parquet`, one sorted single-file `COPY` per
+> bucket (`docs/gotchas.md` §1), `subject_bucket` kept inside each file and the view reading
+> with `hive_partitioning = false`; (3) `--target marts` is `--tag marts`; (4) the spec is the
+> column contract: `mart_sql` generates the SELECT list (each `expr` cast to its type) and the
+> join skeleton from it, so the built file carries exactly the declared columns, and a unit
+> tied to an EP-39 `concept_group` must be that group's canonical unit (`check_units`); (5) the
+> itemid rollups are EP-175's (split at the pickup, D-2 addendum). First-day columns keep
+> mimic-code's window (`icu_intime` − 6 h … + 24 h, inclusive) and the three derived flags use
+> it too; the lab glucose keeps `glucose_min/max`, the charted one is `glucose_chart_*`. Sizes:
+> 4,672 rows / 1.06 MB on dev, 94,458 rows / 21.4 MB in 100 files on full (3.8 s step wall) —
+> well inside DESIGN §3's ≤ 1–2 GB marts line.
 
 *History:* built by EP-2 … EP-6, EP-8 … EP-12, EP-17 … EP-22, EP-28 … EP-32, EP-164 … EP-171, EP-33 B4/B5/B6/B8 (completion notes); consolidated at EP-33.
 

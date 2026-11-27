@@ -911,10 +911,11 @@ def test_dag_wiring_and_session_lake(
     }
     catalog = dag.step("catalog")
     assert build_mod.STEP_BUILD in catalog.depends_on and "marts" in catalog.tags
-    assert [s.name for s in dag.ordered(tags=["marts"], tier="fixture")] == [
-        build_mod.STEP_BUILD,
-        "catalog",
-    ]
+    # --tag marts = every mart build + catalog: EP-55's marts.<name> steps joined the tag
+    # (D-47), so the pin names the cohort build and the shape, not the whole list
+    marts = [s.name for s in dag.ordered(tags=["marts"], tier="fixture")]
+    assert build_mod.STEP_BUILD in marts and marts[-1] == "catalog"
+    assert all(n in (build_mod.STEP_BUILD, "catalog") or n.startswith("marts.") for n in marts)
     assert [s.name for s in dag.ordered(tags=[registry_mod.DAG_TAG], tier="fixture")] == [
         registry_mod.STEP_SPECS,
         "catalog",

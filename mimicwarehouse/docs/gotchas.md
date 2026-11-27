@@ -231,6 +231,17 @@ page, not copies. Each entry names where it was learned so the evidence stays fi
   "KDIGO …"}`) and the loader fails with "could not find expected ':'" on the *next*
   line; write ` - ` or `;` instead, or quote the item (the block scalars `>` / `|` are
   unaffected). *(EP-42; the three definition files.)*
+- **`on:` is a boolean key in PyYAML 1.1**, like `yes` / `no` / `off`: a mapping key `on`
+  loads as `True`, so the mart specs name the join key `join_on`; and a comma inside a
+  flow mapping (`{label: a, b}`) splits it, so quote such values. *(EP-55; the first-day
+  spec.)*
+- **A commit while a background `poe check` runs can feed it a half state.** pre-commit
+  stashes the unstaged changes to tracked files for the length of its hooks and restores
+  them after, so a test that reads a tracked file in that window sees the committed
+  version; editing files under a running gate does the same thing for longer (EP-55's
+  first run failed `test_ep06` while the roadmap was mid-edit, and passed on a re-run).
+  Finish the edits and the commits that touch tracked files, then start the gate.
+  *(EP-55.)*
 
 ## 4. Editing the design records (DESIGN.md / DECISIONS.md / briefs)
 

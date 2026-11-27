@@ -352,11 +352,15 @@ def test_dictionary_is_guard_clean_and_value_free(
     # no bare 8-digit token anywhere (fmt_int separates thousands; guard G4's pattern)
     assert not guard.ID_TOKEN.search(dictionary_text)
 
-    # every pipe-table row is either header metadata or a contract column — a per-value
-    # frequency table would need value cells, which have nowhere to appear
+    # every pipe-table row is either header metadata, a contract column or (EP-55) a
+    # declared mart column — a per-value frequency table would need value cells, which
+    # have nowhere to appear
+    from mimicwarehouse.marts.registry import packaged_registry
+
     allowed = (
         {"", "column"}
         | {c.name for t in contract.tables for c in t.columns}
+        | {name for spec in packaged_registry() for name in spec.column_names}
         | {
             "Build id",
             "Tier",

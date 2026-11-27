@@ -1,0 +1,204 @@
+# marts/specs/icustay_first_day.yaml -- the wide stay-grain first-day mart (EP-55 item 2;
+# ASCII only). Loaded and validated by mimicwarehouse.marts.registry (pydantic). The SELECT
+# list is generated from `columns`: each `expr` cast to its `type`, in this order. A family
+# entry (`vars` x `stats`) expands to <var>_<stat> columns reading
+# <alias>.<source or var>_<stat>. The FROM clause is generated from `sources`: the `base`
+# table, then one LEFT JOIN per source on `join_on` (the base table's column of the same
+# name); a `cte: true` source is first reduced to one row per key by the builder module
+# (marts/first_day.py, CTES). Every first-day column uses mimic-code's own window,
+# icu_intime - 6 h to icu_intime + 24 h inclusive, and the three flags the builder derives
+# (invasive ventilation, vasopressors, KDIGO stage) use the same window. `unit` follows the
+# EP-39 catalogue (meta.item_units) wherever `concept_group` names one of its groups; the
+# registry refuses a unit that disagrees with the group's canonical unit, and columns the
+# catalogue does not curate carry no unit (mimic-code ships them in their native unit).
+name: icustay_first_day
+version: 1
+grain: icustay
+description: >-
+  One row per ICU stay (mimiciv_icu.icustays): keys, demographics and admission context,
+  durations, outcomes, and the first ICU day's vitals, labs, arterial blood gas, GCS, urine
+  output, admission weight, SOFA, Charlson index and treatment flags, from the mimic-code
+  concepts in mimiciv_derived. Times are relative to icu_intime; era (anchor_year_group) is
+  the only cross-patient time axis. Subject-keyed: sessions read it through safe_query as
+  aggregates only.
+key: [subject_id, hadm_id, stay_id]
+partition: subject_bucket
+sort: [subject_id, stay_id]
+builder: mimicwarehouse.marts.first_day:run_first_day
+depends_on:
+  - stage.mimiciv_icu.icustays
+  - stage.mimiciv_hosp.patients
+  - stage.mimiciv_hosp.admissions
+  - stage.mimiciv_hosp.services
+  - concept.demographics.icustay_detail
+  - concept.firstday.first_day_vitalsign
+  - concept.firstday.first_day_lab
+  - concept.firstday.first_day_bg_art
+  - concept.firstday.first_day_gcs
+  - concept.firstday.first_day_urine_output
+  - concept.firstday.first_day_weight
+  - concept.firstday.first_day_sofa
+  - concept.firstday.first_day_rrt
+  - concept.comorbidity.charlson
+  - concept.sepsis.sepsis3
+  - concept.treatment.ventilation
+  - concept.medication.vasoactive_agent
+  - concept.organfailure.kdigo_stages
+sources:
+  - {alias: ie, relation: mimiciv_icu.icustays, join: base}
+  - {alias: d, relation: mimiciv_derived.icustay_detail, join_on: stay_id}
+  - {alias: p, relation: mimiciv_hosp.patients, join_on: subject_id}
+  - {alias: a, relation: mimiciv_hosp.admissions, join_on: hadm_id}
+  - alias: svc
+    relation: mimiciv_hosp.services
+    join_on: hadm_id
+    cte: true
+    note: the admission's first curr_service (earliest transfertime, ties by name)
+  - {alias: fdv, relation: mimiciv_derived.first_day_vitalsign, join_on: stay_id}
+  - {alias: fdl, relation: mimiciv_derived.first_day_lab, join_on: stay_id}
+  - {alias: bga, relation: mimiciv_derived.first_day_bg_art, join_on: stay_id}
+  - {alias: gcs, relation: mimiciv_derived.first_day_gcs, join_on: stay_id}
+  - {alias: uo, relation: mimiciv_derived.first_day_urine_output, join_on: stay_id}
+  - {alias: wt, relation: mimiciv_derived.first_day_weight, join_on: stay_id}
+  - {alias: sofa, relation: mimiciv_derived.first_day_sofa, join_on: stay_id}
+  - {alias: rrt, relation: mimiciv_derived.first_day_rrt, join_on: stay_id}
+  - {alias: cci, relation: mimiciv_derived.charlson, join_on: hadm_id}
+  - {alias: s3, relation: mimiciv_derived.sepsis3, join_on: stay_id}
+  - alias: vent
+    relation: mimiciv_derived.ventilation
+    join_on: stay_id
+    cte: true
+    note: an InvasiveVent episode overlapping the first-day window
+  - alias: vaso
+    relation: mimiciv_derived.vasoactive_agent
+    join_on: stay_id
+    cte: true
+    note: >-
+      a vasopressor (norepinephrine, epinephrine, dopamine, phenylephrine, vasopressin) at a
+      rate above zero overlapping the first-day window; dobutamine and milrinone are inotropes
+      and do not count
+  - alias: kd
+    relation: mimiciv_derived.kdigo_stages
+    join_on: stay_id
+    cte: true
+    note: the highest KDIGO aki_stage charted in the first-day window
+columns:
+  # -- keys ---------------------------------------------------------------------------------
+  - {name: subject_id, type: INTEGER, expr: ie.subject_id, description: "Patient identifier (key; never in a session's output)."}
+  - {name: hadm_id, type: INTEGER, expr: ie.hadm_id, description: "Hospital admission identifier (key)."}
+  - {name: stay_id, type: INTEGER, expr: ie.stay_id, description: "ICU stay identifier (key; one row per stay)."}
+  - {name: subject_bucket, type: INTEGER, expr: "ie.subject_id % 100", description: "subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4)."}
+  # -- demographics and admission context ---------------------------------------------------
+  - {name: admission_age, type: INTEGER, unit: years, expr: "CASE WHEN d.admission_age >= 91 THEN 91 ELSE d.admission_age END", description: "Age at hospital admission (mimic-code icustay_detail), capped at 91: PhysioNet ships every age >= 89 as 91, so 91 is a censored bucket (age_capped)."}
+  - {name: age_capped, type: BOOLEAN, expr: "d.admission_age >= 91", description: "admission_age sits in the >= 89 bucket shipped as 91 (timesem.AGE_CAP)."}
+  - {name: gender, type: VARCHAR, expr: p.gender, description: "Administrative gender as recorded (patients)."}
+  - {name: race, type: VARCHAR, expr: a.race, description: "Race as recorded at the admission (admissions)."}
+  - {name: admission_type, type: VARCHAR, expr: a.admission_type, description: "Admission type (admissions)."}
+  - {name: insurance, type: VARCHAR, expr: a.insurance, description: "Insurance category (admissions)."}
+  - {name: first_service, type: VARCHAR, expr: svc.first_service, description: "The admission's first service (services: earliest transfertime)."}
+  - {name: first_careunit, type: VARCHAR, expr: ie.first_careunit, description: "First ICU care unit of the stay (icustays)."}
+  - {name: era, type: VARCHAR, expr: p.anchor_year_group, description: "anchor_year_group, the only cross-patient calendar axis (three-year groups)."}
+  - {name: first_hosp_stay, type: BOOLEAN, expr: d.first_hosp_stay, description: "The patient's first hospital admission (icustay_detail)."}
+  - {name: first_icu_stay, type: BOOLEAN, expr: d.first_icu_stay, description: "The first ICU stay of its admission (icustay_detail)."}
+  - {name: icustay_seq, type: INTEGER, expr: d.icustay_seq, description: "Order of the stay within its admission, from 1 (icustay_detail)."}
+  # -- anchor and durations -------------------------------------------------------------------
+  - {name: icu_intime, type: TIMESTAMP, expr: ie.intime, description: "ICU admission time, naive and per-patient shifted: the anchor every first-day window is relative to, never a calendar date."}
+  - {name: los_icu_days, type: DOUBLE, unit: days, expr: ie.los, description: "ICU length of stay in fractional days (icustays.los as shipped)."}
+  - {name: los_hospital_days, type: DOUBLE, unit: days, expr: "date_diff('second', a.admittime, a.dischtime) / 86400.0", description: "Hospital length of stay in fractional days (admittime to dischtime)."}
+  - {name: hours_admit_to_icu, type: DOUBLE, unit: hours, expr: "date_diff('second', a.admittime, ie.intime) / 3600.0", description: "Hours from hospital admission to ICU admission (negative when the ICU stay starts first)."}
+  # -- outcomes -----------------------------------------------------------------------------------
+  - {name: hospital_expire_flag, type: INTEGER, expr: a.hospital_expire_flag, description: "1 when the patient died in hospital during this admission, else 0 (admissions)."}
+  - {name: discharge_location, type: VARCHAR, expr: a.discharge_location, description: "Discharge location of the admission (admissions)."}
+  # -- first-day vitals (chartevents through mimic-code vitalsign) --------------------------------
+  - family: first_day_vitalsign
+    alias: fdv
+    stats: [min, max, mean]
+    type: DOUBLE
+    description: "{stat} {label} in the first-day window (mimic-code first_day_vitalsign)."
+    vars:
+      - {name: heart_rate, label: heart rate, unit: bpm, concept_group: vitals.hr}
+      - {name: sbp, label: systolic blood pressure (arterial or non-invasive), unit: mmHg, concept_group: vitals.sbp}
+      - {name: dbp, label: diastolic blood pressure (arterial or non-invasive), unit: mmHg, concept_group: vitals.dbp}
+      - {name: mbp, label: mean blood pressure (arterial or non-invasive), unit: mmHg, concept_group: vitals.mbp}
+      - {name: resp_rate, label: respiratory rate, unit: insp/min, concept_group: vitals.rr}
+      - {name: temperature, label: temperature (degrees F converted to C), unit: degC, concept_group: vitals.temperature}
+      - {name: spo2, label: pulse-oximetry oxygen saturation, unit: "%", concept_group: vitals.spo2}
+      - {name: glucose_chart, source: glucose, label: "charted glucose (fingerstick, whole blood or serum in chartevents; the laboratory value is glucose_min / glucose_max)", unit: mg/dL, concept_group: labs.glucose}
+  # -- first-day labs (labevents through mimic-code first_day_lab, as shipped) ---------------------
+  - family: first_day_lab
+    alias: fdl
+    stats: [min, max]
+    type: DOUBLE
+    description: "{stat} {label} in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it)."
+    vars:
+      - {name: hematocrit, label: hematocrit, unit: "%", concept_group: labs.hematocrit}
+      - {name: hemoglobin, label: hemoglobin, unit: g/dL, concept_group: labs.hemoglobin}
+      - {name: platelets, label: platelet count, unit: K/uL, concept_group: labs.platelets}
+      - {name: wbc, label: white blood cell count, unit: K/uL, concept_group: labs.wbc}
+      - {name: albumin, label: albumin, unit: g/dL, concept_group: labs.albumin}
+      - {name: globulin, label: globulin}
+      - {name: total_protein, label: total protein}
+      - {name: aniongap, label: anion gap}
+      - {name: bicarbonate, label: bicarbonate, unit: mEq/L, concept_group: labs.bicarbonate}
+      - {name: bun, label: blood urea nitrogen, unit: mg/dL, concept_group: labs.bun}
+      - {name: calcium, label: total calcium, unit: mg/dL, concept_group: labs.calcium}
+      - {name: chloride, label: chloride, unit: mEq/L, concept_group: labs.chloride}
+      - {name: creatinine, label: creatinine, unit: mg/dL, concept_group: labs.creatinine}
+      - {name: glucose, label: laboratory glucose, unit: mg/dL, concept_group: labs.glucose}
+      - {name: sodium, label: sodium, unit: mEq/L, concept_group: labs.sodium}
+      - {name: potassium, label: potassium, unit: mEq/L, concept_group: labs.potassium}
+      - {name: abs_basophils, label: absolute basophil count}
+      - {name: abs_eosinophils, label: absolute eosinophil count}
+      - {name: abs_lymphocytes, label: absolute lymphocyte count}
+      - {name: abs_monocytes, label: absolute monocyte count}
+      - {name: abs_neutrophils, label: absolute neutrophil count}
+      - {name: atyps, label: atypical lymphocytes}
+      - {name: bands, label: band forms}
+      - {name: imm_granulocytes, label: immature granulocytes}
+      - {name: metas, label: metamyelocytes}
+      - {name: nrbc, label: nucleated red cells}
+      - {name: d_dimer, label: D-dimer}
+      - {name: fibrinogen, label: fibrinogen}
+      - {name: thrombin, label: thrombin time}
+      - {name: inr, label: INR, unit: ratio, concept_group: labs.inr}
+      - {name: pt, label: prothrombin time}
+      - {name: ptt, label: partial thromboplastin time}
+      - {name: alt, label: alanine aminotransferase}
+      - {name: alp, label: alkaline phosphatase}
+      - {name: ast, label: aspartate aminotransferase}
+      - {name: amylase, label: amylase}
+      - {name: bilirubin_total, label: total bilirubin, unit: mg/dL, concept_group: labs.bilirubin_total}
+      - {name: bilirubin_direct, label: direct bilirubin}
+      - {name: bilirubin_indirect, label: indirect bilirubin}
+      - {name: ck_cpk, label: creatine kinase}
+      - {name: ck_mb, label: creatine kinase MB}
+      - {name: ggt, label: gamma-glutamyl transferase}
+      - {name: ld_ldh, label: lactate dehydrogenase}
+  # -- first-day arterial blood gas (mimic-code first_day_bg_art) ---------------------------------
+  - family: first_day_bg_art
+    alias: bga
+    stats: [min, max]
+    type: DOUBLE
+    description: "{stat} {label} in the first-day window (mimic-code first_day_bg_art, arterial specimens)."
+    vars:
+      - {name: ph, label: arterial pH, unit: units, concept_group: labs.ph}
+      - {name: lactate, label: lactate, unit: mmol/L, concept_group: labs.lactate}
+      - {name: pao2fio2ratio, label: PaO2/FiO2 ratio}
+  # -- scores, output, weight -------------------------------------------------------------------
+  - {name: gcs_min, type: DOUBLE, unit: points, expr: gcs.gcs_min, description: "Lowest Glasgow Coma Scale total in the first-day window (mimic-code first_day_gcs)."}
+  - {name: urineoutput, type: DOUBLE, unit: mL, concept_group: urine.output, expr: uo.urineoutput, description: "Total urine output from ICU admission to + 24 h (mimic-code first_day_urine_output)."}
+  - {name: weight_admit, type: DOUBLE, unit: kg, concept_group: anthro.weight, expr: wt.weight_admit, description: "Admission weight (mimic-code first_day_weight: the first charted weight)."}
+  - {name: sofa, type: INTEGER, unit: points, expr: sofa.sofa, description: "First-day SOFA score, 0-24 (mimic-code first_day_sofa)."}
+  - {name: sofa_respiration, type: INTEGER, unit: points, expr: sofa.respiration, description: "First-day SOFA respiration sub-score, 0-4."}
+  - {name: sofa_coagulation, type: INTEGER, unit: points, expr: sofa.coagulation, description: "First-day SOFA coagulation sub-score, 0-4."}
+  - {name: sofa_liver, type: INTEGER, unit: points, expr: sofa.liver, description: "First-day SOFA liver sub-score, 0-4."}
+  - {name: sofa_cardiovascular, type: INTEGER, unit: points, expr: sofa.cardiovascular, description: "First-day SOFA cardiovascular sub-score, 0-4."}
+  - {name: sofa_cns, type: INTEGER, unit: points, expr: sofa.cns, description: "First-day SOFA central nervous system sub-score, 0-4."}
+  - {name: sofa_renal, type: INTEGER, unit: points, expr: sofa.renal, description: "First-day SOFA renal sub-score, 0-4."}
+  - {name: charlson_comorbidity_index, type: INTEGER, unit: points, expr: cci.charlson_comorbidity_index, description: "Charlson comorbidity index of the admission (mimic-code charlson, ICD-9 and ICD-10 codes)."}
+  # -- first-day treatment and syndrome flags -----------------------------------------------------
+  - {name: vent_invasive_first_day, type: BOOLEAN, expr: "coalesce(vent.flag, false)", description: "Invasive mechanical ventilation (mimic-code ventilation status InvasiveVent) overlapping the first-day window."}
+  - {name: vasopressor_first_day, type: BOOLEAN, expr: "coalesce(vaso.flag, false)", description: "A vasopressor infusion (norepinephrine, epinephrine, dopamine, phenylephrine or vasopressin) overlapping the first-day window (mimic-code vasoactive_agent)."}
+  - {name: rrt_first_day, type: BOOLEAN, expr: "coalesce(rrt.dialysis_active = 1, false)", description: "Active renal replacement therapy charted in the first-day window (mimic-code first_day_rrt dialysis_active)."}
+  - {name: sepsis3, type: BOOLEAN, expr: "coalesce(s3.sepsis3, false)", description: "Sepsis-3 onset within the stay (mimic-code sepsis3: suspected infection with SOFA >= 2)."}
+  - {name: kdigo_max_stage_first_day, type: INTEGER, unit: stage, expr: kd.max_stage, description: "Highest KDIGO AKI stage, 0-3, charted in the first-day window (mimic-code kdigo_stages aki_stage); NULL when none was charted."}

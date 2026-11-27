@@ -1,0 +1,47 @@
+# dag/specs/marts.yaml -- the latency-mart steps (EP-55 item 4; ASCII only). Merged into the
+# one graph by dag.spec.load_dag() (EP-37 discovery): one python step per mart spec
+# (marts/specs/<name>.yaml; its depends_on mirrors the spec's, a test pins the pair) and the
+# shared catalog step, whose depends_on / tags are unioned with the other specs' so
+# `mwh build --tier <t> --tag marts` builds every mart (with EP-47's cohorts.build, which
+# carries the same tag) and ends in a catalog rebuild; `--select marts.<name>` builds one.
+#   marts.icustay_first_day -> lake/marts/<tier>/icustay_first_day/subject_bucket=NN/
+#                              part-0.parquet (one sorted file per bucket) + manifest.json;
+#                              the catalog extension (marts.registry.register_marts)
+#                              exposes marts.icustay_first_day and the registry tables
+#                              meta.mart_tables / meta.mart_columns.
+# The target is the per-tier status key marts.<name>: a mart complete for the tier is skipped
+# (a spec change rebuilds with --force; the status entry records the spec_sha256 it was
+# built from). The full tier runs as a detached job: `mwh build --tier full --tag marts
+# --background --job ep55-marts-full`.
+version: 1
+steps:
+  - name: marts.icustay_first_day
+    kind: python
+    callable: mimicwarehouse.marts.first_day:run_first_day
+    target: marts.icustay_first_day
+    tags: [marts]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_icu.icustays
+      - stage.mimiciv_hosp.patients
+      - stage.mimiciv_hosp.admissions
+      - stage.mimiciv_hosp.services
+      - concept.demographics.icustay_detail
+      - concept.firstday.first_day_vitalsign
+      - concept.firstday.first_day_lab
+      - concept.firstday.first_day_bg_art
+      - concept.firstday.first_day_gcs
+      - concept.firstday.first_day_urine_output
+      - concept.firstday.first_day_weight
+      - concept.firstday.first_day_sofa
+      - concept.firstday.first_day_rrt
+      - concept.comorbidity.charlson
+      - concept.sepsis.sepsis3
+      - concept.treatment.ventilation
+      - concept.medication.vasoactive_agent
+      - concept.organfailure.kdigo_stages
+  - name: catalog
+    kind: catalog
+    tags: [catalog, marts]
+    depends_on:
+      - marts.icustay_first_day

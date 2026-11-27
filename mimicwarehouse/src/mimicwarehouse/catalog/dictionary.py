@@ -58,6 +58,9 @@ class DictionaryResult:
     build_id: str
     tables: int = 0
     columns: int = 0
+    #: Mart sections (EP-55), counted apart from the core ``tables``; their columns join
+    #: ``columns``.
+    marts: int = 0
 
 
 def default_out_path() -> Path:
@@ -163,7 +166,77 @@ def render_dictionary(con: duckdb.DuckDBPyConnection) -> tuple[str, DictionaryRe
             result.columns += 1
         lines.append("")
         result.tables += 1
+    lines += _render_marts(con, k, result)
     return "\n".join(lines), result
+
+
+def _render_marts(con: duckdb.DuckDBPyConnection, k: int, result: DictionaryResult) -> list[str]:
+    """The ``## marts`` section from ``meta.mart_tables`` / ``meta.mart_columns`` (EP-55;
+    the marts stay out of EP-29's ``meta.tables``): one subsection per mart spec, built or
+    not, with its column contract. Empty when the catalog predates EP-55."""
+    present = con.execute(
+        "SELECT count(*) FROM information_schema.tables "
+        "WHERE table_schema = 'meta' AND table_name IN ('mart_tables', 'mart_columns')"
+    ).fetchone()
+    if present is None or int(present[0]) < 2:
+        return []
+    marts = con.execute(
+        "SELECT mart, version, grain, keys, partition, description, built, rows, "
+        "rows_suppressed, files, bytes FROM meta.mart_tables ORDER BY mart"
+    ).fetchall()
+    columns = con.execute(
+        'SELECT mart, "column", duckdb_type, unit, is_key, description '
+        "FROM meta.mart_columns ORDER BY mart, ordinal"
+    ).fetchall()
+    by_mart: dict[str, list[tuple[Any, ...]]] = {}
+    for row in columns:
+        by_mart.setdefault(row[0], []).append(row)
+    lines: list[str] = []
+    if marts:
+        lines += [
+            "## marts",
+            "",
+            "Latency marts (EP-55; `marts/specs/<name>.yaml`, registered as `meta.mart_tables` / "
+            "`meta.mart_columns`): per-tier Parquet under `lake/marts/<tier>/<name>/`, "
+            "subject-keyed marts read through `safe_query` as aggregates only.",
+            "",
+        ]
+    for (
+        name,
+        version,
+        grain,
+        keys,
+        partition,
+        description,
+        built,
+        rows,
+        small,
+        files,
+        size,
+    ) in marts:
+        lines += [f"### marts.{name}", ""]
+        if description:
+            lines += [description, ""]
+        layout = f"partitioned by `{partition}`" if partition else "one file"
+        lines += [f"Version {version} - grain `{grain}` - keys `{keys}` - {layout}", ""]
+        if not built:
+            lines += ["*Not built in this tier - no rows cataloged.*", ""]
+        else:
+            count = f"<{k}" if small else ("-" if rows is None else fmt_int(rows))
+            lines += [
+                f"Rows: {count} - Parquet: {fmt_bytes_mb(size)} ({fmt_int(files)} file(s))",
+                "",
+            ]
+        lines += ["| column | type | unit | key | description |", "|---|---|---|---|---|"]
+        for _m, column, duckdb_type, unit, is_key, col_desc in by_mart.get(name, []):
+            lines.append(
+                f"| {column} | {duckdb_type} | {_cell(unit)} | {'yes' if is_key else '-'} "
+                f"| {_cell(col_desc)} |"
+            )
+            result.columns += 1
+        lines.append("")
+        result.marts += 1
+    return lines
 
 
 def generate_dictionary(

@@ -249,8 +249,8 @@ def dictionary_command(
     except CatalogOpenError as exc:
         fail(prefix, str(exc), code=EXIT_USAGE)
     console.print(
-        f"wrote {result.path} ({result.tables} table(s), {result.columns} column(s), "
-        f"tier {result.tier}, build {result.build_id})",
+        f"wrote {result.path} ({result.tables} table(s), {result.marts} mart(s), "
+        f"{result.columns} column(s), tier {result.tier}, build {result.build_id})",
         highlight=False,
     )
 

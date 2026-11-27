@@ -66,6 +66,7 @@ from mimicwarehouse.config import (
 from mimicwarehouse.dag.snapshot import complete_for_tier, layer_snapshot
 from mimicwarehouse.loader.manifest import read_status, utc_now_iso
 from mimicwarehouse.loader.paths import read_parquet_sql, table_dir
+from mimicwarehouse.marts.registry import register_marts as _marts_register
 from mimicwarehouse.phenotypes.runner import register_phenotypes as _phenotypes_register
 from mimicwarehouse.qc.measurement import register_measurement as _measurement_register
 from mimicwarehouse.qc.profile import register_qc as _qc_register
@@ -113,8 +114,11 @@ STAGED_SCHEMAS: tuple[str, ...] = ("mimiciv_hosp", "mimiciv_icu")
 #: ``meta.cohort_specs``, right after the measurement extension), EP-50's
 #: ``spine.register_spine`` (``mimiciv_derived.spine`` over the bucketed spine directories
 #: the walker skips + comments on ``meta.spine_codes`` / ``meta.spine_validation``, right
-#: after the cohort extension) and EP-39's ``units.register_units`` (the ``mwh_harmonize``
-#: macro family + comments on the ``meta.item_*`` tables) run after it, ``units`` last.
+#: after the cohort extension), EP-55's ``marts.registry.register_marts`` (the
+#: ``marts.<name>`` views over every complete mart + ``meta.mart_tables`` /
+#: ``meta.mart_columns``, right after the spine) and EP-39's ``units.register_units`` (the
+#: ``mwh_harmonize`` macro family + comments on the ``meta.item_*`` tables) run after it,
+#: ``units`` last.
 CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _timesem_create_views,
     _concepts_register_derived,
@@ -123,6 +127,7 @@ CATALOG_EXTENSIONS: list[Callable[[duckdb.DuckDBPyConnection, str], None]] = [
     _measurement_register,
     _cohorts_register,
     _spine_register,
+    _marts_register,
     _phenotypes_register,
     _units_register,
 ]

@@ -5,11 +5,11 @@
 
 | | |
 |---|---|
-| Build id | `20260907T001149-full-41fbf65` |
+| Build id | `20261127T041001-full-3360d84` |
 | Tier | `full` |
 | Core snapshot id | `b1fc53134348f3b4ede369ed6ae27424c4988fafb45065c87a09907f7a410eca` |
 | DuckDB | 1.5.5 |
-| Catalog built at | 2026-09-07T00:11:59+00:00 |
+| Catalog built at | 2026-11-27T04:10:06+00:00 |
 
 **Caveats (MIMIC-IV de-identification; GOVERNANCE section 5, D-33).** All timestamps are date-shifted per subject: absolute dates are meaningless and `anchor_year_group` (patients) is the only calendar anchor. Patients aged 89 and over appear with `anchor_age` 91. The `dod` (date of death) horizon is roughly one year after the last hospital discharge; later deaths are not captured. All row counts and distinct counts here are aggregate metadata over a retrospective EHR extract; distinct counts under 11 are shown as `<11`. Identifier and free-text columns are flagged: `safe_query` (EP-30) and `mwh disclose check` (EP-43) refuse to return them.
 
@@ -637,3 +637,172 @@ Rows: 808,706 - Parquet: 24.8 MB (100 file(s)) - partitioned (view)
 | statusdescription | VARCHAR | yes | - | - | 0.0% | <11 | FinishedRunning, Stopped, Paused, Rewritten ... |
 | originalamount | DOUBLE | yes | - | - | 0.0% | 21,058 | Amount originally ordered. |
 | originalrate | DOUBLE | yes | - | - | 0.0% | <11 | Rate originally ordered. |
+
+## marts
+
+Latency marts (EP-55; `marts/specs/<name>.yaml`, registered as `meta.mart_tables` / `meta.mart_columns`): per-tier Parquet under `lake/marts/<tier>/<name>/`, subject-keyed marts read through `safe_query` as aggregates only.
+
+### marts.icustay_first_day
+
+One row per ICU stay (mimiciv_icu.icustays): keys, demographics and admission context, durations, outcomes, and the first ICU day's vitals, labs, arterial blood gas, GCS, urine output, admission weight, SOFA, Charlson index and treatment flags, from the mimic-code concepts in mimiciv_derived. Times are relative to icu_intime; era (anchor_year_group) is the only cross-patient time axis. Subject-keyed: sessions read it through safe_query as aggregates only.
+
+Version 1 - grain `icustay` - keys `subject_id, hadm_id, stay_id` - partitioned by `subject_bucket`
+
+Rows: 94,458 - Parquet: 21.4 MB (100 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| subject_id | INTEGER | - | yes | Patient identifier (key; never in a session's output). |
+| hadm_id | INTEGER | - | yes | Hospital admission identifier (key). |
+| stay_id | INTEGER | - | yes | ICU stay identifier (key; one row per stay). |
+| subject_bucket | INTEGER | - | yes | subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4). |
+| admission_age | INTEGER | years | - | Age at hospital admission (mimic-code icustay_detail), capped at 91: PhysioNet ships every age >= 89 as 91, so 91 is a censored bucket (age_capped). |
+| age_capped | BOOLEAN | - | - | admission_age sits in the >= 89 bucket shipped as 91 (timesem.AGE_CAP). |
+| gender | VARCHAR | - | - | Administrative gender as recorded (patients). |
+| race | VARCHAR | - | - | Race as recorded at the admission (admissions). |
+| admission_type | VARCHAR | - | - | Admission type (admissions). |
+| insurance | VARCHAR | - | - | Insurance category (admissions). |
+| first_service | VARCHAR | - | - | The admission's first service (services: earliest transfertime). |
+| first_careunit | VARCHAR | - | - | First ICU care unit of the stay (icustays). |
+| era | VARCHAR | - | - | anchor_year_group, the only cross-patient calendar axis (three-year groups). |
+| first_hosp_stay | BOOLEAN | - | - | The patient's first hospital admission (icustay_detail). |
+| first_icu_stay | BOOLEAN | - | - | The first ICU stay of its admission (icustay_detail). |
+| icustay_seq | INTEGER | - | - | Order of the stay within its admission, from 1 (icustay_detail). |
+| icu_intime | TIMESTAMP | - | - | ICU admission time, naive and per-patient shifted: the anchor every first-day window is relative to, never a calendar date. |
+| los_icu_days | DOUBLE | days | - | ICU length of stay in fractional days (icustays.los as shipped). |
+| los_hospital_days | DOUBLE | days | - | Hospital length of stay in fractional days (admittime to dischtime). |
+| hours_admit_to_icu | DOUBLE | hours | - | Hours from hospital admission to ICU admission (negative when the ICU stay starts first). |
+| hospital_expire_flag | INTEGER | - | - | 1 when the patient died in hospital during this admission, else 0 (admissions). |
+| discharge_location | VARCHAR | - | - | Discharge location of the admission (admissions). |
+| heart_rate_min | DOUBLE | bpm | - | Lowest heart rate in the first-day window (mimic-code first_day_vitalsign). |
+| heart_rate_max | DOUBLE | bpm | - | Highest heart rate in the first-day window (mimic-code first_day_vitalsign). |
+| heart_rate_mean | DOUBLE | bpm | - | Mean heart rate in the first-day window (mimic-code first_day_vitalsign). |
+| sbp_min | DOUBLE | mmHg | - | Lowest systolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| sbp_max | DOUBLE | mmHg | - | Highest systolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| sbp_mean | DOUBLE | mmHg | - | Mean systolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| dbp_min | DOUBLE | mmHg | - | Lowest diastolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| dbp_max | DOUBLE | mmHg | - | Highest diastolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| dbp_mean | DOUBLE | mmHg | - | Mean diastolic blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| mbp_min | DOUBLE | mmHg | - | Lowest mean blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| mbp_max | DOUBLE | mmHg | - | Highest mean blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| mbp_mean | DOUBLE | mmHg | - | Mean mean blood pressure (arterial or non-invasive) in the first-day window (mimic-code first_day_vitalsign). |
+| resp_rate_min | DOUBLE | insp/min | - | Lowest respiratory rate in the first-day window (mimic-code first_day_vitalsign). |
+| resp_rate_max | DOUBLE | insp/min | - | Highest respiratory rate in the first-day window (mimic-code first_day_vitalsign). |
+| resp_rate_mean | DOUBLE | insp/min | - | Mean respiratory rate in the first-day window (mimic-code first_day_vitalsign). |
+| temperature_min | DOUBLE | degC | - | Lowest temperature (degrees F converted to C) in the first-day window (mimic-code first_day_vitalsign). |
+| temperature_max | DOUBLE | degC | - | Highest temperature (degrees F converted to C) in the first-day window (mimic-code first_day_vitalsign). |
+| temperature_mean | DOUBLE | degC | - | Mean temperature (degrees F converted to C) in the first-day window (mimic-code first_day_vitalsign). |
+| spo2_min | DOUBLE | % | - | Lowest pulse-oximetry oxygen saturation in the first-day window (mimic-code first_day_vitalsign). |
+| spo2_max | DOUBLE | % | - | Highest pulse-oximetry oxygen saturation in the first-day window (mimic-code first_day_vitalsign). |
+| spo2_mean | DOUBLE | % | - | Mean pulse-oximetry oxygen saturation in the first-day window (mimic-code first_day_vitalsign). |
+| glucose_chart_min | DOUBLE | mg/dL | - | Lowest charted glucose (fingerstick, whole blood or serum in chartevents; the laboratory value is glucose_min / glucose_max) in the first-day window (mimic-code first_day_vitalsign). |
+| glucose_chart_max | DOUBLE | mg/dL | - | Highest charted glucose (fingerstick, whole blood or serum in chartevents; the laboratory value is glucose_min / glucose_max) in the first-day window (mimic-code first_day_vitalsign). |
+| glucose_chart_mean | DOUBLE | mg/dL | - | Mean charted glucose (fingerstick, whole blood or serum in chartevents; the laboratory value is glucose_min / glucose_max) in the first-day window (mimic-code first_day_vitalsign). |
+| hematocrit_min | DOUBLE | % | - | Lowest hematocrit in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| hematocrit_max | DOUBLE | % | - | Highest hematocrit in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| hemoglobin_min | DOUBLE | g/dL | - | Lowest hemoglobin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| hemoglobin_max | DOUBLE | g/dL | - | Highest hemoglobin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| platelets_min | DOUBLE | K/uL | - | Lowest platelet count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| platelets_max | DOUBLE | K/uL | - | Highest platelet count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| wbc_min | DOUBLE | K/uL | - | Lowest white blood cell count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| wbc_max | DOUBLE | K/uL | - | Highest white blood cell count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| albumin_min | DOUBLE | g/dL | - | Lowest albumin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| albumin_max | DOUBLE | g/dL | - | Highest albumin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| globulin_min | DOUBLE | - | - | Lowest globulin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| globulin_max | DOUBLE | - | - | Highest globulin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| total_protein_min | DOUBLE | - | - | Lowest total protein in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| total_protein_max | DOUBLE | - | - | Highest total protein in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| aniongap_min | DOUBLE | - | - | Lowest anion gap in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| aniongap_max | DOUBLE | - | - | Highest anion gap in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bicarbonate_min | DOUBLE | mEq/L | - | Lowest bicarbonate in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bicarbonate_max | DOUBLE | mEq/L | - | Highest bicarbonate in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bun_min | DOUBLE | mg/dL | - | Lowest blood urea nitrogen in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bun_max | DOUBLE | mg/dL | - | Highest blood urea nitrogen in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| calcium_min | DOUBLE | mg/dL | - | Lowest total calcium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| calcium_max | DOUBLE | mg/dL | - | Highest total calcium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| chloride_min | DOUBLE | mEq/L | - | Lowest chloride in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| chloride_max | DOUBLE | mEq/L | - | Highest chloride in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| creatinine_min | DOUBLE | mg/dL | - | Lowest creatinine in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| creatinine_max | DOUBLE | mg/dL | - | Highest creatinine in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| glucose_min | DOUBLE | mg/dL | - | Lowest laboratory glucose in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| glucose_max | DOUBLE | mg/dL | - | Highest laboratory glucose in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| sodium_min | DOUBLE | mEq/L | - | Lowest sodium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| sodium_max | DOUBLE | mEq/L | - | Highest sodium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| potassium_min | DOUBLE | mEq/L | - | Lowest potassium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| potassium_max | DOUBLE | mEq/L | - | Highest potassium in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_basophils_min | DOUBLE | - | - | Lowest absolute basophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_basophils_max | DOUBLE | - | - | Highest absolute basophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_eosinophils_min | DOUBLE | - | - | Lowest absolute eosinophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_eosinophils_max | DOUBLE | - | - | Highest absolute eosinophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_lymphocytes_min | DOUBLE | - | - | Lowest absolute lymphocyte count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_lymphocytes_max | DOUBLE | - | - | Highest absolute lymphocyte count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_monocytes_min | DOUBLE | - | - | Lowest absolute monocyte count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_monocytes_max | DOUBLE | - | - | Highest absolute monocyte count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_neutrophils_min | DOUBLE | - | - | Lowest absolute neutrophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| abs_neutrophils_max | DOUBLE | - | - | Highest absolute neutrophil count in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| atyps_min | DOUBLE | - | - | Lowest atypical lymphocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| atyps_max | DOUBLE | - | - | Highest atypical lymphocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bands_min | DOUBLE | - | - | Lowest band forms in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bands_max | DOUBLE | - | - | Highest band forms in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| imm_granulocytes_min | DOUBLE | - | - | Lowest immature granulocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| imm_granulocytes_max | DOUBLE | - | - | Highest immature granulocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| metas_min | DOUBLE | - | - | Lowest metamyelocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| metas_max | DOUBLE | - | - | Highest metamyelocytes in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| nrbc_min | DOUBLE | - | - | Lowest nucleated red cells in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| nrbc_max | DOUBLE | - | - | Highest nucleated red cells in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| d_dimer_min | DOUBLE | - | - | Lowest D-dimer in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| d_dimer_max | DOUBLE | - | - | Highest D-dimer in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| fibrinogen_min | DOUBLE | - | - | Lowest fibrinogen in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| fibrinogen_max | DOUBLE | - | - | Highest fibrinogen in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| thrombin_min | DOUBLE | - | - | Lowest thrombin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| thrombin_max | DOUBLE | - | - | Highest thrombin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| inr_min | DOUBLE | ratio | - | Lowest INR in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| inr_max | DOUBLE | ratio | - | Highest INR in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| pt_min | DOUBLE | - | - | Lowest prothrombin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| pt_max | DOUBLE | - | - | Highest prothrombin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ptt_min | DOUBLE | - | - | Lowest partial thromboplastin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ptt_max | DOUBLE | - | - | Highest partial thromboplastin time in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| alt_min | DOUBLE | - | - | Lowest alanine aminotransferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| alt_max | DOUBLE | - | - | Highest alanine aminotransferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| alp_min | DOUBLE | - | - | Lowest alkaline phosphatase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| alp_max | DOUBLE | - | - | Highest alkaline phosphatase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ast_min | DOUBLE | - | - | Lowest aspartate aminotransferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ast_max | DOUBLE | - | - | Highest aspartate aminotransferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| amylase_min | DOUBLE | - | - | Lowest amylase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| amylase_max | DOUBLE | - | - | Highest amylase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_total_min | DOUBLE | mg/dL | - | Lowest total bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_total_max | DOUBLE | mg/dL | - | Highest total bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_direct_min | DOUBLE | - | - | Lowest direct bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_direct_max | DOUBLE | - | - | Highest direct bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_indirect_min | DOUBLE | - | - | Lowest indirect bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| bilirubin_indirect_max | DOUBLE | - | - | Highest indirect bilirubin in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ck_cpk_min | DOUBLE | - | - | Lowest creatine kinase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ck_cpk_max | DOUBLE | - | - | Highest creatine kinase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ck_mb_min | DOUBLE | - | - | Lowest creatine kinase MB in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ck_mb_max | DOUBLE | - | - | Highest creatine kinase MB in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ggt_min | DOUBLE | - | - | Lowest gamma-glutamyl transferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ggt_max | DOUBLE | - | - | Highest gamma-glutamyl transferase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ld_ldh_min | DOUBLE | - | - | Lowest lactate dehydrogenase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ld_ldh_max | DOUBLE | - | - | Highest lactate dehydrogenase in the first-day window (mimic-code first_day_lab; labevents, native unit unless the EP-39 catalogue curates it). |
+| ph_min | DOUBLE | units | - | Lowest arterial pH in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| ph_max | DOUBLE | units | - | Highest arterial pH in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| lactate_min | DOUBLE | mmol/L | - | Lowest lactate in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| lactate_max | DOUBLE | mmol/L | - | Highest lactate in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| pao2fio2ratio_min | DOUBLE | - | - | Lowest PaO2/FiO2 ratio in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| pao2fio2ratio_max | DOUBLE | - | - | Highest PaO2/FiO2 ratio in the first-day window (mimic-code first_day_bg_art, arterial specimens). |
+| gcs_min | DOUBLE | points | - | Lowest Glasgow Coma Scale total in the first-day window (mimic-code first_day_gcs). |
+| urineoutput | DOUBLE | mL | - | Total urine output from ICU admission to + 24 h (mimic-code first_day_urine_output). |
+| weight_admit | DOUBLE | kg | - | Admission weight (mimic-code first_day_weight: the first charted weight). |
+| sofa | INTEGER | points | - | First-day SOFA score, 0-24 (mimic-code first_day_sofa). |
+| sofa_respiration | INTEGER | points | - | First-day SOFA respiration sub-score, 0-4. |
+| sofa_coagulation | INTEGER | points | - | First-day SOFA coagulation sub-score, 0-4. |
+| sofa_liver | INTEGER | points | - | First-day SOFA liver sub-score, 0-4. |
+| sofa_cardiovascular | INTEGER | points | - | First-day SOFA cardiovascular sub-score, 0-4. |
+| sofa_cns | INTEGER | points | - | First-day SOFA central nervous system sub-score, 0-4. |
+| sofa_renal | INTEGER | points | - | First-day SOFA renal sub-score, 0-4. |
+| charlson_comorbidity_index | INTEGER | points | - | Charlson comorbidity index of the admission (mimic-code charlson, ICD-9 and ICD-10 codes). |
+| vent_invasive_first_day | BOOLEAN | - | - | Invasive mechanical ventilation (mimic-code ventilation status InvasiveVent) overlapping the first-day window. |
+| vasopressor_first_day | BOOLEAN | - | - | A vasopressor infusion (norepinephrine, epinephrine, dopamine, phenylephrine or vasopressin) overlapping the first-day window (mimic-code vasoactive_agent). |
+| rrt_first_day | BOOLEAN | - | - | Active renal replacement therapy charted in the first-day window (mimic-code first_day_rrt dialysis_active). |
+| sepsis3 | BOOLEAN | - | - | Sepsis-3 onset within the stay (mimic-code sepsis3: suspected infection with SOFA >= 2). |
+| kdigo_max_stage_first_day | INTEGER | stage | - | Highest KDIGO AKI stage, 0-3, charted in the first-day window (mimic-code kdigo_stages aki_stage); NULL when none was charted. |

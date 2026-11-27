@@ -1,8 +1,8 @@
 {
   "schema": "mimicwarehouse.disclosure/1",
   "path": "DATA-DICTIONARY.md",
-  "sha256": "b0b5a31dcec65417ee5b2560682bfacac07e8f5b052b7659ab6797e57b6ac5e5",
-  "size": 47860,
+  "sha256": "c4dc5db76d2dac38b8e353dc95ee49431674af1d6a456c24954194bd49f20405",
+  "size": 72452,
   "k": 11,
   "passed": true,
   "checks": [
@@ -45,7 +45,7 @@
   "n_warn": 0,
   "allow_text": [],
   "reviewer": "owner",
-  "timestamp": "2026-09-07T15:46:23+00:00",
+  "timestamp": "2026-11-27T04:10:15+00:00",
   "tool_version": "0.1.0",
-  "git_sha": "b5a9bd8"
+  "git_sha": "3360d84"
 }
