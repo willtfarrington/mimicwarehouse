@@ -256,7 +256,8 @@ def launch(argv: list[str], job: str, settings: Settings | None = None) -> JobIn
 
 
 def _supervise(job_file: Path, argv: list[str]) -> int:
-    """Run the ``mwh`` child, wait, rewrite the job state file; returns the exit code."""
+    """Run the ``mwh`` child, wait, log the closing line, then rewrite the job state file
+    (in that order: a terminal state implies the log is complete); returns the exit code."""
     print(f"[job] {_now()} start argv={argv}", flush=True)
     try:
         proc = subprocess.run(
@@ -269,13 +270,16 @@ def _supervise(job_file: Path, argv: list[str]) -> int:
         print(f"[job] {_now()} spawn failed: {type(exc).__name__}: {exc}", flush=True)
         code = -1
     state: JobState = "done" if code == 0 else "failed"
+    # the closing log line goes out (flushed) before the state file turns terminal, so a
+    # reader that waits for the state and then reads the log always finds it (EP-55: the
+    # reverse order raced test_ep173's / test_ep19's log reads under load)
+    print(f"[job] {_now()} exit code={code} state={state}", flush=True)
     try:
         info = JobInfo.model_validate_json(job_file.read_text(encoding="utf-8"))
         info = info.model_copy(update={"state": state, "exit_code": code, "finished": _now()})
         _write_info(job_file, info)
     except (OSError, ValueError) as exc:
         print(f"[job] {_now()} cannot rewrite {job_file}: {exc}", flush=True)
-    print(f"[job] {_now()} exit code={code} state={state}", flush=True)
     return code
 
 
