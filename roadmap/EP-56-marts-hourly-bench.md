@@ -1,6 +1,25 @@
-# EP-56 — Latency marts B: hourly bins + <=5 s benchmark
+---
+ep: 56
+title: "Latency marts B: hourly bins ⏱"
+size: M
+model: claude-opus-5-5
+effort: max
+status: in progress
+---
 
-**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + mart registry ⏱), EP-175 (Latency marts A2: itemid rollups ⏱) · **Blocks:** EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
+# EP-56 — Latency marts B: hourly bins ⏱
+
+**Size:** M · **Tier:** fixture+dev+full · **Core/Stretch:** core · **Depends on:** EP-55 (Latency marts A: first-day features + mart registry ⏱), EP-175 (Latency marts A2: itemid rollups ⏱) · **Blocks:** EP-176 (Latency marts C: <=5 s page-query benchmark), EP-64 (Explorer A: server-side aggregation service + VegaFusion), EP-85 (Time-series & forecasting)
+
+> **Split at pickup (2026-11-27; owner decision, D-2 addendum).** Judged against M ≈ 45 min,
+> the brief came to ≈ 2–2.5 h, so the row was split before any code. Item 1 was already met:
+> EP-55 and EP-175 each verified their own full job in-session (their completion notes). This
+> brief keeps the hourly marts (items 2 and 3, with their tests in item 6). **Items 4 and 5,
+> the page-query benchmark (`marts/bench.py`, `marts/bench_queries.yaml`, `mwh bench queries`,
+> the `page_query` ledger kind, the dev and full runs), with the benchmark's tests in item 6,
+> moved to EP-176** (M, core, right after this row and before EP-57; its brief carries them).
+> The title changed from "hourly bins + <=5 s benchmark" to "hourly bins ⏱". Items below that
+> name the benchmark carry a "→ EP-176" mark; the rest stands as written.
 
 > **Amended at EP-55 (2026-11-26).** EP-55 was split at its pickup (D-2 addendum): the itemid
 > rollups (`marts.itemid_daily`, `marts.itemid_summary`) are **EP-175**, which runs between
@@ -70,7 +89,7 @@ cross-patient axis).
 
 ## In scope
 
-1. **Verify EP-55's full job** — check the job via `uv run --group dev mwh jobs --job
+1. **(Met before this session: EP-55 and EP-175 verified their own full jobs.)** **Verify EP-55's full job** — check the job via `uv run --group dev mwh jobs --job
    ep55-marts-full --tail 20` (state + INFO lines only) and the ledger via `mwh runs bench --kind
    build`; via `safe_query` compare `count(*)` of
    `marts.icustay_first_day` with `mimiciv_icu.icustays` on full and check `itemid_summary` has
@@ -97,7 +116,7 @@ cross-patient axis).
    job with log `%MWH_DATA_ROOT%\runs\jobs\ep56-hourly-full.log`; check at the end of the
    session; if unfinished, record job id/log and let EP-64 (which depends on this brief) record
    the timing in its completion note.
-4. **Benchmark harness** (`src/mimicwarehouse/marts/bench.py`, `marts/bench_queries.yaml`,
+4. **→ EP-176 (split at pickup).** **Benchmark harness** (`src/mimicwarehouse/marts/bench.py`, `marts/bench_queries.yaml`,
    `mwh bench queries --tier <t> [--repeat 3] [--target-s 5]`) — ~12 named aggregate queries
    representative of P4 pages: histogram of `heart_rate_mean` bins × `hospital_expire_flag`;
    `hourly_population` `sbp` p50 by hour ≤ 72; cross-tab `gender × era`; `itemid_summary`
@@ -111,14 +130,14 @@ cross-patient axis).
    ledger writer; prints a rich pass/fail table (never result rows); exit code 1 if any warm
    query misses the target. Also `bench.record_page_latency(page, tier, wall_s, note)`
    appending `kind:"page_latency"` — used by the app shell (EP-57) and every UI brief.
-5. **Run the bench** — dev in the foreground; full as a logged background job
+5. **→ EP-176 (split at pickup).** **Run the bench** — dev in the foreground; full as a logged background job
    (`%MWH_DATA_ROOT%\runs\jobs\ep56-bench-full.log`, minutes at most); paste the full-tier
    per-query table into the completion note. Any query > 5 s: add/adjust a pre-aggregate mart in
    this brief (dated DESIGN note) or record a risk in `roadmap/README.md` § Risks naming EP-64.
 6. **Tests** `tests/ep/test_ep56.py` (`@pytest.mark.ep_56`): fixture — `hour_bin` for crafted
    charttimes (exact-hour boundary, pre-ICU measurement dropped, cap honoured); population
    quantiles monotone (`p05 ≤ p25 ≤ p50 ≤ p75 ≤ p95`) and `n_stays` ≤ stays on the tier; every
-   hourly variable is declared in `hourly_variables`; `bench_queries.yaml` parses and every
+   hourly variable is declared in `hourly_variables`; (→ EP-176) `bench_queries.yaml` parses and every
    query executes on fixture through `safe_query` without refusal; `bench` output contains no
    data rows (capsys); dev-marked — all warm dev queries < 5 s; full-marked (opt-in) — the ledger
    holds a `page_query` record for tier `full` from this session.
@@ -136,7 +155,7 @@ cross-patient axis).
 - Full hourly build launched as a background job (log at
   `%MWH_DATA_ROOT%\runs\jobs\ep56-hourly-full.log`); job id and, if finished, counts + timing
   recorded in this brief's completion note (else EP-64 records them).
-- `uv run --group dev mwh bench queries --tier full` results table recorded; every warm query
+- (→ EP-176) `uv run --group dev mwh bench queries --tier full` results table recorded; every warm query
   ≤ 5 s or a named risk added; `runs.duckdb` `benchmarks` view shows `page_query` rows for dev
   and full.
 

@@ -18,7 +18,7 @@ latest addendum's date and EP.
 | D-n | Title (short) | State | Last addendum |
 |---|---|---|---|
 | D-1 | Tie-breaker = portfolio / employability | settled | — |
-| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44), the 2026-11-25 sweep (S ≈ 30 / M ≈ 45 min, no L), EP-55 (the first pickup split: the itemid rollups became EP-175) | 2026-11-26, EP-55 |
+| D-2 | Horizon; EP sizes S/M/L | refined at EP-33 (split-at-pickup waived once, D-44), the 2026-11-25 sweep (S ≈ 30 / M ≈ 45 min, no L), EP-55 (the first pickup split: the itemid rollups became EP-175), EP-56 (the second: the page-query benchmark became EP-176) | 2026-11-27, EP-56 |
 | D-3 | MIMIC-IV-Note = optional late track | settled | — |
 | D-4 | ED enters via the Linkage Wizard | refined at EP-33 (demo ED fetched, not staged) | 2026-08-30, EP-33 |
 | D-5 … D-14 | themes · signature depth · DL = tabular FM · ordering · brief depth · resource EPs · identity early · democratization · Python · native Windows | settled | — |
@@ -94,6 +94,21 @@ owner's split-when-in-doubt rule and hupsim's lesson that long sessions die unco
 > than cutting a row only to make it smaller. *Alternatives:* three rows (registry, first-day
 > mart, rollups), which the rule's "not cut only to make it smaller" argues against; running
 > the brief whole in one session.
+
+> **Addendum (2026-11-27, EP-56; owner decision).** The next pickup split its row too: EP-56
+> (Latency marts B, M) came to ≈ 2–2.5 h — its item 1 already met (EP-55 and EP-175 each
+> verified their own full job in-session), then three hourly marts (a stay × hour mart of 21
+> variables × five statistics over six concept tables, its dictionary, a population
+> pre-aggregate by hour × variable × era), two mart-registry extensions, wiring, a dev build
+> and a full launch, *and* a new page-query benchmark harness (a module, a query file, a CLI
+> group, a ledger kind, dev and full runs) — so before any code the benchmark (items 4–5,
+> with its share of item 6) became **EP-176** (M, core) between EP-56 and EP-57, and EP-56,
+> retitled "hourly bins ⏱", kept the hourly marts. *Why:* this addendum's rule (split at
+> pickup, never run long); the benchmark is a tool of its own that reads the marts rather
+> than building them, and one of its queries reads `marts.hourly_population`, so the cut
+> follows the work and the order. *Alternatives:* three rows (hourly mart, population +
+> dictionary, benchmark), which cuts the population table away from the mart it is computed
+> from only to make rows smaller; running the brief whole in one session.
 
 **D-3 MIMIC-IV-Note = optional late track.** Loaded into a segregated store late (P10,
 after linkage), one representative text workflow (search + concept/negation extraction +

@@ -87,3 +87,19 @@ message's line and tick its box. One message per line,
   written now and the build in its own session; the badge `Python · 3.13 · uv`, the text Roadmap
   Wrangler's stack rule gives for the workspace's files, derived from them so a pin change
   follows.
+- [x] IN-5 (from the owner, 2026-11-27) Screenshots for the site (from prime): when the row that
+  completes your v1, or your roadmap's equivalent (the phase or milestone it calls the first
+  complete version), is done, make two screenshots on hupsim's precedent: n=2, landscape PNG,
+  2698x1429 px or larger at 1.888:1 (so prime's 1280x678 thumbnails pair like hupsim's), two
+  distinct views a reader would want, each with a few-word caption and a one-sentence alt text. Show
+  the real thing if nothing on screen has a provenance, licence or privacy issue; otherwise a mock
+  or smoke build on synthetic data, never patient, credentialed or personal records or a private
+  project's name. Keep the files on this machine, untracked in a folder you name, never pushed, and
+  hand on to prime with paths, captions and alt text: the owner decides there whether they go on the
+  site (for now, public cards only). Park this in your v1-closing row's brief notes; the
+  real-or-mock call goes to the owner then.
+  **Disposition (2026-11-27, at EP-56's pickup): parked** as a brief note on **EP-163** (final
+  `final-roadmap.md` compilation + release v1.0.0 + final retro, the v1-closing row), the
+  owner's choice (recommended) over EP-162's note or a new row: a `**Brief notes.**` block
+  under the P11 table of `roadmap/README.md` carries the request in full, which EP-163's
+  launch prompt carries verbatim; the real-or-mock call goes to the owner then.
