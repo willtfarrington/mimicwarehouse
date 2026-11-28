@@ -1,0 +1,103 @@
+# marts/specs/icustay_hourly.yaml -- per ICU stay x hour bin (EP-56 item 2; ASCII only). Loaded
+# and validated by mimicwarehouse.marts.registry (pydantic). The base source is reduced by the
+# builder (marts/hourly.py, hourly_cte_sql: per concept, its rows attached to a stay and an hour
+# bin and reduced per (stay_id, hour_bin), then outer-joined over the union of the five
+# sources' keys) into cte_r; the SELECT list is generated from `columns` (each `expr` cast to its
+# `type`, in this order), and the `read` sources are the mimic-code concepts the CTE reads,
+# never joined. The family's `vars` order is the builder's VARIABLES order (a test pins the
+# pair); its `n` statistic is an INTEGER count without a unit (registry.STAT_TYPES /
+# UNITLESS_STATS). The hour cap is Settings.marts_hourly_max_hours (MWH_MARTS_HOURLY_MAX_HOURS,
+# default 336: bins 0 .. 335, the first 14 days), recorded in the mart's manifest as params.
+name: icustay_hourly
+version: 1
+grain: hour_bin
+description: >-
+  One row per ICU stay x hour bin in which at least one of 21 variables was measured: the
+  mean, min, max, count and latest value of each in the hour. hour_bin = floor(hours since
+  icu_intime), bin 0 the first hour, kept from 0 to ceil(los_icu_hours) and below the hour
+  cap (MWH_MARTS_HOURLY_MAX_HOURS, default 336 = the first 14 days). Vitals come from
+  mimic-code's vitalsign by stay_id, so charting up to the bin after outtime stays; labs come
+  from chemistry, complete_blood_count, coagulation and the arterial rows of bg, attached to
+  the stay whose [intime, outtime) contains charttime. Values are as the concepts ship them;
+  marts.hourly_variables is the dictionary. Subject-keyed: sessions read it through
+  safe_query as aggregates only.
+key: [subject_id, stay_id, hour_bin]
+partition: subject_bucket
+sort: [subject_id, stay_id, hour_bin]
+builder: mimicwarehouse.marts.hourly:run_icustay_hourly
+depends_on:
+  - stage.mimiciv_icu.icustays
+  - concept.measurement.vitalsign
+  - concept.measurement.chemistry
+  - concept.measurement.complete_blood_count
+  - concept.measurement.bg
+  - concept.measurement.coagulation
+sources:
+  - alias: r
+    relation: mimiciv_icu.icustays
+    join: base
+    cte: true
+    note: >-
+      the builder's hourly reduction: each concept's rows attached to an ICU stay and an hour
+      bin (intime, outtime), reduced per (stay_id, hour_bin), outer-joined over the union of
+      the five sources' (stay_id, hour_bin) keys
+  - alias: vs
+    relation: mimiciv_derived.vitalsign
+    join: read
+    note: >-
+      heart_rate, sbp, dbp, mbp, resp_rate, temperature (degC), spo2 and the charted glucose,
+      by stay_id; sbp / dbp / mbp are mimic-code's mean of the arterial and non-invasive
+      readings charted at one time
+  - alias: chem
+    relation: mimiciv_derived.chemistry
+    join: read
+    note: creatinine, bun, sodium, potassium, bicarbonate; by subject inside [intime, outtime)
+  - alias: cbc
+    relation: mimiciv_derived.complete_blood_count
+    join: read
+    note: hemoglobin, wbc, platelet; by subject inside [intime, outtime)
+  - alias: bg
+    relation: mimiciv_derived.bg
+    join: read
+    note: >-
+      lactate, ph, pao2 (the concept's po2), pco2 from arterial specimens only (specimen =
+      'ART.', mimic-code's first_day_bg_art filter, as EP-55's first-day blood gas); by
+      subject inside [intime, outtime)
+  - alias: coag
+    relation: mimiciv_derived.coagulation
+    join: read
+    note: inr; by subject inside [intime, outtime)
+columns:
+  # -- keys ---------------------------------------------------------------------------------
+  - {name: subject_id, type: INTEGER, expr: r.subject_id, description: "Patient identifier (key; never in a session's output)."}
+  - {name: stay_id, type: INTEGER, expr: r.stay_id, description: "ICU stay identifier (key)."}
+  - {name: subject_bucket, type: INTEGER, expr: "r.subject_id % 100", description: "subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4)."}
+  - {name: hour_bin, type: INTEGER, expr: r.hour_bin, description: "Hour index from icu_intime: floor(hours since icu_intime), [start, end) hours with bin 0 the first hour (EP-34 hour_bin grain); kept from 0 to ceil(los_icu_hours) and below the hour cap."}
+  # -- 21 variables x mean / min / max / n / last (mimic-code concept values) ----------------
+  - family: hourly
+    alias: r
+    stats: [mean, min, max, n, last]
+    type: DOUBLE
+    description: "{stat} {label} in the hour bin (values as the mimic-code concept ships them)."
+    vars:
+      - {name: heart_rate, label: heart rate, unit: bpm, concept_group: vitals.hr}
+      - {name: sbp, label: systolic blood pressure, unit: mmHg, concept_group: vitals.sbp}
+      - {name: dbp, label: diastolic blood pressure, unit: mmHg, concept_group: vitals.dbp}
+      - {name: mbp, label: mean blood pressure, unit: mmHg, concept_group: vitals.mbp}
+      - {name: resp_rate, label: respiratory rate, unit: insp/min, concept_group: vitals.rr}
+      - {name: temperature, label: temperature, unit: degC, concept_group: vitals.temperature}
+      - {name: spo2, label: SpO2, unit: "%", concept_group: vitals.spo2}
+      - {name: glucose, label: charted glucose, unit: mg/dL, concept_group: labs.glucose}
+      - {name: lactate, label: arterial lactate, unit: mmol/L, concept_group: labs.lactate}
+      - {name: creatinine, label: creatinine, unit: mg/dL, concept_group: labs.creatinine}
+      - {name: bun, label: blood urea nitrogen, unit: mg/dL, concept_group: labs.bun}
+      - {name: sodium, label: sodium, unit: mEq/L, concept_group: labs.sodium}
+      - {name: potassium, label: potassium, unit: mEq/L, concept_group: labs.potassium}
+      - {name: bicarbonate, label: bicarbonate, unit: mEq/L, concept_group: labs.bicarbonate}
+      - {name: hemoglobin, label: hemoglobin, unit: g/dL, concept_group: labs.hemoglobin}
+      - {name: wbc, label: white blood cell count, unit: K/uL, concept_group: labs.wbc}
+      - {name: platelet, label: platelet count, unit: K/uL, concept_group: labs.platelets}
+      - {name: ph, label: arterial pH, unit: units, concept_group: labs.ph}
+      - {name: pao2, label: arterial PO2 (PaO2), unit: mmHg, concept_group: labs.po2}
+      - {name: pco2, label: arterial PCO2 (PaCO2), unit: mmHg, concept_group: labs.pco2}
+      - {name: inr, label: INR, unit: ratio, concept_group: labs.inr}

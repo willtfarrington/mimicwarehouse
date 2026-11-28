@@ -1430,6 +1430,17 @@ exits 3 on refusal (`--describe` prints the contract comment column, read from
 > and any exception inside `SUPPRESSOR` is an audited refusal with sanitised text. Record:
 > D-31 and D-33 addenda; tests `test_ep175.py`.
 
+> **Note (2026-11-27, EP-56) — two more named registry tables.** `REGISTRY_TABLES` adds
+> **`marts.hourly_population`** (hour bin × hourly variable × era quantiles of the stays'
+> hourly means, released at build time: within each hour × variable the era rows pass
+> `disclose.suppress` with `era` as the group column, so the published `all` row is the
+> margin protected, and the `all` row is hidden below k; counts and statistics blanked,
+> `suppressed` / `k` recorded) and **`marts.hourly_variables`** (the hourly mart's
+> dictionary: contract text, no counts). Both are read without a count column; the 200-row
+> cap still applies, so a session filters (one variable × era is 169 rows) or aggregates.
+> `marts.icustay_hourly`, the subject-keyed mart under them, stays a gated read. Record:
+> D-33 addendum; tests `test_ep56.py`.
+
 *History:* built by EP-21, EP-30, EP-31, EP-170, EP-33 B1 (completion notes); consolidated at EP-33; SGT-5 / LGR-6 at EP-173.
 
 ## 13. Protocol freeze (D-25)
@@ -1659,7 +1670,7 @@ mimicwarehouse/                    uv project root (nested, hupsim-style)
 │   ├── protocol/                  EP-51 shipped  spec (Protocol + content_hash, the fixed texts, json_schema), registry (resolve, freeze / amend / verify, runs/protocols.jsonl + read-only copies, PROTOCOLS_COLUMNS, docs/methods/protocols.md renderer), runners (RUNNERS, cohort_only, run_protocol, protocol_summary.md), cli (`mwh protocol`), specs/tracer_mortality.yaml; + EP-128/129
 │   ├── backup.py                  EP-52 shipped  BACKUP_SET (the globs of the non-reproducible state), run_backup (hash, copy2, re-hash, backup_manifest.json, swap_dir publish), target_problem (D-29 detector + data-root / repository containment + BitLocker), verify_backup, restore_backup, list_backups / last_backup (the doctor's last_backup row), `mwh backup run | verify | restore | list`; Settings.backup_target (MWH_BACKUP_TARGET)
 │   ├── analyses/                  EP-53 shipped  the capstone modules (docs/analyses/, D-8): c01_concepts_qc (build(tier) -> run_id inside run.start(kind="report") over published aggregates only — meta.* through safe_query, the EP-42 phenotype summary helpers, the benchmark ledger, EP-45's structural slice — eleven disclose.suppress'd tables + two Altair figures under runs/<run_id>/; run_step = the analyses.c01_concepts_qc step of dag/specs/analyses.yaml; promote (CSV -> Markdown tables + figures) / promote_tracer / promote_case_study = the programmatic `mwh disclose check --write-sidecar` into docs/analyses/<NN-slug>/; load_table / md_table_frame / render_tables / render_summary / headline_numbers); later capstones (EP-73, EP-89, EP-100, EP-126, EP-135) add one module each
-│   ├── marts/                     EP-55 shipped  registry (MartSpec / MartColumn / ColumnFamily over specs/<name>.yaml, the EP-39 unit check, mart_sql = SELECT list cast to the declared types over the base table + left joins / CTEs, write_mart = one sorted file per subject_bucket under .new + swap_dir + manifest lines + manifest.json + per-tier status marts.<name> + kind: mart ledger line + marts snapshot id, register_marts = marts.<name> views + meta.mart_tables / meta.mart_columns), first_day (marts.icustay_first_day: the four windowed CTEs + the step of dag/specs/marts.yaml); + EP-175 itemid rollups, EP-56 hourly marts + bench
+│   ├── marts/                     EP-55 shipped  registry (MartSpec / MartColumn / ColumnFamily over specs/<name>.yaml, the EP-39 unit check, mart_sql = SELECT list cast to the declared types over the base table + left joins / CTEs, write_mart = one sorted file per subject_bucket under .new + swap_dir + manifest lines + manifest.json + per-tier status marts.<name> + kind: mart ledger line + marts snapshot id, register_marts = marts.<name> views + meta.mart_tables / meta.mart_columns), first_day (marts.icustay_first_day: the four windowed CTEs + the step of dag/specs/marts.yaml); + EP-175 itemid rollups; + EP-56 hourly (marts.icustay_hourly / hourly_variables / hourly_population: VARIABLES / SOURCES over five mimic-code concepts, the hour grid, the dictionary frame, the population aggregate + release, three steps); EP-176 bench
 │   ├── viz/                       EP-64+  Altair specs, Plotly timeline, export
 │   ├── stats/                     P5     endpoints, boot, glm, mixed, trajectories, pathways, utilization, tsa, exposure, missing
 │   ├── survival/  causal/         P6
@@ -1972,6 +1983,40 @@ PreToolUse hook registration) is the pre-commit enforcer.
 > query` ledger line, `marts.itemid_summary.aggregate`. Sizes: 537,715 rows / 4.8 MB on dev,
 > 11,066,671 rows / 98.4 MB in 100 files on full (15.4 s + 7.0 s step wall, peak RSS 2.8 GB):
 > the marts layer is ≈ 0.12 GB on full, inside DESIGN §3's ≤ 1–2 GB line.
+
+> **Note (2026-11-27, EP-56) — the hourly marts; names as built.** EP-56 was split at its
+> pickup (D-2 addendum): the page-query benchmark (`marts/bench.py`, `mwh bench queries`)
+> is EP-176's. `marts.hourly` adds three marts and their steps in `dag/specs/marts.yaml`:
+> **`marts.icustay_hourly`** (grain `hour_bin`, keys `subject_id, stay_id, hour_bin`,
+> partitioned by `subject_bucket`; `<var>_mean / _min / _max / _n / _last` for 21
+> variables, 109 columns), **`marts.hourly_variables`** (summary grain `variable`: the
+> dictionary of those variables, generated from the spec family, `hourly.VARIABLES` /
+> `SOURCES` and the EP-39 catalogue — each variable's curated itemids are the catalogue's
+> items of its concept group whose `source_ref` is the concept file, found in that file)
+> and **`marts.hourly_population`** (summary grain `hour_variable_era`: hour bins 0–168 ×
+> variable × era with `all`; `n_stays`, `p05` … `p95`, `mean` of the stays' hourly means;
+> released at build time, §12 note of this date). The registry gained the family
+> statistics `n` (always an INTEGER count without a unit: `STAT_TYPES` / `UNITLESS_STATS`)
+> and `last`, the summary grains `variable` / `hour_variable_era`, and `write_mart(...,
+> params=)` recorded in `manifest.json`; none changes an earlier spec's dump, so the EP-55
+> / EP-175 marts stayed current. **The grid:** `hour_bin = floor(hours since
+> icu_intime)`; the variables are read from mimic-code concepts rather than raw events —
+> `vitalsign` by `stay_id` (its `sbp` / `dbp` / `mbp` average the arterial and
+> non-invasive readings charted at one time, so the brief's "arterial preferred" is not
+> separable there), `chemistry`, `complete_blood_count`, `coagulation` and the arterial
+> rows of `bg` (`specimen = 'ART.'`, as EP-55's first-day blood gas) by subject inside
+> `[intime, outtime)`; values as the concepts ship them (no EP-39 bounds; the itemid
+> rollups apply those). A bin is kept from 0 to `ceil(los_icu_hours)` (vitals charted up
+> to the bin after `outtime` stay, restating EP-175's choice) and below
+> `Settings.marts_hourly_max_hours` (`MWH_MARTS_HOURLY_MAX_HOURS`, default 336: bins
+> 0 … 335, recorded as the manifest's `params`; a change rebuilds with `--force`); a row
+> exists only where something was measured, and `<var>_n` is 0, never NULL, where its
+> source had no row. The population step reads the published hourly mart through a
+> `marts.icustay_hourly` view on the build connection and stages its released frame as
+> Arrow (an `executemany` of 21k rows took ≈ 10 s). Sizes: 344,255 rows / 11.2 MB on dev;
+> on full 7,044,958 rows / 229.4 MB in 100 files (89.1 s step wall, peak RSS 12.9 GB), the
+> population 21,294 rows (every cell at or above k) and its aggregate 4.7 s: the marts layer
+> is ≈ 0.35 GB on full, inside DESIGN §3's ≤ 1–2 GB line.
 
 *History:* built by EP-2 … EP-6, EP-8 … EP-12, EP-17 … EP-22, EP-28 … EP-32, EP-164 … EP-171, EP-33 B4/B5/B6/B8 (completion notes); consolidated at EP-33.
 

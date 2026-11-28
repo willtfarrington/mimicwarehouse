@@ -165,8 +165,18 @@ REGISTRY_SCHEMAS: frozenset[str] = frozenset({"meta", "information_schema"})
 #: Named registry tables outside the registry schemas (``schema.table``, casefolded) —
 #: seeded for EP-47's cohort registry so it does not need a second mechanism; EP-175 adds
 #: ``marts.itemid_summary``, the variable pickers' per-itemid table, whose counts, share
-#: and quantiles are blanked below k at build time (``marts.itemid_rollups``, D-33).
-REGISTRY_TABLES: frozenset[str] = frozenset({"marts.cohorts", "marts.itemid_summary"})
+#: and quantiles are blanked below k at build time (``marts.itemid_rollups``, D-33); EP-56
+#: adds ``marts.hourly_population`` (hour x variable x era quantiles, blanked below k at
+#: build time with complementary suppression across the eras) and ``marts.hourly_variables``
+#: (the hourly mart's dictionary: contract text, no counts) -- ``marts.hourly``.
+REGISTRY_TABLES: frozenset[str] = frozenset(
+    {
+        "marts.cohorts",
+        "marts.itemid_summary",
+        "marts.hourly_population",
+        "marts.hourly_variables",
+    }
+)
 
 #: Functions refused wherever they appear (file / environment / SQL-indirection access).
 #: EP-173 (SGT-5): ``version`` / ``current_database`` / ``current_schema`` join

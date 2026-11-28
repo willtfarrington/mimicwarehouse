@@ -94,6 +94,7 @@ D-34 (permissive deps), D-35 (free vocabularies first) — see
 |---|---|---|---|
 | Time-series foundation models (Chronos / MOMENT / TimesFM) for vitals forecasting | after EP-85; GPU available | weights licenses; VRAM | v2 TS-1 |
 | darts / sktime / neural forecasters | if statsforecast/statsmodels are insufficient | dependency weight | v2 TS-2 |
+| Hourly bins over hospital-wide (non-ICU, ward) labs and GCS / urine-output hourly series — parked by EP-56 (2026-11-27); v1's `marts.icustay_hourly` bins 21 ICU variables (vitals, chemistry, blood count, arterial blood gas, INR) per ICU stay from `icu_intime` only | EP-82 / EP-85 need ward-time or neurological / renal hourly series | a ward stay has no `icu_intime` anchor (an admission-anchored grid is a second grain); GCS components and urine output are sparse, charted on their own schedules, and urine output is a volume per interval, not a level | v2 TS-3 |
 
 ## 18 Survival & event-history
 | Parked item | Trigger | Hazard / dependency | Candidate EP (v2) |

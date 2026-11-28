@@ -38,7 +38,7 @@ latest addendum's date and EP.
 | D-30 | Plain CSVs untouched | settled | — |
 | D-31 | Sessions aggregate-only via safe-query | refined at EP-33 (shipped rule set; B1 robustness, taxonomy, extreme-value policy), EP-175 (marker-named columns refused; a hook failure is an audited refusal) | 2026-11-27, EP-175 |
 | D-32 | Owner row view in-app | refined at EP-49 (the `mwh_role` session-variable gate of `stay_events`) | 2026-09-17, EP-49 |
-| D-33 | Small cells n < 11, complementary suppression | refined at EP-39, EP-41, EP-42, EP-43 (the one implementation; hook swap), EP-44, EP-45, EP-47, EP-48, EP-49, EP-50 (build-time suppression of registry tables; chain mode; released shapes), EP-54 (count-column rule; MISS-4 → EP-72), EP-175 (`marts.itemid_summary`: a k-suppressed mart in `safe.REGISTRY_TABLES`) | 2026-11-27, EP-175 |
+| D-33 | Small cells n < 11, complementary suppression | refined at EP-39, EP-41, EP-42, EP-43 (the one implementation; hook swap), EP-44, EP-45, EP-47, EP-48, EP-49, EP-50 (build-time suppression of registry tables; chain mode; released shapes), EP-54 (count-column rule; MISS-4 → EP-72), EP-175 (`marts.itemid_summary`: a k-suppressed mart in `safe.REGISTRY_TABLES`), EP-56 (`marts.hourly_population` with its `all` margin; the several-hidden-cells residual → Risk 19, EP-72) | 2026-11-27, EP-56 |
 | D-34 | MIT + `gpl` group | settled (heading restored verbatim at EP-42) | — |
 | D-35 | Vocabularies: free first | refined at EP-16 (register), EP-172 (GEM review policy) | 2026-09-16, EP-172 |
 | D-36, D-37 | future data via wizard · hupsim roadmap format | settled | — |
@@ -1290,6 +1290,32 @@ complementary suppression. *Alternatives:* suppress everywhere; n < 5; none.
 > *Alternatives:* a non-registry summary read with a count column (no picker shape: each
 > row is one itemid, so a count of rows per itemid is 1); persisting raw counts under
 > `lake/meta/<tier>/raw/` as EP-39 does (nothing reads them).
+
+> **Addendum (2026-11-27, EP-56 — a population table with a published margin; owner
+> decision on the residual).** `marts.hourly_population` (hour bins 0–168 × hourly variable
+> × era, with an `all` row: `n_stays` and the p05 … p95 and mean of the stays' hourly
+> means) is released at build time. Within each hour × variable, the era rows pass
+> `disclose.suppress` with `era` as the group column, so the published `all` row is
+> exactly the margin protected: one hidden era hides its next-smallest. The `all` row is
+> hidden below k. On a hidden row the count and the statistics are blanked, with
+> `suppressed` and `k` recorded. The statistics are released only beside counts of at least
+> k (the SGT-2 rule, D-31). The table joins `safe.REGISTRY_TABLES` beside its contract-text
+> twin `marts.hourly_variables` (no counts), and the published file passes `mwh disclose
+> check`. Measured: on full every one of the 21,294 cells clears k; on dev 4,709 of 21,268
+> are withheld. **The residual (owner decision: a roadmap Risk routed to EP-72).** The
+> primitive's complementary rule covers a margin with exactly one hidden cell. Where two or
+> more era cells are hidden, their combined count (the `all` row minus the visible eras)
+> can be below k: 12 of 3,549 groups on dev, none on full. The same holds wherever
+> `safe.SUPPRESSOR` releases a margin, so the fix goes in the primitive, not in this table:
+> a margin whose hidden cells sum to below k also hides its next-smallest published cell
+> (Risk 19; EP-72's addendum). Until it lands, nothing derived from the dev population is
+> promoted into git. *Why:* the Explorer's default trend views need the all-era row on the
+> pages' default tier (D-28). The exposure is a count of stays measured in an hour, never
+> an identifier, and is absent on full; EP-72 already owns the next `disclose` refinement
+> (Risk 17). *Alternatives:* fixing the shared rule in this session (every caller's output
+> changes, safe_query's included, with EP-43's tests reworked, outside this brief); a local
+> rule withholding the `all` row wherever an era is hidden (airtight, but the dev all-era
+> trend vanishes in every thin hour).
 
 **D-34 MIT license; permissive-only imports; GPL tools only in the optional `gpl`
 extra** (e.g. scikit-survival for one EP). *Alternatives:* Apache-2.0; allow GPL freely;

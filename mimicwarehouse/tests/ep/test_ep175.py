@@ -113,7 +113,8 @@ def _id_list(ids: list[int]) -> str:
 
 def test_packaged_specs_validate() -> None:
     reg = registry.load_registry()
-    assert reg.names == ("icustay_first_day", ir.SPEC_DAILY, ir.SPEC_SUMMARY)
+    # EP-56 adds its hourly marts beside these (the churn rule: a shipped count moved)
+    assert {"icustay_first_day", ir.SPEC_DAILY, ir.SPEC_SUMMARY} <= set(reg.names)
     daily, summary = ir.daily_spec(), ir.summary_spec()
     assert daily.grain == "icu_day" and daily.version == 1
     assert daily.key == ("subject_id", "stay_id", "itemid", "icu_day")
@@ -655,9 +656,10 @@ def test_session_lake_marts(
         assert n_stays == 0 or n_stays >= k, "nothing below k survives the build"
         measured, stays = daily.get(itemid, (0, 0))
         assert (n_measurements, n_stays) == (measured, stays), itemid
-    # the registry tables list the three marts, built and current
+    # the registry tables list the three marts, built and current (EP-56 adds three more)
     tables = con.execute(
-        "SELECT mart, built, stale, n_columns FROM meta.mart_tables ORDER BY mart"
+        "SELECT mart, built, stale, n_columns FROM meta.mart_tables "
+        "WHERE mart IN ('icustay_first_day', 'itemid_daily', 'itemid_summary') ORDER BY mart"
     ).fetchall()
     assert tables == [
         (

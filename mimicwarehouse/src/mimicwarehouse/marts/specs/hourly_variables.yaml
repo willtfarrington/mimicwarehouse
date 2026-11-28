@@ -1,0 +1,39 @@
+# marts/specs/hourly_variables.yaml -- the dictionary of marts.icustay_hourly (EP-56 item 2;
+# ASCII only). Loaded and validated by mimicwarehouse.marts.registry (pydantic). The base source
+# is the builder's frame (marts/hourly.py, variables_frame: the hourly spec's family variables,
+# their concept sources and the EP-39 catalogue's itemids), staged and read as cte_v;
+# meta.item_units names the catalogue the itemids come from (documentation: the frame is built
+# from the packaged catalogue, so the step reads nothing from the lake). Contract text only, no
+# counts: a safe.REGISTRY_TABLES member.
+name: hourly_variables
+version: 1
+grain: variable
+description: >-
+  The dictionary of marts.icustay_hourly's 21 variables, generated from its spec and the EP-39
+  catalogue: one row per variable with its label, unit, concept group, the mimic-code concept
+  and column it reads, the row filter and how a concept row reaches an ICU stay, the curated
+  itemids behind it and the statistics the hourly mart carries. Contract text only, no counts.
+key: [variable]
+sort: [ordinal]
+builder: mimicwarehouse.marts.hourly:run_hourly_variables
+sources:
+  - alias: v
+    relation: meta.item_units
+    join: base
+    cte: true
+    note: >-
+      the builder's frame: the hourly spec's family variables, their concept sources
+      (hourly.VARIABLES / SOURCES) and the EP-39 catalogue's items of each concept group whose
+      source_ref is the concept file, each found in that file
+columns:
+  - {name: ordinal, type: INTEGER, expr: v.ordinal, description: "Position of the variable in marts.icustay_hourly's column order (1 = heart_rate)."}
+  - {name: variable, type: VARCHAR, expr: v.variable, description: "Variable name: the stem of marts.icustay_hourly's <variable>_mean / _min / _max / _n / _last columns and the variable of marts.hourly_population."}
+  - {name: label, type: VARCHAR, expr: v.label, description: "Label of the variable."}
+  - {name: unit, type: VARCHAR, expr: v.unit, description: "Unit: the EP-39 canonical unit of the concept group."}
+  - {name: concept_group, type: VARCHAR, expr: v.concept_group, description: "EP-39 concept group (meta.item_units) that fixes the unit."}
+  - {name: source_concept, type: VARCHAR, expr: v.source_concept, description: "The mimic-code concept table the variable is read from (mimiciv_derived.<name>)."}
+  - {name: source_column, type: VARCHAR, expr: v.source_column, description: "The concept's column the variable is read from."}
+  - {name: row_filter, type: VARCHAR, expr: v.row_filter, description: "The filter on the concept's rows, NULL when none (bg: arterial specimens)."}
+  - {name: attach, type: VARCHAR, expr: v.attach, description: "How a concept row reaches an ICU stay: by stay_id, or by subject_id inside [intime, outtime)."}
+  - {name: itemids, type: VARCHAR, expr: v.itemids, description: "The curated itemids behind the variable, comma-separated: the EP-39 catalogue's items of its concept group whose source_ref is the concept file."}
+  - {name: stats, type: VARCHAR, expr: v.stats, description: "The statistics marts.icustay_hourly carries for the variable, in column order."}

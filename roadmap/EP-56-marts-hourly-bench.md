@@ -4,7 +4,7 @@ title: "Latency marts B: hourly bins ⏱"
 size: M
 model: claude-opus-5-5
 effort: max
-status: in progress
+status: done
 ---
 
 # EP-56 — Latency marts B: hourly bins ⏱
@@ -158,10 +158,160 @@ cross-patient axis).
 - (→ EP-176) `uv run --group dev mwh bench queries --tier full` results table recorded; every warm query
   ≤ 5 s or a named risk added; `runs.duckdb` `benchmarks` view shows `page_query` rows for dev
   and full.
+- **Residual risk.** *(Added at completion.)*
+  - **What was not checked against a reference.** The hourly values are checked for shape and
+    consistency: the crafted hour edges, the concept's valued rows reproduced on the fixture
+    lake, the population's counts matching the hourly mart, monotone quantiles. They are not
+    checked against a clinical reference. On full, the mean released medians are plausible in
+    the declared units (heart rate 84 bpm, SBP 119 mmHg, temperature 36.9 degC, lactate 1.7
+    mmol/L, creatinine 1.07 mg/dL, pH 7.39, INR 1.3). The values are mimic-code's, with that
+    code's own range filters; EP-64's Explorer and EP-85 are their first readers.
+  - **Blood pressure.** `vitalsign`'s blood pressures average the arterial and non-invasive
+    readings charted at one time, so the brief's "arterial preferred" is not what they hold. An
+    arterial-first series would read chartevents directly, through a spec version.
+  - **Several hidden cells in one published margin.** Two or more hidden era cells can have
+    their combined count backed out of the published `all` row (12 of 3,549 groups on dev,
+    none on full). This is roadmap Risk 19, routed to EP-72 by the owner.
+  - **Rebuilds.** A change of `MWH_MARTS_HOURLY_MAX_HOURS` or of a spec rebuilds only with
+    `--force` (EP-55's residual risk). The cap a mart was built with is in its manifest's
+    `params`.
 
 ## Parked → final-roadmap.md
 
 - Hourly bins over hospital-wide (non-ICU) labs and GCS/urine-output hourly series — trigger:
-  EP-82/85 need them.
+  EP-82/85 need them. (Mirrored into `final-roadmap.md` §17 at completion as v2 TS-3.)
 - Rasterised chartevents-scale views (Datashader lane, v2 UI-2) and DuckDB-WASM/Mosaic offload
-  (v2 UI-3) — trigger: Explorer needs > 10⁷ points client-side.
+  (v2 UI-3) — trigger: Explorer needs > 10⁷ points client-side. (Already in `final-roadmap.md`
+  §32 as v2 UI-2 and UI-3; nothing added.)
+
+> **Completion note (2026-11-27; claude-opus-5-5/max; ≈ 1 h 30 min, 20:59–22:30 local).**
+>
+> **Shape of the session.** The brief came to ≈ 2–2.5 h against M ≈ 45 min, so it was split
+> at pickup before any code (decision 1). The hourly marts were then built as briefed. The
+> time over M is three things: the full job, which finished and was verified in-session; the
+> population's staging cost, found and fixed on the dev build; and the margin residual, which
+> the release checks surfaced (decision 3).
+>
+> **Pickup.** `mwh doctor` 10 pass · 1 warn · 0 fail · 5 info, exit 0 (the expected
+> `antivirus` warn). AC power mode Best performance; `last_backup` pass, 1.0 day. Tree: only
+> `roadmap/inbox.md`, Roadmap Wrangler's delivery of IN-5. `main` was 3 ahead of
+> `origin/main` (EP-175's commits, unpushed). OT-1 open (the CITI renewal by 2027-01-29).
+> Item 1 was already met: EP-55 and EP-175 verified their own full jobs.
+>
+> **Owner decisions** (two rounds, the recommended option first; each took the recommended
+> option):
+>
+> 1. *The size* → **split off the benchmark.** EP-176 (M, core: `marts/bench.py`,
+>    `bench_queries.yaml`, `mwh bench queries`, the `page_query` kind, the dev and full runs)
+>    sits between EP-56 and EP-57. This row is retitled "hourly bins ⏱"; the D-2 addendum and
+>    a name-corrections row record it. Committed first, as `51cdc61`. Rejected: three rows;
+>    running the brief whole.
+> 2. *IN-5* (two site screenshots for prime once v1 is done) → **parked as EP-163's brief
+>    note**: the first `**Brief notes.**` block, under the P11 table. The real-or-mock call
+>    goes to the owner then; the triage is on the inbox line. Committed in `51cdc61`.
+>    Rejected: EP-162's note; a new S row.
+> 3. *Several hidden cells in one published margin.* The release checks showed that
+>    `disclose.suppress` complements a margin only when it holds exactly one hidden cell. On
+>    dev, 12 of 3,549 hour × variable groups have two or more hidden era cells whose combined
+>    count (below k) is the `all` row minus the visible eras; on full, none. → **a roadmap
+>    Risk routed to EP-72**: Risk 19, EP-72's addendum (the primitive gains "a margin whose
+>    hidden cells sum to below k hides its next-smallest published cell") and the D-33
+>    addendum. The table stays as built, and nothing derived from the dev population is
+>    promoted into git until the rule lands. Rejected: fixing the shared rule now (every
+>    caller's output changes); withholding the `all` row locally (the dev all-era trend
+>    vanishes in thin hours).
+>
+> **Built.**
+>
+> 1. `marts/hourly.py`:
+>    - `VARIABLES` / `SOURCES`, 21 variables from five mimic-code concepts. `vitalsign` is read
+>      by `stay_id`. `chemistry`, `complete_blood_count` and `coagulation`, and the arterial
+>      rows of `bg`, are read by subject inside `[intime, outtime)`.
+>    - `source_hourly_sql` / `hourly_cte_sql` / `hourly_sql`: one reduction per concept,
+>      outer-joined over the union of their `(stay_id, hour_bin)` keys.
+>    - `variables_frame`: each variable's curated itemids are the EP-39 catalogue's items of
+>      its concept group whose `source_ref` is the concept file, each found in that file.
+>    - `population_sql` / `compute_population` / `release_population`: `UNPIVOT` of the
+>      `<var>_mean` columns, `GROUPING SETS` for the `all` row, exact `quantile_cont`;
+>      `disclose.suppress` per hour × variable with `era` as the group column.
+>    - `stage_frame` (Arrow), `bind_population_sources`, and the three handlers.
+> 2. `marts/specs/icustay_hourly.yaml` (109 columns), `hourly_variables.yaml` (11) and
+>    `hourly_population.yaml` (12).
+> 3. `marts/registry.py`: the family statistics `n` (always INTEGER, no unit or concept
+>    group) and `last`; the summary grains `variable` and `hour_variable_era`;
+>    `write_mart(params=)` into `manifest.json`. No earlier spec's dump changes, and on dev
+>    and full the EP-55 / EP-175 marts stayed current.
+> 4. `dag/specs/marts.yaml`: the three steps and the catalog step after them.
+> 5. `safe.REGISTRY_TABLES` gains `marts.hourly_population` and `marts.hourly_variables`.
+> 6. `Settings.marts_hourly_max_hours` (`MWH_MARTS_HOURLY_MAX_HOURS`, 336) with
+>    `.env.example` parity.
+> 7. Records: the DESIGN §12 and §15 notes; the workspace README (the `marts/` and `safe.py`
+>    rows, Layout); the roadmap README (the name-corrections row, Risk 19); the D-33
+>    addendum and its status row; EP-72's addendum; `final-roadmap.md` v2 TS-3;
+>    `DATA-DICTIONARY.md` regenerated from the full catalog (31 tables, 6 marts, 652
+>    columns) with its sidecar.
+>
+> **Routine choices** (the session's call; each is reversible through a spec version or the
+> setting):
+>
+> - *Bin range.* A bin is kept from 0 to `ceil(los_icu_hours)` inclusive, as the brief
+>   writes it. Vitals charted up to the bin after `outtime` stay, which restates EP-175's
+>   choice. The cap is a count of hours: bins 0 … 335.
+> - *Blood pressure.* `sbp` / `dbp` / `mbp` are `vitalsign`'s, the mean of the arterial and
+>   non-invasive readings at one charting time. The brief's "arterial preferred" is not
+>   separable in the concept (residual risk).
+> - *Glucose and blood gas.* `glucose` is the charted one (`vitalsign`: 225664, 220621,
+>   226537), not `chemistry`'s. `lactate`, `ph`, `pao2` and `pco2` come from arterial
+>   specimens only, as EP-55's first-day blood gas does.
+> - *Values.* As the concepts ship them, with no EP-39 bounds (the itemid rollups apply
+>   those). `<var>_n` is 0, never NULL, when the source had no row in the hour; `last`
+>   breaks charttime ties by the highest value.
+> - *Keys.* `key` is `subject_id, stay_id, hour_bin`, plus the partition.
+> - *Population.* Over the stays' hourly means, one value per stay per hour; `n_stays`
+>   counts those stay-hours. A stay without a patients row would count under `unknown`.
+> - *Dictionary.* `hourly_variables` reads nothing from the lake (no layer snapshot); its
+>   base `meta.item_units` is documentation.
+> - *The population's read.* It reads the published hourly mart through a view on the build
+>   connection.
+> - *Staging.* The released frames are staged as Arrow. The first dev build's `executemany`
+>   took 17.9 s for the population step, 4.9 s after.
+> - *Full job.* Launched with `--tag marts`, the name-corrections form of the brief's
+>   `--target`, so the full catalog was rebuilt too.
+> - *Dev tests.* They read the population through aggregates, because the safe-query row
+>   cap (200) refused the whole table.
+>
+> **Churn-rule edits.** `test_ep175`'s two exact lists of the registry's marts (the specs'
+> names; `meta.mart_tables` read whole) now name its three marts.
+>
+> **Gates.**
+>
+> - `mwh verify EP-56`: 14 passed (fixture, 128 s); the two dev-marked tests passed.
+> - `mwh verify EP-175`: 18 passed (after the churn edits).
+> - `poe roadmap-check --strict`: OK (177 rows, 177 briefs, 68 done, 0 errors, 0 warnings).
+> - `mwh guard`: clean over the 21 touched files.
+> - The final `poe check` over everything committed here: ruff clean, 228 files formatted,
+>   pyright 0 errors, 1,328 passed, 65 deselected, 1 warning (the crafted torn-ledger test),
+>   1,601 s.
+>
+> **Timings:**
+>
+> | tier | build | rows (`icustay_hourly`) | files | bytes | step wall hourly / population | peak RSS (hourly step) |
+> |---|---|---:|---:|---:|---:|---:|
+> | dev | `20261128T024143-dev-51cdc61` | 344,255 | 5 | 11,167,379 | 3.0 s / 17.9 s (4.9 s with Arrow staging) | 1,479 MB |
+> | full | `20261128T024229-full-51cdc61` | 7,044,958 | 100 | 229,363,290 | 89.1 s / population aggregate 4.7 s | 12,925 MB |
+>
+> **Full ⏱ job.** `ep56-hourly-full`, pid 46324, launched 2026-11-27 21:42:27 −05:00,
+> finished 02:44:35 UTC with exit 0. Build wall 123.5 s, run `20261128T024229Z-c4cf66`, peak
+> RSS 12,925 MB, run disk delta 237.7 MB, marts/full snapshot `40720e2a…`. Log
+> `C:\mimicdata\runs\jobs\ep56-hourly-full.log`.
+>
+> - **Provenance.** The build carries `51cdc61` with a dirty tree (the uncommitted EP-56
+>   code). It staged the population through the earlier `executemany` path, which writes the
+>   same rows; the Arrow path was rebuilt and checked on dev.
+> - **Verified through `safe_query`.** 7,044,958 hourly rows, bins 0 to 335, none below 0 or
+>   past the cap. `hourly_population` has 21,294 rows, every cell at or above k: none below k,
+>   none unordered, none blanked-but-filled. All six marts are built and none is stale.
+> - **Item 3's fallback.** It was not needed: EP-64 has no timing to record.
+>
+> **Commits.** `51cdc61` (the split and IN-5), the feat commit (its hash on the roadmap row)
+> and the record commit; none pushed.

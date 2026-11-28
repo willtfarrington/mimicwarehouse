@@ -15,10 +15,21 @@
 #   marts.itemid_summary    -> lake/marts/<tier>/itemid_summary/part-0.parquet (EP-175: one
 #                              row per curated itemid, k-suppressed at build time; a
 #                              safe.REGISTRY_TABLES member).
+#   marts.icustay_hourly    -> lake/marts/<tier>/icustay_hourly/subject_bucket=NN/
+#                              part-0.parquet (EP-56: per stay x hour bin, 21 variables from
+#                              five mimic-code concepts; hour cap
+#                              Settings.marts_hourly_max_hours, in the manifest's params).
+#   marts.hourly_variables  -> lake/marts/<tier>/hourly_variables/part-0.parquet (EP-56: the
+#                              hourly mart's dictionary, from its spec and the EP-39
+#                              catalogue; reads nothing from the lake; a registry table).
+#   marts.hourly_population -> lake/marts/<tier>/hourly_population/part-0.parquet (EP-56: hour
+#                              x variable x era quantiles over the published hourly mart,
+#                              k-suppressed at build time; a safe.REGISTRY_TABLES member).
 # The target is the per-tier status key marts.<name>: a mart complete for the tier is skipped
 # (a spec change rebuilds with --force; the status entry records the spec_sha256 it was
 # built from). The full tier runs as a detached job: `mwh build --tier full --tag marts
-# --background --job <name>` (EP-55: ep55-marts-full; EP-175: ep175-rollups-full). The
+# --background --job <name>` (EP-55: ep55-marts-full; EP-175: ep175-rollups-full; EP-56:
+# ep56-hourly-full with --select marts.icustay_hourly,marts.hourly_population). The
 # units.* dependencies order a whole-DAG build only: those steps carry no target, and a
 # --tag marts build never selects them.
 version: 1
@@ -74,6 +85,34 @@ steps:
       - units.item_units
       - units.variants
       - units.dictionary
+  - name: marts.icustay_hourly
+    kind: python
+    callable: mimicwarehouse.marts.hourly:run_icustay_hourly
+    target: marts.icustay_hourly
+    tags: [marts]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - stage.mimiciv_icu.icustays
+      - concept.measurement.vitalsign
+      - concept.measurement.chemistry
+      - concept.measurement.complete_blood_count
+      - concept.measurement.bg
+      - concept.measurement.coagulation
+  - name: marts.hourly_variables
+    kind: python
+    callable: mimicwarehouse.marts.hourly:run_hourly_variables
+    target: marts.hourly_variables
+    tags: [marts]
+    tiers: [fixture, demo, dev, full]
+  - name: marts.hourly_population
+    kind: python
+    callable: mimicwarehouse.marts.hourly:run_hourly_population
+    target: marts.hourly_population
+    tags: [marts]
+    tiers: [fixture, demo, dev, full]
+    depends_on:
+      - marts.icustay_hourly
+      - stage.mimiciv_hosp.patients
   - name: catalog
     kind: catalog
     tags: [catalog, marts]
@@ -81,3 +120,6 @@ steps:
       - marts.icustay_first_day
       - marts.itemid_daily
       - marts.itemid_summary
+      - marts.icustay_hourly
+      - marts.hourly_variables
+      - marts.hourly_population

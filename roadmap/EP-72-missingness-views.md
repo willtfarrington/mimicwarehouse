@@ -22,6 +22,20 @@
 > come from `marts.cohort_<id>_v<major>` + the concept tables where EP-55's mart has not
 > shipped; `conn=` is not a `safe_query` parameter (run inside `run.start`). (4) `mwh
 > stats missing` joins EP-68's `stats` group.
+
+> **Addendum (2026-11-27, from EP-56; owner decision, Risk 19).** A second `disclose`
+> refinement joins item (2) above. `disclose.suppress`'s complementary rule complements a
+> margin only when it holds exactly one hidden cell; where two or more cells of a published
+> margin are hidden, their combined count is the margin minus the visible cells and can be
+> below k. EP-56 measured it on `marts.hourly_population`: 12 of 3,549 hour × variable groups
+> on dev (the `all` row minus the visible eras), none on full, where no cell needed
+> suppression. The rule is shared by `safe.SUPPRESSOR` and every registry table, so the fix
+> goes in the primitive: a margin whose hidden cells sum to below k also hides its
+> next-smallest published cell, until the hidden sum reaches k. Pin it with a test on
+> `hourly_population`'s shape, rebuild the registry tables it changes (their steps skip when
+> complete: `--force`), record a DESIGN §14 note and a D-33 addendum, and strike Risk 19.
+> Until then nothing derived from the dev population is promoted into git.
+
 ## Context
 
 Capability 7 (missing-data and measurement-process analysis), the descriptive/visual half:

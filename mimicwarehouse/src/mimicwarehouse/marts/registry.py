@@ -14,6 +14,11 @@ sources: relations the builder's CTEs read that the FROM clause never joins) and
 ``columns``: explicit :class:`MartColumn` entries (name, DuckDB type, unit, the EP-39
 ``concept_group`` that fixes the unit, description, source expression) and
 :class:`ColumnFamily` entries that expand ``vars x stats`` into ``<var>_<stat>`` columns.
+EP-56 adds the family statistics ``n`` (always an ``INTEGER`` count without a unit or
+``concept_group``, whatever the family's type: :data:`STAT_TYPES`, :data:`UNITLESS_STATS`)
+and ``last``, and the summary grains ``variable`` and ``hour_variable_era``
+(:data:`SUMMARY_GRAINS`) of the hourly marts' dictionary and population table; none of these
+changes an existing spec's dump, so no built mart turns stale.
 
 :func:`load_registry` validates every spec; a unit that disagrees with the canonical unit
 of its ``concept_group`` in the EP-39 catalogue (``units.py``, ``meta.item_units``) is
@@ -33,7 +38,8 @@ one sorted single-file ``COPY`` per ``subject_bucket`` (``docs/gotchas.md`` §1:
 ``<dir>.new``, published by :func:`publish.swap_dir` (an interrupted build never looks
 complete; a rebuild is idempotent). It appends one manifest line per file (schema
 ``marts``, table ``<name>``), writes ``manifest.json`` (spec and SQL hashes, the snapshot
-ids of the layers read, rows, files, run and build ids), merges the per-tier status entry
+ids of the layers read, rows, files, run and build ids, and -- since EP-56 -- the build
+``params`` a builder passes, such as the hourly mart's hour cap), merges the per-tier status entry
 ``marts.<name>`` (the EP-37 ``per_tier`` shape), appends one ``kind: mart`` benchmark line
 and stamps the marts layer snapshot id (:func:`dag.snapshot.record_snapshot_once`).
 
@@ -103,14 +109,29 @@ DUCKDB_TYPES: tuple[str, ...] = (
     "DATE",
     "TIMESTAMP",
 )
-#: The family statistics and the word each puts in a column description.
-STAT_WORDS: dict[str, str] = {"min": "Lowest", "max": "Highest", "mean": "Mean"}
+#: The family statistics and the word each puts in a column description (EP-56: ``n``,
+#: ``last``).
+STAT_WORDS: dict[str, str] = {
+    "min": "Lowest",
+    "max": "Highest",
+    "mean": "Mean",
+    "n": "Number of measurements of",
+    "last": "Latest (by charttime)",
+}
+#: Statistics whose column type is fixed whatever the family's ``type`` (a count).
+STAT_TYPES: dict[str, DuckType] = {"n": "INTEGER"}
+#: Statistics that carry no unit and no ``concept_group`` (a count of measurements).
+UNITLESS_STATS: frozenset[str] = frozenset({"n"})
 #: Join keys a source may declare (each is a column of every base table a mart uses).
 JOIN_KEYS: tuple[str, ...] = ("stay_id", "hadm_id", "subject_id")
 #: Grains of the dictionary-shaped summary marts (EP-175): one row per entry of a curated
 #: list, no patient unit of analysis, so never an EP-34 grain and never partitioned.
 SUMMARY_GRAINS: dict[str, str] = {
     "itemid": "one row per curated itemid (a summary over the tier; no patient unit)",
+    "variable": "one row per hourly variable (a dictionary; no patient unit)",
+    "hour_variable_era": (
+        "one row per hour bin x hourly variable x era (a population summary; no patient unit)"
+    ),
 }
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -120,7 +141,7 @@ _CALLABLE_RE = re.compile(r"^[a-z_][a-z0-9_.]*:[a-z_][a-z0-9_]*$")
 DuckType = Literal[
     "BOOLEAN", "SMALLINT", "INTEGER", "BIGINT", "DOUBLE", "VARCHAR", "DATE", "TIMESTAMP"
 ]
-Stat = Literal["min", "max", "mean"]
+Stat = Literal["min", "max", "mean", "n", "last"]
 
 
 class MartSpecError(ValueError):
@@ -224,15 +245,17 @@ class ColumnFamily(_Frozen):
         return self
 
     def expand(self) -> list[MartColumn]:
-        """The concrete columns, variable by variable, statistics in declared order."""
+        """The concrete columns, variable by variable, statistics in declared order (a
+        :data:`STAT_TYPES` statistic keeps its fixed type, a :data:`UNITLESS_STATS` one
+        drops the variable's unit and ``concept_group``)."""
         return [
             MartColumn(
                 name=f"{var.name}_{stat}",
-                type=self.type,
+                type=STAT_TYPES.get(stat, self.type),
                 expr=f"{self.alias}.{var.source or var.name}_{stat}",
                 description=self.description.format(stat=STAT_WORDS[stat], label=var.label),
-                unit=var.unit,
-                concept_group=var.concept_group,
+                unit=None if stat in UNITLESS_STATS else var.unit,
+                concept_group=None if stat in UNITLESS_STATS else var.concept_group,
             )
             for var in self.vars
             for stat in self.stats
@@ -637,11 +660,17 @@ def _layer_snapshot_ids(ctx: StepContext, layers: tuple[str, ...]) -> dict[str, 
 
 
 def write_mart(
-    ctx: StepContext, spec: MartSpec, sql: str, *, layers_read: tuple[str, ...] = ("core",)
+    ctx: StepContext,
+    spec: MartSpec,
+    sql: str,
+    *,
+    layers_read: tuple[str, ...] = ("core",),
+    params: Mapping[str, Any] | None = None,
 ) -> StepOutcome:
     """Materialise ``sql`` (the spec's statement) and publish the mart for the context's
-    tier (module docstring). Raises :class:`MartBuildError` on a DuckDB failure, after
-    recording the failed attempt."""
+    tier (module docstring); ``params`` (JSON values) are recorded in ``manifest.json``.
+    Raises :class:`MartBuildError` on a DuckDB failure, after recording the failed
+    attempt."""
     import duckdb
 
     from mimicwarehouse import fsio, publish
@@ -735,6 +764,8 @@ def write_mart(
         "built_at": built_at,
         "writer_version": writer_version(),
     }
+    if params is not None:
+        manifest["params"] = dict(params)
     fsio.atomic_write_text(
         new / MANIFEST_FILE, json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
@@ -1019,10 +1050,12 @@ __all__ = [
     "NUM_BUCKETS",
     "PART",
     "SPECS_DIRNAME",
+    "STAT_TYPES",
     "STAT_WORDS",
     "SUMMARY_GRAINS",
     "TABLES_COLUMNS",
     "TABLES_TABLE",
+    "UNITLESS_STATS",
     "ColumnFamily",
     "FamilyVar",
     "MartBuildError",

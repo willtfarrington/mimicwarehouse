@@ -12,8 +12,12 @@ the Lab app answers typical questions in seconds on the full tier.
   EP-55 at its pickup): ``marts.itemid_daily`` (stay x curated itemid x ICU day) and
   ``marts.itemid_summary`` (one row per curated itemid, k-suppressed at build time, a
   ``safe.REGISTRY_TABLES`` member).
+- :mod:`~mimicwarehouse.marts.hourly` -- the hourly marts (EP-56): ``marts.icustay_hourly``
+  (stay x hour bin, 21 variables from five mimic-code concepts), ``marts.hourly_variables``
+  (its dictionary) and ``marts.hourly_population`` (hour x variable x era quantiles,
+  k-suppressed at build time); the last two are ``safe.REGISTRY_TABLES`` members.
 
-The hourly marts and the page-query benchmark are EP-56's. Import budget: nothing heavy at
-package import (the CLI and the catalog builder import these modules lazily or for the
-extension only).
+The page-query benchmark (``marts/bench.py``, ``mwh bench queries``) is EP-176's, split from
+EP-56 at its pickup. Import budget: nothing heavy at package import (the CLI and the catalog
+builder import these modules lazily or for the extension only).
 """

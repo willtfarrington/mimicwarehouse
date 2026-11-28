@@ -5,11 +5,11 @@
 
 | | |
 |---|---|
-| Build id | `20261127T081928-full-99a0008` |
+| Build id | `20261128T024229-full-51cdc61` |
 | Tier | `full` |
 | Core snapshot id | `b1fc53134348f3b4ede369ed6ae27424c4988fafb45065c87a09907f7a410eca` |
 | DuckDB | 1.5.5 |
-| Catalog built at | 2026-11-27T08:19:55+00:00 |
+| Catalog built at | 2026-11-28T02:44:31+00:00 |
 
 **Caveats (MIMIC-IV de-identification; GOVERNANCE section 5, D-33).** All timestamps are date-shifted per subject: absolute dates are meaningless and `anchor_year_group` (patients) is the only calendar anchor. Patients aged 89 and over appear with `anchor_age` 91. The `dod` (date of death) horizon is roughly one year after the last hospital discharge; later deaths are not captured. All row counts and distinct counts here are aggregate metadata over a retrospective EHR extract; distinct counts under 11 are shown as `<11`. Identifier and free-text columns are flagged: `safe_query` (EP-30) and `mwh disclose check` (EP-43) refuse to return them.
 
@@ -642,6 +642,51 @@ Rows: 808,706 - Parquet: 24.8 MB (100 file(s)) - partitioned (view)
 
 Latency marts (EP-55; `marts/specs/<name>.yaml`, registered as `meta.mart_tables` / `meta.mart_columns`): per-tier Parquet under `lake/marts/<tier>/<name>/`, subject-keyed marts read through `safe_query` as aggregates only.
 
+### marts.hourly_population
+
+The population pre-aggregate of marts.icustay_hourly for hour bins 0 to 168 (the first 7 days): one row per hour bin x variable x era (the five anchor_year_group values and 'all') over every ICU stay measured in that hour, with n_stays and the p05 / p25 / p50 / p75 / p95 and mean of the stays' hourly means. Released at build time: within each hour x variable the era rows are suppressed below k with the 'all' row as their margin (a margin with one hidden era hides its next-smallest), the 'all' row below k is hidden too, and a hidden row's count and statistics are blanked (suppressed, k). The table the Explorer's default trend views read; MIMIC-IV time is relative to ICU admission and era is the only cross-patient axis.
+
+Version 1 - grain `hour_variable_era` - keys `hour_bin, variable, era` - one file
+
+Rows: 21,294 - Parquet: 0.4 MB (1 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| hour_bin | INTEGER | - | yes | Hour index from icu_intime (marts.icustay_hourly's hour_bin), 0 to 168. |
+| variable | VARCHAR | - | yes | Hourly variable (marts.hourly_variables). |
+| era | VARCHAR | - | yes | anchor_year_group of the stay's patient (the only cross-patient time axis), or 'all' for every era together. |
+| n_stays | BIGINT | - | - | ICU stays with the variable measured in the hour (one hourly mean each); blanked below k, with complementary suppression across the eras of an hour x variable. |
+| p05 | DOUBLE | - | - | 5th percentile of the stays' hourly means (exact quantile_cont); blanked with n_stays. |
+| p25 | DOUBLE | - | - | 25th percentile of the stays' hourly means; blanked with n_stays. |
+| p50 | DOUBLE | - | - | Median of the stays' hourly means; blanked with n_stays. |
+| p75 | DOUBLE | - | - | 75th percentile of the stays' hourly means; blanked with n_stays. |
+| p95 | DOUBLE | - | - | 95th percentile of the stays' hourly means; blanked with n_stays. |
+| mean | DOUBLE | - | - | Mean of the stays' hourly means; blanked with n_stays. |
+| suppressed | BOOLEAN | - | - | True when the row's count and statistics were withheld at k (D-33). |
+| k | INTEGER | - | - | The small-cell threshold the row was released at (settings.k_suppression). |
+
+### marts.hourly_variables
+
+The dictionary of marts.icustay_hourly's 21 variables, generated from its spec and the EP-39 catalogue: one row per variable with its label, unit, concept group, the mimic-code concept and column it reads, the row filter and how a concept row reaches an ICU stay, the curated itemids behind it and the statistics the hourly mart carries. Contract text only, no counts.
+
+Version 1 - grain `variable` - keys `variable` - one file
+
+Rows: 21 - Parquet: 0.0 MB (1 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| ordinal | INTEGER | - | - | Position of the variable in marts.icustay_hourly's column order (1 = heart_rate). |
+| variable | VARCHAR | - | yes | Variable name: the stem of marts.icustay_hourly's <variable>_mean / _min / _max / _n / _last columns and the variable of marts.hourly_population. |
+| label | VARCHAR | - | - | Label of the variable. |
+| unit | VARCHAR | - | - | Unit: the EP-39 canonical unit of the concept group. |
+| concept_group | VARCHAR | - | - | EP-39 concept group (meta.item_units) that fixes the unit. |
+| source_concept | VARCHAR | - | - | The mimic-code concept table the variable is read from (mimiciv_derived.<name>). |
+| source_column | VARCHAR | - | - | The concept's column the variable is read from. |
+| row_filter | VARCHAR | - | - | The filter on the concept's rows, NULL when none (bg: arterial specimens). |
+| attach | VARCHAR | - | - | How a concept row reaches an ICU stay: by stay_id, or by subject_id inside [intime, outtime). |
+| itemids | VARCHAR | - | - | The curated itemids behind the variable, comma-separated: the EP-39 catalogue's items of its concept group whose source_ref is the concept file. |
+| stats | VARCHAR | - | - | The statistics marts.icustay_hourly carries for the variable, in column order. |
+
 ### marts.icustay_first_day
 
 One row per ICU stay (mimiciv_icu.icustays): keys, demographics and admission context, durations, outcomes, and the first ICU day's vitals, labs, arterial blood gas, GCS, urine output, admission weight, SOFA, Charlson index and treatment flags, from the mimic-code concepts in mimiciv_derived. Times are relative to icu_intime; era (anchor_year_group) is the only cross-patient time axis. Subject-keyed: sessions read it through safe_query as aggregates only.
@@ -806,6 +851,126 @@ Rows: 94,458 - Parquet: 21.4 MB (100 file(s))
 | rrt_first_day | BOOLEAN | - | - | Active renal replacement therapy charted in the first-day window (mimic-code first_day_rrt dialysis_active). |
 | sepsis3 | BOOLEAN | - | - | Sepsis-3 onset within the stay (mimic-code sepsis3: suspected infection with SOFA >= 2). |
 | kdigo_max_stage_first_day | INTEGER | stage | - | Highest KDIGO AKI stage, 0-3, charted in the first-day window (mimic-code kdigo_stages aki_stage); NULL when none was charted. |
+
+### marts.icustay_hourly
+
+One row per ICU stay x hour bin in which at least one of 21 variables was measured: the mean, min, max, count and latest value of each in the hour. hour_bin = floor(hours since icu_intime), bin 0 the first hour, kept from 0 to ceil(los_icu_hours) and below the hour cap (MWH_MARTS_HOURLY_MAX_HOURS, default 336 = the first 14 days). Vitals come from mimic-code's vitalsign by stay_id, so charting up to the bin after outtime stays; labs come from chemistry, complete_blood_count, coagulation and the arterial rows of bg, attached to the stay whose [intime, outtime) contains charttime. Values are as the concepts ship them; marts.hourly_variables is the dictionary. Subject-keyed: sessions read it through safe_query as aggregates only.
+
+Version 1 - grain `hour_bin` - keys `subject_id, stay_id, hour_bin` - partitioned by `subject_bucket`
+
+Rows: 7,044,958 - Parquet: 229.4 MB (100 file(s))
+
+| column | type | unit | key | description |
+|---|---|---|---|---|
+| subject_id | INTEGER | - | yes | Patient identifier (key; never in a session's output). |
+| stay_id | INTEGER | - | yes | ICU stay identifier (key). |
+| subject_bucket | INTEGER | - | yes | subject_id % 100, the lake's Hive partition (D-18; dev = buckets 0-4). |
+| hour_bin | INTEGER | - | yes | Hour index from icu_intime: floor(hours since icu_intime), [start, end) hours with bin 0 the first hour (EP-34 hour_bin grain); kept from 0 to ceil(los_icu_hours) and below the hour cap. |
+| heart_rate_mean | DOUBLE | bpm | - | Mean heart rate in the hour bin (values as the mimic-code concept ships them). |
+| heart_rate_min | DOUBLE | bpm | - | Lowest heart rate in the hour bin (values as the mimic-code concept ships them). |
+| heart_rate_max | DOUBLE | bpm | - | Highest heart rate in the hour bin (values as the mimic-code concept ships them). |
+| heart_rate_n | INTEGER | - | - | Number of measurements of heart rate in the hour bin (values as the mimic-code concept ships them). |
+| heart_rate_last | DOUBLE | bpm | - | Latest (by charttime) heart rate in the hour bin (values as the mimic-code concept ships them). |
+| sbp_mean | DOUBLE | mmHg | - | Mean systolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| sbp_min | DOUBLE | mmHg | - | Lowest systolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| sbp_max | DOUBLE | mmHg | - | Highest systolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| sbp_n | INTEGER | - | - | Number of measurements of systolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| sbp_last | DOUBLE | mmHg | - | Latest (by charttime) systolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| dbp_mean | DOUBLE | mmHg | - | Mean diastolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| dbp_min | DOUBLE | mmHg | - | Lowest diastolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| dbp_max | DOUBLE | mmHg | - | Highest diastolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| dbp_n | INTEGER | - | - | Number of measurements of diastolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| dbp_last | DOUBLE | mmHg | - | Latest (by charttime) diastolic blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| mbp_mean | DOUBLE | mmHg | - | Mean mean blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| mbp_min | DOUBLE | mmHg | - | Lowest mean blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| mbp_max | DOUBLE | mmHg | - | Highest mean blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| mbp_n | INTEGER | - | - | Number of measurements of mean blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| mbp_last | DOUBLE | mmHg | - | Latest (by charttime) mean blood pressure in the hour bin (values as the mimic-code concept ships them). |
+| resp_rate_mean | DOUBLE | insp/min | - | Mean respiratory rate in the hour bin (values as the mimic-code concept ships them). |
+| resp_rate_min | DOUBLE | insp/min | - | Lowest respiratory rate in the hour bin (values as the mimic-code concept ships them). |
+| resp_rate_max | DOUBLE | insp/min | - | Highest respiratory rate in the hour bin (values as the mimic-code concept ships them). |
+| resp_rate_n | INTEGER | - | - | Number of measurements of respiratory rate in the hour bin (values as the mimic-code concept ships them). |
+| resp_rate_last | DOUBLE | insp/min | - | Latest (by charttime) respiratory rate in the hour bin (values as the mimic-code concept ships them). |
+| temperature_mean | DOUBLE | degC | - | Mean temperature in the hour bin (values as the mimic-code concept ships them). |
+| temperature_min | DOUBLE | degC | - | Lowest temperature in the hour bin (values as the mimic-code concept ships them). |
+| temperature_max | DOUBLE | degC | - | Highest temperature in the hour bin (values as the mimic-code concept ships them). |
+| temperature_n | INTEGER | - | - | Number of measurements of temperature in the hour bin (values as the mimic-code concept ships them). |
+| temperature_last | DOUBLE | degC | - | Latest (by charttime) temperature in the hour bin (values as the mimic-code concept ships them). |
+| spo2_mean | DOUBLE | % | - | Mean SpO2 in the hour bin (values as the mimic-code concept ships them). |
+| spo2_min | DOUBLE | % | - | Lowest SpO2 in the hour bin (values as the mimic-code concept ships them). |
+| spo2_max | DOUBLE | % | - | Highest SpO2 in the hour bin (values as the mimic-code concept ships them). |
+| spo2_n | INTEGER | - | - | Number of measurements of SpO2 in the hour bin (values as the mimic-code concept ships them). |
+| spo2_last | DOUBLE | % | - | Latest (by charttime) SpO2 in the hour bin (values as the mimic-code concept ships them). |
+| glucose_mean | DOUBLE | mg/dL | - | Mean charted glucose in the hour bin (values as the mimic-code concept ships them). |
+| glucose_min | DOUBLE | mg/dL | - | Lowest charted glucose in the hour bin (values as the mimic-code concept ships them). |
+| glucose_max | DOUBLE | mg/dL | - | Highest charted glucose in the hour bin (values as the mimic-code concept ships them). |
+| glucose_n | INTEGER | - | - | Number of measurements of charted glucose in the hour bin (values as the mimic-code concept ships them). |
+| glucose_last | DOUBLE | mg/dL | - | Latest (by charttime) charted glucose in the hour bin (values as the mimic-code concept ships them). |
+| lactate_mean | DOUBLE | mmol/L | - | Mean arterial lactate in the hour bin (values as the mimic-code concept ships them). |
+| lactate_min | DOUBLE | mmol/L | - | Lowest arterial lactate in the hour bin (values as the mimic-code concept ships them). |
+| lactate_max | DOUBLE | mmol/L | - | Highest arterial lactate in the hour bin (values as the mimic-code concept ships them). |
+| lactate_n | INTEGER | - | - | Number of measurements of arterial lactate in the hour bin (values as the mimic-code concept ships them). |
+| lactate_last | DOUBLE | mmol/L | - | Latest (by charttime) arterial lactate in the hour bin (values as the mimic-code concept ships them). |
+| creatinine_mean | DOUBLE | mg/dL | - | Mean creatinine in the hour bin (values as the mimic-code concept ships them). |
+| creatinine_min | DOUBLE | mg/dL | - | Lowest creatinine in the hour bin (values as the mimic-code concept ships them). |
+| creatinine_max | DOUBLE | mg/dL | - | Highest creatinine in the hour bin (values as the mimic-code concept ships them). |
+| creatinine_n | INTEGER | - | - | Number of measurements of creatinine in the hour bin (values as the mimic-code concept ships them). |
+| creatinine_last | DOUBLE | mg/dL | - | Latest (by charttime) creatinine in the hour bin (values as the mimic-code concept ships them). |
+| bun_mean | DOUBLE | mg/dL | - | Mean blood urea nitrogen in the hour bin (values as the mimic-code concept ships them). |
+| bun_min | DOUBLE | mg/dL | - | Lowest blood urea nitrogen in the hour bin (values as the mimic-code concept ships them). |
+| bun_max | DOUBLE | mg/dL | - | Highest blood urea nitrogen in the hour bin (values as the mimic-code concept ships them). |
+| bun_n | INTEGER | - | - | Number of measurements of blood urea nitrogen in the hour bin (values as the mimic-code concept ships them). |
+| bun_last | DOUBLE | mg/dL | - | Latest (by charttime) blood urea nitrogen in the hour bin (values as the mimic-code concept ships them). |
+| sodium_mean | DOUBLE | mEq/L | - | Mean sodium in the hour bin (values as the mimic-code concept ships them). |
+| sodium_min | DOUBLE | mEq/L | - | Lowest sodium in the hour bin (values as the mimic-code concept ships them). |
+| sodium_max | DOUBLE | mEq/L | - | Highest sodium in the hour bin (values as the mimic-code concept ships them). |
+| sodium_n | INTEGER | - | - | Number of measurements of sodium in the hour bin (values as the mimic-code concept ships them). |
+| sodium_last | DOUBLE | mEq/L | - | Latest (by charttime) sodium in the hour bin (values as the mimic-code concept ships them). |
+| potassium_mean | DOUBLE | mEq/L | - | Mean potassium in the hour bin (values as the mimic-code concept ships them). |
+| potassium_min | DOUBLE | mEq/L | - | Lowest potassium in the hour bin (values as the mimic-code concept ships them). |
+| potassium_max | DOUBLE | mEq/L | - | Highest potassium in the hour bin (values as the mimic-code concept ships them). |
+| potassium_n | INTEGER | - | - | Number of measurements of potassium in the hour bin (values as the mimic-code concept ships them). |
+| potassium_last | DOUBLE | mEq/L | - | Latest (by charttime) potassium in the hour bin (values as the mimic-code concept ships them). |
+| bicarbonate_mean | DOUBLE | mEq/L | - | Mean bicarbonate in the hour bin (values as the mimic-code concept ships them). |
+| bicarbonate_min | DOUBLE | mEq/L | - | Lowest bicarbonate in the hour bin (values as the mimic-code concept ships them). |
+| bicarbonate_max | DOUBLE | mEq/L | - | Highest bicarbonate in the hour bin (values as the mimic-code concept ships them). |
+| bicarbonate_n | INTEGER | - | - | Number of measurements of bicarbonate in the hour bin (values as the mimic-code concept ships them). |
+| bicarbonate_last | DOUBLE | mEq/L | - | Latest (by charttime) bicarbonate in the hour bin (values as the mimic-code concept ships them). |
+| hemoglobin_mean | DOUBLE | g/dL | - | Mean hemoglobin in the hour bin (values as the mimic-code concept ships them). |
+| hemoglobin_min | DOUBLE | g/dL | - | Lowest hemoglobin in the hour bin (values as the mimic-code concept ships them). |
+| hemoglobin_max | DOUBLE | g/dL | - | Highest hemoglobin in the hour bin (values as the mimic-code concept ships them). |
+| hemoglobin_n | INTEGER | - | - | Number of measurements of hemoglobin in the hour bin (values as the mimic-code concept ships them). |
+| hemoglobin_last | DOUBLE | g/dL | - | Latest (by charttime) hemoglobin in the hour bin (values as the mimic-code concept ships them). |
+| wbc_mean | DOUBLE | K/uL | - | Mean white blood cell count in the hour bin (values as the mimic-code concept ships them). |
+| wbc_min | DOUBLE | K/uL | - | Lowest white blood cell count in the hour bin (values as the mimic-code concept ships them). |
+| wbc_max | DOUBLE | K/uL | - | Highest white blood cell count in the hour bin (values as the mimic-code concept ships them). |
+| wbc_n | INTEGER | - | - | Number of measurements of white blood cell count in the hour bin (values as the mimic-code concept ships them). |
+| wbc_last | DOUBLE | K/uL | - | Latest (by charttime) white blood cell count in the hour bin (values as the mimic-code concept ships them). |
+| platelet_mean | DOUBLE | K/uL | - | Mean platelet count in the hour bin (values as the mimic-code concept ships them). |
+| platelet_min | DOUBLE | K/uL | - | Lowest platelet count in the hour bin (values as the mimic-code concept ships them). |
+| platelet_max | DOUBLE | K/uL | - | Highest platelet count in the hour bin (values as the mimic-code concept ships them). |
+| platelet_n | INTEGER | - | - | Number of measurements of platelet count in the hour bin (values as the mimic-code concept ships them). |
+| platelet_last | DOUBLE | K/uL | - | Latest (by charttime) platelet count in the hour bin (values as the mimic-code concept ships them). |
+| ph_mean | DOUBLE | units | - | Mean arterial pH in the hour bin (values as the mimic-code concept ships them). |
+| ph_min | DOUBLE | units | - | Lowest arterial pH in the hour bin (values as the mimic-code concept ships them). |
+| ph_max | DOUBLE | units | - | Highest arterial pH in the hour bin (values as the mimic-code concept ships them). |
+| ph_n | INTEGER | - | - | Number of measurements of arterial pH in the hour bin (values as the mimic-code concept ships them). |
+| ph_last | DOUBLE | units | - | Latest (by charttime) arterial pH in the hour bin (values as the mimic-code concept ships them). |
+| pao2_mean | DOUBLE | mmHg | - | Mean arterial PO2 (PaO2) in the hour bin (values as the mimic-code concept ships them). |
+| pao2_min | DOUBLE | mmHg | - | Lowest arterial PO2 (PaO2) in the hour bin (values as the mimic-code concept ships them). |
+| pao2_max | DOUBLE | mmHg | - | Highest arterial PO2 (PaO2) in the hour bin (values as the mimic-code concept ships them). |
+| pao2_n | INTEGER | - | - | Number of measurements of arterial PO2 (PaO2) in the hour bin (values as the mimic-code concept ships them). |
+| pao2_last | DOUBLE | mmHg | - | Latest (by charttime) arterial PO2 (PaO2) in the hour bin (values as the mimic-code concept ships them). |
+| pco2_mean | DOUBLE | mmHg | - | Mean arterial PCO2 (PaCO2) in the hour bin (values as the mimic-code concept ships them). |
+| pco2_min | DOUBLE | mmHg | - | Lowest arterial PCO2 (PaCO2) in the hour bin (values as the mimic-code concept ships them). |
+| pco2_max | DOUBLE | mmHg | - | Highest arterial PCO2 (PaCO2) in the hour bin (values as the mimic-code concept ships them). |
+| pco2_n | INTEGER | - | - | Number of measurements of arterial PCO2 (PaCO2) in the hour bin (values as the mimic-code concept ships them). |
+| pco2_last | DOUBLE | mmHg | - | Latest (by charttime) arterial PCO2 (PaCO2) in the hour bin (values as the mimic-code concept ships them). |
+| inr_mean | DOUBLE | ratio | - | Mean INR in the hour bin (values as the mimic-code concept ships them). |
+| inr_min | DOUBLE | ratio | - | Lowest INR in the hour bin (values as the mimic-code concept ships them). |
+| inr_max | DOUBLE | ratio | - | Highest INR in the hour bin (values as the mimic-code concept ships them). |
+| inr_n | INTEGER | - | - | Number of measurements of INR in the hour bin (values as the mimic-code concept ships them). |
+| inr_last | DOUBLE | ratio | - | Latest (by charttime) INR in the hour bin (values as the mimic-code concept ships them). |
 
 ### marts.itemid_daily
 

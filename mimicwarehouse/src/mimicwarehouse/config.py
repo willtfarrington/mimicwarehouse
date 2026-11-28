@@ -553,6 +553,13 @@ class Settings(BaseSettings):
         "local directory outside the data root and the repository; checked by `mwh backup "
         "run`, never here (a wrong value must not break every other command).",
     )
+    marts_hourly_max_hours: int = Field(
+        default=336,
+        ge=1,
+        description="Hours of an ICU stay the hourly mart covers (EP-56, "
+        "marts.icustay_hourly): hour bins 0 .. max_hours - 1, 336 = the first 14 days; "
+        "recorded in the mart's manifest, a change rebuilds with --force.",
+    )
 
     _init_fields: frozenset[str] = PrivateAttr(default=frozenset())
 

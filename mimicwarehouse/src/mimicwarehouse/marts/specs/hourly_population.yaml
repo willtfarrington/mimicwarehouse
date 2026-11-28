@@ -1,0 +1,53 @@
+# marts/specs/hourly_population.yaml -- the population pre-aggregate of marts.icustay_hourly
+# (EP-56 item 2; ASCII only). Loaded and validated by mimicwarehouse.marts.registry (pydantic).
+# The base source is the builder's released frame (marts/hourly.py: compute_population over the
+# published hourly mart, then release_population at k), staged and read as cte_p; patients is a
+# `read` source (era), never joined here. Released at build time like the other registry-shaped
+# tables (D-33): a safe.REGISTRY_TABLES member, readable without a count column.
+name: hourly_population
+version: 1
+grain: hour_variable_era
+description: >-
+  The population pre-aggregate of marts.icustay_hourly for hour bins 0 to 168 (the first 7
+  days): one row per hour bin x variable x era (the five anchor_year_group values and 'all')
+  over every ICU stay measured in that hour, with n_stays and the p05 / p25 / p50 / p75 / p95
+  and mean of the stays' hourly means. Released at build time: within each hour x variable the
+  era rows are suppressed below k with the 'all' row as their margin (a margin with one hidden
+  era hides its next-smallest), the 'all' row below k is hidden too, and a hidden row's count
+  and statistics are blanked (suppressed, k). The table the Explorer's default trend views
+  read; MIMIC-IV time is relative to ICU admission and era is the only cross-patient axis.
+key: [hour_bin, variable, era]
+sort: [hour_bin, variable, era]
+builder: mimicwarehouse.marts.hourly:run_hourly_population
+depends_on:
+  - marts.icustay_hourly
+  - stage.mimiciv_hosp.patients
+sources:
+  - alias: p
+    relation: marts.icustay_hourly
+    join: base
+    cte: true
+    note: >-
+      the builder's released frame: the published hourly mart's <variable>_mean per stay and
+      hour (hour_bin <= 168), unpivoted, grouped by hour x variable x era with GROUPING SETS
+      for the 'all' row (n_stays = count of stay-hours, one per stay; exact quantile_cont),
+      then released at k
+  - alias: pt
+    relation: mimiciv_hosp.patients
+    join: read
+    note: >-
+      anchor_year_group (era) by subject_id; a stay without a patients row would count under
+      era 'unknown'
+columns:
+  - {name: hour_bin, type: INTEGER, expr: p.hour_bin, description: "Hour index from icu_intime (marts.icustay_hourly's hour_bin), 0 to 168."}
+  - {name: variable, type: VARCHAR, expr: p.variable, description: "Hourly variable (marts.hourly_variables)."}
+  - {name: era, type: VARCHAR, expr: p.era, description: "anchor_year_group of the stay's patient (the only cross-patient time axis), or 'all' for every era together."}
+  - {name: n_stays, type: BIGINT, expr: p.n_stays, description: "ICU stays with the variable measured in the hour (one hourly mean each); blanked below k, with complementary suppression across the eras of an hour x variable."}
+  - {name: p05, type: DOUBLE, expr: p.p05, description: "5th percentile of the stays' hourly means (exact quantile_cont); blanked with n_stays."}
+  - {name: p25, type: DOUBLE, expr: p.p25, description: "25th percentile of the stays' hourly means; blanked with n_stays."}
+  - {name: p50, type: DOUBLE, expr: p.p50, description: "Median of the stays' hourly means; blanked with n_stays."}
+  - {name: p75, type: DOUBLE, expr: p.p75, description: "75th percentile of the stays' hourly means; blanked with n_stays."}
+  - {name: p95, type: DOUBLE, expr: p.p95, description: "95th percentile of the stays' hourly means; blanked with n_stays."}
+  - {name: mean, type: DOUBLE, expr: 'p."mean"', description: "Mean of the stays' hourly means; blanked with n_stays."}
+  - {name: suppressed, type: BOOLEAN, expr: p.suppressed, description: "True when the row's count and statistics were withheld at k (D-33)."}
+  - {name: k, type: INTEGER, expr: p.k, description: "The small-cell threshold the row was released at (settings.k_suppression)."}
